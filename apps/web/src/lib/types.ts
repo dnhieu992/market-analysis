@@ -72,3 +72,9 @@ export type CreateDashboardOrderInput = {
   note?: string;
   signalId?: string;
 };
+
+export type CloseDashboardOrderInput = {
+  closePrice: number;
+  note?: string;
+  closedAt?: string;
+};

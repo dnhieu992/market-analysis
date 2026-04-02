@@ -50,7 +50,10 @@ describe('TradeForm', () => {
         source: 'manual',
         exchange: null,
         signalId: null
-      })
+      }),
+      closeOrder: async () => {
+        throw new Error('not used');
+      }
     });
 
     const result = await submitManualOrder({

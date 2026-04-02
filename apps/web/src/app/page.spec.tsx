@@ -75,6 +75,9 @@ describe('HomePage', () => {
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
       createOrder: async () => {
         throw new Error('not used');
+      },
+      closeOrder: async () => {
+        throw new Error('not used');
       }
     });
   });

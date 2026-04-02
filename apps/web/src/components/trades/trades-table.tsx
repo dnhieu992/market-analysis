@@ -1,5 +1,6 @@
 import { formatDateTime, formatPrice } from '../../lib/format';
 import type { DashboardOrder } from '../../lib/types';
+import { CloseTradeForm } from './close-trade-form';
 import { TradeStatusPill } from './trade-status-pill';
 
 type TradesTableProps = Readonly<{
@@ -32,6 +33,7 @@ export function TradesTable({ orders }: TradesTableProps) {
           <span role="columnheader">Status</span>
           <span role="columnheader">Entry</span>
           <span role="columnheader">Opened</span>
+          <span role="columnheader">Actions</span>
         </div>
 
         {orders.map((order) => (
@@ -45,6 +47,9 @@ export function TradesTable({ orders }: TradesTableProps) {
             </span>
             <span role="cell">{formatPrice(order.entryPrice)}</span>
             <span role="cell">{formatDateTime(order.openedAt)}</span>
+            <span role="cell">
+              <CloseTradeForm orderId={order.id} status={order.status} />
+            </span>
           </div>
         ))}
       </div>

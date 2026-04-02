@@ -1,4 +1,5 @@
 import type {
+  CloseDashboardOrderInput,
   CreateDashboardOrderInput,
   DashboardAnalysisRun,
   DashboardHealth,
@@ -177,6 +178,21 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
       if (!response.ok) {
         throw new Error(`Request failed for ${baseUrl}/orders: ${response.status}`);
+      }
+
+      return mapOrder((await response.json()) as JsonRecord);
+    },
+    async closeOrder(orderId: string, input: CloseDashboardOrderInput): Promise<DashboardOrder> {
+      const response = await fetchImpl(`${baseUrl}/orders/${orderId}/close`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(input)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/orders/${orderId}/close: ${response.status}`);
       }
 
       return mapOrder((await response.json()) as JsonRecord);
