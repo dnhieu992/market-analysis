@@ -58,3 +58,17 @@ export type DashboardHealth = {
   service: string;
   status: string;
 };
+
+export type CreateDashboardOrderInput = {
+  symbol: string;
+  side: 'long' | 'short';
+  entryPrice: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  quantity?: number;
+  leverage?: number;
+  exchange?: string;
+  openedAt?: string;
+  note?: string;
+  signalId?: string;
+};

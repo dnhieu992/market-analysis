@@ -1,4 +1,5 @@
 import type {
+  CreateDashboardOrderInput,
   DashboardAnalysisRun,
   DashboardHealth,
   DashboardOrder,
@@ -164,6 +165,21 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     async fetchHealth(): Promise<DashboardHealth> {
       return fetchJson<DashboardHealth>(fetchImpl, `${baseUrl}/health`);
+    },
+    async createOrder(input: CreateDashboardOrderInput): Promise<DashboardOrder> {
+      const response = await fetchImpl(`${baseUrl}/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(input)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/orders: ${response.status}`);
+      }
+
+      return mapOrder((await response.json()) as JsonRecord);
     }
   };
 }

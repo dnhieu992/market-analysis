@@ -72,7 +72,10 @@ describe('HomePage', () => {
           updatedAt: new Date('2026-04-01T08:01:00.000Z')
         }
       ],
-      fetchHealth: async () => ({ service: 'api', status: 'ok' })
+      fetchHealth: async () => ({ service: 'api', status: 'ok' }),
+      createOrder: async () => {
+        throw new Error('not used');
+      }
     });
   });
 
