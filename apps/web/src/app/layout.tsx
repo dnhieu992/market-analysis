@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { AppShell } from '../components/layout/app-shell';
+import { AppShell } from '@web/widgets/app-shell/app-shell';
 import './globals.css';
 
 export const metadata: Metadata = {

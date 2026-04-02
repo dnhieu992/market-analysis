@@ -1,7 +1,8 @@
-import { formatDateTime, formatPrice } from '../../lib/format';
-import type { DashboardOrder } from '../../lib/types';
-import { CloseTradeForm } from './close-trade-form';
-import { TradeStatusPill } from './trade-status-pill';
+import { formatDateTime, formatPrice } from '@web/shared/lib/format';
+import type { DashboardOrder } from '@web/shared/api/types';
+
+import { CloseTradeForm } from '@web/features/close-trade/close-trade-form';
+import { OrderStatusPill } from '@web/entities/order/order-status-pill';
 
 type TradesTableProps = Readonly<{
   orders: DashboardOrder[];
@@ -43,7 +44,7 @@ export function TradesTable({ orders }: TradesTableProps) {
             </span>
             <span role="cell">{order.side}</span>
             <span role="cell">
-              <TradeStatusPill status={order.status} />
+              <OrderStatusPill status={order.status} />
             </span>
             <span role="cell">{formatPrice(order.entryPrice)}</span>
             <span role="cell">{formatDateTime(order.openedAt)}</span>

@@ -2,7 +2,10 @@
 
 import { useState, useTransition, type FormEvent } from 'react';
 
-import { parseCreateOrderFormData, submitManualOrder } from '../../app/trades/actions';
+import {
+  parseCreateOrderFormData,
+  submitManualOrder
+} from './create-trade.model';
 
 type TradeFormProps = Readonly<{
   onSubmitted?: () => void;

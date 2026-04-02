@@ -38,7 +38,11 @@ function NavLink({
   const isActive = currentPath === href;
 
   return (
-    <Link className={`sidebar-nav-link${isActive ? ' is-active' : ''}`} href={href} aria-current={isActive ? 'page' : undefined}>
+    <Link
+      className={`sidebar-nav-link${isActive ? ' is-active' : ''}`}
+      href={href}
+      aria-current={isActive ? 'page' : undefined}
+    >
       <span className="sidebar-nav-link-label">{label}</span>
       <span className="sidebar-nav-link-description">{description}</span>
     </Link>

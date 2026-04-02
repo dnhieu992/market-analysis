@@ -1,10 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { parseCreateOrderFormData, submitManualOrder } from '../../app/trades/actions';
-import { TradeForm } from './trade-form';
-import { createApiClient } from '../../lib/api';
+import { createApiClient } from '@web/shared/api/client';
 
-jest.mock('../../lib/api', () => ({
+import { TradeForm } from './create-trade-form';
+import { parseCreateOrderFormData, submitManualOrder } from './create-trade.model';
+
+jest.mock('@web/shared/api/client', () => ({
   createApiClient: jest.fn()
 }));
 

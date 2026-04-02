@@ -1,10 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { CloseTradeForm } from './close-trade-form';
-import { parseCloseOrderFormData, submitCloseOrder } from '../../app/trades/actions';
-import { createApiClient } from '../../lib/api';
+import { createApiClient } from '@web/shared/api/client';
 
-jest.mock('../../lib/api', () => ({
+import { CloseTradeForm } from './close-trade-form';
+import { parseCloseOrderFormData, submitCloseOrder } from './close-trade.model';
+
+jest.mock('@web/shared/api/client', () => ({
   createApiClient: jest.fn()
 }));
 
@@ -13,11 +14,7 @@ const mockedCreateApiClient = createApiClient as jest.MockedFunction<typeof crea
 describe('CloseTradeForm', () => {
   it('renders a close action for open trades', () => {
     const markup = renderToStaticMarkup(
-      <CloseTradeForm
-        orderId="order-1"
-        status="open"
-        onSubmitted={jest.fn()}
-      />
+      <CloseTradeForm orderId="order-1" status="open" onSubmitted={jest.fn()} />
     );
 
     expect(markup).toContain('Close Trade');
@@ -26,11 +23,7 @@ describe('CloseTradeForm', () => {
 
   it('hides the close action for closed trades', () => {
     const markup = renderToStaticMarkup(
-      <CloseTradeForm
-        orderId="order-1"
-        status="closed"
-        onSubmitted={jest.fn()}
-      />
+      <CloseTradeForm orderId="order-1" status="closed" onSubmitted={jest.fn()} />
     );
 
     expect(markup).not.toContain('Close Trade');

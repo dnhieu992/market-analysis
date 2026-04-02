@@ -27,12 +27,21 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "paths": {
+      "@web/pages/*": [
+        "apps/web/src/_pages/*"
+      ],
+      "@web/*": [
+        "apps/web/src/*"
+      ]
+    }
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

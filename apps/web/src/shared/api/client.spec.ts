@@ -1,5 +1,5 @@
-import { createApiClient, resolveApiBaseUrl } from './api';
-import { formatConfidence, formatDateTime, formatPrice } from './format';
+import { createApiClient, resolveApiBaseUrl } from './client';
+import { formatConfidence, formatDateTime, formatPrice } from '@web/shared/lib/format';
 
 describe('dashboard api clients', () => {
   afterEach(() => {

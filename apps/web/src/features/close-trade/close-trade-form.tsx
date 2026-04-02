@@ -2,7 +2,10 @@
 
 import { useState, useTransition, type FormEvent } from 'react';
 
-import { parseCloseOrderFormData, submitCloseOrder } from '../../app/trades/actions';
+import {
+  parseCloseOrderFormData,
+  submitCloseOrder
+} from './close-trade.model';
 
 type CloseTradeFormProps = Readonly<{
   orderId: string;

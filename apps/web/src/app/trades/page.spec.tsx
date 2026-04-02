@@ -1,9 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import TradesPage from './page';
-import { createApiClient } from '../../lib/api';
+import { createApiClient } from '@web/shared/api/client';
 
-jest.mock('../../lib/api', () => ({
+jest.mock('@web/shared/api/client', () => ({
   createApiClient: jest.fn()
 }));
 

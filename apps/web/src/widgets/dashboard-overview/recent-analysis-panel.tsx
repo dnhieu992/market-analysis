@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
-import { formatConfidence, formatDateTime } from '../../lib/format';
-import type { DashboardAnalysisRun, DashboardSignal } from '../../lib/types';
+import type { DashboardAnalysisRun, DashboardSignal } from '@web/shared/api/types';
+import { formatConfidence, formatDateTime } from '@web/shared/lib/format';
 
 type RecentAnalysisPanelProps = Readonly<{
   signals: DashboardSignal[];

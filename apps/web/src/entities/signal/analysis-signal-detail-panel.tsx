@@ -1,8 +1,10 @@
-import { formatDateTime, formatPrice } from '../../lib/format';
-import type { DashboardAnalysisRun, DashboardSignal } from '../../lib/types';
-import { ConfidenceBadge } from './confidence-badge';
+import { formatPrice } from '@web/shared/lib/format';
+import type { DashboardAnalysisRun, DashboardSignal } from '@web/shared/api/types';
 
-type AnalysisDetailPanelProps = Readonly<{
+import { ConfidenceBadge } from './confidence-badge';
+import { AnalysisRunDetails } from '@web/entities/analysis-run/analysis-run-details';
+
+type AnalysisSignalDetailPanelProps = Readonly<{
   signal?: DashboardSignal | null;
   analysisRun?: DashboardAnalysisRun | null;
 }>;
@@ -11,7 +13,10 @@ function formatLevels(levels: number[]) {
   return levels.map((level) => formatPrice(level)).join(', ');
 }
 
-export function AnalysisDetailPanel({ signal, analysisRun }: AnalysisDetailPanelProps) {
+export function AnalysisSignalDetailPanel({
+  signal,
+  analysisRun
+}: AnalysisSignalDetailPanelProps) {
   if (!signal) {
     return (
       <article className="panel analysis-detail-panel">
@@ -67,40 +72,7 @@ export function AnalysisDetailPanel({ signal, analysisRun }: AnalysisDetailPanel
 
         <section className="analysis-detail-section">
           <h3>Run View</h3>
-          {analysisRun ? (
-            <dl>
-              <div>
-                <dt>Run status</dt>
-                <dd>{analysisRun.status}</dd>
-              </div>
-              <div>
-                <dt>Candle open</dt>
-                <dd>{formatDateTime(analysisRun.candleOpenTime)}</dd>
-              </div>
-              <div>
-                <dt>Candle close</dt>
-                <dd>{formatDateTime(analysisRun.candleCloseTime)}</dd>
-              </div>
-              <div>
-                <dt>Price open</dt>
-                <dd>{formatPrice(analysisRun.priceOpen)}</dd>
-              </div>
-              <div>
-                <dt>Price high</dt>
-                <dd>{formatPrice(analysisRun.priceHigh)}</dd>
-              </div>
-              <div>
-                <dt>Price low</dt>
-                <dd>{formatPrice(analysisRun.priceLow)}</dd>
-              </div>
-              <div>
-                <dt>Price close</dt>
-                <dd>{formatPrice(analysisRun.priceClose)}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p>No analysis run was found for this signal.</p>
-          )}
+          <AnalysisRunDetails analysisRun={analysisRun} />
         </section>
       </div>
     </article>

@@ -1,5 +1,8 @@
-import { createApiClient } from '../../lib/api';
-import type { CloseDashboardOrderInput, CreateDashboardOrderInput, DashboardOrder } from '../../lib/types';
+import { createApiClient } from '@web/shared/api/client';
+import type {
+  CreateDashboardOrderInput,
+  DashboardOrder
+} from '@web/shared/api/types';
 
 type ManualOrderFormInput = {
   symbol: string;
@@ -13,12 +16,6 @@ type ManualOrderFormInput = {
   openedAt?: string;
   note?: string;
   signalId?: string;
-};
-
-type CloseOrderFormInput = {
-  closePrice: string;
-  note?: string;
-  closedAt?: string;
 };
 
 function requireText(value: FormDataEntryValue | null, fieldName: string): string {
@@ -87,28 +84,4 @@ export async function submitManualOrder(input: ManualOrderFormInput): Promise<Da
   };
 
   return client.createOrder(payload);
-}
-
-export function parseCloseOrderFormData(formData: FormData): CloseOrderFormInput {
-  const closePrice = requireText(formData.get('closePrice'), 'Close price');
-
-  return {
-    closePrice,
-    note: formData.get('note')?.toString() ?? undefined,
-    closedAt: formData.get('closedAt')?.toString() ?? undefined
-  };
-}
-
-export async function submitCloseOrder(
-  orderId: string,
-  input: CloseOrderFormInput
-): Promise<DashboardOrder> {
-  const client = createApiClient();
-  const payload: CloseDashboardOrderInput = {
-    closePrice: toNumber(input.closePrice) ?? 0,
-    note: input.note?.trim() || undefined,
-    closedAt: input.closedAt?.trim() || undefined
-  };
-
-  return client.closeOrder(orderId, payload);
 }

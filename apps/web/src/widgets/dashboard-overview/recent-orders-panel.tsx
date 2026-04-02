@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
-import { formatDateTime, formatPrice } from '../../lib/format';
-import type { DashboardOrder } from '../../lib/types';
+import type { DashboardOrder } from '@web/shared/api/types';
+import { formatDateTime, formatPrice } from '@web/shared/lib/format';
 
 type RecentOrdersPanelProps = Readonly<{
   orders: DashboardOrder[];

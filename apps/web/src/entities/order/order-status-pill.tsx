@@ -1,8 +1,8 @@
-type TradeStatusPillProps = Readonly<{
+type OrderStatusPillProps = Readonly<{
   status: string;
 }>;
 
-export function TradeStatusPill({ status }: TradeStatusPillProps) {
+export function OrderStatusPill({ status }: OrderStatusPillProps) {
   const normalizedStatus = status.toLowerCase();
   const pillClass =
     normalizedStatus === 'open'

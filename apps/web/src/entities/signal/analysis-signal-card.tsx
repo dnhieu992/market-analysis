@@ -1,10 +1,11 @@
 import Link from 'next/link';
 
-import { formatConfidence, formatDateTime, formatPrice } from '../../lib/format';
-import type { DashboardAnalysisRun, DashboardSignal } from '../../lib/types';
+import { formatConfidence, formatDateTime, formatPrice } from '@web/shared/lib/format';
+import type { DashboardAnalysisRun, DashboardSignal } from '@web/shared/api/types';
+
 import { ConfidenceBadge } from './confidence-badge';
 
-type AnalysisCardProps = Readonly<{
+type AnalysisSignalCardProps = Readonly<{
   signal: DashboardSignal;
   analysisRun?: DashboardAnalysisRun | null;
   selected?: boolean;
@@ -14,7 +15,11 @@ function formatLevels(levels: number[]) {
   return levels.map((level) => formatPrice(level)).join(', ');
 }
 
-export function AnalysisCard({ signal, analysisRun, selected = false }: AnalysisCardProps) {
+export function AnalysisSignalCard({
+  signal,
+  analysisRun,
+  selected = false
+}: AnalysisSignalCardProps) {
   const cardClass = selected ? 'analysis-card analysis-card-selected' : 'analysis-card';
 
   return (
