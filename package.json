@@ -6,6 +6,7 @@
   "scripts": {
     "dev:api": "pnpm --filter api start:dev",
     "dev:worker": "pnpm --filter worker start:dev",
+    "dev:web": "pnpm --filter web dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
