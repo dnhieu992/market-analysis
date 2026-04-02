@@ -1,6 +1,6 @@
 # Market Analysis Bot
 
-A pnpm monorepo for scheduled 4h crypto market analysis with a NestJS API, a NestJS worker, shared domain packages, Prisma persistence, Telegram delivery, and inspection endpoints for signals, analysis runs, orders, and message logs.
+A pnpm monorepo for scheduled 4h crypto market analysis with a NestJS API, a NestJS worker, a Next.js dashboard, shared domain packages, Prisma persistence, Telegram delivery, and inspection endpoints for signals, analysis runs, orders, and message logs.
 
 ## Overview
 
@@ -8,6 +8,7 @@ The project has two runnable apps:
 
 - `apps/api`: read-heavy HTTP API plus a guarded manual worker trigger
 - `apps/worker`: scheduled analysis process that fetches candles, builds indicators, asks the LLM for a structured signal, stores results, and sends Telegram messages
+- `apps/web`: dashboard UI for overview metrics, trading history, and structured analysis browsing
 
 Shared packages:
 
@@ -62,6 +63,7 @@ Copy values from `.env.example` and fill in real secrets:
 
 ```env
 DATABASE_URL="mysql://root:root@127.0.0.1:3306/market_analysis"
+NEXT_PUBLIC_API_BASE_URL="http://localhost:3000"
 OPENAI_API_KEY="your-openai-api-key"
 TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 TELEGRAM_CHAT_ID="your-telegram-chat-id"
@@ -90,6 +92,14 @@ Start the worker:
 ```bash
 pnpm dev:worker
 ```
+
+Start the dashboard:
+
+```bash
+pnpm dev:web
+```
+
+The dashboard runs on `http://localhost:3001` and uses the API at `NEXT_PUBLIC_API_BASE_URL`.
 
 Run verification:
 
@@ -141,6 +151,12 @@ curl -X POST http://localhost:3000/worker/run-analysis \
   -H "Content-Type: application/json" \
   -d '{"symbol":"BTCUSDT"}'
 ```
+
+## Dashboard Routes
+
+- `/` - overview dashboard
+- `/trades` - trading history and manual trade entry
+- `/analysis` - structured analysis feed from signals and analysis runs
 
 ## Scheduling
 
