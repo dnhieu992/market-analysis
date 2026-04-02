@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model AnalysisRun {
+  id               String            @id @default(cuid())
+  symbol           String
+  timeframe        String
+  candleOpenTime   DateTime
+  candleCloseTime  DateTime
+  priceOpen        Float
+  priceHigh        Float
+  priceLow         Float
+  priceClose       Float
+  rawIndicatorsJson String           @db.Text
+  llmInputJson     String            @db.Text
+  llmOutputJson    String            @db.Text
+  status           String
+  errorMessage     String?           @db.Text
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  signal           Signal?
+  telegramLogs     TelegramMessageLog[]
+
+  @@unique([symbol, timeframe, candleCloseTime])
+  @@index([symbol, timeframe, candleCloseTime])
+}
+
+model Signal {
+  id                   String    @id @default(cuid())
+  analysisRunId        String    @unique
+  symbol               String
+  timeframe            String
+  trend                String
+  bias                 String
+  confidence           Int
+  summary              String    @db.Text
+  supportLevelsJson    String    @db.Text
+  resistanceLevelsJson String    @db.Text
+  invalidation         String    @db.Text
+  bullishScenario      String    @db.Text
+  bearishScenario      String    @db.Text
+  createdAt            DateTime  @default(now())
+  analysisRun          AnalysisRun @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  orders               Order[]
+
+  @@index([symbol, timeframe, createdAt])
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  signalId   String?
+  source     String
+  symbol     String
+  side       String
+  entryPrice Float
+  stopLoss   Float?
+  takeProfit Float?
+  quantity   Float?
+  leverage   Float?
+  exchange   String?
+  status     String
+  openedAt   DateTime
+  closedAt   DateTime?
+  closePrice Float?
+  pnl        Float?
+  note       String?     @db.Text
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  signal     Signal?     @relation(fields: [signalId], references: [id], onDelete: SetNull)
+
+  @@index([symbol, status, openedAt])
+}
+
+model TelegramMessageLog {
+  id            String              @id @default(cuid())
+  analysisRunId String?
+  chatId        String
+  messageType   String
+  content       String              @db.Text
+  success       Boolean
+  errorMessage  String?             @db.Text
+  sentAt        DateTime
+  createdAt     DateTime            @default(now())
+  analysisRun   AnalysisRun?        @relation(fields: [analysisRunId], references: [id], onDelete: SetNull)
+}

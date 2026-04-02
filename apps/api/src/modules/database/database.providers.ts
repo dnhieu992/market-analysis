@@ -1,0 +1,36 @@
+import type { Provider } from '@nestjs/common';
+import {
+  createAnalysisRunRepository,
+  createOrderRepository,
+  createSignalRepository,
+  createTelegramMessageLogRepository,
+  prisma
+} from '@app/db';
+
+export const ANALYSIS_RUN_REPOSITORY = Symbol('ANALYSIS_RUN_REPOSITORY');
+export const SIGNAL_REPOSITORY = Symbol('SIGNAL_REPOSITORY');
+export const ORDER_REPOSITORY = Symbol('ORDER_REPOSITORY');
+export const TELEGRAM_LOG_REPOSITORY = Symbol('TELEGRAM_LOG_REPOSITORY');
+
+export const DatabaseProviders: Provider[] = [
+  {
+    provide: 'PRISMA_CLIENT',
+    useValue: prisma
+  },
+  {
+    provide: ANALYSIS_RUN_REPOSITORY,
+    useFactory: () => createAnalysisRunRepository()
+  },
+  {
+    provide: SIGNAL_REPOSITORY,
+    useFactory: () => createSignalRepository()
+  },
+  {
+    provide: ORDER_REPOSITORY,
+    useFactory: () => createOrderRepository()
+  },
+  {
+    provide: TELEGRAM_LOG_REPOSITORY,
+    useFactory: () => createTelegramMessageLogRepository()
+  }
+];
