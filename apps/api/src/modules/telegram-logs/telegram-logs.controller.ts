@@ -1,10 +1,13 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Inject, Param } from '@nestjs/common';
 
 import { TelegramLogsService } from './telegram-logs.service';
 
 @Controller('telegram-logs')
 export class TelegramLogsController {
-  constructor(private readonly telegramLogsService: TelegramLogsService) {}
+  constructor(
+    @Inject(TelegramLogsService)
+    private readonly telegramLogsService: TelegramLogsService
+  ) {}
 
   @Get()
   listTelegramLogs() {

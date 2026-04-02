@@ -2,11 +2,11 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { buildIndicatorSnapshot, formatAnalysisMessage } from '@app/core';
 import type { AnalysisTimeframe } from '@app/config';
 
-import { LlmService } from '../llm/llm.service';
-import { MarketDataService } from '../market/market-data.service';
 import { getLatestClosedCandle } from '../market/utils/candle-timing';
-import { PersistenceService } from '../persistence/persistence.service';
-import { TelegramService } from '../telegram/telegram.service';
+import type { LlmService } from '../llm/llm.service';
+import type { MarketDataService } from '../market/market-data.service';
+import type { PersistenceService } from '../persistence/persistence.service';
+import type { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class AnalysisOrchestratorService {

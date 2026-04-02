@@ -1,11 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   buildAnalysisPrompt,
   llmSignalSchema,
-  normalizeLlmSignal,
-  type IndicatorSnapshot,
-  type LlmSignal
+  normalizeLlmSignal
 } from '@app/core';
+import type { IndicatorSnapshot, LlmSignal } from '@app/core';
 
 import { OpenAiCompatibleClient } from './openai-compatible.client';
 
@@ -19,7 +18,10 @@ type AnalyzeMarketInput = {
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
 
-  constructor(private readonly openAiCompatibleClient: OpenAiCompatibleClient) {}
+  constructor(
+    @Inject(OpenAiCompatibleClient)
+    private readonly openAiCompatibleClient: OpenAiCompatibleClient
+  ) {}
 
   async analyzeMarket(input: AnalyzeMarketInput): Promise<LlmSignal> {
     const prompt = buildAnalysisPrompt(input);

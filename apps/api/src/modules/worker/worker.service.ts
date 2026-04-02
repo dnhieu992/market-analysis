@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 
-import { RunAnalysisDto } from './dto/run-analysis.dto';
+import type { RunAnalysisDto } from './dto/run-analysis.dto';
 
 type WorkerTriggerConfig = {
   enabled: boolean;

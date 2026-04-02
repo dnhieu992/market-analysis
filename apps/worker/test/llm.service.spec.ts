@@ -1,5 +1,5 @@
 import { LlmService } from '../src/modules/llm/llm.service';
-import { OpenAiCompatibleClient } from '../src/modules/llm/openai-compatible.client';
+import type { OpenAiCompatibleClient } from '../src/modules/llm/openai-compatible.client';
 
 describe('llm service', () => {
   const analysisInput = {

@@ -1,5 +1,5 @@
 import { MarketDataService } from '../src/modules/market/market-data.service';
-import { BinanceMarketDataService } from '../src/modules/market/binance-market-data.service';
+import type { BinanceMarketDataService } from '../src/modules/market/binance-market-data.service';
 
 describe('market data service', () => {
   it('maps Binance klines into internal candle objects', async () => {

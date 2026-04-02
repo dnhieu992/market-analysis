@@ -1,12 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post } from '@nestjs/common';
 
-import { CloseOrderDto } from './dto/close-order.dto';
-import { CreateOrderDto } from './dto/create-order.dto';
 import { OrdersService } from './orders.service';
+import type { CloseOrderDto } from './dto/close-order.dto';
+import type { CreateOrderDto } from './dto/create-order.dto';
 
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    @Inject(OrdersService)
+    private readonly ordersService: OrdersService
+  ) {}
 
   @Get()
   listOrders() {

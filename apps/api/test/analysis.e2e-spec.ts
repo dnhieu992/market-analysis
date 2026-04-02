@@ -1,9 +1,9 @@
-import { INestApplication } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { AppModule } from '../src/app.module';
-import { AnalysisService } from '../src/modules/analysis/analysis.service';
 import { AnalysisController } from '../src/modules/analysis/analysis.controller';
+import { AnalysisService } from '../src/modules/analysis/analysis.service';
 
 describe('analysis module', () => {
   let app: INestApplication;

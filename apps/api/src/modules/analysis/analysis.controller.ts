@@ -1,11 +1,14 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 
-import { QueryAnalysisRunsDto } from './dto/query-analysis-runs.dto';
 import { AnalysisService } from './analysis.service';
+import type { QueryAnalysisRunsDto } from './dto/query-analysis-runs.dto';
 
 @Controller('analysis-runs')
 export class AnalysisController {
-  constructor(private readonly analysisService: AnalysisService) {}
+  constructor(
+    @Inject(AnalysisService)
+    private readonly analysisService: AnalysisService
+  ) {}
 
   @Get()
   listAnalysisRuns(@Query() query: QueryAnalysisRunsDto) {

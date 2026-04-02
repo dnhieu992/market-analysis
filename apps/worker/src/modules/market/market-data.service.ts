@@ -3,7 +3,7 @@ import type { Candle } from '@app/core';
 import type { AnalysisTimeframe } from '@app/config';
 
 import type { BinanceKlineDto } from './dto/binance-kline.dto';
-import { BinanceMarketDataService } from './binance-market-data.service';
+import type { BinanceMarketDataService } from './binance-market-data.service';
 
 @Injectable()
 export class MarketDataService {

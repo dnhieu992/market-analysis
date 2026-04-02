@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 
-import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
+import type { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 
 @Injectable()
 export class SchedulerService {

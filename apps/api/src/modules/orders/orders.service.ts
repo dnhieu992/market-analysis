@@ -1,8 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { ORDER_REPOSITORY } from '../database/database.providers';
-import { CloseOrderDto } from './dto/close-order.dto';
-import { CreateOrderDto } from './dto/create-order.dto';
+import type { CloseOrderDto } from './dto/close-order.dto';
+import type { CreateOrderDto } from './dto/create-order.dto';
 
 type OrderRepository = {
   create: (data: Record<string, unknown>) => Promise<unknown>;

@@ -1,11 +1,14 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Inject, Post } from '@nestjs/common';
 
-import { RunAnalysisDto } from './dto/run-analysis.dto';
 import { WorkerService } from './worker.service';
+import type { RunAnalysisDto } from './dto/run-analysis.dto';
 
 @Controller('worker')
 export class WorkerController {
-  constructor(private readonly workerService: WorkerService) {}
+  constructor(
+    @Inject(WorkerService)
+    private readonly workerService: WorkerService
+  ) {}
 
   @Post('run-analysis')
   runAnalysis(@Body() body: RunAnalysisDto) {

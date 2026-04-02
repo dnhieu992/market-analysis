@@ -1,11 +1,14 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 
-import { QuerySignalsDto } from './dto/query-signals.dto';
 import { SignalsService } from './signals.service';
+import type { QuerySignalsDto } from './dto/query-signals.dto';
 
 @Controller('signals')
 export class SignalsController {
-  constructor(private readonly signalsService: SignalsService) {}
+  constructor(
+    @Inject(SignalsService)
+    private readonly signalsService: SignalsService
+  ) {}
 
   @Get()
   listSignals(@Query() query: QuerySignalsDto) {
