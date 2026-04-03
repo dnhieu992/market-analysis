@@ -1,5 +1,4 @@
 import { AnalysisOrchestratorService } from '../src/modules/analysis/analysis-orchestrator.service';
-import { PersistenceService } from '../src/modules/persistence/persistence.service';
 
 describe('worker full run smoke', () => {
   it('runs one full analysis cycle against mocked dependencies', async () => {
@@ -18,31 +17,8 @@ describe('worker full run smoke', () => {
         )
       } as never,
       {
-        analyzeMarket: jest.fn().mockResolvedValue({
-          trend: 'uptrend',
-          bias: 'bullish',
-          confidence: 76,
-          summary: 'Dong luc tang van duoc giu.',
-          supportLevels: [67000, 66500],
-          resistanceLevels: [68800, 69500],
-          invalidation: 'Mat 66500.',
-          bullishScenario: 'Giu tren 68800.',
-          bearishScenario: 'Bi tu choi o 69500.'
-        })
-      } as never,
-      {
         sendAnalysisMessage: jest.fn().mockResolvedValue({ success: true, messageId: 101 })
       } as never,
-      new PersistenceService(
-        {
-          create: jest.fn(async (data) => ({ id: 'run-smoke-1', ...data })),
-          findByCandle: jest.fn().mockResolvedValue(null),
-          update: jest.fn(async (id: string, data) => ({ id, ...data }))
-        } as never,
-        {
-          create: jest.fn(async (data) => ({ id: 'signal-smoke-1', ...data }))
-        } as never
-      ),
       { timeframe: '4h' }
     );
 
