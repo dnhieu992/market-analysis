@@ -128,6 +128,19 @@ Latest signals:
 curl http://localhost:3000/signals/latest
 ```
 
+Simple chat:
+
+```bash
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { "role": "system", "content": "You are a concise assistant." },
+      { "role": "user", "content": "Summarize what this app does." }
+    ]
+  }'
+```
+
 Create an order:
 
 ```bash
@@ -174,6 +187,7 @@ Duplicate analysis is blocked by:
 - No browser dashboard
 - No real queue system yet
 - Manual trigger currently returns queued metadata rather than dispatching to a separate worker process
+- Chat is stateless and backend-owned; it does not yet persist conversation history or execute DB tools
 - Runtime constructors use safe env fallbacks for test/bootstrap friendliness, while the shared config package still provides strict validation for real app config
 
 ## Future Improvements
