@@ -36,8 +36,8 @@ export class SchedulerService {
     return this.analysisOrchestratorService.runBatch(symbols);
   }
 
-  // Runs every day at 00:05 UTC (5 minutes after midnight to let the daily candle settle)
-  @Cron('5 0 * * *', { timeZone: 'UTC' })
+  // Runs every day at 00:00 UTC (07:00 local time UTC+7)
+  @Cron('0 0 * * *', { timeZone: 'UTC' })
   async sendDailySignals() {
     this.logger.log('Running daily signal job');
 
