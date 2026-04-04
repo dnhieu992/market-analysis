@@ -4,7 +4,7 @@ import { resolve } from 'path';
 
 // Load env vars before the app context is created.
 // Note: TS imports are hoisted — dotenv must be called before NestFactory.createApplicationContext, not before imports.
-config({ path: resolve(__dirname, '../.env') });
+config({ path: resolve(process.cwd(), '.env') });
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
