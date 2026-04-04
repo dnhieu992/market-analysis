@@ -12,13 +12,8 @@ describe('telegram service', () => {
         }
       })
     };
-    const logRepository = {
-      create: jest.fn().mockResolvedValue({ id: 'log-1' })
-    };
-
     const service = new TelegramService(
       httpClient as never,
-      logRepository as never,
       { botToken: 'bot-token', chatId: 'chat-id' }
     );
 
@@ -36,29 +31,14 @@ describe('telegram service', () => {
         text: 'Tin nhan phan tich'
       })
     );
-    expect(logRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        analysisRunId: 'run-1',
-        chatId: 'chat-id',
-        messageType: 'analysis',
-        content: 'Tin nhan phan tich',
-        success: true,
-        sentAt: expect.any(Date)
-      })
-    );
   });
 
   it('does not throw when logging a failed delivery also fails', async () => {
     const httpClient = {
       post: jest.fn().mockRejectedValue(new Error('telegram down'))
     };
-    const logRepository = {
-      create: jest.fn().mockRejectedValue(new Error('db unavailable'))
-    };
-
     const service = new TelegramService(
       httpClient as never,
-      logRepository as never,
       { botToken: 'bot-token', chatId: 'chat-id' }
     );
 

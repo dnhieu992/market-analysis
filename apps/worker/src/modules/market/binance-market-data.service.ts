@@ -4,6 +4,11 @@ import type { AnalysisTimeframe } from '@app/config';
 
 import type { BinanceKlineDto } from './dto/binance-kline.dto';
 
+const BINANCE_INTERVAL: Record<string, string> = {
+  '4h': '4h',
+  'M30': '30m'
+};
+
 type BinanceKlineParams = {
   symbol: string;
   timeframe: AnalysisTimeframe;
@@ -20,6 +25,14 @@ export class BinanceMarketDataService {
     this.client = client ?? axios.create({ baseURL: baseUrl, timeout: 10_000 });
   }
 
+  async fetchPrice(symbol: string): Promise<number> {
+    const response = await this.client.get<{ price: string }>('/api/v3/ticker/price', {
+      params: { symbol }
+    });
+
+    return parseFloat(response.data.price);
+  }
+
   async fetchKlines({
     symbol,
     timeframe,
@@ -28,7 +41,7 @@ export class BinanceMarketDataService {
     const response = await this.client.get<BinanceKlineDto[]>('/api/v3/klines', {
       params: {
         symbol,
-        interval: timeframe,
+        interval: BINANCE_INTERVAL[timeframe] ?? timeframe,
         limit
       }
     });

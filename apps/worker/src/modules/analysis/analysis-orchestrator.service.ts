@@ -2,8 +2,8 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { AnalysisTimeframe } from '@app/config';
 
 import { getLatestClosedCandle, deriveCandleProcessingKey } from '../market/utils/candle-timing';
-import type { MarketDataService } from '../market/market-data.service';
-import type { TelegramService } from '../telegram/telegram.service';
+import { MarketDataService } from '../market/market-data.service';
+import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class AnalysisOrchestratorService {

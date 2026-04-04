@@ -1,8 +1,8 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
-import { createTelegramMessageLogRepository } from '@app/db';
+// import { createTelegramMessageLogRepository } from '@app/db'; // TODO: re-enable when DB is ready
 
-type TelegramLogRepository = ReturnType<typeof createTelegramMessageLogRepository>;
+// type TelegramLogRepository = ReturnType<typeof createTelegramMessageLogRepository>;
 
 type TelegramConfig = {
   botToken: string;
@@ -26,12 +26,10 @@ type TelegramSendResponse = {
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
   private readonly httpClient: AxiosInstance;
-  private readonly logRepository: TelegramLogRepository;
   private readonly config: TelegramConfig;
 
   constructor(
     @Optional() httpClient?: AxiosInstance,
-    @Optional() logRepository?: TelegramLogRepository,
     @Optional() config?: TelegramConfig
   ) {
     const resolvedConfig = config ?? {
@@ -45,7 +43,6 @@ export class TelegramService {
         baseURL: 'https://api.telegram.org',
         timeout: 10_000
       });
-    this.logRepository = logRepository ?? createTelegramMessageLogRepository();
     this.config = resolvedConfig;
   }
 
@@ -61,12 +58,12 @@ export class TelegramService {
 
       const messageId = response.data.result?.message_id;
 
-      await this.recordMessageLog({
-        analysisRunId: input.analysisRunId,
-        messageType: input.messageType,
-        content: input.content,
-        success: true
-      });
+      // await this.recordMessageLog({
+      //   analysisRunId: input.analysisRunId,
+      //   messageType: input.messageType,
+      //   content: input.content,
+      //   success: true
+      // });
 
       return {
         success: true,
@@ -75,13 +72,13 @@ export class TelegramService {
     } catch (error) {
       this.logger.warn('Telegram delivery failed');
 
-      await this.recordMessageLog({
-        analysisRunId: input.analysisRunId,
-        messageType: input.messageType,
-        content: input.content,
-        success: false,
-        errorMessage: error instanceof Error ? error.message : 'Unknown Telegram error'
-      });
+      // await this.recordMessageLog({
+      //   analysisRunId: input.analysisRunId,
+      //   messageType: input.messageType,
+      //   content: input.content,
+      //   success: false,
+      //   errorMessage: error instanceof Error ? error.message : 'Unknown Telegram error'
+      // });
 
       return {
         success: false
@@ -89,27 +86,27 @@ export class TelegramService {
     }
   }
 
-  private async recordMessageLog(input: {
-    analysisRunId?: string;
-    messageType: string;
-    content: string;
-    success: boolean;
-    errorMessage?: string;
-  }): Promise<void> {
-    try {
-      await this.logRepository.create({
-        analysisRunId: input.analysisRunId,
-        chatId: this.config.chatId,
-        messageType: input.messageType,
-        content: input.content,
-        success: input.success,
-        errorMessage: input.errorMessage,
-        sentAt: new Date()
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Failed to record Telegram message log: ${error instanceof Error ? error.message : 'unknown error'}`
-      );
-    }
-  }
+  // private async recordMessageLog(input: {
+  //   analysisRunId?: string;
+  //   messageType: string;
+  //   content: string;
+  //   success: boolean;
+  //   errorMessage?: string;
+  // }): Promise<void> {
+  //   try {
+  //     await this.logRepository.create({
+  //       analysisRunId: input.analysisRunId,
+  //       chatId: this.config.chatId,
+  //       messageType: input.messageType,
+  //       content: input.content,
+  //       success: input.success,
+  //       errorMessage: input.errorMessage,
+  //       sentAt: new Date()
+  //     });
+  //   } catch (error) {
+  //     this.logger.warn(
+  //       `Failed to record Telegram message log: ${error instanceof Error ? error.message : 'unknown error'}`
+  //     );
+  //   }
+  // }
 }
