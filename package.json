@@ -11,8 +11,9 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "prisma:generate": "pnpm --filter @app/db prisma generate",
-    "prisma:migrate": "pnpm --filter @app/db prisma migrate dev"
+    "prisma:generate": "pnpm --filter @app/db exec prisma generate",
+    "prisma:migrate": "pnpm --filter @app/db exec prisma migrate dev",
+    "deploy:worker": "pnpm prisma:generate && pnpm -r build"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
