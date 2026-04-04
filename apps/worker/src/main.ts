@@ -23,12 +23,14 @@ async function bootstrap() {
   const scheduler = app.get(SchedulerService);
   scheduler.register();
 
+  const telegram = app.get(TelegramService);
+  await telegram.sendAnalysisMessage({ content: `🚀 Worker started`, messageType: 'startup' });
+
   try {
     const binance = app.get(BinanceMarketDataService);
     const price = await binance.fetchPrice('BTCUSDT');
     const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    const telegram = app.get(TelegramService);
     await telegram.sendAnalysisMessage({ content: `BTC current price: ${fmt(price)} USDT`, messageType: 'test' });
 
     const sonicR = app.get(SonicRSignalService);
