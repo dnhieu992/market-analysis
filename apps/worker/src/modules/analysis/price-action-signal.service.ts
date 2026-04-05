@@ -94,7 +94,10 @@ function detectBos(candles: Candle[], atr: number, trend: 'bullish' | 'bearish')
       const prev = lookback[i - 1]!;
       const curr = lookback[i]!;
       const next = lookback[i + 1]!;
-      if (curr.high > prev.high && curr.high > next.high) { bosLevel = curr.high; break; }
+      if (curr.high > prev.high && curr.high > next.high) {
+        bosLevel = curr.high;
+        break;
+      }
     }
     if (bosLevel === null) return null;
     if (!recent.some((c) => c.high > bosLevel!)) return null;
@@ -107,7 +110,10 @@ function detectBos(candles: Candle[], atr: number, trend: 'bullish' | 'bearish')
       const prev = lookback[i - 1]!;
       const curr = lookback[i]!;
       const next = lookback[i + 1]!;
-      if (curr.low < prev.low && curr.low < next.low) { bosLevel = curr.low; break; }
+      if (curr.low < prev.low && curr.low < next.low) {
+        bosLevel = curr.low;
+        break;
+      }
     }
     if (bosLevel === null) return null;
     if (!recent.some((c) => c.low < bosLevel!)) return null;
@@ -135,7 +141,17 @@ export class PriceActionSignalService {
     const trend = detectTrend(h4Candles);
 
     if (trend === 'neutral') {
-      return { symbol, timeframe: 'M30', direction: 'NO_SIGNAL', close, atr, trend, keyLevel: null, pattern: null, bosLevel: null };
+      return {
+        symbol,
+        timeframe: 'M30',
+        direction: 'NO_SIGNAL',
+        close,
+        atr,
+        trend,
+        keyLevel: null,
+        pattern: null,
+        bosLevel: null
+      };
     }
 
     const keyLevel = findActiveKeyLevel(m30Candles, close, atr, trend);
@@ -152,10 +168,23 @@ export class PriceActionSignalService {
       return { symbol, timeframe: 'M30', direction: 'NO_SIGNAL', close, atr, trend, keyLevel, pattern, bosLevel };
     }
 
+
     const direction = trend === 'bullish' ? 'BUY' : 'SELL';
     const stopLoss = keyLevel;
     const target = direction === 'BUY' ? Number((close + 2 * atr).toFixed(2)) : Number((close - 2 * atr).toFixed(2));
 
-    return { symbol, timeframe: 'M30', direction, close, atr, trend, keyLevel, pattern, bosLevel, stopLoss, target };
+    return {
+      symbol,
+      timeframe: 'M30',
+      direction,
+      close,
+      atr,
+      trend,
+      keyLevel,
+      pattern,
+      bosLevel,
+      stopLoss,
+      target
+    };
   }
 }
