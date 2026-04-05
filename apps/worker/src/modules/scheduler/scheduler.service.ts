@@ -60,12 +60,14 @@ export class SchedulerService {
           messageType: 'price-action-signal'
         });
 
-        const { result } = await this.dailyAnalysisService.analyzeAndSave(symbol);
+        const { skipped, result } = await this.dailyAnalysisService.analyzeAndSave(symbol);
 
-        await this.telegramService.sendAnalysisMessage({
-          content: result.summary,
-          messageType: 'daily-plan'
-        });
+        if (!skipped) {
+          await this.telegramService.sendAnalysisMessage({
+            content: result.summary,
+            messageType: 'daily-plan'
+          });
+        }
 
         this.logger.log(`Daily signals sent for ${symbol}`);
       } catch (error) {
