@@ -6,6 +6,7 @@ import { PriceActionSignalService } from '../analysis/price-action-signal.servic
 import { formatSonicRMessage } from '../analysis/sonic-r-signal.formatter';
 import { SonicRSignalService } from '../analysis/sonic-r-signal.service';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
+import { DailyAnalysisService } from '../analysis/daily-analysis.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class SchedulerService {
     private readonly analysisOrchestratorService: AnalysisOrchestratorService,
     private readonly sonicRSignalService: SonicRSignalService,
     private readonly priceActionSignalService: PriceActionSignalService,
+    private readonly dailyAnalysisService: DailyAnalysisService,
     private readonly telegramService: TelegramService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
@@ -56,6 +58,13 @@ export class SchedulerService {
         await this.telegramService.sendAnalysisMessage({
           content: formatPriceActionMessage(paSignal),
           messageType: 'price-action-signal'
+        });
+
+        const { result } = await this.dailyAnalysisService.analyzeAndSave(symbol);
+
+        await this.telegramService.sendAnalysisMessage({
+          content: result.summary,
+          messageType: 'daily-plan'
         });
 
         this.logger.log(`Daily signals sent for ${symbol}`);
