@@ -31,3 +31,17 @@ export function createTelegramMessageLogRepository() {
     }
   };
 }
+
+export function createDailyAnalysisRepository() {
+  return {
+    async create(data: unknown) {
+      return data;
+    },
+    async findByDate(_symbol: string, _date: Date) {
+      return null;
+    },
+    async listLatest(_symbol: string) {
+      return [];
+    }
+  };
+}
