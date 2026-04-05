@@ -70,7 +70,7 @@ describe('PriceActionSignalService', () => {
     const signal = await service.getSignal('BTCUSDT');
 
     expect(signal.direction).toBe('NO_SIGNAL');
-    expect(signal.trend).toBe('NEUTRAL');
+    expect(signal.trend).toBe('neutral');
     expect(signal.stopLoss).toBeUndefined();
     expect(signal.target).toBeUndefined();
   });
@@ -109,7 +109,7 @@ describe('PriceActionSignalService', () => {
     const signal = await service.getSignal('BTCUSDT');
 
     expect(signal.direction).toBe('NO_SIGNAL');
-    expect(signal.trend).toBe('BEARISH');
+    expect(signal.trend).toBe('bearish');
   });
 
   it('returns BUY when all four checks align (bullish trend, key support, bullish pattern, bullish BOS)', async () => {
@@ -159,7 +159,7 @@ describe('PriceActionSignalService', () => {
     expect(signal.stopLoss).toBeDefined();
     expect(signal.target).toBeDefined();
     expect(signal.target!).toBeGreaterThan(signal.close);
-    expect(signal.trend).toBe('BULLISH');
+    expect(signal.trend).toBe('bullish');
     expect(signal.keyLevel).not.toBeNull();
     expect(signal.pattern).not.toBeNull();
     expect(signal.bosLevel).not.toBeNull();

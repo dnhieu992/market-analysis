@@ -1,17 +1,18 @@
 import type { PriceActionSignal } from './price-action-signal.service';
+import type { Trend } from '../market/utils/trend';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function trendLabel(trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL'): string {
-  if (trend === 'BULLISH') return 'BULLISH (HH+HL)';
-  if (trend === 'BEARISH') return 'BEARISH (LH+LL)';
+function trendLabel(trend: Trend): string {
+  if (trend === 'bullish') return 'BULLISH (HH+HL)';
+  if (trend === 'bearish') return 'BEARISH (LH+LL)';
   return 'NEUTRAL';
 }
 
-function patternLabel(pattern: string | null, trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL'): string {
+function patternLabel(pattern: string | null, trend: Trend): string {
   if (!pattern) return '❌ Pattern: none detected';
-  const side = trend === 'BULLISH' ? 'Bullish' : 'Bearish';
+  const side = trend === 'bullish' ? 'Bullish' : 'Bearish';
   return `✅ Pattern: ${side} ${pattern}`;
 }
 
@@ -20,13 +21,13 @@ export function formatPriceActionMessage(signal: PriceActionSignal): string {
   const sep = '━━━━━━━━━━━━━━━━━━━';
 
   const trendCheck =
-    signal.trend === 'NEUTRAL'
+    signal.trend === 'neutral'
       ? `❌ 4h trend: NEUTRAL`
       : `✅ 4h trend: ${trendLabel(signal.trend)}`;
 
   const keyLevelCheck =
     signal.keyLevel !== null
-      ? `✅ Key level: ${signal.trend === 'BULLISH' ? 'support' : 'resistance'} at ${fmt(signal.keyLevel)}`
+      ? `✅ Key level: ${signal.trend === 'bullish' ? 'support' : 'resistance'} at ${fmt(signal.keyLevel)}`
       : `❌ Key level: none within range`;
 
   const patternCheck = patternLabel(signal.pattern, signal.trend);
@@ -53,7 +54,7 @@ export function formatPriceActionMessage(signal: PriceActionSignal): string {
     `${header} ${icon} ${signal.direction} Signal`,
     sep,
     `Close:  ${fmt(signal.close)} USDT`,
-    `SL:     ${fmt(signal.stopLoss ?? 0)} USDT  (key ${signal.trend === 'BULLISH' ? 'support' : 'resistance'})`,
+    `SL:     ${fmt(signal.stopLoss ?? 0)} USDT  (key ${signal.trend === 'bullish' ? 'support' : 'resistance'})`,
     `Target: ${fmt(signal.target ?? 0)} USDT  (2×ATR)`,
     '',
     trendCheck,
