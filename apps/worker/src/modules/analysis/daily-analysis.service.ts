@@ -32,14 +32,15 @@ function analyzeTimeframe(candles: Candle[]): TimeframeAnalysis {
 
   return {
     trend,
-    s1: supports[0] ?? 0,
-    s2: supports[1] ?? 0,
-    r1: resistances[0] ?? 0,
-    r2: resistances[1] ?? 0
+    s1: supports[0] ?? NaN,
+    s2: supports[1] ?? NaN,
+    r1: resistances[0] ?? NaN,
+    r2: resistances[1] ?? NaN
   };
 }
 
 function fmt(value: number): string {
+  if (!Number.isFinite(value)) return '—';
   return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
@@ -105,7 +106,13 @@ export class DailyAnalysisService {
   ): Promise<{ skipped: boolean; result: DailyAnalysisResult }> {
     const result = await this.analyze(symbol);
 
-    const existing = await this.dailyAnalysisRepository.findByDate(symbol, result.date);
+    let existing;
+    try {
+      existing = await this.dailyAnalysisRepository.findByDate(symbol, result.date);
+    } catch (error) {
+      this.logger.error(`Failed to check existing daily analysis for ${symbol}`, error);
+      throw error;
+    }
 
     if (existing) {
       this.logger.log(
@@ -114,21 +121,26 @@ export class DailyAnalysisService {
       return { skipped: true, result };
     }
 
-    await this.dailyAnalysisRepository.create({
-      symbol: result.symbol,
-      date: result.date,
-      d1Trend: result.d1.trend,
-      h4Trend: result.h4.trend,
-      d1S1: result.d1.s1,
-      d1S2: result.d1.s2,
-      d1R1: result.d1.r1,
-      d1R2: result.d1.r2,
-      h4S1: result.h4.s1,
-      h4S2: result.h4.s2,
-      h4R1: result.h4.r1,
-      h4R2: result.h4.r2,
-      summary: result.summary
-    });
+    try {
+      await this.dailyAnalysisRepository.create({
+        symbol: result.symbol,
+        date: result.date,
+        d1Trend: result.d1.trend,
+        h4Trend: result.h4.trend,
+        d1S1: result.d1.s1,
+        d1S2: result.d1.s2,
+        d1R1: result.d1.r1,
+        d1R2: result.d1.r2,
+        h4S1: result.h4.s1,
+        h4S2: result.h4.s2,
+        h4R1: result.h4.r1,
+        h4R2: result.h4.r2,
+        summary: result.summary
+      });
+    } catch (error) {
+      this.logger.error(`Failed to save daily analysis for ${symbol}`, error);
+      throw error;
+    }
 
     this.logger.log(`Daily analysis saved for ${symbol}`);
     return { skipped: false, result };
