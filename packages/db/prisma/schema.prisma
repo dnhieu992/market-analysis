@@ -89,3 +89,24 @@ model TelegramMessageLog {
   createdAt     DateTime            @default(now())
   analysisRun   AnalysisRun?        @relation(fields: [analysisRunId], references: [id], onDelete: SetNull)
 }
+
+model DailyAnalysis {
+  id        String   @id @default(cuid())
+  symbol    String
+  date      DateTime @db.Date
+  d1Trend   String
+  h4Trend   String
+  d1S1      Float
+  d1S2      Float
+  d1R1      Float
+  d1R2      Float
+  h4S1      Float
+  h4S2      Float
+  h4R1      Float
+  h4R2      Float
+  summary   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@unique([symbol, date])
+  @@index([symbol, date])
+}
