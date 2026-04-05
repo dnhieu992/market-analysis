@@ -3,7 +3,8 @@ import type { AnalysisTimeframe } from '@app/config';
 
 const TIMEFRAME_TO_MS: Record<AnalysisTimeframe, number> = {
   '4h': 4 * 60 * 60 * 1000,
-  'M30': 30 * 60 * 1000
+  'M30': 30 * 60 * 1000,
+  '1d': 24 * 60 * 60 * 1000
 };
 
 export function timeframeToMilliseconds(timeframe: AnalysisTimeframe): number {

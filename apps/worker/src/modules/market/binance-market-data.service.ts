@@ -6,7 +6,8 @@ import type { BinanceKlineDto } from './dto/binance-kline.dto';
 
 const BINANCE_INTERVAL: Record<string, string> = {
   '4h': '4h',
-  'M30': '30m'
+  'M30': '30m',
+  '1d': '1d'
 };
 
 type BinanceKlineParams = {
