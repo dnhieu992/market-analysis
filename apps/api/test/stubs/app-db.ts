@@ -110,3 +110,20 @@ export function createTelegramMessageLogRepository() {
     }
   };
 }
+
+const dailyAnalysisRecords: unknown[] = [];
+
+export function createDailyAnalysisRepository() {
+  return {
+    async create(data: unknown) {
+      dailyAnalysisRecords.push(data);
+      return data;
+    },
+    async findByDate(_symbol: string, _date: Date) {
+      return null;
+    },
+    async listLatest(_symbol: string, _limit?: number) {
+      return dailyAnalysisRecords;
+    }
+  };
+}
