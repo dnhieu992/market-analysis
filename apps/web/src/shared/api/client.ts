@@ -1,6 +1,7 @@
 import type {
   CloseDashboardOrderInput,
   CreateDashboardOrderInput,
+  DailyAnalysis,
   DashboardAnalysisRun,
   DashboardHealth,
   DashboardOrder,
@@ -142,6 +143,26 @@ function mapAnalysisRun(row: JsonRecord): DashboardAnalysisRun {
   };
 }
 
+function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
+  return {
+    id: String(row.id),
+    symbol: String(row.symbol),
+    date: String(row.date),
+    d1Trend: String(row.d1Trend) as DailyAnalysis['d1Trend'],
+    h4Trend: String(row.h4Trend) as DailyAnalysis['h4Trend'],
+    d1S1: Number(row.d1S1),
+    d1S2: Number(row.d1S2),
+    d1R1: Number(row.d1R1),
+    d1R2: Number(row.d1R2),
+    h4S1: Number(row.h4S1),
+    h4S2: Number(row.h4S2),
+    h4R1: Number(row.h4R1),
+    h4R2: Number(row.h4R2),
+    summary: String(row.summary ?? ''),
+    createdAt: String(row.createdAt)
+  };
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = (options.baseUrl ?? readConfiguredBaseUrl()).replace(/\/+$/, '');
   const fetchImpl = options.fetchImpl ?? globalThis.fetch?.bind(globalThis);
@@ -166,6 +187,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     async fetchHealth(): Promise<DashboardHealth> {
       return fetchJson<DashboardHealth>(fetchImpl, `${baseUrl}/health`);
+    },
+    async fetchDailyAnalysis(symbol = 'BTCUSDT'): Promise<DailyAnalysis[]> {
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/daily-analysis?symbol=${symbol}`);
+      return rows.map(mapDailyAnalysis);
     },
     async createOrder(input: CreateDashboardOrderInput): Promise<DashboardOrder> {
       const response = await fetchImpl(`${baseUrl}/orders`, {

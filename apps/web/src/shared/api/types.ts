@@ -78,3 +78,21 @@ export type CloseDashboardOrderInput = {
   note?: string;
   closedAt?: string;
 };
+
+export type DailyAnalysis = {
+  id: string;
+  symbol: string;
+  date: string;
+  d1Trend: 'bullish' | 'bearish' | 'neutral';
+  h4Trend: 'bullish' | 'bearish' | 'neutral';
+  d1S1: number;
+  d1S2: number;
+  d1R1: number;
+  d1R2: number;
+  h4S1: number;
+  h4S2: number;
+  h4R1: number;
+  h4R2: number;
+  summary: string;
+  createdAt: string;
+};
