@@ -37,7 +37,7 @@ pm2 restart "$PM2_WORKER" \
 
 echo "── Restart Web"
 pm2 restart "$PM2_WEB" \
-  || pm2 start "pnpm --filter web start" --name "$PM2_WEB"
+  || pm2 start "PORT=3001 node_modules/.bin/next start" --name "$PM2_WEB" --cwd apps/web
 
 echo "── Save pm2 process list"
 pm2 save
