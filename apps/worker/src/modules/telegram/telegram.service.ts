@@ -90,7 +90,7 @@ export class TelegramService {
     try {
       const response = await this.httpClient.post<TelegramSendResponse>(
         `/bot${this.config.botToken}/sendMessage`,
-        { chat_id: chatId, text }
+        { chat_id: chatId, text, parse_mode: 'HTML' }
       );
       return { success: true, messageId: response.data.result?.message_id };
     } catch (error) {

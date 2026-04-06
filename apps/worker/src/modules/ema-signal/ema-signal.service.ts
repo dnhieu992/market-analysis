@@ -99,12 +99,14 @@ export class EmaSignalService {
     const risk = Math.abs(entry - sl);
     const tp = isLong ? entry + 2 * risk : entry - 2 * risk;
 
-    return [
+    const lines = [
       `Strategy: EMA20-50`,
       `${symbol}-M15: ${direction}`,
       `Open:  ${formatNumber(entry)}`,
       `TP:    ${formatNumber(tp)}`,
       `SL:    ${formatNumber(sl)}`
     ].join('\n');
+
+    return `<pre>${lines}</pre>`;
   }
 }
