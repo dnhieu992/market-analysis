@@ -112,7 +112,7 @@ model DailyAnalysis {
 }
 
 model Settings {
-  id               String   @id @default(cuid())
+  id               String   @id @default("singleton")
   name             String
   trackingSymbols  Json     @default("[]")
   createdAt        DateTime @default(now())
