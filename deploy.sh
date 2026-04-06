@@ -2,14 +2,10 @@
 set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
-APP_DIR="/market-analysis" # absolute path to the project
-
 PM2_API="market-api"
 PM2_WORKER="market-worker"
 PM2_WEB="market-web"
 # ─────────────────────────────────────────────────────────────────────────────
-
-cd "$APP_DIR"
 
 echo "── Pull latest code"
 git pull
