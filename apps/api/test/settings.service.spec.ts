@@ -66,5 +66,17 @@ describe('SettingsService', () => {
       await service.upsert({ name: 'Test', trackingSymbols: [] });
       expect(mockRepo.upsert).toHaveBeenCalledWith({ name: 'Test', trackingSymbols: [] });
     });
+
+    it('returns empty array when repository returns trackingSymbols as null', async () => {
+      mockRepo.upsert.mockResolvedValue({
+        id: 'singleton',
+        name: 'Test',
+        trackingSymbols: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      const result = await service.upsert({ name: 'Test', trackingSymbols: [] });
+      expect(result.trackingSymbols).toEqual([]);
+    });
   });
 });
