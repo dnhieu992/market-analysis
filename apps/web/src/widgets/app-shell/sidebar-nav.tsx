@@ -26,6 +26,11 @@ const NAV_ITEMS: NavItem[] = [
     href: '/analysis',
     label: 'Analysis Feed',
     description: 'Worker signals'
+  },
+  {
+    href: '/daily-plan',
+    label: 'Daily Plan',
+    description: 'BTC daily analysis'
   }
 ];
 
