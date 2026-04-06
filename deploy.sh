@@ -2,6 +2,11 @@
 set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
+# Load env vars
+if [ -f .env ]; then
+  set -a && source .env && set +a
+fi
+
 PM2_API="market-api"
 PM2_WORKER="market-worker"
 PM2_WEB="market-web"
