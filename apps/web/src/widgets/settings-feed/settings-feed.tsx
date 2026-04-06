@@ -48,59 +48,70 @@ export function SettingsFeed({ initial }: SettingsFeedProps) {
         </div>
       </section>
 
-      <section className="settings-form">
-        <div className="settings-field">
-          <label htmlFor="settings-name" className="settings-label">Name</label>
-          <input
-            id="settings-name"
-            className="settings-input"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. My Watchlist"
-          />
-        </div>
+      <section className="settings-card">
+        <p className="settings-card-title">Watchlist</p>
 
-        <div className="settings-field">
-          <label htmlFor="settings-symbol-input" className="settings-label">Tracking Symbols</label>
-          <div className="settings-symbol-list">
-            {symbols.map((sym, i) => (
-              <span key={sym} className="settings-symbol-tag">
-                {sym}
-                <button
-                  className="settings-symbol-remove"
-                  onClick={() => handleRemoveSymbol(i)}
-                  aria-label={`Remove ${sym}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="settings-symbol-add">
+        <div className="settings-fields">
+          <div className="settings-field">
+            <label htmlFor="settings-name" className="settings-label">Name</label>
             <input
-              id="settings-symbol-input"
+              id="settings-name"
               className="settings-input"
               type="text"
-              value={symbolInput}
-              onChange={(e) => setSymbolInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAddSymbol(); }}
-              placeholder="e.g. BTCUSDT"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. My Watchlist"
             />
-            <button className="btn btn--secondary" onClick={handleAddSymbol}>Add</button>
           </div>
-        </div>
 
-        <div className="settings-actions">
-          <button
-            className="btn btn--primary"
-            onClick={() => { void handleSave(); }}
-            disabled={status === 'saving'}
-          >
-            {status === 'saving' ? 'Saving…' : 'Save'}
-          </button>
-          {status === 'saved' && <span className="settings-status settings-status--success">Saved</span>}
-          {status === 'error' && <span className="settings-status settings-status--error">Failed to save</span>}
+          <hr className="settings-divider" />
+
+          <div className="settings-field">
+            <label htmlFor="settings-symbol-input" className="settings-label">Tracking Symbols</label>
+            <div className="settings-symbol-list">
+              {symbols.length === 0
+                ? <span className="settings-symbol-list-empty">No symbols yet — add one below</span>
+                : symbols.map((sym, i) => (
+                    <span key={sym} className="settings-symbol-tag">
+                      {sym}
+                      <button
+                        className="settings-symbol-remove"
+                        onClick={() => handleRemoveSymbol(i)}
+                        aria-label={`Remove ${sym}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+              }
+            </div>
+            <div className="settings-symbol-add">
+              <input
+                id="settings-symbol-input"
+                className="settings-input"
+                type="text"
+                value={symbolInput}
+                onChange={(e) => setSymbolInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddSymbol(); }}
+                placeholder="e.g. BTCUSDT"
+              />
+              <button className="btn btn--secondary" onClick={handleAddSymbol}>Add</button>
+            </div>
+          </div>
+
+          <hr className="settings-divider" />
+
+          <div className="settings-actions">
+            <button
+              className="btn btn--primary"
+              onClick={() => { void handleSave(); }}
+              disabled={status === 'saving'}
+            >
+              {status === 'saving' ? 'Saving…' : 'Save settings'}
+            </button>
+            {status === 'saved' && <span className="settings-status settings-status--success">✓ Saved</span>}
+            {status === 'error' && <span className="settings-status settings-status--error">Failed to save</span>}
+          </div>
         </div>
       </section>
     </main>
