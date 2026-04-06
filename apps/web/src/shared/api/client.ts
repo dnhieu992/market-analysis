@@ -5,7 +5,9 @@ import type {
   DashboardAnalysisRun,
   DashboardHealth,
   DashboardOrder,
-  DashboardSignal
+  DashboardSignal,
+  TrackingSettings,
+  UpsertSettingsInput
 } from './types';
 
 type JsonRecord = Record<string, unknown>;
@@ -163,6 +165,19 @@ function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
   };
 }
 
+function mapSettings(row: JsonRecord): TrackingSettings {
+  const symbols = Array.isArray(row.trackingSymbols)
+    ? (row.trackingSymbols as unknown[]).map(String)
+    : [];
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    trackingSymbols: symbols,
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt)
+  };
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = (options.baseUrl ?? readConfiguredBaseUrl()).replace(/\/+$/, '');
   const fetchImpl = options.fetchImpl ?? globalThis.fetch?.bind(globalThis);
@@ -221,6 +236,21 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }
 
       return mapOrder((await response.json()) as JsonRecord);
+    },
+    async fetchSettings(): Promise<TrackingSettings | null> {
+      const row = await fetchJson<JsonRecord | null>(fetchImpl, `${baseUrl}/settings`);
+      return row ? mapSettings(row) : null;
+    },
+    async upsertSettings(input: UpsertSettingsInput): Promise<TrackingSettings> {
+      const response = await fetchImpl(`${baseUrl}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      });
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/settings: ${response.status}`);
+      }
+      return mapSettings((await response.json()) as JsonRecord);
     }
   };
 }

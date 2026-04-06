@@ -31,6 +31,11 @@ const NAV_ITEMS: NavItem[] = [
     href: '/daily-plan',
     label: 'Daily Plan',
     description: 'BTC daily analysis'
+  },
+  {
+    href: '/settings',
+    label: 'Settings',
+    description: 'Tracking symbol configuration'
   }
 ];
 

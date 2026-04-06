@@ -96,3 +96,16 @@ export type DailyAnalysis = {
   summary: string;
   createdAt: string;
 };
+
+export type TrackingSettings = {
+  id: string;
+  name: string;
+  trackingSymbols: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpsertSettingsInput = {
+  name: string;
+  trackingSymbols: string[];
+};
