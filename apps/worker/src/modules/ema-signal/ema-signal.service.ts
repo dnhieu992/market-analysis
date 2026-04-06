@@ -63,22 +63,30 @@ export class EmaSignalService {
     // Scan last 10 candles for pullback entry
     const scanStart = Math.max(0, m15Ema20.length - 10);
     let entryIndex: number | null = null;
+    let waitingForClose = false;
 
     for (let i = m15Ema20.length - 1; i >= scanStart; i--) {
       const kline = m15Klines[i + emaOffset] as Kline;
       const high = parseFloat(kline[2]);
       const low = parseFloat(kline[3]);
       const close = parseFloat(kline[4]);
+      const closeTime = kline[6];
       const ema = m15Ema20[i] as number;
 
-      if (isLong && low <= ema && close > ema) {
-        entryIndex = i + emaOffset;
+      const isCandidate = (isLong && low <= ema && close > ema) || (isShort && high >= ema && close < ema);
+
+      if (isCandidate) {
+        if (closeTime > Date.now()) {
+          waitingForClose = true;
+        } else {
+          entryIndex = i + emaOffset;
+        }
         break;
       }
-      if (isShort && high >= ema && close < ema) {
-        entryIndex = i + emaOffset;
-        break;
-      }
+    }
+
+    if (waitingForClose) {
+      return `Waiting for M15 candle to close for ${symbol}...`;
     }
 
     if (entryIndex === null) {

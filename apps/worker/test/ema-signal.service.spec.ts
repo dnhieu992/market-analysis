@@ -1,7 +1,7 @@
 import { EmaSignalService } from '../src/modules/ema-signal/ema-signal.service';
 
-function makeKline(open: number, high: number, low: number, close: number): [number, string, string, string, string, string, number] {
-  return [0, String(open), String(high), String(low), String(close), '100', 0];
+function makeKline(open: number, high: number, low: number, close: number, closeTime = 0): [number, string, string, string, string, string, number] {
+  return [0, String(open), String(high), String(low), String(close), '100', closeTime];
 }
 
 describe('EmaSignalService', () => {
@@ -62,6 +62,23 @@ describe('EmaSignalService', () => {
     expect(result).toContain('Open:');
     expect(result).toContain('TP:');
     expect(result).toContain('SL:');
+  });
+
+  it('returns waiting message when pullback candle has not closed yet', async () => {
+    const h1Klines = Array.from({ length: 100 }, (_, i) =>
+      makeKline(1000 + i * 10, 1005 + i * 10, 995 + i * 10, 1002 + i * 10)
+    );
+    const futureCloseTime = Date.now() + 60_000; // candle closes in 1 minute
+    const m15Klines = Array.from({ length: 50 }, (_, i) => {
+      if (i === 49) return makeKline(1000, 1010, 998, 1005, futureCloseTime); // still open
+      return makeKline(1002, 1005, 999, 1002);
+    });
+    mockBinance.fetchKlines
+      .mockResolvedValueOnce(h1Klines)
+      .mockResolvedValueOnce(m15Klines);
+
+    const result = await service.getSignal('BTCUSDT');
+    expect(result).toBe('Waiting for M15 candle to close for BTCUSDT...');
   });
 
   it('returns error message when Binance throws', async () => {
