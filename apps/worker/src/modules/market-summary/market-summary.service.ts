@@ -100,13 +100,18 @@ export class MarketSummaryService implements OnModuleInit {
     let symbols: string[];
     try {
       const settings = await this.settingsRepository.findFirst();
+      this.logger.log(`Settings found: ${JSON.stringify(settings)}`);
       symbols = (settings?.trackingSymbols as string[] | null) ?? [];
     } catch (error) {
       this.logger.error('Failed to read settings', error);
       return;
     }
 
-    if (symbols.length === 0) return;
+    this.logger.log(`Tracking symbols: ${JSON.stringify(symbols)}`);
+    if (symbols.length === 0) {
+      this.logger.warn('No tracking symbols configured — skipping H4 check');
+      return;
+    }
 
     for (const symbol of symbols) {
       try {
@@ -118,14 +123,22 @@ export class MarketSummaryService implements OnModuleInit {
   }
 
   private async processSymbol(symbol: string): Promise<void> {
+    this.logger.log(`Processing symbol: ${symbol}`);
     const h4Candles = await this.marketDataService.getCandles(symbol, '4h', 2);
-    if (h4Candles.length < 2) return;
+    if (h4Candles.length < 2) {
+      this.logger.warn(`Not enough H4 candles for ${symbol}`);
+      return;
+    }
 
     const closedCandle = h4Candles[h4Candles.length - 2];
     const closeTime = closedCandle?.closeTime?.getTime() ?? 0;
+    this.logger.log(`${symbol} last H4 closeTime: ${closeTime}, lastSent: ${this.lastSentH4CloseTime.get(symbol)}`);
     if (closeTime === 0) return;
 
-    if (this.lastSentH4CloseTime.get(symbol) === closeTime) return;
+    if (this.lastSentH4CloseTime.get(symbol) === closeTime) {
+      this.logger.log(`${symbol} already sent for this H4 close — skipping`);
+      return;
+    }
 
     const [d1Candles, h4Full, h1Candles] = await Promise.all([
       this.marketDataService.getCandles(symbol, '1d', 100),
