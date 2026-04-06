@@ -36,8 +36,15 @@ pm2 restart "$PM2_WORKER" \
   || pm2 start apps/worker/dist/apps/worker/src/main.js --name "$PM2_WORKER"
 
 echo "── Restart Web"
-pm2 restart "$PM2_WEB" \
-  || PORT=3001 pm2 start "node_modules/.bin/next start -p 3001" --name "$PM2_WEB" --cwd apps/web
+if pm2 describe "$PM2_WEB" > /dev/null 2>&1; then
+  pm2 restart "$PM2_WEB" --update-env
+else
+  pm2 start apps/web/node_modules/.bin/next \
+    --name "$PM2_WEB" \
+    --cwd apps/web \
+    --env production \
+    -- start -p 3001
+fi
 
 echo "── Save pm2 process list"
 pm2 save
