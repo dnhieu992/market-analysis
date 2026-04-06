@@ -55,7 +55,11 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
       );
       for (const update of response.data.result) {
         this.lastUpdateId = update.update_id;
-        await this.handleUpdate(update);
+        try {
+          await this.handleUpdate(update);
+        } catch (error) {
+          this.logger.warn(`handleUpdate failed for update ${update.update_id}: ${error instanceof Error ? error.message : 'unknown'}`);
+        }
       }
     } catch (error) {
       this.logger.warn(`Poll failed: ${error instanceof Error ? error.message : 'unknown'}`);
@@ -64,8 +68,9 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
 
   private async handleUpdate(update: TelegramUpdate): Promise<void> {
     const text = update.message?.text?.trim();
-    const chatId = String(update.message?.chat.id);
-    if (!text || !chatId) return;
+    const rawChatId = update.message?.chat.id;
+    if (!text || rawChatId == null) return;
+    const chatId = String(rawChatId);
 
     const watchMatch = /^\/watch\s+([A-Z0-9]+)$/i.exec(text);
     if (watchMatch) {

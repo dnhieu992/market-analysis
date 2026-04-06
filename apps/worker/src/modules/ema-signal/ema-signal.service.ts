@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import type { BinanceKlineDto } from '../market/dto/binance-kline.dto';
 import { calculateEma } from './ema.util';
 
 type Kline = [number, string, string, string, string, string, number, ...unknown[]];
@@ -118,7 +119,7 @@ export class EmaSignalService {
     return `<pre>${lines}</pre>`;
   }
 
-  async fetchLatestM15Candles(symbol: string) {
+  async fetchLatestM15Candles(symbol: string): Promise<BinanceKlineDto[]> {
     return this.binance.fetchKlines({ symbol, timeframe: '15m', limit: 2 });
   }
 }
