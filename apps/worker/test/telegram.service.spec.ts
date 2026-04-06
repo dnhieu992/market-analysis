@@ -50,4 +50,27 @@ describe('telegram service', () => {
       })
     ).resolves.toEqual({ success: false });
   });
+
+  it('sends a message to a specific chatId', async () => {
+    const httpClient = {
+      post: jest.fn().mockResolvedValue({
+        data: { ok: true, result: { message_id: 99 } }
+      })
+    };
+    const service = new TelegramService(
+      httpClient as never,
+      { botToken: 'bot-token', chatId: 'default-chat' }
+    );
+
+    const result = await service.sendToChat('specific-chat-123', 'Hello from polling');
+
+    expect(result).toEqual({ success: true, messageId: 99 });
+    expect(httpClient.post).toHaveBeenCalledWith(
+      '/botbot-token/sendMessage',
+      expect.objectContaining({
+        chat_id: 'specific-chat-123',
+        text: 'Hello from polling'
+      })
+    );
+  });
 });

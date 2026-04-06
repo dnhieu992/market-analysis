@@ -86,6 +86,19 @@ export class TelegramService {
     }
   }
 
+  async sendToChat(chatId: string, text: string): Promise<{ success: boolean; messageId?: number }> {
+    try {
+      const response = await this.httpClient.post<TelegramSendResponse>(
+        `/bot${this.config.botToken}/sendMessage`,
+        { chat_id: chatId, text }
+      );
+      return { success: true, messageId: response.data.result?.message_id };
+    } catch (error) {
+      this.logger.warn(`sendToChat failed: ${error instanceof Error ? error.message : 'unknown'}`);
+      return { success: false };
+    }
+  }
+
   // private async recordMessageLog(input: {
   //   analysisRunId?: string;
   //   messageType: string;
