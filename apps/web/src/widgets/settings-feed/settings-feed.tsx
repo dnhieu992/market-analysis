@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { TrackingSettings } from '@web/shared/api/types';
 
+const apiClient = createApiClient();
+
 type SettingsFeedProps = Readonly<{
   initial: TrackingSettings | null;
 }>;
@@ -29,8 +31,7 @@ export function SettingsFeed({ initial }: SettingsFeedProps) {
   async function handleSave() {
     setStatus('saving');
     try {
-      const client = createApiClient();
-      await client.upsertSettings({ name, trackingSymbols: symbols });
+      await apiClient.upsertSettings({ name, trackingSymbols: symbols });
       setStatus('saved');
     } catch {
       setStatus('error');
@@ -61,7 +62,7 @@ export function SettingsFeed({ initial }: SettingsFeedProps) {
         </div>
 
         <div className="settings-field">
-          <label className="settings-label">Tracking Symbols</label>
+          <label htmlFor="settings-symbol-input" className="settings-label">Tracking Symbols</label>
           <div className="settings-symbol-list">
             {symbols.map((sym, i) => (
               <span key={sym} className="settings-symbol-tag">
@@ -78,6 +79,7 @@ export function SettingsFeed({ initial }: SettingsFeedProps) {
           </div>
           <div className="settings-symbol-add">
             <input
+              id="settings-symbol-input"
               className="settings-input"
               type="text"
               value={symbolInput}
