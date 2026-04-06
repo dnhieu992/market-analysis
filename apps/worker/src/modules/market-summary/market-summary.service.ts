@@ -97,21 +97,22 @@ export class MarketSummaryService implements OnModuleInit {
 
   @Cron('*/15 * * * *')
   async checkH4Closes(): Promise<void> {
-    let symbols: string[];
-    try {
-      const settings = await this.settingsRepository.findFirst();
-      this.logger.log(`Settings found: ${JSON.stringify(settings)}`);
-      symbols = (settings?.trackingSymbols as string[] | null) ?? [];
-    } catch (error) {
-      this.logger.error('Failed to read settings', error);
-      return;
-    }
+    // TODO: restore DB fetch once PrismaClientInitializationError is resolved
+    // let symbols: string[];
+    // try {
+    //   const settings = await this.settingsRepository.findFirst();
+    //   this.logger.log(`Settings found: ${JSON.stringify(settings)}`);
+    //   symbols = (settings?.trackingSymbols as string[] | null) ?? [];
+    // } catch (error) {
+    //   this.logger.error('Failed to read settings', error);
+    //   return;
+    // }
+    // if (symbols.length === 0) {
+    //   this.logger.warn('No tracking symbols configured — skipping H4 check');
+    //   return;
+    // }
 
-    this.logger.log(`Tracking symbols: ${JSON.stringify(symbols)}`);
-    if (symbols.length === 0) {
-      this.logger.warn('No tracking symbols configured — skipping H4 check');
-      return;
-    }
+    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'LINKUSDT', 'XRPUSDT'];
 
     for (const symbol of symbols) {
       try {
