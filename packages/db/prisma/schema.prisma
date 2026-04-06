@@ -110,3 +110,13 @@ model DailyAnalysis {
   @@unique([symbol, date])
   @@index([symbol, date])
 }
+
+model Settings {
+  id               String   @id @default(cuid())
+  name             String
+  trackingSymbols  Json     @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("settings")
+}
