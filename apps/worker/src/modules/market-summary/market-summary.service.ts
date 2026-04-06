@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import type { Candle } from '@app/core';
-import { createSettingsRepository } from '@app/db';
+// import { createSettingsRepository } from '@app/db';
 
 import { MarketDataService } from '../market/market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -84,7 +84,7 @@ function buildMessage(
 export class MarketSummaryService implements OnModuleInit {
   private readonly logger = new Logger(MarketSummaryService.name);
   private readonly lastSentH4CloseTime = new Map<string, number>();
-  private readonly settingsRepository = createSettingsRepository();
+  // private readonly settingsRepository = createSettingsRepository();
 
   constructor(
     private readonly marketDataService: MarketDataService,
