@@ -117,4 +117,8 @@ export class EmaSignalService {
 
     return `<pre>${lines}</pre>`;
   }
+
+  async fetchLatestM15Candles(symbol: string) {
+    return this.binance.fetchKlines({ symbol, timeframe: '15m', limit: 2 });
+  }
 }

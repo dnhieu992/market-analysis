@@ -3,6 +3,7 @@ import axios, { type AxiosInstance } from 'axios';
 
 import { TelegramService } from '../telegram/telegram.service';
 import { EmaSignalService } from './ema-signal.service';
+import { WatchlistService } from './watchlist.service';
 
 type TelegramUpdate = {
   update_id: number;
@@ -12,17 +13,21 @@ type TelegramUpdate = {
   };
 };
 
+type Kline = [number, string, string, string, string, string, number, ...unknown[]];
+
 @Injectable()
 export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramPollingService.name);
   private readonly http: AxiosInstance;
   private readonly botToken: string;
   private lastUpdateId = 0;
-  private intervalHandle: ReturnType<typeof setInterval> | null = null;
+  private pollHandle: ReturnType<typeof setInterval> | null = null;
+  private candleHandle: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly emaSignalService: EmaSignalService,
-    private readonly telegramService: TelegramService
+    private readonly telegramService: TelegramService,
+    private readonly watchlistService: WatchlistService
   ) {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
     this.http = axios.create({
@@ -32,16 +37,14 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    this.intervalHandle = setInterval(() => {
-      void this.poll();
-    }, 2_000);
-    this.logger.log('Telegram polling started');
+    this.pollHandle = setInterval(() => { void this.poll(); }, 2_000);
+    this.candleHandle = setInterval(() => { void this.checkCandles(); }, 30_000);
+    this.logger.log('Telegram polling and candle watcher started');
   }
 
   onModuleDestroy() {
-    if (this.intervalHandle) {
-      clearInterval(this.intervalHandle);
-    }
+    if (this.pollHandle) clearInterval(this.pollHandle);
+    if (this.candleHandle) clearInterval(this.candleHandle);
   }
 
   private async poll(): Promise<void> {
@@ -50,7 +53,6 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
         `/bot${this.botToken}/getUpdates`,
         { params: { offset: this.lastUpdateId + 1, timeout: 1 } }
       );
-
       for (const update of response.data.result) {
         this.lastUpdateId = update.update_id;
         await this.handleUpdate(update);
@@ -63,16 +65,61 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
   private async handleUpdate(update: TelegramUpdate): Promise<void> {
     const text = update.message?.text?.trim();
     const chatId = String(update.message?.chat.id);
-
     if (!text || !chatId) return;
 
-    const match = /^\/([A-Z0-9]+)$/i.exec(text);
-    if (!match) return;
+    const watchMatch = /^\/watch\s+([A-Z0-9]+)$/i.exec(text);
+    if (watchMatch) {
+      const symbol = watchMatch[1]!.toUpperCase();
+      const result = this.watchlistService.watch(symbol, chatId);
+      const reply = result === 'added'
+        ? `Watching ${symbol} ✓`
+        : `Already watching ${symbol}`;
+      await this.telegramService.sendToChat(chatId, reply);
+      return;
+    }
 
-    const symbol = match[1]!.toUpperCase();
-    this.logger.log(`Signal request: ${symbol} from chat ${chatId}`);
+    const unwatchMatch = /^\/unwatch\s+([A-Z0-9]+)$/i.exec(text);
+    if (unwatchMatch) {
+      const symbol = unwatchMatch[1]!.toUpperCase();
+      const result = this.watchlistService.unwatch(symbol, chatId);
+      const reply = result === 'removed'
+        ? `Stopped watching ${symbol}`
+        : `Not watching ${symbol}`;
+      await this.telegramService.sendToChat(chatId, reply);
+      return;
+    }
+  }
 
-    const signal = await this.emaSignalService.getSignal(symbol);
-    await this.telegramService.sendToChat(chatId, signal);
+  private async checkCandles(): Promise<void> {
+    const symbols = this.watchlistService.getWatchedSymbols();
+    for (const symbol of symbols) {
+      await this.checkSymbol(symbol);
+    }
+  }
+
+  private async checkSymbol(symbol: string): Promise<void> {
+    try {
+      const klines = await this.emaSignalService.fetchLatestM15Candles(symbol);
+      if (klines.length < 2) return;
+
+      const closedCandle = klines[0] as Kline;
+      const closeTime = closedCandle[6];
+      const lastSent = this.watchlistService.getLastSentCloseTime(symbol);
+
+      if (closeTime <= lastSent) return;
+
+      const signal = await this.emaSignalService.getSignal(symbol);
+      if (signal.includes('Waiting')) return;
+
+      const chatIds = this.watchlistService.getChatIds(symbol);
+      for (const chatId of chatIds) {
+        await this.telegramService.sendToChat(chatId, signal);
+      }
+
+      this.watchlistService.updateLastSentCloseTime(symbol, closeTime);
+      this.logger.log(`Sent signal for ${symbol} (candle closed at ${closeTime})`);
+    } catch (error) {
+      this.logger.warn(`Candle check failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
   }
 }
