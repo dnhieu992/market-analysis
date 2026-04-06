@@ -7,9 +7,9 @@ if [ -f .env ]; then
   set -a && source .env && set +a
 fi
 
-PM2_API="market-api"
+PM2_API="market-api"       # runs on PORT from .env (default 3000)
 PM2_WORKER="market-worker"
-PM2_WEB="market-web"
+PM2_WEB="market-web"       # runs on port 3001
 # ─────────────────────────────────────────────────────────────────────────────
 
 echo "── Pull latest code"
@@ -37,7 +37,7 @@ pm2 restart "$PM2_WORKER" \
 
 echo "── Restart Web"
 pm2 restart "$PM2_WEB" \
-  || pm2 start "pnpm --filter web start" --name "$PM2_WEB"
+  || pm2 start "pnpm --filter web start -- -p 3001" --name "$PM2_WEB"
 
 echo "── Save pm2 process list"
 pm2 save
