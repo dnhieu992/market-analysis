@@ -1,6 +1,6 @@
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
-export type AnalysisTimeframe = '4h' | 'M30' | '1d';
+export type AnalysisTimeframe = '4h' | 'M30' | '1d' | '1h' | '15m';
 
 export type AppEnv = {
   nodeEnv: string;
