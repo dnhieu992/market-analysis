@@ -36,8 +36,8 @@ pm2 restart "$PM2_WORKER" \
   || pm2 start apps/worker/dist/apps/worker/src/main.js --name "$PM2_WORKER"
 
 echo "── Restart Web"
-pm2 restart "$PM2_WEB" \
-  || pm2 start "PORT=3001 node_modules/.bin/next start" --name "$PM2_WEB" --cwd apps/web
+pm2 delete "$PM2_WEB" 2>/dev/null || true
+pm2 start "node_modules/.bin/next start -p 3001" --name "$PM2_WEB" --cwd apps/web
 
 echo "── Save pm2 process list"
 pm2 save
