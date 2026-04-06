@@ -29,11 +29,11 @@ pnpm -r build
 
 echo "── Restart API"
 pm2 restart "$PM2_API" \
-  || pm2 start dist/apps/api/src/main.js --name "$PM2_API"
+  || pm2 start apps/api/dist/main.js --name "$PM2_API"
 
 echo "── Restart Worker"
 pm2 restart "$PM2_WORKER" \
-  || pm2 start dist/apps/worker/src/main.js --name "$PM2_WORKER"
+  || pm2 start apps/worker/dist/main.js --name "$PM2_WORKER"
 
 echo "── Restart Web"
 pm2 restart "$PM2_WEB" \
