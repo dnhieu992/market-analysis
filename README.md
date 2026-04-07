@@ -65,6 +65,9 @@ Copy values from `.env.example` and fill in real secrets:
 DATABASE_URL="mysql://root:root@127.0.0.1:3306/market_analysis"
 NEXT_PUBLIC_API_BASE_URL="http://localhost:3000"
 OPENAI_API_KEY="your-openai-api-key"
+LLM_PROVIDER="claude"
+CLAUDE_API_KEY="your-claude-api-key"
+CLAUDE_MODEL="sonnet"
 TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 TELEGRAM_CHAT_ID="your-telegram-chat-id"
 TRACKED_SYMBOLS="BTCUSDT,ETHUSDT"
@@ -174,6 +177,20 @@ curl -X POST http://localhost:3000/worker/run-analysis \
 ## Scheduling
 
 The worker uses `ANALYSIS_CRON`, which defaults to `1 0 */4 * * *`, and the supported timeframe is currently `4h`.
+
+The backend now owns an LLM gateway for structured daily analysis. The current implementation supports:
+
+- `LLM_PROVIDER=claude`
+- `CLAUDE_MODEL=sonnet` (default) or `CLAUDE_MODEL=opus`
+
+Daily analysis records now store:
+
+- derived technical structure from local candle analysis
+- structured AI output for the daily trading plan
+- provider metadata such as `llmProvider` and `llmModel`
+- a formatted `summary` used for Telegram and compatibility consumers
+
+This keeps secrets on the backend and allows future API or web flows to reuse the same gateway without calling providers directly from the browser.
 
 ## Deduplication
 

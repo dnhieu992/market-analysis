@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 import {
   createAnalysisRunRepository,
+  createDailyAnalysisRepository,
   createOrderRepository,
   createSignalRepository,
   createTelegramMessageLogRepository,
@@ -16,6 +17,7 @@ describe('db package surface', () => {
     expect(typeof createSignalRepository).toBe('function');
     expect(typeof createOrderRepository).toBe('function');
     expect(typeof createTelegramMessageLogRepository).toBe('function');
+    expect(typeof createDailyAnalysisRepository).toBe('function');
   });
 
   it('defines the required unique candle key and indexes in the schema', () => {
@@ -37,5 +39,8 @@ describe('db package surface', () => {
     expect(schema).toMatch(/note\s+String\?\s+@db\.Text/);
     expect(schema).toMatch(/content\s+String\s+@db\.Text/);
     expect(schema).toMatch(/errorMessage\s+String\?\s+@db\.Text/);
+    expect(schema).toMatch(/llmProvider\s+String/);
+    expect(schema).toMatch(/llmModel\s+String/);
+    expect(schema).toMatch(/aiOutputJson\s+String\s+@db\.Text/);
   });
 });

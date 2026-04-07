@@ -80,6 +80,23 @@ export type CloseDashboardOrderInput = {
 };
 
 export type DailyAnalysis = {
+  aiOutput: {
+    analysis: string;
+    bias: 'bullish' | 'bearish' | 'neutral';
+    confidence: number;
+    tradePlan: {
+      entryZone: string;
+      stopLoss: string;
+      takeProfit: string;
+      invalidation: string;
+    };
+    scenarios: {
+      bullishScenario: string;
+      bearishScenario: string;
+    };
+    riskNote: string;
+    timeHorizon: string;
+  };
   id: string;
   symbol: string;
   date: string;
@@ -93,6 +110,8 @@ export type DailyAnalysis = {
   h4S2: number;
   h4R1: number;
   h4R2: number;
+  llmProvider: string;
+  llmModel: string;
   summary: string;
   createdAt: string;
 };

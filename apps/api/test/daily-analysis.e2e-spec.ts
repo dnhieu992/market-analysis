@@ -40,6 +40,26 @@ describe('daily-analysis module', () => {
         h4S2: 80400,
         h4R1: 83200,
         h4R2: 84100,
+        aiOutput: {
+          analysis: 'BTC dang giu xu huong tang trong ngay.',
+          bias: 'bullish',
+          confidence: 78,
+          tradePlan: {
+            entryZone: 'Canh mua 82,000-82,400.',
+            stopLoss: 'Dung lo duoi 80,500.',
+            takeProfit: 'Chot loi tai 84,200 va 85,500.',
+            invalidation: 'Mat 80,500.'
+          },
+          scenarios: {
+            bullishScenario: 'Giu 82,000 thi co the len 84,200.',
+            bearishScenario: 'Mat 82,000 thi de lui ve 80,500.'
+          },
+          riskNote: 'Khong duoi gia.',
+          timeHorizon: 'intraday to 1 day'
+        },
+        llmProvider: 'claude',
+        llmModel: 'claude-3-7-sonnet-latest',
+        aiOutputJson: '{"analysis":"BTC dang giu xu huong tang trong ngay.","bias":"bullish","confidence":78,"tradePlan":{"entryZone":"Canh mua 82,000-82,400.","stopLoss":"Dung lo duoi 80,500.","takeProfit":"Chot loi tai 84,200 va 85,500.","invalidation":"Mat 80,500."},"scenarios":{"bullishScenario":"Giu 82,000 thi co the len 84,200.","bearishScenario":"Mat 82,000 thi de lui ve 80,500."},"riskNote":"Khong duoi gia.","timeHorizon":"intraday to 1 day"}',
         summary: '📅 BTC Daily Plan',
         createdAt: new Date()
       }
@@ -66,10 +86,33 @@ describe('daily-analysis module', () => {
       h4S2: 80400,
       h4R1: 83200,
       h4R2: 84100,
+      aiOutput: {
+        analysis: 'BTC dang giu xu huong tang trong ngay.',
+        bias: 'bullish',
+        confidence: 78,
+        tradePlan: {
+          entryZone: 'Canh mua 82,000-82,400.',
+          stopLoss: 'Dung lo duoi 80,500.',
+          takeProfit: 'Chot loi tai 84,200 va 85,500.',
+          invalidation: 'Mat 80,500.'
+        },
+        scenarios: {
+          bullishScenario: 'Giu 82,000 thi co the len 84,200.',
+          bearishScenario: 'Mat 82,000 thi de lui ve 80,500.'
+        },
+        riskNote: 'Khong duoi gia.',
+        timeHorizon: 'intraday to 1 day'
+      },
+      llmProvider: 'claude',
+      llmModel: 'claude-3-7-sonnet-latest',
+      aiOutputJson: '{"analysis":"BTC dang giu xu huong tang trong ngay.","bias":"bullish","confidence":78,"tradePlan":{"entryZone":"Canh mua 82,000-82,400.","stopLoss":"Dung lo duoi 80,500.","takeProfit":"Chot loi tai 84,200 va 85,500.","invalidation":"Mat 80,500."},"scenarios":{"bullishScenario":"Giu 82,000 thi co the len 84,200.","bearishScenario":"Mat 82,000 thi de lui ve 80,500."},"riskNote":"Khong duoi gia.","timeHorizon":"intraday to 1 day"}',
       summary: '📅 BTC Daily Plan',
       createdAt: new Date()
     });
 
-    await expect(controller.getLatest('BTCUSDT')).resolves.toMatchObject({ symbol: 'BTCUSDT' });
+    await expect(controller.getLatest('BTCUSDT')).resolves.toMatchObject({
+      symbol: 'BTCUSDT',
+      aiOutput: expect.objectContaining({ bias: 'bullish' })
+    });
   });
 });

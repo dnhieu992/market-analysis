@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { DailyAnalysisPlan } from '@app/core';
 import { createDailyAnalysisRepository } from '@app/db';
 
 import { DAILY_ANALYSIS_REPOSITORY } from '../database/database.providers';
@@ -6,6 +7,7 @@ import { DAILY_ANALYSIS_REPOSITORY } from '../database/database.providers';
 type DailyAnalysisRepository = ReturnType<typeof createDailyAnalysisRepository>;
 
 export type DailyAnalysisRecord = {
+  aiOutput: DailyAnalysisPlan;
   id: string;
   symbol: string;
   date: Date;
@@ -19,6 +21,9 @@ export type DailyAnalysisRecord = {
   h4S2: number;
   h4R1: number;
   h4R2: number;
+  llmProvider: string;
+  llmModel: string;
+  aiOutputJson: string;
   summary: string;
   createdAt: Date;
 };
@@ -30,11 +35,21 @@ export class DailyAnalysisService {
     private readonly dailyAnalysisRepository: DailyAnalysisRepository
   ) {}
 
-  list(symbol?: string): Promise<DailyAnalysisRecord[]> {
-    return this.dailyAnalysisRepository.listLatest(symbol ?? 'BTCUSDT', 30);
+  async list(symbol?: string): Promise<DailyAnalysisRecord[]> {
+    const rows = await this.dailyAnalysisRepository.listLatest(symbol ?? 'BTCUSDT', 30);
+    return rows.map((row) => this.mapRecord(row as DailyAnalysisRecord));
   }
 
-  getLatest(symbol: string): Promise<DailyAnalysisRecord | null> {
-    return this.dailyAnalysisRepository.listLatest(symbol, 1).then((rows) => rows[0] ?? null);
+  async getLatest(symbol: string): Promise<DailyAnalysisRecord | null> {
+    const rows = await this.dailyAnalysisRepository.listLatest(symbol, 1);
+    const record = rows[0] as DailyAnalysisRecord | undefined;
+    return record ? this.mapRecord(record) : null;
+  }
+
+  private mapRecord(record: DailyAnalysisRecord): DailyAnalysisRecord {
+    return {
+      ...record,
+      aiOutput: JSON.parse(record.aiOutputJson) as DailyAnalysisPlan
+    };
   }
 }

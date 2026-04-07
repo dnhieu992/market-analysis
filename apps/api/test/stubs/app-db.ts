@@ -112,6 +112,7 @@ export function createTelegramMessageLogRepository() {
 }
 
 const dailyAnalysisRecords: unknown[] = [];
+let settingsRecord: Record<string, unknown> | null = null;
 
 export function createDailyAnalysisRepository() {
   return {
@@ -124,6 +125,22 @@ export function createDailyAnalysisRepository() {
     },
     async listLatest(_symbol: string, _limit?: number) {
       return dailyAnalysisRecords;
+    }
+  };
+}
+
+export function createSettingsRepository() {
+  return {
+    async findFirst() {
+      return settingsRecord;
+    },
+    async upsert(data: { create: Record<string, unknown>; update: Record<string, unknown> }) {
+      settingsRecord = {
+        id: 'singleton',
+        ...(settingsRecord ?? data.create),
+        ...data.update
+      };
+      return settingsRecord;
     }
   };
 }

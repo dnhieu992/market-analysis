@@ -21,7 +21,8 @@ describe('DailyAnalysisService', () => {
   function makeService(
     d1Candles: Candle[],
     h4Candles: Candle[],
-    repo?: { findByDate: jest.Mock; create: jest.Mock; listLatest: jest.Mock }
+    repo?: { findByDate: jest.Mock; create: jest.Mock; listLatest: jest.Mock },
+    llmGateway?: { generateDailyAnalysisPlan: jest.Mock }
   ) {
     const getCandles = jest.fn().mockImplementation((_symbol: string, timeframe: string) => {
       return Promise.resolve(timeframe === '1d' ? d1Candles : h4Candles);
@@ -31,9 +32,39 @@ describe('DailyAnalysisService', () => {
       create: jest.fn().mockImplementation((data) => Promise.resolve(data)),
       listLatest: jest.fn().mockResolvedValue([])
     };
+    const defaultGatewayResult = {
+      provider: 'claude',
+      model: 'claude-3-7-sonnet-latest',
+      plan: {
+        analysis: 'BTC dang giu xu huong tang trong ngay.',
+        bias: 'bullish',
+        confidence: 78,
+        tradePlan: {
+          entryZone: 'Canh mua 82,000-82,400.',
+          stopLoss: 'Dung lo duoi 80,500.',
+          takeProfit: 'Chot loi tai 84,200 va 85,500.',
+          invalidation: 'Mat 80,500.'
+        },
+        scenarios: {
+          bullishScenario: 'Giu 82,000 thi co the len 84,200.',
+          bearishScenario: 'Mat 82,000 thi de lui ve 80,500.'
+        },
+        riskNote: 'Khong duoi gia.',
+        timeHorizon: 'intraday to 1 day'
+      }
+    };
+    const defaultLlmGateway = {
+      generateDailyAnalysisPlan: jest.fn().mockResolvedValue(defaultGatewayResult)
+    };
     return {
-      service: new DailyAnalysisService({ getCandles } as never, repo ?? defaultRepo),
-      repo: repo ?? defaultRepo
+      service: new DailyAnalysisService(
+        { getCandles } as never,
+        repo ?? defaultRepo,
+        (llmGateway ?? defaultLlmGateway) as never
+      ),
+      repo: repo ?? defaultRepo,
+      llmGateway: llmGateway ?? defaultLlmGateway,
+      gatewayResult: defaultGatewayResult
     };
   }
 
@@ -41,7 +72,30 @@ describe('DailyAnalysisService', () => {
     const getCandles = jest.fn().mockResolvedValue(makeCandles(100, 80000));
     const service = new DailyAnalysisService(
       { getCandles } as never,
-      { findByDate: jest.fn().mockResolvedValue(null), create: jest.fn(), listLatest: jest.fn() }
+      { findByDate: jest.fn().mockResolvedValue(null), create: jest.fn(), listLatest: jest.fn() },
+      {
+        generateDailyAnalysisPlan: jest.fn().mockResolvedValue({
+          provider: 'claude',
+          model: 'claude-3-7-sonnet-latest',
+          plan: {
+            analysis: 'BTC dang giu xu huong tang trong ngay.',
+            bias: 'bullish',
+            confidence: 78,
+            tradePlan: {
+              entryZone: 'Canh mua 82,000-82,400.',
+              stopLoss: 'Dung lo duoi 80,500.',
+              takeProfit: 'Chot loi tai 84,200 va 85,500.',
+              invalidation: 'Mat 80,500.'
+            },
+            scenarios: {
+              bullishScenario: 'Giu 82,000 thi co the len 84,200.',
+              bearishScenario: 'Mat 82,000 thi de lui ve 80,500.'
+            },
+            riskNote: 'Khong duoi gia.',
+            timeHorizon: 'intraday to 1 day'
+          }
+        })
+      } as never
     );
 
     await service.analyze('BTCUSDT');
@@ -50,7 +104,7 @@ describe('DailyAnalysisService', () => {
     expect(getCandles).toHaveBeenCalledWith('BTCUSDT', '4h', 100);
   });
 
-  it('analyze returns result with symbol, date, trends, levels, and summary', async () => {
+  it('analyze returns result with symbol, date, trends, ai output, and summary', async () => {
     const { service } = makeService(makeCandles(20, 80000), makeCandles(100, 80000));
     const result = await service.analyze('BTCUSDT');
 
@@ -60,8 +114,25 @@ describe('DailyAnalysisService', () => {
     expect(['bullish', 'bearish', 'neutral']).toContain(result.h4.trend);
     expect(typeof result.d1.s1).toBe('number');
     expect(typeof result.d1.r1).toBe('number');
+    expect(result.h4Indicators).toEqual(
+      expect.objectContaining({
+        ema20: expect.any(Number),
+        ema50: expect.any(Number),
+        ema200: expect.any(Number),
+        rsi14: expect.any(Number),
+        macd: expect.objectContaining({
+          macd: expect.any(Number),
+          signal: expect.any(Number),
+          histogram: expect.any(Number)
+        }),
+        atr14: expect.any(Number),
+        volumeRatio: expect.any(Number)
+      })
+    );
     expect(typeof result.summary).toBe('string');
-    expect(result.summary).toContain('BTCUSDT');
+    expect(result.llmProvider).toBe('claude');
+    expect(result.llmModel).toBe('claude-3-7-sonnet-latest');
+    expect(result.aiOutput.bias).toBe('bullish');
   });
 
   it('analyzeAndSave saves to repository and returns result', async () => {
@@ -88,13 +159,69 @@ describe('DailyAnalysisService', () => {
     expect(outcome.skipped).toBe(true);
   });
 
-  it('summary includes D1 and H4 level labels', async () => {
-    const { service } = makeService(makeCandles(20, 80000), makeCandles(100, 80000));
-    const result = await service.analyze('BTCUSDT');
+  it('passes derived market structure to the llm gateway', async () => {
+    const llmGateway = {
+      generateDailyAnalysisPlan: jest.fn().mockResolvedValue({
+        provider: 'claude',
+        model: 'claude-3-7-sonnet-latest',
+        plan: {
+          analysis: 'BTC dang giu xu huong tang trong ngay.',
+          bias: 'bullish',
+          confidence: 78,
+          tradePlan: {
+            entryZone: 'Canh mua 82,000-82,400.',
+            stopLoss: 'Dung lo duoi 80,500.',
+            takeProfit: 'Chot loi tai 84,200 va 85,500.',
+            invalidation: 'Mat 80,500.'
+          },
+          scenarios: {
+            bullishScenario: 'Giu 82,000 thi co the len 84,200.',
+            bearishScenario: 'Mat 82,000 thi de lui ve 80,500.'
+          },
+          riskNote: 'Khong duoi gia.',
+          timeHorizon: 'intraday to 1 day'
+        }
+      })
+    };
+    const { service } = makeService(makeCandles(20, 80000), makeCandles(100, 80000), undefined, llmGateway);
 
-    expect(result.summary).toContain('D1 Levels');
-    expect(result.summary).toContain('H4 Levels');
-    expect(result.summary).toContain('S1');
-    expect(result.summary).toContain('R1');
+    await service.analyze('BTCUSDT');
+
+    expect(llmGateway.generateDailyAnalysisPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'BTCUSDT',
+        d1: expect.objectContaining({ trend: expect.any(String) }),
+        h4: expect.objectContaining({ trend: expect.any(String) }),
+        h4Indicators: expect.objectContaining({
+          ema20: expect.any(Number),
+          ema50: expect.any(Number),
+          ema200: expect.any(Number),
+          rsi14: expect.any(Number),
+          macd: expect.objectContaining({
+            macd: expect.any(Number),
+            signal: expect.any(Number),
+            histogram: expect.any(Number)
+          }),
+          atr14: expect.any(Number),
+          volumeRatio: expect.any(Number)
+        })
+      })
+    );
+  });
+
+  it('persists provider metadata, raw ai output, and derived summary', async () => {
+    const { service, repo, gatewayResult } = makeService(makeCandles(20, 80000), makeCandles(100, 80000));
+
+    const outcome = await service.analyzeAndSave('BTCUSDT');
+
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        llmProvider: 'claude',
+        llmModel: 'claude-3-7-sonnet-latest',
+        aiOutputJson: JSON.stringify(gatewayResult.plan),
+        summary: expect.stringContaining('1) Tóm tắt nhanh')
+      })
+    );
+    expect(outcome.result.summary).toContain('4) Kế hoạch giao dịch chính');
   });
 });

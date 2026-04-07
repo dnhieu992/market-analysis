@@ -10,6 +10,23 @@ jest.mock('@web/shared/api/client', () => ({
 const mockedCreateApiClient = createApiClient as jest.MockedFunction<typeof createApiClient>;
 
 const mockRecord = {
+  aiOutput: {
+    analysis: 'BTC dang giu xu huong tang trong ngay.',
+    bias: 'bullish' as const,
+    confidence: 78,
+    tradePlan: {
+      entryZone: 'Canh mua 82,000-82,400.',
+      stopLoss: 'Dung lo duoi 80,500.',
+      takeProfit: 'Chot loi tai 84,200 va 85,500.',
+      invalidation: 'Mat 80,500.'
+    },
+    scenarios: {
+      bullishScenario: 'Giu 82,000 thi co the len 84,200.',
+      bearishScenario: 'Mat 82,000 thi de lui ve 80,500.'
+    },
+    riskNote: 'Khong duoi gia.',
+    timeHorizon: 'intraday to 1 day'
+  },
   id: 'daily-1',
   symbol: 'BTCUSDT',
   date: '2026-04-05T00:00:00.000Z',
@@ -23,6 +40,8 @@ const mockRecord = {
   h4S2: 80400,
   h4R1: 83200,
   h4R2: 84100,
+  llmProvider: 'claude',
+  llmModel: 'claude-3-7-sonnet-latest',
   summary: '📅 BTCUSDT Daily Plan — 2026-04-05',
   createdAt: '2026-04-05T00:01:00.000Z'
 };
@@ -38,7 +57,7 @@ describe('DailyPlanPage', () => {
       fetchDailyAnalysis: async () => [mockRecord],
       createOrder: async () => { throw new Error('not used'); },
       closeOrder: async () => { throw new Error('not used'); }
-    } as ReturnType<typeof createApiClient>);
+    } as unknown as ReturnType<typeof createApiClient>);
   });
 
   it('renders the daily plan page with BTC header', async () => {
@@ -66,7 +85,7 @@ describe('DailyPlanPage', () => {
       fetchDailyAnalysis: async () => [],
       createOrder: async () => { throw new Error('not used'); },
       closeOrder: async () => { throw new Error('not used'); }
-    } as ReturnType<typeof createApiClient>);
+    } as unknown as ReturnType<typeof createApiClient>);
 
     const markup = renderToStaticMarkup(await DailyPlanPage());
     expect(markup).toContain('No daily plans yet');

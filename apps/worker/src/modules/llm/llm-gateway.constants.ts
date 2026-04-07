@@ -1,0 +1,1 @@
+export const LLM_PROVIDER_ADAPTER = Symbol('LLM_PROVIDER_ADAPTER');

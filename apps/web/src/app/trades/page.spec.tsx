@@ -37,13 +37,18 @@ describe('TradesPage', () => {
       fetchSignals: async () => [],
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
+      fetchDailyAnalysis: async () => [],
+      fetchSettings: async () => null,
+      upsertSettings: async () => {
+        throw new Error('not used');
+      },
       createOrder: async () => {
         throw new Error('not used');
       },
       closeOrder: async () => {
         throw new Error('not used');
       }
-    });
+    } as unknown as ReturnType<typeof createApiClient>);
   });
 
   it('renders trading history and manual trade entry', async () => {

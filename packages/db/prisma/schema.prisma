@@ -104,6 +104,9 @@ model DailyAnalysis {
   h4S2      Float
   h4R1      Float
   h4R2      Float
+  llmProvider String
+  llmModel   String
+  aiOutputJson String @db.Text
   summary   String   @db.Text
   createdAt DateTime @default(now())
 

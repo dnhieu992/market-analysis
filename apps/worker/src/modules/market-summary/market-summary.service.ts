@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import type { Candle } from '@app/core';
 // import { createSettingsRepository } from '@app/db';
@@ -81,7 +81,7 @@ function buildMessage(
 }
 
 @Injectable()
-export class MarketSummaryService implements OnModuleInit {
+export class MarketSummaryService {
   private readonly logger = new Logger(MarketSummaryService.name);
   private readonly lastSentH4CloseTime = new Map<string, number>();
   // private readonly settingsRepository = createSettingsRepository();
@@ -90,10 +90,6 @@ export class MarketSummaryService implements OnModuleInit {
     private readonly marketDataService: MarketDataService,
     private readonly telegramService: TelegramService
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    await this.checkH4Closes();
-  }
 
   @Cron('*/15 * * * *')
   async checkH4Closes(): Promise<void> {

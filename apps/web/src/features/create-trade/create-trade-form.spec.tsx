@@ -33,6 +33,11 @@ describe('TradeForm', () => {
       fetchSignals: async () => [],
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
+      fetchDailyAnalysis: async () => [],
+      fetchSettings: async () => null,
+      upsertSettings: async () => {
+        throw new Error('not used');
+      },
       createOrder: async () => ({
         id: 'order-1',
         symbol: 'BTCUSDT',
@@ -55,7 +60,7 @@ describe('TradeForm', () => {
       closeOrder: async () => {
         throw new Error('not used');
       }
-    });
+    } as unknown as ReturnType<typeof createApiClient>);
 
     const result = await submitManualOrder({
       symbol: 'BTCUSDT',

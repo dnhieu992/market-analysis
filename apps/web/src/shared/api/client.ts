@@ -146,7 +146,31 @@ function mapAnalysisRun(row: JsonRecord): DashboardAnalysisRun {
 }
 
 function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
+  const aiOutput =
+    row.aiOutput && typeof row.aiOutput === 'object' && row.aiOutput !== null
+      ? (row.aiOutput as DailyAnalysis['aiOutput'])
+      : row.aiOutputJson && typeof row.aiOutputJson === 'string'
+      ? (JSON.parse(row.aiOutputJson) as DailyAnalysis['aiOutput'])
+      : ({
+          analysis: '',
+          bias: 'neutral',
+          confidence: 0,
+          tradePlan: {
+            entryZone: '',
+            stopLoss: '',
+            takeProfit: '',
+            invalidation: ''
+          },
+          scenarios: {
+            bullishScenario: '',
+            bearishScenario: ''
+          },
+          riskNote: '',
+          timeHorizon: ''
+        } satisfies DailyAnalysis['aiOutput']);
+
   return {
+    aiOutput,
     id: String(row.id),
     symbol: String(row.symbol),
     date: String(row.date),
@@ -160,6 +184,8 @@ function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
     h4S2: Number(row.h4S2),
     h4R1: Number(row.h4R1),
     h4R2: Number(row.h4R2),
+    llmProvider: String(row.llmProvider ?? ''),
+    llmModel: String(row.llmModel ?? ''),
     summary: String(row.summary ?? ''),
     createdAt: String(row.createdAt)
   };

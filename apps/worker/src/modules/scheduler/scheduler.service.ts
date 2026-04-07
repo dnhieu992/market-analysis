@@ -1,10 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
-import { formatPriceActionMessage } from '../analysis/price-action-signal.formatter';
-import { PriceActionSignalService } from '../analysis/price-action-signal.service';
-import { formatSonicRMessage } from '../analysis/sonic-r-signal.formatter';
-import { SonicRSignalService } from '../analysis/sonic-r-signal.service';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { DailyAnalysisService } from '../analysis/daily-analysis.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -16,8 +12,6 @@ export class SchedulerService {
 
   constructor(
     private readonly analysisOrchestratorService: AnalysisOrchestratorService,
-    private readonly sonicRSignalService: SonicRSignalService,
-    private readonly priceActionSignalService: PriceActionSignalService,
     private readonly dailyAnalysisService: DailyAnalysisService,
     private readonly telegramService: TelegramService,
     @Optional() config?: { trackedSymbols: string[] }
@@ -42,24 +36,12 @@ export class SchedulerService {
   @Cron('0 0 * * *', { timeZone: 'UTC' })
   async sendDailySignals() {
     this.logger.log('Running daily signal job');
+    await this.runDailyAnalysisForSymbols(this.trackedSymbols);
+  }
 
-    for (const symbol of this.trackedSymbols) {
+  async runDailyAnalysisForSymbols(symbols: string[]) {
+    for (const symbol of symbols) {
       try {
-        const [sonicRSignal, paSignal] = await Promise.all([
-          this.sonicRSignalService.getSignal(symbol),
-          this.priceActionSignalService.getSignal(symbol)
-        ]);
-
-        await this.telegramService.sendAnalysisMessage({
-          content: formatSonicRMessage(sonicRSignal),
-          messageType: 'sonic-r-signal'
-        });
-
-        await this.telegramService.sendAnalysisMessage({
-          content: formatPriceActionMessage(paSignal),
-          messageType: 'price-action-signal'
-        });
-
         const { skipped, result } = await this.dailyAnalysisService.analyzeAndSave(symbol);
 
         if (!skipped) {
@@ -69,10 +51,10 @@ export class SchedulerService {
           });
         }
 
-        this.logger.log(`Daily signals sent for ${symbol}`);
+        this.logger.log(`Daily analysis sent for ${symbol}`);
       } catch (error) {
         this.logger.error(
-          `Daily signal failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
+          `Daily analysis failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
         );
       }
     }

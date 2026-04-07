@@ -40,6 +40,11 @@ describe('CloseTradeForm', () => {
       fetchSignals: async () => [],
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
+      fetchDailyAnalysis: async () => [],
+      fetchSettings: async () => null,
+      upsertSettings: async () => {
+        throw new Error('not used');
+      },
       createOrder: async () => {
         throw new Error('not used');
       },
@@ -62,7 +67,7 @@ describe('CloseTradeForm', () => {
         exchange: null,
         signalId: null
       })
-    });
+    } as unknown as ReturnType<typeof createApiClient>);
 
     const result = await submitCloseOrder('order-1', {
       closePrice: '69000'
