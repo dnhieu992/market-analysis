@@ -1,9 +1,9 @@
-import { createApiClient } from '@web/shared/api/client';
+import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DashboardOrder } from '@web/shared/api/types';
 import { TradesHistory } from '@web/widgets/trades-history/trades-history';
 
 async function loadOrders() {
-  const client = createApiClient();
+  const client = createServerApiClient();
 
   try {
     return await client.fetchOrders();

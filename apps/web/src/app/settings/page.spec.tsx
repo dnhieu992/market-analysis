@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createApiClient } from '@web/shared/api/client';
 import SettingsPage from './page';
 
+jest.mock('next/headers', () => ({
+  headers: jest.fn(() => new Headers({ cookie: 'market_analysis_session=test-token' }))
+}));
+
 jest.mock('@web/shared/api/client', () => ({
   createApiClient: jest.fn()
 }));
@@ -26,6 +30,7 @@ describe('SettingsPage', () => {
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
       fetchDailyAnalysis: async () => [],
+      login: async () => ({ user: { id: 'user-1', email: 'alice@example.com', name: 'Alice' } }),
       createOrder: async () => { throw new Error('not used'); },
       closeOrder: async () => { throw new Error('not used'); },
       fetchSettings: async () => mockSettings,
@@ -54,6 +59,7 @@ describe('SettingsPage', () => {
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
       fetchDailyAnalysis: async () => [],
+      login: async () => ({ user: { id: 'user-1', email: 'alice@example.com', name: 'Alice' } }),
       createOrder: async () => { throw new Error('not used'); },
       closeOrder: async () => { throw new Error('not used'); },
       fetchSettings: async () => null,

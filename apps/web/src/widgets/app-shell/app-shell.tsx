@@ -15,6 +15,10 @@ export function AppShell({ children, currentPath }: AppShellProps) {
   const pathname = usePathname();
   const resolvedPath = currentPath ?? pathname ?? '/';
 
+  if (resolvedPath === '/login') {
+    return <>{children}</>;
+  }
+
   return (
     <div className="app-shell">
       <SidebarNav currentPath={resolvedPath} />

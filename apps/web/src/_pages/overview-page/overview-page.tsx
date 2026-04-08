@@ -1,10 +1,10 @@
-import { createApiClient } from '@web/shared/api/client';
+import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DashboardAnalysisRun, DashboardOrder, DashboardSignal } from '@web/shared/api/types';
 import { formatConfidence, formatDateTime } from '@web/shared/lib/format';
 import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-overview';
 
 async function loadDashboardData() {
-  const client = createApiClient();
+  const client = createServerApiClient();
 
   try {
     const [orders, signals, analysisRuns] = await Promise.all([

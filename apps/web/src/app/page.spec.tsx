@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from './page';
 import { createApiClient } from '@web/shared/api/client';
 
+jest.mock('next/headers', () => ({
+  headers: jest.fn(() => new Headers({ cookie: 'market_analysis_session=test-token' }))
+}));
+
 jest.mock('@web/shared/api/client', () => ({
   createApiClient: jest.fn()
 }));
@@ -90,6 +94,11 @@ describe('HomePage', () => {
   it('renders the overview dashboard structure', async () => {
     const markup = renderToStaticMarkup(await HomePage());
 
+    expect(mockedCreateApiClient).toHaveBeenCalledWith({
+      headers: {
+        cookie: 'market_analysis_session=test-token'
+      }
+    });
     expect(markup).toContain('Overview Dashboard');
     expect(markup).toContain('Open Orders');
     expect(markup).toContain('Recent Analysis');

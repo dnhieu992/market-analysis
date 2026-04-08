@@ -16,6 +16,8 @@ type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respo
 type ApiClientOptions = {
   baseUrl?: string;
   fetchImpl?: FetchLike;
+  headers?: HeadersInit;
+  credentials?: RequestCredentials;
 };
 
 const DEFAULT_API_BASE_URL = 'http://localhost:3000';
@@ -73,8 +75,8 @@ function parseJsonArray(value: unknown): number[] {
   }
 }
 
-async function fetchJson<T>(fetchImpl: FetchLike, url: string): Promise<T> {
-  const response = await fetchImpl(url);
+async function fetchJson<T>(fetchImpl: FetchLike, url: string, init?: RequestInit): Promise<T> {
+  const response = await fetchImpl(url, init);
 
   if (!response.ok) {
     throw new Error(`Request failed for ${url}: ${response.status}`);
@@ -194,40 +196,57 @@ function mapSettings(row: JsonRecord): TrackingSettings {
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = (options.baseUrl ?? readConfiguredBaseUrl()).replace(/\/+$/, '');
   const fetchImpl = options.fetchImpl ?? globalThis.fetch?.bind(globalThis);
+  const defaultHeaders = new Headers(options.headers);
+  const defaultCredentials = options.credentials ?? 'include';
 
   if (!fetchImpl) {
     throw new Error('No fetch implementation available');
   }
 
+  function withDefaults(init: RequestInit = {}): RequestInit {
+    const headers = new Headers(defaultHeaders);
+    const requestHeaders = new Headers(init.headers);
+
+    requestHeaders.forEach((value, key) => {
+      headers.set(key, value);
+    });
+
+    return {
+      ...init,
+      headers,
+      credentials: init.credentials ?? defaultCredentials
+    };
+  }
+
   return {
     baseUrl,
     async fetchOrders(): Promise<DashboardOrder[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/orders`);
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/orders`, withDefaults());
       return rows.map(mapOrder);
     },
     async fetchSignals(): Promise<DashboardSignal[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/signals`);
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/signals`, withDefaults());
       return rows.map(mapSignal);
     },
     async fetchAnalysisRuns(): Promise<DashboardAnalysisRun[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/analysis-runs`);
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/analysis-runs`, withDefaults());
       return rows.map(mapAnalysisRun);
     },
     async fetchHealth(): Promise<DashboardHealth> {
-      return fetchJson<DashboardHealth>(fetchImpl, `${baseUrl}/health`);
+      return fetchJson<DashboardHealth>(fetchImpl, `${baseUrl}/health`, withDefaults());
     },
     async fetchDailyAnalysis(symbol = 'BTCUSDT'): Promise<DailyAnalysis[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/daily-analysis?symbol=${symbol}`);
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/daily-analysis?symbol=${symbol}`, withDefaults());
       return rows.map(mapDailyAnalysis);
     },
     async createOrder(input: CreateDashboardOrderInput): Promise<DashboardOrder> {
-      const response = await fetchImpl(`${baseUrl}/orders`, {
+      const response = await fetchImpl(`${baseUrl}/orders`, withDefaults({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(input)
-      });
+      }));
 
       if (!response.ok) {
         throw new Error(`Request failed for ${baseUrl}/orders: ${response.status}`);
@@ -236,13 +255,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return mapOrder((await response.json()) as JsonRecord);
     },
     async closeOrder(orderId: string, input: CloseDashboardOrderInput): Promise<DashboardOrder> {
-      const response = await fetchImpl(`${baseUrl}/orders/${orderId}/close`, {
+      const response = await fetchImpl(`${baseUrl}/orders/${orderId}/close`, withDefaults({
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(input)
-      });
+      }));
 
       if (!response.ok) {
         throw new Error(`Request failed for ${baseUrl}/orders/${orderId}/close: ${response.status}`);
@@ -251,19 +270,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return mapOrder((await response.json()) as JsonRecord);
     },
     async fetchSettings(): Promise<TrackingSettings | null> {
-      const row = await fetchJson<JsonRecord | null>(fetchImpl, `${baseUrl}/settings`);
+      const row = await fetchJson<JsonRecord | null>(fetchImpl, `${baseUrl}/settings`, withDefaults());
       return row ? mapSettings(row) : null;
     },
     async upsertSettings(input: UpsertSettingsInput): Promise<TrackingSettings> {
-      const response = await fetchImpl(`${baseUrl}/settings`, {
+      const response = await fetchImpl(`${baseUrl}/settings`, withDefaults({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input)
-      });
+      }));
       if (!response.ok) {
         throw new Error(`Request failed for ${baseUrl}/settings: ${response.status}`);
       }
       return mapSettings((await response.json()) as JsonRecord);
+    },
+    async login(input: { email: string; password: string }) {
+      const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/auth/login: ${response.status}`);
+      }
+
+      return (await response.json()) as { user: { id: string; email: string; name: string } };
     }
   };
 }

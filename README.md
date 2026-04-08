@@ -112,6 +112,12 @@ pnpm typecheck
 pnpm test
 ```
 
+Generate Prisma client after schema changes:
+
+```bash
+pnpm prisma:generate
+```
+
 ## API Examples
 
 Health:
@@ -174,6 +180,24 @@ curl -X POST http://localhost:3000/worker/run-analysis \
 - `/` - overview dashboard
 - `/trades` - trading history and manual trade entry
 - `/analysis` - structured analysis feed from signals and analysis runs
+- `/login` - email/password login page
+
+## Authentication
+
+The app now uses database-backed authentication:
+
+- users are stored in MySQL
+- passwords are hashed on the API
+- login creates an `HttpOnly` session cookie
+- the dashboard redirects unauthenticated requests to `/login`
+- the API protects all routes except `/health` and `/auth/*`
+
+Auth endpoints:
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/logout`
+- `GET /auth/me`
 
 ## Scheduling
 

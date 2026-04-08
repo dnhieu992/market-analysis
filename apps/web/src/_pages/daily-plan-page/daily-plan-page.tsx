@@ -1,9 +1,9 @@
-import { createApiClient } from '@web/shared/api/client';
+import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DailyAnalysis } from '@web/shared/api/types';
 import { DailyPlanFeed } from '@web/widgets/daily-plan-feed/daily-plan-feed';
 
 async function loadDailyAnalysis(): Promise<DailyAnalysis[]> {
-  const client = createApiClient();
+  const client = createServerApiClient();
 
   try {
     return await client.fetchDailyAnalysis('BTCUSDT');

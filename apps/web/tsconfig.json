@@ -29,6 +29,9 @@
       }
     ],
     "paths": {
+      "@app/core": [
+        "packages/core/src"
+      ],
       "@web/pages/*": [
         "apps/web/src/_pages/*"
       ],

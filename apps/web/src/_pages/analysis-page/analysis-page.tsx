@@ -1,4 +1,4 @@
-import { createApiClient } from '@web/shared/api/client';
+import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DashboardAnalysisRun, DashboardSignal } from '@web/shared/api/types';
 import { formatDateTime } from '@web/shared/lib/format';
 import { AnalysisFeed } from '@web/widgets/analysis-feed/analysis-feed';
@@ -10,7 +10,7 @@ type AnalysisPageProps = Readonly<{
 }>;
 
 async function loadAnalysisData() {
-  const client = createApiClient();
+  const client = createServerApiClient();
 
   try {
     const [signals, analysisRuns] = await Promise.all([

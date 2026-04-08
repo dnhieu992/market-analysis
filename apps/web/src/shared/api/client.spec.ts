@@ -112,6 +112,13 @@ describe('dashboard api clients', () => {
       updatedAt: expect.any(Date)
     });
     expect(health).toEqual({ service: 'api', status: 'ok' });
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:4000/orders',
+      expect.objectContaining({
+        credentials: 'include'
+      })
+    );
   });
 
   it('parses richer daily analysis plans and status fields', async () => {
@@ -220,5 +227,36 @@ describe('dashboard api clients', () => {
     expect(formatConfidence(82.4)).toBe('82%');
     expect(formatPrice(68000)).toBe('68,000');
     expect(formatDateTime(new Date('2026-04-01T08:00:00.000Z'))).toBe('Apr 1, 2026, 08:00');
+  });
+
+  it('forwards configured headers for authenticated server-side requests', async () => {
+    const fetchImpl = jest.fn() as jest.MockedFunction<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >;
+    const client = createApiClient({
+      baseUrl: 'http://localhost:4000',
+      fetchImpl,
+      headers: {
+        cookie: 'market_analysis_session=session-token'
+      }
+    });
+
+    fetchImpl.mockResolvedValueOnce(
+      new Response(JSON.stringify([]), { status: 200 })
+    );
+
+    await client.fetchOrders();
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://localhost:4000/orders',
+      expect.objectContaining({
+        credentials: 'include',
+        headers: expect.any(Headers)
+      })
+    );
+    const requestInit = fetchImpl.mock.calls[0]?.[1];
+    expect(new Headers(requestInit?.headers).get('cookie')).toBe(
+      'market_analysis_session=session-token'
+    );
   });
 });

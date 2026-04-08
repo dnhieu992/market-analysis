@@ -19,6 +19,8 @@ const signals = [
 
 const orders: Array<Record<string, unknown>> = [];
 const telegramLogs: unknown[] = [];
+const users: Array<Record<string, unknown>> = [];
+const sessions: Array<Record<string, unknown>> = [];
 
 export const prisma = {};
 
@@ -146,6 +148,64 @@ export function createSettingsRepository() {
         ...data.update
       };
       return settingsRecord;
+    }
+  };
+}
+
+export function createUserRepository() {
+  return {
+    async create(data: Record<string, unknown>) {
+      const createdUser = {
+        id: `user-${users.length + 1}`,
+        createdAt: new Date('2026-04-08T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-08T00:00:00.000Z'),
+        ...data
+      };
+      users.push(createdUser);
+      return createdUser;
+    },
+    async findByEmail(email: string) {
+      return users.find((user) => user.email === email) ?? null;
+    },
+    async findById(id: string) {
+      return users.find((user) => user.id === id) ?? null;
+    }
+  };
+}
+
+export function createSessionRepository() {
+  return {
+    async create(data: Record<string, unknown>) {
+      const createdSession = {
+        id: `session-${sessions.length + 1}`,
+        createdAt: new Date('2026-04-08T00:00:00.000Z'),
+        lastUsedAt: new Date('2026-04-08T00:00:00.000Z'),
+        ...data
+      };
+      sessions.push(createdSession);
+      return createdSession;
+    },
+    async findValidByTokenHash(tokenHash: string) {
+      const session = sessions.find((entry) => entry.tokenHash === tokenHash) ?? null;
+      if (!session) {
+        return null;
+      }
+
+      const user = users.find((entry) => entry.id === session.userId) ?? null;
+      return user ? { ...session, user } : null;
+    },
+    async deleteByTokenHash(tokenHash: string) {
+      const nextSessions = sessions.filter((entry) => entry.tokenHash !== tokenHash);
+      sessions.splice(0, sessions.length, ...nextSessions);
+      return { count: 1 };
+    },
+    async touch(id: string, lastUsedAt: Date) {
+      const session = sessions.find((entry) => entry.id === id);
+      if (!session) {
+        return null;
+      }
+      session.lastUsedAt = lastUsedAt;
+      return session;
     }
   };
 }

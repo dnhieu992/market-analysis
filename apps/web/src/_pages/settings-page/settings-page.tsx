@@ -1,9 +1,9 @@
-import { createApiClient } from '@web/shared/api/client';
+import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { TrackingSettings } from '@web/shared/api/types';
 import { SettingsFeed } from '@web/widgets/settings-feed/settings-feed';
 
 async function loadSettings(): Promise<TrackingSettings | null> {
-  const client = createApiClient();
+  const client = createServerApiClient();
   try {
     return await client.fetchSettings();
   } catch {
