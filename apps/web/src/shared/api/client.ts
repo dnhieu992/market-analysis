@@ -151,29 +151,14 @@ function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
       ? (row.aiOutput as DailyAnalysis['aiOutput'])
       : row.aiOutputJson && typeof row.aiOutputJson === 'string'
       ? (JSON.parse(row.aiOutputJson) as DailyAnalysis['aiOutput'])
-      : ({
-          analysis: '',
-          bias: 'neutral',
-          confidence: 0,
-          tradePlan: {
-            entryZone: '',
-            stopLoss: '',
-            takeProfit: '',
-            invalidation: ''
-          },
-          scenarios: {
-            bullishScenario: '',
-            bearishScenario: ''
-          },
-          riskNote: '',
-          timeHorizon: ''
-        } satisfies DailyAnalysis['aiOutput']);
+      : ({} as DailyAnalysis['aiOutput']);
 
   return {
     aiOutput,
     id: String(row.id),
     symbol: String(row.symbol),
     date: String(row.date),
+    status: String(row.status ?? 'WAIT') as DailyAnalysis['status'],
     d1Trend: String(row.d1Trend) as DailyAnalysis['d1Trend'],
     h4Trend: String(row.h4Trend) as DailyAnalysis['h4Trend'],
     d1S1: Number(row.d1S1),
@@ -186,6 +171,8 @@ function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
     h4R2: Number(row.h4R2),
     llmProvider: String(row.llmProvider ?? ''),
     llmModel: String(row.llmModel ?? ''),
+    pipelineDebugJson:
+      row.pipelineDebugJson == null ? null : String(row.pipelineDebugJson),
     summary: String(row.summary ?? ''),
     createdAt: String(row.createdAt)
   };

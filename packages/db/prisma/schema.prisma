@@ -94,6 +94,7 @@ model DailyAnalysis {
   id        String   @id @default(cuid())
   symbol    String
   date      DateTime @db.Date
+  status    String   @default("WAIT")
   d1Trend   String
   h4Trend   String
   d1S1      Float
@@ -107,6 +108,7 @@ model DailyAnalysis {
   llmProvider String
   llmModel   String
   aiOutputJson String @db.Text
+  pipelineDebugJson String? @db.LongText
   summary   String   @db.Text
   createdAt DateTime @default(now())
 

@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
+import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { DailyAnalysisService } from '../analysis/daily-analysis.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -17,11 +18,7 @@ export class SchedulerService {
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
-      config?.trackedSymbols ??
-      (process.env.TRACKED_SYMBOLS ?? 'BTCUSDT')
-        .split(',')
-        .map((symbol) => symbol.trim())
-        .filter(Boolean);
+      config?.trackedSymbols ?? resolveTrackedSymbols();
   }
 
   register() {

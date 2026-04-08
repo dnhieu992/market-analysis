@@ -117,8 +117,13 @@ let settingsRecord: Record<string, unknown> | null = null;
 export function createDailyAnalysisRepository() {
   return {
     async create(data: unknown) {
-      dailyAnalysisRecords.push(data);
-      return data;
+      const record = {
+        status: 'WAIT',
+        pipelineDebugJson: null,
+        ...(data as Record<string, unknown>)
+      };
+      dailyAnalysisRecords.push(record);
+      return record;
     },
     async findByDate(_symbol: string, _date: Date) {
       return null;

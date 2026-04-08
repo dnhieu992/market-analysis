@@ -80,26 +80,11 @@ export type CloseDashboardOrderInput = {
 };
 
 export type DailyAnalysis = {
-  aiOutput: {
-    analysis: string;
-    bias: 'bullish' | 'bearish' | 'neutral';
-    confidence: number;
-    tradePlan: {
-      entryZone: string;
-      stopLoss: string;
-      takeProfit: string;
-      invalidation: string;
-    };
-    scenarios: {
-      bullishScenario: string;
-      bearishScenario: string;
-    };
-    riskNote: string;
-    timeHorizon: string;
-  };
+  aiOutput: DailyAnalysisPlan;
   id: string;
   symbol: string;
   date: string;
+  status: 'TRADE_READY' | 'WAIT' | 'NO_TRADE';
   d1Trend: 'bullish' | 'bearish' | 'neutral';
   h4Trend: 'bullish' | 'bearish' | 'neutral';
   d1S1: number;
@@ -112,6 +97,7 @@ export type DailyAnalysis = {
   h4R2: number;
   llmProvider: string;
   llmModel: string;
+  pipelineDebugJson: string | null;
   summary: string;
   createdAt: string;
 };
@@ -128,3 +114,4 @@ export type UpsertSettingsInput = {
   name: string;
   trackingSymbols: string[];
 };
+import type { DailyAnalysisPlan } from '@app/core';

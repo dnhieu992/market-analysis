@@ -1,11 +1,25 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { type DailyAnalysisPlan, dailyAnalysisPlanSchema } from '@app/core';
+import {
+  dailyAnalysisAnalystDraftSchema,
+  dailyAnalysisValidatorResultSchema,
+  type DailyAnalysisAnalystDraft,
+  type DailyAnalysisMarketData,
+  type DailyAnalysisPlan,
+  type DailyAnalysisValidatorResult,
+  dailyAnalysisPlanSchema
+} from '@app/core';
 import axios, { type AxiosInstance } from 'axios';
 
+import {
+  buildDailyAnalysisAnalystPrompt,
+  buildDailyAnalysisValidatorPrompt
+} from './daily-analysis-prompts';
 import type {
   ClaudeModelVariant,
   DailyAnalysisGatewayInput,
   DailyAnalysisGatewayResult,
+  DailyAnalysisDraftResult,
+  DailyAnalysisValidationResult,
   LlmProviderAdapter
 } from './llm-provider.adapter';
 
@@ -70,6 +84,193 @@ const DAILY_ANALYSIS_TOOL_SCHEMA = {
   }
 } as const;
 
+const DAILY_ANALYSIS_ANALYST_TOOL_NAME = 'record_daily_analysis_draft';
+const DAILY_ANALYSIS_VALIDATOR_TOOL_NAME = 'validate_daily_analysis_draft';
+
+const ANALYST_SETUP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'direction',
+    'trigger',
+    'entry',
+    'stopLoss',
+    'takeProfit1',
+    'takeProfit2',
+    'riskReward',
+    'invalidation'
+  ],
+  properties: {
+    direction: { type: 'string', enum: ['long', 'short', 'none'] },
+    trigger: { type: 'string' },
+    entry: { type: 'string' },
+    stopLoss: { type: 'string' },
+    takeProfit1: { type: 'string' },
+    takeProfit2: { type: 'string' },
+    riskReward: { type: 'string' },
+    invalidation: { type: 'string' }
+  }
+} as const;
+
+const ANALYST_CHECK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['result', 'details'],
+  properties: {
+    result: { type: 'string', enum: ['PASS', 'FAIL', 'WARNING'] },
+    details: { type: 'string' }
+  }
+} as const;
+
+const ANALYST_TIMEFRAME_CONTEXT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'biasFrame',
+    'setupFrame',
+    'entryRefinementFrame',
+    'higherTimeframeView',
+    'setupTimeframeView',
+    'alignment'
+  ],
+  properties: {
+    biasFrame: { type: 'string', enum: ['D1'] },
+    setupFrame: { type: 'string', enum: ['H4'] },
+    entryRefinementFrame: { type: 'string', enum: ['none'] },
+    higherTimeframeView: { type: 'string' },
+    setupTimeframeView: { type: 'string' },
+    alignment: { type: 'string', enum: ['aligned', 'conflicting', 'neutral'] }
+  }
+} as const;
+
+const ANALYST_MARKET_STATE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['trendCondition', 'volumeCondition', 'volatilityCondition', 'keyObservation'],
+  properties: {
+    trendCondition: { type: 'string', enum: ['trending', 'ranging', 'compressed', 'transitional'] },
+    volumeCondition: { type: 'string', enum: ['strong', 'normal', 'weak', 'very_weak'] },
+    volatilityCondition: { type: 'string', enum: ['high', 'normal', 'low'] },
+    keyObservation: { type: 'string' }
+  }
+} as const;
+
+const DAILY_ANALYSIS_ANALYST_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'summary',
+    'bias',
+    'confidence',
+    'status',
+    'timeframeContext',
+    'marketState',
+    'setupType',
+    'noTradeZone',
+    'primarySetup',
+    'secondarySetup',
+    'atrConsistencyCheck',
+    'logicConsistencyCheck',
+    'reasoning',
+    'finalAction'
+  ],
+  properties: {
+    summary: { type: 'string' },
+    bias: { type: 'string', enum: ['Bullish', 'Bearish', 'Neutral'] },
+    confidence: { type: 'integer' },
+    status: { type: 'string', enum: ['TRADE_READY', 'WAIT', 'NO_TRADE'] },
+    timeframeContext: ANALYST_TIMEFRAME_CONTEXT_SCHEMA,
+    marketState: ANALYST_MARKET_STATE_SCHEMA,
+    setupType: { type: 'string', enum: ['breakout', 'pullback', 'range', 'no-trade'] },
+    noTradeZone: { type: 'string' },
+    primarySetup: ANALYST_SETUP_SCHEMA,
+    secondarySetup: ANALYST_SETUP_SCHEMA,
+    atrConsistencyCheck: ANALYST_CHECK_SCHEMA,
+    logicConsistencyCheck: ANALYST_CHECK_SCHEMA,
+    reasoning: { type: 'array', items: { type: 'string' } },
+    finalAction: { type: 'string' }
+  }
+} as const;
+
+const VALIDATOR_CHECK_SCHEMA = ANALYST_CHECK_SCHEMA;
+const VALIDATOR_CORRECTED_PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'bias', 'confidence', 'status', 'setupType', 'primarySetup', 'finalAction'],
+  properties: {
+    summary: { type: 'string' },
+    bias: { type: 'string', enum: ['Bullish', 'Bearish', 'Neutral'] },
+    confidence: { type: 'integer' },
+    status: { type: 'string', enum: ['TRADE_READY', 'WAIT', 'NO_TRADE'] },
+    setupType: { type: 'string', enum: ['breakout', 'pullback', 'range', 'no-trade'] },
+    primarySetup: ANALYST_SETUP_SCHEMA,
+    finalAction: { type: 'string' }
+  }
+} as const;
+
+const DAILY_ANALYSIS_VALIDATOR_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'validationResult',
+    'summary',
+    'majorIssues',
+    'minorIssues',
+    'checks',
+    'correctedPlan',
+    'finalDecisionNote'
+  ],
+  properties: {
+    validationResult: {
+      type: 'string',
+      enum: ['APPROVED', 'APPROVED_WITH_ADJUSTMENTS', 'REJECTED']
+    },
+    summary: { type: 'string' },
+    majorIssues: { type: 'array', items: { type: 'string' } },
+    minorIssues: { type: 'array', items: { type: 'string' } },
+    checks: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'timeframeConsistency',
+        'breakoutLogic',
+        'riskReward',
+        'atrConsistency',
+        'volumeConfirmation',
+        'narrativeVsAction',
+        'structureQuality'
+      ],
+      properties: {
+        timeframeConsistency: VALIDATOR_CHECK_SCHEMA,
+        breakoutLogic: VALIDATOR_CHECK_SCHEMA,
+        riskReward: VALIDATOR_CHECK_SCHEMA,
+        atrConsistency: VALIDATOR_CHECK_SCHEMA,
+        volumeConfirmation: VALIDATOR_CHECK_SCHEMA,
+        narrativeVsAction: VALIDATOR_CHECK_SCHEMA,
+        structureQuality: VALIDATOR_CHECK_SCHEMA
+      }
+    },
+    correctedPlan: VALIDATOR_CORRECTED_PLAN_SCHEMA,
+    finalDecisionNote: { type: 'string' }
+  }
+} as const;
+
+const DEFAULT_CLAUDE_TIMEOUT_MS = 60_000;
+
+export function resolveClaudeTimeoutMs(rawValue: string | undefined): number {
+  if (rawValue == null) {
+    return DEFAULT_CLAUDE_TIMEOUT_MS;
+  }
+
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_CLAUDE_TIMEOUT_MS;
+  }
+
+  return Math.floor(parsed);
+}
+
 @Injectable()
 export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
   private readonly client: AxiosInstance;
@@ -86,7 +287,7 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
       client ??
       axios.create({
         baseURL: 'https://api.anthropic.com/v1',
-        timeout: 20_000,
+        timeout: resolveClaudeTimeoutMs(process.env.CLAUDE_TIMEOUT_MS),
         headers: {
           'x-api-key': apiKey ?? process.env.CLAUDE_API_KEY ?? '',
           'anthropic-version': '2023-06-01',
@@ -95,11 +296,120 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
       });
   }
 
+  async generateDailyAnalysisDraft(
+    marketData: DailyAnalysisMarketData
+  ): Promise<DailyAnalysisDraftResult> {
+    const response = await this.requestClaudeTool(
+      buildDailyAnalysisAnalystPrompt(marketData),
+      'You are a professional market structure analyst for crypto trading.',
+      DAILY_ANALYSIS_ANALYST_TOOL_NAME,
+      DAILY_ANALYSIS_ANALYST_TOOL_SCHEMA
+    );
+
+    const toolInput = this.extractToolUseInput(response.data, DAILY_ANALYSIS_ANALYST_TOOL_NAME);
+    const normalizedDraft = this.normalizeAnalystDraftInput(toolInput, marketData);
+
+    return {
+      provider: 'claude',
+      model: this.getResolvedModel(),
+      draftPlan: dailyAnalysisAnalystDraftSchema.parse(normalizedDraft)
+    };
+  }
+
+  async validateDailyAnalysisDraft(input: {
+    marketData: DailyAnalysisMarketData;
+    draftPlan: DailyAnalysisAnalystDraft;
+  }): Promise<DailyAnalysisValidationResult> {
+    const response = await this.requestClaudeTool(
+      buildDailyAnalysisValidatorPrompt(input),
+      'You are a strict trading-plan validator.',
+      DAILY_ANALYSIS_VALIDATOR_TOOL_NAME,
+      DAILY_ANALYSIS_VALIDATOR_TOOL_SCHEMA
+    );
+
+    const toolInput = this.extractToolUseInput(response.data, DAILY_ANALYSIS_VALIDATOR_TOOL_NAME);
+    const normalizedValidatorResult = this.normalizeValidatorResultInput(toolInput, input.draftPlan);
+
+    return {
+      provider: 'claude',
+      model: this.getResolvedModel(),
+      validatorResult: dailyAnalysisValidatorResultSchema.parse(normalizedValidatorResult)
+    };
+  }
+
   getResolvedModel(): string {
     return CLAUDE_MODEL_IDS[this.modelVariant] ?? this.modelVariant;
   }
 
   async generateDailyAnalysisPlan(
+    input: DailyAnalysisGatewayInput
+  ): Promise<DailyAnalysisGatewayResult> {
+    return this.generateCompatibilityDailyAnalysisPlan(input);
+  }
+
+  private async requestClaudeTool(
+    prompt: string,
+    system: string,
+    toolName: string,
+    toolSchema: Record<string, unknown>
+  ): Promise<{ data: ClaudeMessagesResponse }> {
+    try {
+      return await this.client.post<ClaudeMessagesResponse>('/messages', {
+        model: this.getResolvedModel(),
+        max_tokens: 1200,
+        system,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        tools: [
+          {
+            name: toolName,
+            description: 'Return structured daily analysis output.',
+            input_schema: toolSchema
+          }
+        ],
+        tool_choice: {
+          type: 'tool',
+          name: toolName
+        }
+      });
+    } catch (error) {
+      const candidate = error as {
+        response?: {
+          status?: number;
+          data?: unknown;
+        };
+      };
+      const status = candidate.response?.status;
+      const details =
+        candidate.response?.data == null
+          ? ''
+          : `: ${JSON.stringify(candidate.response.data)}`;
+
+      if (status) {
+        throw new Error(`Claude daily analysis request failed with status ${status}${details}`);
+      }
+
+      throw error;
+    }
+  }
+
+  private extractToolUseInput(response: ClaudeMessagesResponse, toolName: string): unknown {
+    const toolUseInput = response.content?.find(
+      (block) => block.type === 'tool_use' && block.name === toolName
+    )?.input;
+
+    if (toolUseInput == null) {
+      throw new Error(`Claude daily analysis response missing tool output for ${toolName}`);
+    }
+
+    return toolUseInput;
+  }
+
+  private async generateCompatibilityDailyAnalysisPlan(
     input: DailyAnalysisGatewayInput
   ): Promise<DailyAnalysisGatewayResult> {
     const marketPrompt = this.buildPrompt(input);
@@ -288,6 +598,651 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
     }
 
     return result;
+  }
+
+  private normalizeAnalystDraftInput(
+    rawInput: unknown,
+    marketData: DailyAnalysisMarketData
+  ): unknown {
+    if (!this.isRecord(rawInput)) {
+      return rawInput;
+    }
+
+    const source = rawInput;
+    const summary =
+      this.firstString(source.summary, source.analysis) ?? this.deriveAnalystSummary(marketData);
+    const status = this.normalizeDraftStatus(source.status) ?? 'WAIT';
+    const marketState = this.normalizeAnalystMarketState(
+      this.pickRecord(source.marketState, source.market_state),
+      marketData,
+      summary
+    );
+    const finalAction =
+      this.firstString(source.finalAction, source.final_action, source.action) ??
+      this.deriveAnalystFinalAction(status, marketData);
+
+    return {
+      summary,
+      bias: this.normalizeBias(source.bias) ?? this.deriveBiasFromMarketData(marketData),
+      confidence:
+        this.normalizeConfidence(source.confidence) ??
+        this.deriveDraftConfidenceFromMarketData(marketData),
+      status,
+      timeframeContext: this.normalizeAnalystTimeframeContext(
+        this.pickRecord(source.timeframeContext, source.timeframe_context),
+        marketData
+      ),
+      marketState,
+      setupType:
+        this.normalizeSetupType(source.setupType, source.setup_type) ??
+        (status === 'TRADE_READY' ? 'breakout' : 'no-trade'),
+      noTradeZone:
+        this.firstString(source.noTradeZone, source.no_trade_zone) ??
+        this.deriveNoTradeZone(marketData),
+      primarySetup: this.normalizeAnalystSetup(
+        this.pickRecord(
+          source.primarySetup,
+          source.primary_setup,
+          source.tradePlan,
+          source.trade_plan,
+          source.plan
+        ),
+        this.deriveDefaultSetup(
+          marketData,
+          status === 'TRADE_READY' ? this.deriveSetupDirectionFromMarketData(marketData) : 'none'
+        )
+      ),
+      secondarySetup: this.normalizeAnalystSetup(
+        this.pickRecord(source.secondarySetup, source.secondary_setup),
+        this.deriveDefaultSetup(marketData, 'none')
+      ),
+      atrConsistencyCheck: this.normalizeDraftCheck(
+        this.pickRecord(source.atrConsistencyCheck, source.atr_consistency_check),
+        this.deriveCheckResultFromStatus(status),
+        `H4 ATR14 = ${this.formatPrice(marketData.timeframes.H4.atr14)}; only trust the setup after volatility and confirmation align.`
+      ),
+      logicConsistencyCheck: this.normalizeDraftCheck(
+        this.pickRecord(source.logicConsistencyCheck, source.logic_consistency_check),
+        this.deriveCheckResultFromStatus(status),
+        `Bias frame D1 and setup frame H4 require confirmation before execution when alignment is not clean.`
+      ),
+      reasoning: this.normalizeReasoning(
+        source.reasoning,
+        summary,
+        marketState.keyObservation,
+        finalAction
+      ),
+      finalAction
+    };
+  }
+
+  private normalizeValidatorResultInput(
+    rawInput: unknown,
+    draftPlan: DailyAnalysisAnalystDraft
+  ): unknown {
+    if (!this.isRecord(rawInput)) {
+      return rawInput;
+    }
+
+    const source = rawInput;
+    const validationResult =
+      this.normalizeValidationResult(source.validationResult, source.validation_result) ??
+      'APPROVED_WITH_ADJUSTMENTS';
+    const summary = this.firstString(source.summary, source.validatorSummary) ?? draftPlan.summary;
+
+    return {
+      validationResult,
+      summary,
+      majorIssues: this.normalizeStringArray(source.majorIssues, source.major_issues),
+      minorIssues: this.normalizeStringArray(source.minorIssues, source.minor_issues),
+      checks: this.normalizeValidatorChecks(
+        this.pickRecord(source.checks, source.validationChecks, source.validation_checks),
+        validationResult === 'REJECTED' ? 'WARNING' : 'PASS'
+      ),
+      correctedPlan: this.normalizeValidatorCorrectedPlan(
+        this.pickRecord(source.correctedPlan, source.corrected_plan, source.plan),
+        draftPlan
+      ),
+      finalDecisionNote:
+        this.firstString(source.finalDecisionNote, source.final_decision_note, source.decisionNote) ??
+        `Validator returned ${validationResult}.`
+    };
+  }
+
+  private normalizeAnalystTimeframeContext(
+    rawContext: Record<string, unknown> | undefined,
+    marketData: DailyAnalysisMarketData
+  ) {
+    const source = rawContext ?? {};
+    const higherTimeframeView =
+      this.firstString(
+        source.higherTimeframeView,
+        source.higher_timeframe_view,
+        source.D1,
+        source.d1
+      ) ?? this.deriveHigherTimeframeView(marketData);
+    const setupTimeframeView =
+      this.firstString(
+        source.setupTimeframeView,
+        source.setup_timeframe_view,
+        source.H4,
+        source.h4
+      ) ?? this.deriveSetupTimeframeView(marketData);
+
+    return {
+      biasFrame: 'D1' as const,
+      setupFrame: 'H4' as const,
+      entryRefinementFrame: 'none' as const,
+      higherTimeframeView: this.ensureTimeframeLabel(higherTimeframeView, 'D1'),
+      setupTimeframeView: this.ensureTimeframeLabel(setupTimeframeView, 'H4'),
+      alignment:
+        this.normalizeAlignment(source.alignment) ?? this.deriveAlignmentFromMarketData(marketData)
+    };
+  }
+
+  private normalizeAnalystMarketState(
+    rawState: Record<string, unknown> | undefined,
+    marketData: DailyAnalysisMarketData,
+    fallbackObservation: string
+  ) {
+    const source = rawState ?? {};
+
+    return {
+      trendCondition:
+        this.normalizeTrendCondition(
+          source.trendCondition,
+          source.trend_condition,
+          source.marketRegime,
+          source.market_regime
+        ) ?? this.deriveTrendConditionFromMarketData(marketData),
+      volumeCondition:
+        this.normalizeVolumeCondition(source.volumeCondition, source.volume_condition) ??
+        this.deriveVolumeConditionFromMarketData(marketData),
+      volatilityCondition:
+        this.normalizeVolatilityCondition(
+          source.volatilityCondition,
+          source.volatility_condition
+        ) ?? this.deriveVolatilityConditionFromMarketData(marketData),
+      keyObservation:
+        this.firstString(source.keyObservation, source.key_observation, source.observation) ??
+        fallbackObservation
+    };
+  }
+
+  private normalizeAnalystSetup(
+    rawSetup: Record<string, unknown> | undefined,
+    fallbackSetup: DailyAnalysisAnalystDraft['primarySetup']
+  ) {
+    const source = rawSetup ?? {};
+
+    return {
+      direction: this.normalizeSetupDirection(source.direction, source.side) ?? fallbackSetup.direction,
+      trigger:
+        this.firstString(source.trigger, source.breakoutTrigger, source.trigger_condition) ??
+        fallbackSetup.trigger,
+      entry:
+        this.firstString(source.entry, source.entryZone, source.entry_zone) ?? fallbackSetup.entry,
+      stopLoss:
+        this.firstString(source.stopLoss, source.stop_loss) ?? fallbackSetup.stopLoss,
+      takeProfit1:
+        this.firstString(
+          source.takeProfit1,
+          source.take_profit_1,
+          source.takeProfit,
+          source.take_profit
+        ) ?? fallbackSetup.takeProfit1,
+      takeProfit2:
+        this.firstString(source.takeProfit2, source.take_profit_2) ?? fallbackSetup.takeProfit2,
+      riskReward:
+        this.firstString(source.riskReward, source.risk_reward) ?? fallbackSetup.riskReward,
+      invalidation:
+        this.firstString(source.invalidation, source.invalidatesAt, source.invalidation_level) ??
+        fallbackSetup.invalidation
+    };
+  }
+
+  private normalizeDraftCheck(
+    rawCheck: Record<string, unknown> | undefined,
+    fallbackResult: 'PASS' | 'FAIL' | 'WARNING',
+    fallbackDetails: string
+  ) {
+    const source = rawCheck ?? {};
+
+    return {
+      result:
+        this.normalizeCheckResult(source.result, source.check_result) ?? fallbackResult,
+      details:
+        this.firstString(source.details, source.note, source.reason) ?? fallbackDetails
+    };
+  }
+
+  private normalizeValidatorChecks(
+    rawChecks: Record<string, unknown> | undefined,
+    fallbackResult: 'PASS' | 'FAIL' | 'WARNING'
+  ) {
+    const source = rawChecks ?? {};
+    const fallbackDetails = 'Validator check used provider fallback normalization.';
+
+    return {
+      timeframeConsistency: this.normalizeDraftCheck(
+        this.pickRecord(source.timeframeConsistency, source.timeframe_consistency),
+        fallbackResult,
+        fallbackDetails
+      ),
+      breakoutLogic: this.normalizeDraftCheck(
+        this.pickRecord(source.breakoutLogic, source.breakout_logic),
+        fallbackResult,
+        fallbackDetails
+      ),
+      riskReward: this.normalizeDraftCheck(
+        this.pickRecord(source.riskReward, source.risk_reward),
+        fallbackResult,
+        fallbackDetails
+      ),
+      atrConsistency: this.normalizeDraftCheck(
+        this.pickRecord(source.atrConsistency, source.atr_consistency),
+        fallbackResult,
+        fallbackDetails
+      ),
+      volumeConfirmation: this.normalizeDraftCheck(
+        this.pickRecord(source.volumeConfirmation, source.volume_confirmation),
+        fallbackResult,
+        fallbackDetails
+      ),
+      narrativeVsAction: this.normalizeDraftCheck(
+        this.pickRecord(source.narrativeVsAction, source.narrative_vs_action),
+        fallbackResult,
+        fallbackDetails
+      ),
+      structureQuality: this.normalizeDraftCheck(
+        this.pickRecord(source.structureQuality, source.structure_quality),
+        fallbackResult,
+        fallbackDetails
+      )
+    };
+  }
+
+  private normalizeValidatorCorrectedPlan(
+    rawPlan: Record<string, unknown> | undefined,
+    draftPlan: DailyAnalysisAnalystDraft
+  ) {
+    const source = rawPlan ?? {};
+
+    return {
+      summary: this.firstString(source.summary, source.analysis) ?? draftPlan.summary,
+      bias: this.normalizeBias(source.bias) ?? draftPlan.bias,
+      confidence: this.normalizeConfidence(source.confidence) ?? draftPlan.confidence,
+      status: this.normalizeDraftStatus(source.status) ?? draftPlan.status,
+      setupType:
+        this.normalizeSetupType(source.setupType, source.setup_type) ?? draftPlan.setupType,
+      primarySetup: this.normalizeAnalystSetup(
+        this.pickRecord(source.primarySetup, source.primary_setup, source.tradePlan, source.trade_plan),
+        draftPlan.primarySetup
+      ),
+      finalAction:
+        this.firstString(source.finalAction, source.final_action, source.action) ??
+        draftPlan.finalAction
+    };
+  }
+
+  private normalizeReasoning(
+    rawReasoning: unknown,
+    summary: string,
+    keyObservation: string,
+    finalAction: string
+  ): string[] {
+    const values = Array.isArray(rawReasoning)
+      ? rawReasoning.filter((item): item is string => typeof item === 'string')
+      : typeof rawReasoning === 'string'
+      ? [rawReasoning]
+      : [summary, keyObservation, finalAction];
+
+    const normalized = values
+      .map((value) => value.trim())
+      .filter((value, index, array) => value.length > 0 && array.indexOf(value) === index);
+
+    return normalized.length > 0 ? normalized : [summary];
+  }
+
+  private normalizeStringArray(...candidates: unknown[]): string[] {
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        const values = candidate.filter((item): item is string => typeof item === 'string');
+
+        if (values.length > 0) {
+          return values;
+        }
+      }
+    }
+
+    return [];
+  }
+
+  private pickRecord(...candidates: unknown[]): Record<string, unknown> | undefined {
+    return candidates.find((candidate): candidate is Record<string, unknown> =>
+      this.isRecord(candidate)
+    );
+  }
+
+  private deriveBiasFromMarketData(marketData: DailyAnalysisMarketData): DailyAnalysisAnalystDraft['bias'] {
+    const d1Trend = marketData.timeframes.D1.trend;
+    const h4Trend = marketData.timeframes.H4.trend;
+
+    if (d1Trend === h4Trend && d1Trend !== 'neutral') {
+      return d1Trend === 'bullish' ? 'Bullish' : 'Bearish';
+    }
+
+    return 'Neutral';
+  }
+
+  private deriveDraftConfidenceFromMarketData(marketData: DailyAnalysisMarketData): number {
+    return this.deriveAlignmentFromMarketData(marketData) === 'aligned' ? 68 : 38;
+  }
+
+  private deriveAlignmentFromMarketData(
+    marketData: DailyAnalysisMarketData
+  ): 'aligned' | 'conflicting' | 'neutral' {
+    const d1Trend = marketData.timeframes.D1.trend;
+    const h4Trend = marketData.timeframes.H4.trend;
+
+    if (d1Trend === 'neutral' || h4Trend === 'neutral') {
+      return 'neutral';
+    }
+
+    return d1Trend === h4Trend ? 'aligned' : 'conflicting';
+  }
+
+  private deriveTrendConditionFromMarketData(
+    marketData: DailyAnalysisMarketData
+  ): 'trending' | 'ranging' | 'compressed' | 'transitional' {
+    const regime = marketData.marketFlags?.marketRegime;
+
+    if (regime === 'compressed' || regime === 'trending' || regime === 'ranging') {
+      return regime;
+    }
+
+    return 'transitional';
+  }
+
+  private deriveVolumeConditionFromMarketData(
+    marketData: DailyAnalysisMarketData
+  ): 'strong' | 'normal' | 'weak' | 'very_weak' {
+    const volumeRatio = marketData.timeframes.H4.volumeRatio;
+
+    if (volumeRatio < 0.3) {
+      return 'very_weak';
+    }
+
+    if (volumeRatio < 0.8) {
+      return 'weak';
+    }
+
+    if (volumeRatio < 1.2) {
+      return 'normal';
+    }
+
+    return 'strong';
+  }
+
+  private deriveVolatilityConditionFromMarketData(
+    marketData: DailyAnalysisMarketData
+  ): 'high' | 'normal' | 'low' {
+    const ratio = marketData.timeframes.H4.atr14 / Math.max(1, marketData.currentPrice);
+
+    if (ratio >= 0.015) {
+      return 'high';
+    }
+
+    if (ratio >= 0.007) {
+      return 'normal';
+    }
+
+    return 'low';
+  }
+
+  private deriveAnalystSummary(marketData: DailyAnalysisMarketData): string {
+    const alignment = this.deriveAlignmentFromMarketData(marketData);
+
+    if (alignment === 'aligned') {
+      return 'Cau truc D1 va H4 dang dong thuan, nhung van can doi breakout duoc xac nhan ro rang.';
+    }
+
+    return 'Thi truong dang co xung dot hoac nen chat, uu tien cho xac nhan truoc khi kich hoat ke hoach.';
+  }
+
+  private deriveHigherTimeframeView(marketData: DailyAnalysisMarketData): string {
+    return `D1 trend is ${marketData.timeframes.D1.trend} with key levels around ${this.formatPrice(
+      marketData.timeframes.D1.levels.support[0] ?? marketData.currentPrice
+    )} and ${this.formatPrice(
+      marketData.timeframes.D1.levels.resistance[0] ?? marketData.currentPrice
+    )}.`;
+  }
+
+  private deriveSetupTimeframeView(marketData: DailyAnalysisMarketData): string {
+    return `H4 trend is ${marketData.timeframes.H4.trend} and requires a confirmed breakout before execution.`;
+  }
+
+  private deriveNoTradeZone(marketData: DailyAnalysisMarketData): string {
+    const support = marketData.timeframes.H4.levels.support[0] ?? marketData.currentPrice;
+    const resistance = marketData.timeframes.H4.levels.resistance[0] ?? marketData.currentPrice;
+
+    return `Avoid entries while H4 remains trapped between ${this.formatPrice(
+      support
+    )} and ${this.formatPrice(resistance)} without confirmation.`;
+  }
+
+  private deriveAnalystFinalAction(
+    status: DailyAnalysisAnalystDraft['status'],
+    marketData: DailyAnalysisMarketData
+  ): string {
+    if (status === 'TRADE_READY') {
+      return `Only act after H4 confirms a breakout beyond ${this.formatPrice(
+        marketData.timeframes.H4.levels.resistance[0] ?? marketData.currentPrice
+      )}.`;
+    }
+
+    return 'Wait for stronger confirmation, clearer structure, and better participation.';
+  }
+
+  private deriveDefaultSetup(
+    marketData: DailyAnalysisMarketData,
+    direction: DailyAnalysisAnalystDraft['primarySetup']['direction']
+  ): DailyAnalysisAnalystDraft['primarySetup'] {
+    const h4Support = marketData.timeframes.H4.levels.support[0] ?? marketData.currentPrice;
+    const h4Resistance = marketData.timeframes.H4.levels.resistance[0] ?? marketData.currentPrice;
+    const h4Resistance2 = marketData.timeframes.H4.levels.resistance[1] ?? h4Resistance;
+    const h4Support2 = marketData.timeframes.H4.levels.support[1] ?? h4Support;
+
+    if (direction === 'long') {
+      return {
+        direction,
+        trigger: `H4 close above ${this.formatPrice(h4Resistance)} with stronger volume.`,
+        entry: `Consider long only after breakout confirmation above ${this.formatPrice(h4Resistance)}.`,
+        stopLoss: `Below ${this.formatPrice(h4Support)}.`,
+        takeProfit1: this.formatPrice(h4Resistance2),
+        takeProfit2: this.formatPrice(
+          marketData.timeframes.D1.levels.resistance[0] ?? h4Resistance2
+        ),
+        riskReward: '1:2',
+        invalidation: `Cancel the setup if H4 loses ${this.formatPrice(h4Support)}.`
+      };
+    }
+
+    if (direction === 'short') {
+      return {
+        direction,
+        trigger: `H4 close below ${this.formatPrice(h4Support)} with stronger volume.`,
+        entry: `Consider short only after breakdown confirmation below ${this.formatPrice(h4Support)}.`,
+        stopLoss: `Above ${this.formatPrice(h4Resistance)}.`,
+        takeProfit1: this.formatPrice(h4Support2),
+        takeProfit2: this.formatPrice(
+          marketData.timeframes.D1.levels.support[0] ?? h4Support2
+        ),
+        riskReward: '1:2',
+        invalidation: `Cancel the setup if H4 reclaims ${this.formatPrice(h4Resistance)}.`
+      };
+    }
+
+    return {
+      direction: 'none',
+      trigger: 'No valid trigger yet.',
+      entry: 'Wait for confirmation.',
+      stopLoss: 'N/A',
+      takeProfit1: 'N/A',
+      takeProfit2: 'N/A',
+      riskReward: 'N/A',
+      invalidation: 'N/A'
+    };
+  }
+
+  private deriveSetupDirectionFromMarketData(
+    marketData: DailyAnalysisMarketData
+  ): DailyAnalysisAnalystDraft['primarySetup']['direction'] {
+    const d1Trend = marketData.timeframes.D1.trend;
+    const h4Trend = marketData.timeframes.H4.trend;
+
+    if (d1Trend === 'bullish' && h4Trend === 'bullish') {
+      return 'long';
+    }
+
+    if (d1Trend === 'bearish' && h4Trend === 'bearish') {
+      return 'short';
+    }
+
+    return 'none';
+  }
+
+  private ensureTimeframeLabel(value: string, label: 'D1' | 'H4'): string {
+    return value.includes(label) ? value : `${label}: ${value}`;
+  }
+
+  private deriveCheckResultFromStatus(
+    status: DailyAnalysisAnalystDraft['status']
+  ): 'PASS' | 'FAIL' | 'WARNING' {
+    return status === 'TRADE_READY' ? 'PASS' : 'WARNING';
+  }
+
+  private normalizeDraftStatus(...candidates: unknown[]): DailyAnalysisAnalystDraft['status'] | undefined {
+    for (const candidate of candidates) {
+      if (candidate === 'TRADE_READY' || candidate === 'WAIT' || candidate === 'NO_TRADE') {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeValidationResult(
+    ...candidates: unknown[]
+  ): DailyAnalysisValidatorResult['validationResult'] | undefined {
+    for (const candidate of candidates) {
+      if (
+        candidate === 'APPROVED' ||
+        candidate === 'APPROVED_WITH_ADJUSTMENTS' ||
+        candidate === 'REJECTED'
+      ) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeSetupType(...candidates: unknown[]): DailyAnalysisAnalystDraft['setupType'] | undefined {
+    for (const candidate of candidates) {
+      if (
+        candidate === 'breakout' ||
+        candidate === 'pullback' ||
+        candidate === 'range' ||
+        candidate === 'no-trade'
+      ) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeAlignment(
+    value: unknown
+  ): DailyAnalysisAnalystDraft['timeframeContext']['alignment'] | undefined {
+    if (value === 'aligned' || value === 'conflicting' || value === 'neutral') {
+      return value;
+    }
+
+    return undefined;
+  }
+
+  private normalizeTrendCondition(
+    ...candidates: unknown[]
+  ): DailyAnalysisAnalystDraft['marketState']['trendCondition'] | undefined {
+    for (const candidate of candidates) {
+      if (
+        candidate === 'trending' ||
+        candidate === 'ranging' ||
+        candidate === 'compressed' ||
+        candidate === 'transitional'
+      ) {
+        return candidate;
+      }
+
+      if (candidate === 'volatile') {
+        return 'transitional';
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeVolumeCondition(
+    ...candidates: unknown[]
+  ): DailyAnalysisAnalystDraft['marketState']['volumeCondition'] | undefined {
+    for (const candidate of candidates) {
+      if (
+        candidate === 'strong' ||
+        candidate === 'normal' ||
+        candidate === 'weak' ||
+        candidate === 'very_weak'
+      ) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeVolatilityCondition(
+    ...candidates: unknown[]
+  ): DailyAnalysisAnalystDraft['marketState']['volatilityCondition'] | undefined {
+    for (const candidate of candidates) {
+      if (candidate === 'high' || candidate === 'normal' || candidate === 'low') {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeSetupDirection(
+    ...candidates: unknown[]
+  ): DailyAnalysisAnalystDraft['primarySetup']['direction'] | undefined {
+    for (const candidate of candidates) {
+      if (candidate === 'long' || candidate === 'short' || candidate === 'none') {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeCheckResult(...candidates: unknown[]): 'PASS' | 'FAIL' | 'WARNING' | undefined {
+    for (const candidate of candidates) {
+      if (candidate === 'PASS' || candidate === 'FAIL' || candidate === 'WARNING') {
+        return candidate;
+      }
+    }
+
+    return undefined;
   }
 
   private normalizePlanInput(input: unknown): unknown {
@@ -534,8 +1489,20 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
   }
 
   private normalizeBias(value: unknown): DailyAnalysisPlan['bias'] | undefined {
-    if (value === 'bullish' || value === 'bearish' || value === 'neutral') {
+    if (value === 'Bullish' || value === 'Bearish' || value === 'Neutral') {
       return value;
+    }
+
+    if (value === 'bullish') {
+      return 'Bullish';
+    }
+
+    if (value === 'bearish') {
+      return 'Bearish';
+    }
+
+    if (value === 'neutral') {
+      return 'Neutral';
     }
 
     return undefined;
@@ -547,18 +1514,18 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
 
   private deriveBias(input: DailyAnalysisGatewayInput): DailyAnalysisPlan['bias'] {
     if (input.d1.trend === input.h4.trend && input.d1.trend !== 'neutral') {
-      return input.d1.trend;
+      return input.d1.trend === 'bullish' ? 'Bullish' : 'Bearish';
     }
 
     if (input.h4.trend !== 'neutral') {
-      return input.h4.trend;
+      return input.h4.trend === 'bullish' ? 'Bullish' : 'Bearish';
     }
 
     if (input.d1.trend !== 'neutral') {
-      return input.d1.trend;
+      return input.d1.trend === 'bullish' ? 'Bullish' : 'Bearish';
     }
 
-    return 'neutral';
+    return 'Neutral';
   }
 
   private deriveConfidence(input: DailyAnalysisGatewayInput): number {
@@ -581,11 +1548,11 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
     input: DailyAnalysisGatewayInput,
     bias: DailyAnalysisPlan['bias']
   ): string {
-    if (bias === 'bullish') {
+    if (bias === 'Bullish') {
       return `D1 nghieng tang va H4 uu tien tim co hoi breakout theo xu huong, tap trung theo doi pha vuot ${this.formatPrice(input.h4.r1)} de mo rong len ${this.formatPrice(input.h4.r2)}.`;
     }
 
-    if (bias === 'bearish') {
+    if (bias === 'Bearish') {
       return `D1 nghieng giam va H4 uu tien tim co hoi breakdown theo xu huong, tap trung theo doi pha mat ${this.formatPrice(input.h4.s1)} de mo rong ve ${this.formatPrice(input.h4.s2)}.`;
     }
 
@@ -616,7 +1583,7 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
     input: DailyAnalysisGatewayInput,
     bias: DailyAnalysisPlan['bias']
   ): Record<string, string> {
-    if (bias === 'bullish') {
+    if (bias === 'Bullish') {
       return {
         entryZone: `Canh mua khi dong H4 vuot ${this.formatPrice(input.h4.r1)} va giu vung retest.`,
         stopLoss: `Dung lo duoi ${this.formatPrice(input.h4.s1)}.`,
@@ -625,7 +1592,7 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
       };
     }
 
-    if (bias === 'bearish') {
+    if (bias === 'Bearish') {
       return {
         entryZone: `Canh ban khi dong H4 pha ${this.formatPrice(input.h4.s1)} va khong lay lai vung nay.`,
         stopLoss: `Dung lo tren ${this.formatPrice(input.h4.r1)}.`,
@@ -680,14 +1647,14 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
     const invalidation =
       this.firstString(source.invalidation, source.invalidatesAt) ?? 'muc vo hieu cua setup';
 
-    if (bias === 'bearish') {
+    if (bias === 'Bearish') {
       return {
         bullishScenario: `Neu gia lay lai cau truc va khong kich hoat setup giam, uu tien dung ngoai thay vi giao dich nguoc tin hieu chinh.`,
         bearishScenario: `Neu gia kich hoat ke hoach quanh ${entryZone}, dong luc giam co the mo rong ve ${takeProfit}. Neu bi vo hieu tai ${invalidation}, can dung ngoai.`
       };
     }
 
-    if (bias === 'neutral') {
+    if (bias === 'Neutral') {
       return {
         bullishScenario: `Neu gia breakout len khoi vung quan sat va giu duoc ${entryZone}, co the mo rong toi ${takeProfit}.`,
         bearishScenario: `Neu gia khong giu duoc cau truc va kich hoat vo hieu tai ${invalidation}, uu tien dung ngoai va cho xac nhan moi.`

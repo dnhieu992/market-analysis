@@ -2,11 +2,14 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   buildIndicatorSnapshot,
   formatDailyAnalysisPlanMessage,
+  type DailyAnalysisMarketData,
   type Candle,
   type DailyAnalysisPlan
 } from '@app/core';
 import { createDailyAnalysisRepository } from '@app/db';
 
+import { buildDailyAnalysisMarketData } from './daily-analysis-market-data.builder';
+import { publishDailyAnalysisPlan } from './publish-daily-analysis-plan';
 import { MarketDataService } from '../market/market-data.service';
 import { detectTrend, findNearestSwingLows, findNearestSwingHighs } from '../market/utils/trend';
 import type { Trend } from '../market/utils/trend';
@@ -23,6 +26,7 @@ type TimeframeAnalysis = {
 export type DailyAnalysisResult = {
   symbol: string;
   date: Date;
+  status: DailyAnalysisPlan['status'];
   d1: TimeframeAnalysis;
   h4: TimeframeAnalysis;
   h4Indicators: {
@@ -40,11 +44,17 @@ export type DailyAnalysisResult = {
   };
   llmProvider: string;
   llmModel: string;
+  marketData: DailyAnalysisMarketData;
   aiOutput: DailyAnalysisPlan;
+  pipelineDebugJson: string;
   summary: string;
 };
 
 type DailyAnalysisRepository = ReturnType<typeof createDailyAnalysisRepository>;
+
+type DailyAnalysisPipelineOutput = Awaited<
+  ReturnType<LlmGatewayService['runDailyAnalysisPipeline']>
+>;
 
 function analyzeTimeframe(candles: Candle[]): TimeframeAnalysis {
   const close = candles[candles.length - 1]?.close ?? 0;
@@ -76,13 +86,14 @@ export class DailyAnalysisService {
 
   async analyze(symbol: string): Promise<DailyAnalysisResult> {
     const [d1Candles, h4Candles] = await Promise.all([
-      this.marketDataService.getCandles(symbol, '1d', 100),
-      this.marketDataService.getCandles(symbol, '4h', 100)
+      this.marketDataService.getCandles(symbol, '1d', 200),
+      this.marketDataService.getCandles(symbol, '4h', 200)
     ]);
 
     const d1 = analyzeTimeframe(d1Candles);
     const h4 = analyzeTimeframe(h4Candles);
     const h4Snapshot = buildIndicatorSnapshot(h4Candles);
+    const currentPrice = h4Candles[h4Candles.length - 1]?.close ?? 0;
 
     const date = new Date();
     date.setUTCHours(0, 0, 0, 0);
@@ -96,26 +107,42 @@ export class DailyAnalysisService {
       atr14: h4Snapshot.atr14,
       volumeRatio: h4Snapshot.volumeRatio
     };
+    const marketData = buildDailyAnalysisMarketData({
+      symbol,
+      date,
+      currentPrice,
+      d1Candles,
+      h4Candles,
+      d1,
+      h4,
+      h4Indicators: h4Snapshot
+    });
 
-    const aiResult = await this.generateAiPlan(symbol, date, d1, h4, h4Indicators);
+    const pipelineResult = await this.generateAiPlan(marketData);
+    const published = publishDailyAnalysisPlan({
+      marketData,
+      analystDraft: pipelineResult.draftPlan,
+      validatorResult: pipelineResult.validatorResult
+    });
     const summary = formatDailyAnalysisPlanMessage({
       symbol,
       date,
-      d1,
-      h4,
-      h4Indicators,
-      plan: aiResult.plan
+      marketData,
+      plan: published.plan
     });
 
     return {
       symbol,
       date,
+      status: published.plan.status,
       d1,
       h4,
       h4Indicators,
-      llmProvider: aiResult.provider,
-      llmModel: aiResult.model,
-      aiOutput: aiResult.plan,
+      marketData,
+      llmProvider: pipelineResult.provider,
+      llmModel: pipelineResult.model,
+      aiOutput: published.plan,
+      pipelineDebugJson: JSON.stringify(published.debug),
       summary
     };
   }
@@ -154,9 +181,11 @@ export class DailyAnalysisService {
         h4S2: result.h4.s2,
         h4R1: result.h4.r1,
         h4R2: result.h4.r2,
+        status: result.status,
         llmProvider: result.llmProvider,
         llmModel: result.llmModel,
         aiOutputJson: JSON.stringify(result.aiOutput),
+        pipelineDebugJson: result.pipelineDebugJson,
         summary: result.summary
       });
     } catch (error) {
@@ -169,34 +198,12 @@ export class DailyAnalysisService {
   }
 
   private async generateAiPlan(
-    symbol: string,
-    date: Date,
-    d1: TimeframeAnalysis,
-    h4: TimeframeAnalysis,
-    h4Indicators: {
-      ema20: number;
-      ema50: number;
-      ema200: number;
-      rsi14: number;
-      macd: {
-        macd: number;
-        signal: number;
-        histogram: number;
-      };
-      atr14: number;
-      volumeRatio: number;
-    }
-  ) {
+    marketData: DailyAnalysisMarketData
+  ): Promise<DailyAnalysisPipelineOutput> {
     if (!this.llmGatewayService) {
       throw new Error('LLM gateway service is not configured');
     }
 
-    return this.llmGatewayService.generateDailyAnalysisPlan({
-      symbol,
-      date,
-      d1,
-      h4,
-      h4Indicators
-    });
+    return this.llmGatewayService.runDailyAnalysisPipeline(marketData);
   }
 }

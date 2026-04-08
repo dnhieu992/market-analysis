@@ -9,6 +9,7 @@ config({ path: resolve(process.cwd(), '.env') });
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
+import { resolveTrackedSymbols } from './config/tracked-symbols';
 import { SchedulerService } from './modules/scheduler/scheduler.service';
 import { WorkerModule } from './worker.module';
 
@@ -18,7 +19,7 @@ export async function bootstrap() {
   scheduler.register();
 
   if (process.env.WORKER_SEND_DAILY_ON_BOOT === 'true') {
-    await scheduler.runDailyAnalysisForSymbols(['BTCUSDT', 'ETHUSDT']);
+    await scheduler.runDailyAnalysisForSymbols(resolveTrackedSymbols());
   }
 
   Logger.log('Worker started', 'Bootstrap');

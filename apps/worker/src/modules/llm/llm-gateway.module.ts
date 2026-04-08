@@ -3,45 +3,42 @@ import { Module } from '@nestjs/common';
 import { ClaudeDailyAnalysisProvider } from './claude-daily-analysis.provider';
 import { LLM_PROVIDER_ADAPTER } from './llm-gateway.constants';
 import { LlmGatewayService } from './llm-gateway.service';
-import type { ClaudeModelVariant, LlmProviderName } from './llm-provider.adapter';
+import type { ClaudeModelVariant } from './llm-provider.adapter';
+
+export type RuntimeLlmProvider = 'claude';
 
 export function resolveLlmGatewayConfig(): {
-  provider: LlmProviderName;
+  provider: RuntimeLlmProvider;
   claudeModelVariant: ClaudeModelVariant;
 } {
-  const provider = (process.env.LLM_PROVIDER ?? 'claude') as string;
+  const provider = process.env.LLM_PROVIDER;
   const claudeModelVariant = (process.env.CLAUDE_MODEL ?? 'sonnet') as string;
 
-  if (provider !== 'claude' && provider !== 'openai' && provider !== 'gemini') {
+  if (provider != null && provider !== 'claude') {
     throw new Error(`Unsupported LLM provider: ${provider}`);
   }
 
   return {
-    provider,
+    provider: 'claude',
     claudeModelVariant
   };
+}
+
+export function createLlmProviderAdapter(): ClaudeDailyAnalysisProvider {
+  const { claudeModelVariant } = resolveLlmGatewayConfig();
+
+  return new ClaudeDailyAnalysisProvider(undefined, claudeModelVariant);
 }
 
 @Module({
   providers: [
     {
       provide: ClaudeDailyAnalysisProvider,
-      useFactory: () => {
-        const { claudeModelVariant } = resolveLlmGatewayConfig();
-        return new ClaudeDailyAnalysisProvider(undefined, claudeModelVariant);
-      }
+      useFactory: createLlmProviderAdapter
     },
     {
       provide: LLM_PROVIDER_ADAPTER,
-      useFactory: (claudeProvider: ClaudeDailyAnalysisProvider) => {
-        const { provider } = resolveLlmGatewayConfig();
-
-        if (provider === 'claude') {
-          return claudeProvider;
-        }
-
-        throw new Error(`Unsupported LLM provider: ${provider}`);
-      },
+      useFactory: (claudeProvider: ClaudeDailyAnalysisProvider) => claudeProvider,
       inject: [ClaudeDailyAnalysisProvider]
     },
     LlmGatewayService

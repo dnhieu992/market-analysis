@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import type { Candle } from '@app/core';
 // import { createSettingsRepository } from '@app/db';
 
+import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { MarketDataService } from '../market/market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { detectTrend, findNearestSwingLows, findNearestSwingHighs } from '../market/utils/trend';
@@ -108,7 +109,7 @@ export class MarketSummaryService {
     //   return;
     // }
 
-    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'LINKUSDT', 'XRPUSDT'];
+    const symbols = resolveTrackedSymbols();
 
     for (const symbol of symbols) {
       try {

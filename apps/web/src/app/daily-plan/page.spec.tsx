@@ -30,6 +30,7 @@ const mockRecord = {
   id: 'daily-1',
   symbol: 'BTCUSDT',
   date: '2026-04-05T00:00:00.000Z',
+  status: 'WAIT',
   d1Trend: 'bullish' as const,
   h4Trend: 'bearish' as const,
   d1S1: 81000,
@@ -42,6 +43,7 @@ const mockRecord = {
   h4R2: 84100,
   llmProvider: 'claude',
   llmModel: 'claude-3-7-sonnet-latest',
+  pipelineDebugJson: '{"hardCheckResult":{"valid":true}}',
   summary: '📅 BTCUSDT Daily Plan — 2026-04-05',
   createdAt: '2026-04-05T00:01:00.000Z'
 };

@@ -114,6 +114,108 @@ describe('dashboard api clients', () => {
     expect(health).toEqual({ service: 'api', status: 'ok' });
   });
 
+  it('parses richer daily analysis plans and status fields', async () => {
+    const fetchImpl = jest.fn() as jest.MockedFunction<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >;
+    const client = createApiClient({
+      baseUrl: 'http://localhost:4000',
+      fetchImpl
+    });
+
+    fetchImpl.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          {
+            id: 'daily-1',
+            symbol: 'BTCUSDT',
+            date: '2026-04-05T00:00:00.000Z',
+            status: 'WAIT',
+            d1Trend: 'bullish',
+            h4Trend: 'bearish',
+            d1S1: 81000,
+            d1S2: 78500,
+            d1R1: 85200,
+            d1R2: 88500,
+            h4S1: 82000,
+            h4S2: 80400,
+            h4R1: 83200,
+            h4R2: 84100,
+            llmProvider: 'claude',
+            llmModel: 'claude-sonnet-4-20250514',
+            pipelineDebugJson: '{"hardCheckResult":{"valid":true}}',
+            summary: 'BTCUSDT đang ở trạng thái chờ breakout xác nhận.',
+            aiOutputJson: JSON.stringify({
+              summary: 'BTCUSDT đang ở trạng thái chờ breakout xác nhận.',
+              bias: 'Neutral',
+              confidence: 38,
+              status: 'WAIT',
+              timeframeContext: {
+                biasFrame: 'D1',
+                setupFrame: 'H4',
+                entryRefinementFrame: 'none',
+                higherTimeframeView: 'D1 bullish nhưng H4 chưa confirm.',
+                setupTimeframeView: 'H4 đang bearish và cần xác nhận.',
+                alignment: 'conflicting'
+              },
+              marketState: {
+                trendCondition: 'compressed',
+                volumeCondition: 'very_weak',
+                volatilityCondition: 'normal',
+                keyObservation: 'Giá nén chặt, volume yếu, chưa có kèo đẹp.'
+              },
+              setupType: 'breakout',
+              noTradeZone: 'Tránh vào khi H4 còn nằm trong biên nén.',
+              primarySetup: {
+                direction: 'long',
+                trigger: 'H4 close trên 68408.37 kèm volume tốt.',
+                entry: 'Chờ xác nhận rồi mới cân nhắc vào.',
+                stopLoss: 'Dưới 68153.',
+                takeProfit1: '68698.7',
+                takeProfit2: '69310',
+                riskReward: '1:2',
+                invalidation: 'H4 close dưới 68153.'
+              },
+              secondarySetup: {
+                direction: 'none',
+                trigger: 'Chưa có setup phụ.',
+                entry: 'Đứng ngoài.',
+                stopLoss: 'N/A',
+                takeProfit1: 'N/A',
+                takeProfit2: 'N/A',
+                riskReward: 'N/A',
+                invalidation: 'N/A'
+              },
+              finalAction: 'Đứng ngoài cho tới khi breakout được xác nhận.',
+              reasoning: ['D1 bullish nhưng H4 chưa xác nhận breakout.'],
+              atrConsistencyCheck: {
+                result: 'WARNING',
+                details: 'ATR phù hợp breakout nhưng chưa có xác nhận.'
+              },
+              logicConsistencyCheck: {
+                result: 'PASS',
+                details: 'Bias và hành động tạm thời còn nhất quán.'
+              }
+            }),
+            createdAt: '2026-04-05T00:01:00.000Z'
+          }
+        ]),
+        { status: 200 }
+      )
+    );
+
+    const records = await client.fetchDailyAnalysis('BTCUSDT');
+
+    expect(records[0]!).toMatchObject({
+      status: 'WAIT',
+      pipelineDebugJson: '{"hardCheckResult":{"valid":true}}',
+      aiOutput: expect.objectContaining({
+        bias: 'Neutral',
+        status: 'WAIT'
+      })
+    });
+  });
+
   it('formats confidence date and price helpers', () => {
     expect(formatConfidence(82.4)).toBe('82%');
     expect(formatPrice(68000)).toBe('68,000');

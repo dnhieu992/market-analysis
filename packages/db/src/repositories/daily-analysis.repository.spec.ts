@@ -14,6 +14,7 @@ describe('daily analysis repository', () => {
     await repository.create({
       symbol: 'BTCUSDT',
       date: new Date('2026-04-07'),
+      status: 'WAIT',
       d1Trend: 'bullish',
       h4Trend: 'neutral',
       d1S1: 81000,
@@ -27,14 +28,17 @@ describe('daily analysis repository', () => {
       summary: 'BTC daily plan',
       llmProvider: 'claude',
       llmModel: 'sonnet',
-      aiOutputJson: '{"analysis":"..."}'
+      aiOutputJson: '{"summary":"..."}',
+      pipelineDebugJson: '{"hardCheckResult":{"valid":true}}'
     });
 
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        status: 'WAIT',
         llmProvider: 'claude',
         llmModel: 'sonnet',
-        aiOutputJson: '{"analysis":"..."}'
+        aiOutputJson: '{"summary":"..."}',
+        pipelineDebugJson: '{"hardCheckResult":{"valid":true}}'
       })
     });
   });
@@ -44,6 +48,7 @@ describe('daily analysis repository', () => {
       id: 'daily-1',
       symbol: 'BTCUSDT',
       date: new Date('2026-04-07'),
+      status: 'WAIT',
       d1Trend: 'bullish',
       h4Trend: 'neutral',
       d1S1: 81000,
@@ -58,6 +63,7 @@ describe('daily analysis repository', () => {
       llmProvider: 'claude',
       llmModel: 'sonnet',
       aiOutputJson: '{"analysis":"..."}',
+      pipelineDebugJson: null,
       createdAt: new Date('2026-04-07T01:00:00.000Z')
     };
     const findMany = jest.fn().mockResolvedValue([row]);

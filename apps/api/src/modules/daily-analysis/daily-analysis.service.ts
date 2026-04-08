@@ -11,6 +11,7 @@ export type DailyAnalysisRecord = {
   id: string;
   symbol: string;
   date: Date;
+  status: string;
   d1Trend: string;
   h4Trend: string;
   d1S1: number;
@@ -24,6 +25,7 @@ export type DailyAnalysisRecord = {
   llmProvider: string;
   llmModel: string;
   aiOutputJson: string;
+  pipelineDebugJson: string | null;
   summary: string;
   createdAt: Date;
 };

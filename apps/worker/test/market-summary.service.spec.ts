@@ -14,6 +14,16 @@ function buildCandles(closeTimes: string[]): Candle[] {
 }
 
 describe('MarketSummaryService', () => {
+  const originalTrackedSymbols = process.env.TRACKED_SYMBOLS;
+
+  afterEach(() => {
+    if (originalTrackedSymbols === undefined) {
+      delete process.env.TRACKED_SYMBOLS;
+    } else {
+      process.env.TRACKED_SYMBOLS = originalTrackedSymbols;
+    }
+  });
+
   it('does not expose a startup hook that sends summaries on app bootstrap', () => {
     const service = new MarketSummaryService(
       { getCandles: jest.fn() } as never,
@@ -24,6 +34,8 @@ describe('MarketSummaryService', () => {
   });
 
   it('can still send summaries when the cron handler runs', async () => {
+    process.env.TRACKED_SYMBOLS = 'BTCUSDT';
+
     const recentH4Candles = buildCandles(['2026-04-07T04:00:00.000Z', '2026-04-07T08:00:00.000Z']);
     const d1Candles = buildCandles([
       '2026-04-03T00:00:00.000Z',
@@ -75,7 +87,7 @@ describe('MarketSummaryService', () => {
 
     await service.checkH4Closes();
 
-    expect(sendAnalysisMessage).toHaveBeenCalledTimes(5);
+    expect(sendAnalysisMessage).toHaveBeenCalledTimes(1);
     expect(sendAnalysisMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         messageType: 'h4-summary',

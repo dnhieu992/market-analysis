@@ -1,4 +1,9 @@
-import type { DailyAnalysisPlan } from '@app/core';
+import type {
+  DailyAnalysisAnalystDraft,
+  DailyAnalysisMarketData,
+  DailyAnalysisPlan,
+  DailyAnalysisValidatorResult
+} from '@app/core';
 
 export type LlmProviderName = 'claude' | 'openai' | 'gemini';
 export type ClaudeModelVariant = 'sonnet' | 'opus' | string;
@@ -38,6 +43,23 @@ export type DailyAnalysisGatewayResult = {
   plan: DailyAnalysisPlan;
 };
 
+export type DailyAnalysisDraftResult = {
+  provider: LlmProviderName;
+  model: string;
+  draftPlan: DailyAnalysisAnalystDraft;
+};
+
+export type DailyAnalysisValidationResult = {
+  provider: LlmProviderName;
+  model: string;
+  validatorResult: DailyAnalysisValidatorResult;
+};
+
 export interface LlmProviderAdapter {
+  generateDailyAnalysisDraft(input: DailyAnalysisMarketData): Promise<DailyAnalysisDraftResult>;
+  validateDailyAnalysisDraft(input: {
+    marketData: DailyAnalysisMarketData;
+    draftPlan: DailyAnalysisAnalystDraft;
+  }): Promise<DailyAnalysisValidationResult>;
   generateDailyAnalysisPlan(input: DailyAnalysisGatewayInput): Promise<DailyAnalysisGatewayResult>;
 }

@@ -68,6 +68,7 @@ OPENAI_API_KEY="your-openai-api-key"
 LLM_PROVIDER="claude"
 CLAUDE_API_KEY="your-claude-api-key"
 CLAUDE_MODEL="sonnet"
+CLAUDE_TIMEOUT_MS="60000"
 TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 TELEGRAM_CHAT_ID="your-telegram-chat-id"
 TRACKED_SYMBOLS="BTCUSDT,ETHUSDT"
@@ -182,13 +183,24 @@ The backend now owns an LLM gateway for structured daily analysis. The current i
 
 - `LLM_PROVIDER=claude`
 - `CLAUDE_MODEL=sonnet` (default) or `CLAUDE_MODEL=opus`
+- `CLAUDE_TIMEOUT_MS=60000` by default, and you can raise it if the provider is slow
+
+The daily-analysis flow is now a two-step pipeline:
+
+1. Build structured `market_data` from D1 and H4 only.
+2. Run Analyst, then Validator.
+3. Apply deterministic hard checks.
+4. Publish either a validated plan or a safe `WAIT` / `NO_TRADE` fallback.
 
 Daily analysis records now store:
 
 - derived technical structure from local candle analysis
 - structured AI output for the daily trading plan
+- publish status plus pipeline debug payload
 - provider metadata such as `llmProvider` and `llmModel`
 - a formatted `summary` used for Telegram and compatibility consumers
+
+`H1` is intentionally disabled in this version to keep the breakout-following setup focused and less noisy.
 
 This keeps secrets on the backend and allows future API or web flows to reuse the same gateway without calling providers directly from the browser.
 
