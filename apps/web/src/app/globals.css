@@ -970,6 +970,12 @@ a {
 
 .back-test-direction--long { color: var(--accent); font-weight: 600; }
 .back-test-direction--short { color: #c0392b; font-weight: 600; }
+.back-test-date { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
+
+.back-test-history-row { cursor: pointer; }
+.back-test-history-row:hover td { background: rgba(255,255,255,0.04); }
+.back-test-history-row--active td { background: rgba(99,179,237,0.06); }
+.back-test-history-detail { padding: 12px 0 4px; background: rgba(0,0,0,0.15); }
 
 .back-test-outcome {
   display: inline-block;

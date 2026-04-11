@@ -124,8 +124,12 @@ export type BackTestStrategy = {
 export type BackTestTrade = {
   entryIndex: number;
   exitIndex: number;
+  entryTime: string | null;
+  exitTime: string | null;
   entryPrice: number;
   exitPrice: number;
+  stopLoss: number;
+  takeProfit: number;
   direction: 'long' | 'short';
   pnl: number;
   pnlPercent: number;
@@ -137,8 +141,12 @@ export type BackTestResult = {
   strategy: string;
   symbol: string;
   timeframe: string;
-  from: string;
-  to: string;
+  // from runBackTest response
+  from?: string;
+  to?: string;
+  // from getResult (DB record)
+  fromDate?: string;
+  toDate?: string;
   totalTrades: number;
   wins: number;
   losses: number;

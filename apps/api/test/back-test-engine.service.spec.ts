@@ -226,6 +226,64 @@ describe('BackTestEngineService', () => {
     });
   });
 
+  describe('run — trade timestamps', () => {
+    it('records entryTime and exitTime on each trade', () => {
+      const entryTime = new Date('2024-01-02T00:00:00Z');
+      const exitTime = new Date('2024-01-03T00:00:00Z');
+      let signaled = false;
+      const strategy: IBackTestStrategy = {
+        name: 'ts-strategy',
+        description: '',
+        defaultTimeframe: '4h',
+        evaluate: (ctx: StrategyContext): TradeSignal | null => {
+          if (ctx.index === 1 && !signaled) {
+            signaled = true;
+            return { direction: 'long', entryPrice: 100, stopLoss: 80, takeProfit: 120 };
+          }
+          return null;
+        }
+      };
+
+      const candles: Candle[] = [
+        makeCandle(100, { openTime: new Date('2024-01-01T00:00:00Z') }),
+        makeCandle(100, { openTime: entryTime }),
+        makeCandle(130, { low: 90, high: 130, openTime: exitTime })
+      ];
+
+      const result = engine.run(strategy, candles, 'BTCUSDT');
+
+      expect(result.trades[0]?.entryTime).toEqual(entryTime);
+      expect(result.trades[0]?.exitTime).toEqual(exitTime);
+    });
+
+    it('sets entryTime/exitTime to null when candles have no openTime', () => {
+      let signaled = false;
+      const strategy: IBackTestStrategy = {
+        name: 'no-time',
+        description: '',
+        defaultTimeframe: '4h',
+        evaluate: (ctx: StrategyContext): TradeSignal | null => {
+          if (ctx.index === 1 && !signaled) {
+            signaled = true;
+            return { direction: 'long', entryPrice: 100, stopLoss: 80, takeProfit: 120 };
+          }
+          return null;
+        }
+      };
+
+      const candles: Candle[] = [
+        { open: 90, high: 120, low: 80, close: 100 },
+        { open: 90, high: 120, low: 80, close: 100 },
+        { open: 90, high: 130, low: 90, close: 130 }
+      ];
+
+      const result = engine.run(strategy, candles, 'BTCUSDT');
+
+      expect(result.trades[0]?.entryTime).toBeNull();
+      expect(result.trades[0]?.exitTime).toBeNull();
+    });
+  });
+
   describe('run — open trade force-closed at end', () => {
     it('closes open trade at last candle close price', () => {
       let signaled = false;

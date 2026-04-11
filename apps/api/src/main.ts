@@ -1,4 +1,9 @@
 import 'reflect-metadata';
+import { resolve } from 'path';
+import { config } from 'dotenv';
+
+// Load .env from repo root (two levels up from apps/api/)
+config({ path: resolve(__dirname, '../../../.env') });
 
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';

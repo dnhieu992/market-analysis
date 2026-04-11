@@ -15,11 +15,19 @@ type BackTestFeedProps = Readonly<{
   initialResults: BackTestResultRecord[];
 }>;
 
-function fmt(n: number, decimals = 2): string {
+function fmt(n: number | null | undefined, decimals = 2): string {
+  if (n == null) return '—';
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-function pct(n: number): string {
+function fmtDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function pct(n: number | null | undefined): string {
+  if (n == null) return '—';
   return `${(n * 100).toFixed(1)}%`;
 }
 
@@ -33,6 +41,8 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BackTestResult | null>(null);
   const [results, setResults] = useState<BackTestResultRecord[]>(initialResults);
+  const [selectedResult, setSelectedResult] = useState<BackTestResult | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   async function handleRun() {
     setStatus('running');
@@ -55,6 +65,20 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to run back-test');
       setStatus('error');
+    }
+  }
+
+  async function handleSelectResult(id: string) {
+    if (selectedResult?.id === id) {
+      setSelectedResult(null);
+      return;
+    }
+    setLoadingId(id);
+    try {
+      const detail = await apiClient.fetchBackTestResult(id);
+      setSelectedResult(detail);
+    } finally {
+      setLoadingId(null);
     }
   }
 
@@ -187,7 +211,11 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                     <tr>
                       <th>#</th>
                       <th>Dir</th>
+                      <th>Open Date</th>
+                      <th>Close Date</th>
                       <th>Entry</th>
+                      <th>SL</th>
+                      <th>TP</th>
                       <th>Exit</th>
                       <th>PnL</th>
                       <th>PnL %</th>
@@ -199,7 +227,11 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                       <tr key={i} className={`back-test-trade-row back-test-trade-row--${trade.outcome}`}>
                         <td>{i + 1}</td>
                         <td className={`back-test-direction back-test-direction--${trade.direction}`}>{trade.direction}</td>
+                        <td className="back-test-date">{fmtDate(trade.entryTime)}</td>
+                        <td className="back-test-date">{fmtDate(trade.exitTime)}</td>
                         <td>{fmt(trade.entryPrice)}</td>
+                        <td className="back-test-metric--negative">{fmt(trade.stopLoss)}</td>
+                        <td className="back-test-metric--positive">{fmt(trade.takeProfit)}</td>
                         <td>{fmt(trade.exitPrice)}</td>
                         <td className={trade.pnl >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}>
                           {trade.pnl >= 0 ? '+' : ''}{fmt(trade.pnl)}
@@ -236,22 +268,79 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                   <th>PnL</th>
                   <th>Drawdown</th>
                   <th>Status</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.strategy}</td>
-                    <td>{r.symbol}</td>
-                    <td>{r.timeframe}</td>
-                    <td>{r.totalTrades}</td>
-                    <td>{pct(r.winRate)}</td>
-                    <td className={r.totalPnl >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}>
-                      {r.totalPnl >= 0 ? '+' : ''}{fmt(r.totalPnl)}
-                    </td>
-                    <td>{pct(r.maxDrawdown)}</td>
-                    <td><span className={`back-test-outcome back-test-outcome--${r.status}`}>{r.status}</span></td>
-                  </tr>
+                  <>
+                    <tr
+                      key={r.id}
+                      className={`back-test-history-row${selectedResult?.id === r.id ? ' back-test-history-row--active' : ''}`}
+                      onClick={() => { void handleSelectResult(r.id); }}
+                      title="Click to view trade detail"
+                    >
+                      <td>{r.strategy}</td>
+                      <td>{r.symbol}</td>
+                      <td>{r.timeframe}</td>
+                      <td>{r.totalTrades}</td>
+                      <td>{pct(r.winRate)}</td>
+                      <td className={r.totalPnl >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}>
+                        {r.totalPnl >= 0 ? '+' : ''}{fmt(r.totalPnl)}
+                      </td>
+                      <td>{pct(r.maxDrawdown)}</td>
+                      <td><span className={`back-test-outcome back-test-outcome--${r.status}`}>{r.status}</span></td>
+                      <td>{loadingId === r.id ? '…' : selectedResult?.id === r.id ? '▲' : '▼'}</td>
+                    </tr>
+                    {selectedResult?.id === r.id && (
+                      <tr key={`${r.id}-detail`}>
+                        <td colSpan={9} className="back-test-history-detail">
+                          {selectedResult.trades.length === 0 ? (
+                            <p className="back-test-empty">No trades recorded.</p>
+                          ) : (
+                            <table className="back-test-trades-table">
+                              <thead>
+                                <tr>
+                                  <th>#</th>
+                                  <th>Dir</th>
+                                  <th>Open Date</th>
+                                  <th>Close Date</th>
+                                  <th>Entry</th>
+                                  <th>SL</th>
+                                  <th>TP</th>
+                                  <th>Exit</th>
+                                  <th>PnL</th>
+                                  <th>PnL %</th>
+                                  <th>Outcome</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedResult.trades.map((trade, i) => (
+                                  <tr key={i} className={`back-test-trade-row back-test-trade-row--${trade.outcome}`}>
+                                    <td>{i + 1}</td>
+                                    <td className={`back-test-direction back-test-direction--${trade.direction}`}>{trade.direction}</td>
+                                    <td className="back-test-date">{fmtDate(trade.entryTime)}</td>
+                                    <td className="back-test-date">{fmtDate(trade.exitTime)}</td>
+                                    <td>{fmt(trade.entryPrice)}</td>
+                                    <td className="back-test-metric--negative">{fmt(trade.stopLoss)}</td>
+                                    <td className="back-test-metric--positive">{fmt(trade.takeProfit)}</td>
+                                    <td>{fmt(trade.exitPrice)}</td>
+                                    <td className={trade.pnl >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}>
+                                      {trade.pnl >= 0 ? '+' : ''}{fmt(trade.pnl)}
+                                    </td>
+                                    <td className={trade.pnlPercent >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}>
+                                      {trade.pnlPercent >= 0 ? '+' : ''}{pct(trade.pnlPercent)}
+                                    </td>
+                                    <td><span className={`back-test-outcome back-test-outcome--${trade.outcome}`}>{trade.outcome}</span></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>

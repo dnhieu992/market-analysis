@@ -10,10 +10,14 @@ export class BackTestEngineService {
     const trades: BackTestTrade[] = [];
     let openTrade: {
       entryIndex: number;
+      entryTime: Date | null;
       entryPrice: number;
       direction: 'long' | 'short';
       stopLoss: number;
       takeProfit: number;
+      originalStopLoss: number;
+      breakevenTriggered: boolean;
+      breakevenTriggerPrice: number;
     } | null = null;
 
     for (let i = 1; i < candles.length; i++) {
@@ -32,26 +36,49 @@ export class BackTestEngineService {
           trades.push({
             entryIndex: openTrade.entryIndex,
             exitIndex: i,
+            entryTime: openTrade.entryTime,
+            exitTime: current.openTime ?? null,
             entryPrice: openTrade.entryPrice,
             exitPrice: exitResult.exitPrice,
+            stopLoss: openTrade.originalStopLoss,
+            takeProfit: openTrade.takeProfit,
             direction: openTrade.direction,
             pnl,
             pnlPercent: pnl / openTrade.entryPrice,
             outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
           });
           openTrade = null;
+        } else if (!openTrade.breakevenTriggered) {
+          // No exit this candle — check if price traveled 1R so we can move SL to entry
+          const hit =
+            openTrade.direction === 'long'
+              ? current.high >= openTrade.breakevenTriggerPrice
+              : current.low <= openTrade.breakevenTriggerPrice;
+          if (hit) {
+            openTrade.stopLoss = openTrade.entryPrice;
+            openTrade.breakevenTriggered = true;
+          }
         }
       }
 
       if (!openTrade) {
         const signal = strategy.evaluate(ctx);
         if (signal) {
+          const risk = Math.abs(signal.entryPrice - signal.stopLoss);
+          const breakevenTriggerPrice =
+            signal.direction === 'long'
+              ? signal.entryPrice + risk
+              : signal.entryPrice - risk;
           openTrade = {
             entryIndex: i,
+            entryTime: current.openTime ?? null,
             entryPrice: signal.entryPrice,
             direction: signal.direction,
             stopLoss: signal.stopLoss,
-            takeProfit: signal.takeProfit
+            takeProfit: signal.takeProfit,
+            originalStopLoss: signal.stopLoss,
+            breakevenTriggered: false,
+            breakevenTriggerPrice
           };
         }
       }
@@ -63,8 +90,12 @@ export class BackTestEngineService {
       trades.push({
         entryIndex: openTrade.entryIndex,
         exitIndex: candles.length - 1,
+        entryTime: openTrade.entryTime,
+        exitTime: lastCandle.openTime ?? null,
         entryPrice: openTrade.entryPrice,
         exitPrice: lastCandle.close,
+        stopLoss: openTrade.originalStopLoss,
+        takeProfit: openTrade.takeProfit,
         direction: openTrade.direction,
         pnl,
         pnlPercent: pnl / openTrade.entryPrice,

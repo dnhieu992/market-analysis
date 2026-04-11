@@ -17,8 +17,12 @@ export type TradeSignal = {
 export type BackTestTrade = {
   entryIndex: number;
   exitIndex: number;
+  entryTime: Date | null;
+  exitTime: Date | null;
   entryPrice: number;
   exitPrice: number;
+  stopLoss: number;
+  takeProfit: number;
   direction: 'long' | 'short';
   pnl: number;
   pnlPercent: number;

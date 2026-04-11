@@ -309,6 +309,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const query = params.toString() ? `?${params.toString()}` : '';
       return fetchJson<BackTestResultRecord[]>(fetchImpl, `${baseUrl}/back-test/results${query}`, withDefaults());
     },
+    async fetchBackTestResult(id: string): Promise<BackTestResult> {
+      return fetchJson<BackTestResult>(fetchImpl, `${baseUrl}/back-test/results/${id}`, withDefaults());
+    },
     async login(input: { email: string; password: string }) {
       const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({
         method: 'POST',

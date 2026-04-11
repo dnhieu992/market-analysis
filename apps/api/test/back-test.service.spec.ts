@@ -173,12 +173,22 @@ describe('BackTestService', () => {
   });
 
   describe('getResult', () => {
-    it('returns the record when found', async () => {
+    it('returns the record with parsed trades when found', async () => {
+      const trades = [{ entryPrice: 100, exitPrice: 120 }];
+      const record = { id: 'result-1', strategy: 'ema-crossover', tradesJson: JSON.stringify(trades) };
+      mockRepository.findById.mockResolvedValue(record);
+
+      const result = await service.getResult('result-1');
+      expect(result).toMatchObject({ id: 'result-1', strategy: 'ema-crossover' });
+      expect(result.trades).toEqual(trades);
+    });
+
+    it('returns empty trades array when tradesJson is missing', async () => {
       const record = { id: 'result-1', strategy: 'ema-crossover' };
       mockRepository.findById.mockResolvedValue(record);
 
       const result = await service.getResult('result-1');
-      expect(result).toEqual(record);
+      expect(result.trades).toEqual([]);
     });
 
     it('throws NotFoundException when record is not found', async () => {

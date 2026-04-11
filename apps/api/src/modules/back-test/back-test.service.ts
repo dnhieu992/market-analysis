@@ -89,6 +89,8 @@ export class BackTestService {
   async getResult(id: string) {
     const record = await this.repository.findById(id);
     if (!record) throw new NotFoundException(`Back-test result '${id}' not found`);
-    return record;
+
+    const trades = record.tradesJson ? (JSON.parse(record.tradesJson) as unknown[]) : [];
+    return { ...record, trades };
   }
 }

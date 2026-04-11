@@ -37,7 +37,8 @@ describe('SettingsPage', () => {
       upsertSettings: async () => mockSettings,
       fetchBackTestStrategies: async () => [],
       runBackTest: async () => { throw new Error('not used'); },
-      fetchBackTestResults: async () => []
+      fetchBackTestResults: async () => [],
+      fetchBackTestResult: async () => { throw new Error('not used'); }
     } as ReturnType<typeof createApiClient>);
   });
 
@@ -69,7 +70,8 @@ describe('SettingsPage', () => {
       upsertSettings: async () => { throw new Error('not used'); },
       fetchBackTestStrategies: async () => [],
       runBackTest: async () => { throw new Error('not used'); },
-      fetchBackTestResults: async () => []
+      fetchBackTestResults: async () => [],
+      fetchBackTestResult: async () => { throw new Error('not used'); }
     } as ReturnType<typeof createApiClient>);
 
     const markup = renderToStaticMarkup(await SettingsPage());
