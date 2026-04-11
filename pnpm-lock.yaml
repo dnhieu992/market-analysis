@@ -47,6 +47,9 @@ importers:
       '@app/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@app/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@app/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -62,6 +65,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      axios:
+        specifier: ^1.8.4
+        version: 1.14.0
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1

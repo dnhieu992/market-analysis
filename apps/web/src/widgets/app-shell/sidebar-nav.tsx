@@ -33,6 +33,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'BTC daily analysis'
   },
   {
+    href: '/strategy',
+    label: 'Strategy Lab',
+    description: 'Back-test trading strategies'
+  },
+  {
     href: '/settings',
     label: 'Settings',
     description: 'Tracking symbol configuration'

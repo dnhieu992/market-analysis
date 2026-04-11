@@ -173,6 +173,29 @@ export function createUserRepository() {
   };
 }
 
+export function createBackTestResultRepository() {
+  const records: Array<Record<string, unknown>> = [];
+
+  return {
+    async create(data: Record<string, unknown>) {
+      const record = { id: `back-test-${records.length + 1}`, ...data };
+      records.push(record);
+      return record;
+    },
+    async findById(id: string) {
+      return records.find((r) => r.id === id) ?? null;
+    },
+    async listByStrategy(strategy: string, symbol?: string, limit = 20) {
+      return records
+        .filter((r) => r.strategy === strategy && (!symbol || r.symbol === symbol))
+        .slice(-limit);
+    },
+    async listLatest(limit = 20) {
+      return records.slice(-limit);
+    }
+  };
+}
+
 export function createSessionRepository() {
   return {
     async create(data: Record<string, unknown>) {

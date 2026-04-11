@@ -867,3 +867,127 @@ a {
     flex-direction: column;
   }
 }
+
+/* ── Back-Test ─────────────────────────────────────────────── */
+
+.back-test-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px 36px 56px;
+  max-width: 1100px;
+}
+
+.back-test-hero {
+  background: linear-gradient(135deg, rgba(31, 111, 91, 0.1), rgba(189, 123, 57, 0.08));
+}
+
+.back-test-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.back-test-field-hint {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.back-test-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.back-test-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border);
+}
+
+.back-test-metric-label {
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.back-test-metric-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.back-test-metric--positive { color: var(--accent); }
+.back-test-metric--negative { color: #c0392b; }
+
+.back-test-trades {
+  margin-top: 8px;
+}
+
+.back-test-trades-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 10px;
+}
+
+.back-test-trades-table-wrap {
+  overflow-x: auto;
+}
+
+.back-test-trades-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.back-test-trades-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.back-test-trades-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(23, 18, 13, 0.06);
+}
+
+.back-test-trade-row--win td { background: rgba(31, 111, 91, 0.04); }
+.back-test-trade-row--loss td { background: rgba(192, 57, 43, 0.04); }
+
+.back-test-direction--long { color: var(--accent); font-weight: 600; }
+.back-test-direction--short { color: #c0392b; font-weight: 600; }
+
+.back-test-outcome {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.back-test-outcome--win { background: rgba(31, 111, 91, 0.12); color: var(--accent); }
+.back-test-outcome--loss { background: rgba(192, 57, 43, 0.1); color: #c0392b; }
+.back-test-outcome--breakeven { background: rgba(23, 18, 13, 0.08); color: var(--muted); }
+.back-test-outcome--completed { background: rgba(31, 111, 91, 0.12); color: var(--accent); }
+.back-test-outcome--failed { background: rgba(192, 57, 43, 0.1); color: #c0392b; }
+
+.back-test-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 8px 0;
+}

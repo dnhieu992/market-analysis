@@ -114,4 +114,62 @@ export type UpsertSettingsInput = {
   name: string;
   trackingSymbols: string[];
 };
+
+export type BackTestStrategy = {
+  name: string;
+  description: string;
+  defaultTimeframe: string;
+};
+
+export type BackTestTrade = {
+  entryIndex: number;
+  exitIndex: number;
+  entryPrice: number;
+  exitPrice: number;
+  direction: 'long' | 'short';
+  pnl: number;
+  pnlPercent: number;
+  outcome: 'win' | 'loss' | 'breakeven';
+};
+
+export type BackTestResult = {
+  id: string;
+  strategy: string;
+  symbol: string;
+  timeframe: string;
+  from: string;
+  to: string;
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalPnl: number;
+  maxDrawdown: number;
+  sharpeRatio: number | null;
+  trades: BackTestTrade[];
+};
+
+export type BackTestResultRecord = {
+  id: string;
+  strategy: string;
+  symbol: string;
+  timeframe: string;
+  fromDate: string;
+  toDate: string;
+  totalTrades: number;
+  winRate: number;
+  totalPnl: number;
+  maxDrawdown: number;
+  sharpeRatio: number | null;
+  status: string;
+  createdAt: string;
+};
+
+export type RunBackTestInput = {
+  strategy: string;
+  symbol: string;
+  from: string;
+  to: string;
+  timeframe?: string;
+};
 import type { DailyAnalysisPlan } from '@app/core';

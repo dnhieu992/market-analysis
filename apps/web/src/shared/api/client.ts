@@ -1,4 +1,7 @@
 import type {
+  BackTestResult,
+  BackTestResultRecord,
+  BackTestStrategy,
   CloseDashboardOrderInput,
   CreateDashboardOrderInput,
   DailyAnalysis,
@@ -6,6 +9,7 @@ import type {
   DashboardHealth,
   DashboardOrder,
   DashboardSignal,
+  RunBackTestInput,
   TrackingSettings,
   UpsertSettingsInput
 } from './types';
@@ -283,6 +287,27 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(`Request failed for ${baseUrl}/settings: ${response.status}`);
       }
       return mapSettings((await response.json()) as JsonRecord);
+    },
+    async fetchBackTestStrategies(): Promise<BackTestStrategy[]> {
+      return fetchJson<BackTestStrategy[]>(fetchImpl, `${baseUrl}/back-test/strategies`, withDefaults());
+    },
+    async runBackTest(input: RunBackTestInput): Promise<BackTestResult> {
+      const response = await fetchImpl(`${baseUrl}/back-test/run`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/back-test/run: ${response.status}`);
+      }
+      return (await response.json()) as BackTestResult;
+    },
+    async fetchBackTestResults(strategy?: string, symbol?: string): Promise<BackTestResultRecord[]> {
+      const params = new URLSearchParams();
+      if (strategy) params.set('strategy', strategy);
+      if (symbol) params.set('symbol', symbol);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      return fetchJson<BackTestResultRecord[]>(fetchImpl, `${baseUrl}/back-test/results${query}`, withDefaults());
     },
     async login(input: { email: string; password: string }) {
       const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({

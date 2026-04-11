@@ -34,7 +34,10 @@ describe('SettingsPage', () => {
       createOrder: async () => { throw new Error('not used'); },
       closeOrder: async () => { throw new Error('not used'); },
       fetchSettings: async () => mockSettings,
-      upsertSettings: async () => mockSettings
+      upsertSettings: async () => mockSettings,
+      fetchBackTestStrategies: async () => [],
+      runBackTest: async () => { throw new Error('not used'); },
+      fetchBackTestResults: async () => []
     } as ReturnType<typeof createApiClient>);
   });
 
@@ -63,7 +66,10 @@ describe('SettingsPage', () => {
       createOrder: async () => { throw new Error('not used'); },
       closeOrder: async () => { throw new Error('not used'); },
       fetchSettings: async () => null,
-      upsertSettings: async () => { throw new Error('not used'); }
+      upsertSettings: async () => { throw new Error('not used'); },
+      fetchBackTestStrategies: async () => [],
+      runBackTest: async () => { throw new Error('not used'); },
+      fetchBackTestResults: async () => []
     } as ReturnType<typeof createApiClient>);
 
     const markup = renderToStaticMarkup(await SettingsPage());

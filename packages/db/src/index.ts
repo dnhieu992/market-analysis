@@ -7,3 +7,4 @@ export { createDailyAnalysisRepository } from './repositories/daily-analysis.rep
 export { createSettingsRepository } from './repositories/settings.repository';
 export { createUserRepository } from './repositories/user.repository';
 export { createSessionRepository } from './repositories/session.repository';
+export { createBackTestResultRepository } from './repositories/back-test-result.repository';

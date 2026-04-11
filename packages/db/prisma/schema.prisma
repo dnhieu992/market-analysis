@@ -126,6 +126,27 @@ model Settings {
   @@map("settings")
 }
 
+model BackTestResult {
+  id             String   @id @default(cuid())
+  strategy       String
+  symbol         String
+  timeframe      String
+  fromDate       DateTime
+  toDate         DateTime
+  totalTrades    Int
+  winRate        Float
+  totalPnl       Float
+  maxDrawdown    Float
+  sharpeRatio    Float?
+  tradesJson     String   @db.LongText
+  parametersJson String   @db.Text
+  status         String
+  errorMessage   String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([strategy, symbol, createdAt])
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
