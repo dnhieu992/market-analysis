@@ -2,10 +2,13 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
 import type { Candle } from '@app/core';
 import { extractSupportAndResistanceLevels } from '@app/core';
+import { createDailyAnalysisRepository } from '@app/db';
 
 import { ChartService } from '../chart/chart.service';
 import { MarketDataService } from '../market/market-data.service';
 import type { OhlcCandle } from '../chart/chart.types';
+
+type DailyAnalysisRepository = ReturnType<typeof createDailyAnalysisRepository>;
 
 export type VisualAnalysisResult = {
   symbol: string;
@@ -56,12 +59,14 @@ function computeEmaSeries(closes: number[], period: number): number[] {
 export class VisualAnalysisService {
   private readonly logger = new Logger(VisualAnalysisService.name);
   private readonly httpClient: AxiosInstance;
+  private readonly dailyAnalysisRepository: DailyAnalysisRepository;
 
   constructor(
     private readonly marketDataService: MarketDataService,
     private readonly chartService: ChartService,
     @Optional() httpClient?: AxiosInstance
   ) {
+    this.dailyAnalysisRepository = createDailyAnalysisRepository();
     this.httpClient =
       httpClient ??
       axios.create({
@@ -108,9 +113,38 @@ export class VisualAnalysisService {
 
     const analysisText = await this.callClaudeVision(symbol, imageBuffer);
 
+    await this.saveToDatabase(symbol, analysisText);
+
     this.logger.log(`Visual analysis complete for ${symbol}`);
 
     return { symbol, analysisText, chartBuffer: imageBuffer };
+  }
+
+  private async saveToDatabase(symbol: string, analysisText: string): Promise<void> {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+
+    try {
+      const existing = await this.dailyAnalysisRepository.findByDate(symbol, date);
+      if (existing) {
+        this.logger.log(`Daily analysis for ${symbol} already exists for today — skipping DB save`);
+        return;
+      }
+
+      await this.dailyAnalysisRepository.create({
+        symbol,
+        date,
+        status: 'PUBLISHED',
+        llmProvider: 'claude',
+        llmModel: CLAUDE_MODEL,
+        aiOutputJson: JSON.stringify({ analysisText }),
+        summary: analysisText
+      });
+
+      this.logger.log(`Daily analysis saved to DB for ${symbol}`);
+    } catch (error) {
+      this.logger.error(`Failed to save daily analysis for ${symbol}: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
   }
 
   private async callClaudeVision(symbol: string, imageBuffer: Buffer): Promise<string> {
