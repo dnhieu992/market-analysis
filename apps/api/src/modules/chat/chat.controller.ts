@@ -1,4 +1,5 @@
 import { Body, Controller, Inject, Post } from '@nestjs/common';
+import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ChatService } from './chat.service';
 // Runtime class reference is needed for Nest body metatype reflection.
@@ -6,6 +7,8 @@ import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import type { ChatResponseDto } from './dto/chat-response.dto';
 
+@ApiTags('Chat')
+@ApiCookieAuth('market_analysis_session')
 @Controller('chat')
 export class ChatController {
   constructor(
@@ -14,6 +17,7 @@ export class ChatController {
   ) {}
 
   @Post()
+  @ApiOperation({ summary: 'Send a chat message to the AI assistant' })
   chat(@Body() body: ChatRequestDto): Promise<ChatResponseDto> {
     return this.chatService.chat(body);
   }

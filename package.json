@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.19.0",
   "scripts": {
+    "dev": "pnpm --filter @app/db build && pnpm --parallel --filter api --filter web run dev",
     "dev:api": "pnpm --filter api start:dev",
     "dev:worker": "pnpm --filter worker start:dev",
     "dev:web": "pnpm --filter web dev",

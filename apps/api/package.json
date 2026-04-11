@@ -7,21 +7,24 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "jest --config ./jest.config.cjs",
+    "dev": "ts-node src/main.ts",
     "start:dev": "ts-node src/main.ts"
   },
   "dependencies": {
     "@app/config": "workspace:*",
     "@app/core": "workspace:*",
     "@app/db": "workspace:*",
-    "axios": "^1.8.4",
     "@nestjs/common": "^10.4.20",
     "@nestjs/core": "^10.4.20",
     "@nestjs/platform-express": "^10.4.20",
+    "@nestjs/swagger": "^8.1.1",
     "@prisma/client": "^5.22.0",
+    "axios": "^1.8.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {
