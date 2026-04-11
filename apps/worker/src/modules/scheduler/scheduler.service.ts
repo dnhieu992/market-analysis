@@ -3,8 +3,8 @@ import { Cron } from '@nestjs/schedule';
 
 import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
-import { DailyAnalysisService } from '../analysis/daily-analysis.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
 
 @Injectable()
 export class SchedulerService {
@@ -13,7 +13,7 @@ export class SchedulerService {
 
   constructor(
     private readonly analysisOrchestratorService: AnalysisOrchestratorService,
-    private readonly dailyAnalysisService: DailyAnalysisService,
+    private readonly visualAnalysisService: VisualAnalysisService,
     private readonly telegramService: TelegramService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
@@ -39,14 +39,13 @@ export class SchedulerService {
   async runDailyAnalysisForSymbols(symbols: string[]) {
     for (const symbol of symbols) {
       try {
-        const { skipped, result } = await this.dailyAnalysisService.analyzeAndSave(symbol);
+        const { chartBuffer, analysisText } = await this.visualAnalysisService.analyze(symbol);
 
-        if (!skipped) {
-          await this.telegramService.sendAnalysisMessage({
-            content: result.summary,
-            messageType: 'daily-plan'
-          });
-        }
+        await this.telegramService.sendPhoto(chartBuffer, `${symbol} H4`);
+        await this.telegramService.sendAnalysisMessage({
+          content: analysisText,
+          messageType: 'daily-plan'
+        });
 
         this.logger.log(`Daily analysis sent for ${symbol}`);
       } catch (error) {
