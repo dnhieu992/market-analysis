@@ -21,7 +21,9 @@ export class StrategyRegistryService implements OnModuleInit {
     }
 
     const files = fs.readdirSync(this.strategiesDir).filter(
-      (f) => (f.endsWith('.ts') || f.endsWith('.js')) && !f.startsWith('strategy.interface')
+      (f) =>
+        (f.endsWith('.js') || (f.endsWith('.ts') && !f.endsWith('.d.ts'))) &&
+        !f.startsWith('strategy.interface')
     );
 
     for (const file of files) {
