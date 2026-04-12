@@ -57,7 +57,7 @@ export function parseCreateOrderFormData(formData: FormData): ManualOrderFormInp
     stopLoss: formData.get('stopLoss')?.toString() ?? undefined,
     takeProfit: formData.get('takeProfit')?.toString() ?? undefined,
     volume: formData.get('volume')?.toString() ?? undefined,
-    exchange: formData.get('exchange')?.toString() ?? undefined,
+    exchange: formData.get('exchange')?.toString() || undefined,
     openedAt: formData.get('openedAt')?.toString() ?? undefined,
     note: formData.get('note')?.toString() ?? undefined
   };
