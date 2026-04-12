@@ -387,6 +387,13 @@ a {
   cursor: progress;
 }
 
+.trade-price-loading {
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 4px;
+}
+
 .trade-form-error {
   grid-column: 1 / -1;
   margin: 0;

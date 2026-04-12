@@ -10,12 +10,10 @@ type ManualOrderFormInput = {
   entryPrice: string;
   stopLoss?: string;
   takeProfit?: string;
-  quantity?: string;
-  leverage?: string;
+  volume?: string;
   exchange?: string;
   openedAt?: string;
   note?: string;
-  signalId?: string;
 };
 
 function requireText(value: FormDataEntryValue | null, fieldName: string): string {
@@ -58,29 +56,30 @@ export function parseCreateOrderFormData(formData: FormData): ManualOrderFormInp
     entryPrice,
     stopLoss: formData.get('stopLoss')?.toString() ?? undefined,
     takeProfit: formData.get('takeProfit')?.toString() ?? undefined,
-    quantity: formData.get('quantity')?.toString() ?? undefined,
-    leverage: formData.get('leverage')?.toString() ?? undefined,
+    volume: formData.get('volume')?.toString() ?? undefined,
     exchange: formData.get('exchange')?.toString() ?? undefined,
     openedAt: formData.get('openedAt')?.toString() ?? undefined,
-    note: formData.get('note')?.toString() ?? undefined,
-    signalId: formData.get('signalId')?.toString() ?? undefined
+    note: formData.get('note')?.toString() ?? undefined
   };
 }
 
 export async function submitManualOrder(input: ManualOrderFormInput): Promise<DashboardOrder> {
   const client = createApiClient();
+
+  const entryPrice = toNumber(input.entryPrice) ?? 0;
+  const volume = toNumber(input.volume);
+  const quantity = volume != null && entryPrice > 0 ? volume / entryPrice : undefined;
+
   const payload: CreateDashboardOrderInput = {
     symbol: input.symbol,
     side: input.side,
-    entryPrice: toNumber(input.entryPrice) ?? 0,
+    entryPrice,
     stopLoss: toNumber(input.stopLoss),
     takeProfit: toNumber(input.takeProfit),
-    quantity: toNumber(input.quantity),
-    leverage: toNumber(input.leverage),
+    quantity,
     exchange: input.exchange?.trim() || undefined,
     openedAt: input.openedAt?.trim() || undefined,
-    note: input.note?.trim() || undefined,
-    signalId: input.signalId?.trim() || undefined
+    note: input.note?.trim() || undefined
   };
 
   return client.createOrder(payload);
