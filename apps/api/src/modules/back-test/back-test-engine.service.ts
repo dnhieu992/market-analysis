@@ -6,7 +6,7 @@ import type { BackTestSummary, BackTestTrade, StrategyContext } from './types/ba
 
 @Injectable()
 export class BackTestEngineService {
-  run(strategy: IBackTestStrategy, candles: Candle[], symbol: string): BackTestSummary {
+  run(strategy: IBackTestStrategy, candles: Candle[], symbol: string, htfCandles: Record<string, Candle[]> = {}, params: Record<string, unknown> = {}): BackTestSummary {
     const trades: BackTestTrade[] = [];
     let openTrade: {
       entryIndex: number;
@@ -18,6 +18,7 @@ export class BackTestEngineService {
       originalStopLoss: number;
       breakevenTriggered: boolean;
       breakevenTriggerPrice: number;
+      forceCloseTime: Date | null;
     } | null = null;
 
     for (let i = 1; i < candles.length; i++) {
@@ -26,13 +27,25 @@ export class BackTestEngineService {
         candles: candles.slice(0, i + 1),
         current,
         index: i,
-        symbol
+        symbol,
+        htfCandles,
+        params
       };
 
       if (openTrade) {
-        const exitResult = this.checkExit(current, openTrade);
+        // Time-based exit takes priority over price exits
+        const timeExit =
+          openTrade.forceCloseTime &&
+          current.openTime &&
+          current.openTime >= openTrade.forceCloseTime;
+
+        const exitResult = timeExit
+          ? { exitPrice: current.open ?? current.close }
+          : this.checkExit(current, openTrade);
+
         if (exitResult !== null) {
           const pnl = this.calcPnl(openTrade.direction, openTrade.entryPrice, exitResult.exitPrice);
+          const size = this.calcSize(openTrade.entryPrice);
           trades.push({
             entryIndex: openTrade.entryIndex,
             exitIndex: i,
@@ -43,6 +56,7 @@ export class BackTestEngineService {
             stopLoss: openTrade.originalStopLoss,
             takeProfit: openTrade.takeProfit,
             direction: openTrade.direction,
+            size,
             pnl,
             pnlPercent: pnl / openTrade.entryPrice,
             outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
@@ -78,7 +92,8 @@ export class BackTestEngineService {
             takeProfit: signal.takeProfit,
             originalStopLoss: signal.stopLoss,
             breakevenTriggered: false,
-            breakevenTriggerPrice
+            breakevenTriggerPrice,
+            forceCloseTime: signal.forceCloseTime ?? null
           };
         }
       }
@@ -87,6 +102,7 @@ export class BackTestEngineService {
     if (openTrade) {
       const lastCandle = candles[candles.length - 1]!;
       const pnl = this.calcPnl(openTrade.direction, openTrade.entryPrice, lastCandle.close);
+      const size = this.calcSize(openTrade.entryPrice);
       trades.push({
         entryIndex: openTrade.entryIndex,
         exitIndex: candles.length - 1,
@@ -97,6 +113,7 @@ export class BackTestEngineService {
         stopLoss: openTrade.originalStopLoss,
         takeProfit: openTrade.takeProfit,
         direction: openTrade.direction,
+        size,
         pnl,
         pnlPercent: pnl / openTrade.entryPrice,
         outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
@@ -120,8 +137,21 @@ export class BackTestEngineService {
     return null;
   }
 
-  private calcPnl(direction: 'long' | 'short', entry: number, exit: number): number {
-    return direction === 'long' ? exit - entry : entry - exit;
+  private readonly tradeNotional = 1000; // fixed $1000 per trade
+
+  private calcSize(entry: number): number {
+    if (entry === 0) return 0;
+    return Number((this.tradeNotional / entry).toFixed(6));
+  }
+
+  private calcPnl(
+    direction: 'long' | 'short',
+    entry: number,
+    exit: number
+  ): number {
+    const size = this.calcSize(entry);
+    const priceDiff = direction === 'long' ? exit - entry : entry - exit;
+    return Number((size * priceDiff).toFixed(2));
   }
 
   private summarize(trades: BackTestTrade[]): BackTestSummary {

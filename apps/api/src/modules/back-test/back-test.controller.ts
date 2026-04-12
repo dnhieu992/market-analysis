@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { BackTestService } from './back-test.service';
@@ -35,5 +35,12 @@ export class BackTestController {
   @ApiOperation({ summary: 'Get a back-test result by ID' })
   getResult(@Param('id') id: string) {
     return this.backTestService.getResult(id);
+  }
+
+  @Delete('results/:id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete a back-test result by ID' })
+  deleteResult(@Param('id') id: string) {
+    return this.backTestService.deleteResult(id);
   }
 }

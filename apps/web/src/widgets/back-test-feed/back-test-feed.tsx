@@ -8,7 +8,7 @@ import type { BackTestResult, BackTestResultRecord, BackTestStrategy } from '@we
 const apiClient = createApiClient();
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
-const TIMEFRAMES = ['15m', '1h', '4h', '1d'];
+const TIMEFRAMES = ['15m', 'M30', '1h', '4h', '1d'];
 
 type BackTestFeedProps = Readonly<{
   strategies: BackTestStrategy[];
@@ -34,15 +34,26 @@ function pct(n: number | null | undefined): string {
 export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) {
   const [strategy, setStrategy] = useState(strategies[0]?.name ?? '');
   const [symbol, setSymbol] = useState('BTCUSDT');
-  const [from, setFrom] = useState('2024-01-01');
-  const [to, setTo] = useState('2024-12-31');
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().slice(0, 10);
+  });
+  const [to, setTo] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 0).toISOString().slice(0, 10);
+  });
   const [timeframe, setTimeframe] = useState('');
+  // FOMO strategy params
+  const [fomoTpSteps, setFomoTpSteps] = useState(1000);
+  const [fomoEntryHour, setFomoEntryHour] = useState(3);
+  const [fomoExitHour, setFomoExitHour] = useState(16);
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BackTestResult | null>(null);
   const [results, setResults] = useState<BackTestResultRecord[]>(initialResults);
   const [selectedResult, setSelectedResult] = useState<BackTestResult | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleRun() {
     setStatus('running');
@@ -50,12 +61,17 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
     setResult(null);
 
     try {
+      const fomoParams = strategy.startsWith('fomo')
+        ? { tpSteps: fomoTpSteps, entryHourUtc: fomoEntryHour, exitHourUtc: fomoExitHour }
+        : undefined;
+
       const res = await apiClient.runBackTest({
         strategy,
         symbol,
         from: new Date(from).toISOString(),
         to: new Date(to).toISOString(),
-        timeframe: timeframe || undefined
+        timeframe: timeframe || undefined,
+        params: fomoParams
       });
       setResult(res);
 
@@ -82,6 +98,17 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
     }
   }
 
+  async function handleDeleteResult(id: string) {
+    setDeletingId(id);
+    try {
+      await apiClient.deleteBackTestResult(id);
+      setResults((prev) => prev.filter((r) => r.id !== id));
+      if (selectedResult?.id === id) setSelectedResult(null);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   const selectedStrategy = strategies.find((s) => s.name === strategy);
 
   return (
@@ -101,15 +128,17 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
         <div className="settings-fields">
           <div className="back-test-form-grid">
             <div className="settings-field">
-              <label className="settings-label">Strategy</label>
+              <label className="settings-label">
+                Strategy
+                {selectedStrategy && (
+                  <span className="back-test-info-icon" title={selectedStrategy.description}>ⓘ</span>
+                )}
+              </label>
               <select className="settings-input" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
                 {strategies.map((s) => (
                   <option key={s.name} value={s.name}>{s.name}</option>
                 ))}
               </select>
-              {selectedStrategy && (
-                <p className="back-test-field-hint">{selectedStrategy.description}</p>
-              )}
             </div>
 
             <div className="settings-field">
@@ -130,6 +159,43 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                 ))}
               </select>
             </div>
+
+            {strategy.startsWith('fomo') && (
+              <>
+                <div className="settings-field">
+                  <label className="settings-label">TP Steps</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={1}
+                    value={fomoTpSteps}
+                    onChange={(e) => setFomoTpSteps(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">Entry Hour (UTC)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={fomoEntryHour}
+                    onChange={(e) => setFomoEntryHour(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">Exit Hour (UTC)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={fomoExitHour}
+                    onChange={(e) => setFomoExitHour(Number(e.target.value))}
+                  />
+                </div>
+              </>
+            )}
 
             <div className="settings-field">
               <label className="settings-label">From</label>
@@ -191,6 +257,12 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
               <span className={`back-test-metric-value ${result.totalPnl >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}`}>
                 {result.totalPnl >= 0 ? '+' : ''}{fmt(result.totalPnl)}
               </span>
+              <span className="back-test-metric-sub back-test-metric--positive">
+                +{fmt(result.trades.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0))}
+              </span>
+              <span className="back-test-metric-sub back-test-metric--negative">
+                {fmt(result.trades.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0))}
+              </span>
             </div>
             <div className="back-test-metric">
               <span className="back-test-metric-label">Max Drawdown</span>
@@ -217,6 +289,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                       <th>SL</th>
                       <th>TP</th>
                       <th>Exit</th>
+                      <th>Volume</th>
                       <th>PnL</th>
                       <th>PnL %</th>
                       <th>Outcome</th>
@@ -233,6 +306,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                         <td className="back-test-metric--negative">{fmt(trade.stopLoss)}</td>
                         <td className="back-test-metric--positive">{fmt(trade.takeProfit)}</td>
                         <td>{fmt(trade.exitPrice)}</td>
+                        <td>{fmt(trade.size * trade.entryPrice)}</td>
                         <td className={trade.pnl >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}>
                           {trade.pnl >= 0 ? '+' : ''}{fmt(trade.pnl)}
                         </td>
@@ -269,6 +343,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                   <th>Drawdown</th>
                   <th>Status</th>
                   <th></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -291,10 +366,20 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                       <td>{pct(r.maxDrawdown)}</td>
                       <td><span className={`back-test-outcome back-test-outcome--${r.status}`}>{r.status}</span></td>
                       <td>{loadingId === r.id ? '…' : selectedResult?.id === r.id ? '▲' : '▼'}</td>
+                      <td>
+                        <button
+                          className="btn btn--danger btn--sm"
+                          disabled={deletingId === r.id}
+                          onClick={(e) => { e.stopPropagation(); void handleDeleteResult(r.id); }}
+                          title="Delete this result"
+                        >
+                          {deletingId === r.id ? '…' : 'Delete'}
+                        </button>
+                      </td>
                     </tr>
                     {selectedResult?.id === r.id && (
                       <tr key={`${r.id}-detail`}>
-                        <td colSpan={9} className="back-test-history-detail">
+                        <td colSpan={10} className="back-test-history-detail">
                           {selectedResult.trades.length === 0 ? (
                             <p className="back-test-empty">No trades recorded.</p>
                           ) : (
@@ -309,6 +394,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                                   <th>SL</th>
                                   <th>TP</th>
                                   <th>Exit</th>
+                                  <th>Volume</th>
                                   <th>PnL</th>
                                   <th>PnL %</th>
                                   <th>Outcome</th>
@@ -325,6 +411,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                                     <td className="back-test-metric--negative">{fmt(trade.stopLoss)}</td>
                                     <td className="back-test-metric--positive">{fmt(trade.takeProfit)}</td>
                                     <td>{fmt(trade.exitPrice)}</td>
+                                    <td>{fmt(trade.size * trade.entryPrice)}</td>
                                     <td className={trade.pnl >= 0 ? 'back-test-metric--positive' : 'back-test-metric--negative'}>
                                       {trade.pnl >= 0 ? '+' : ''}{fmt(trade.pnl)}
                                     </td>

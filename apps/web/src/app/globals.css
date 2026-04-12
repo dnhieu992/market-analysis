@@ -888,10 +888,41 @@ a {
   gap: 16px;
 }
 
-.back-test-field-hint {
-  margin: 4px 0 0;
-  font-size: 0.78rem;
+.back-test-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  font-size: 0.82rem;
   color: var(--muted);
+  cursor: default;
+  position: relative;
+}
+
+.back-test-info-icon::after {
+  content: attr(title);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  width: 260px;
+  padding: 8px 10px;
+  background: var(--card-bg, #1e1e2e);
+  color: var(--fg, #cdd6f4);
+  border: 1px solid var(--border, rgba(255,255,255,.12));
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 100;
+}
+
+.back-test-info-icon:hover::after {
+  opacity: 1;
 }
 
 .back-test-metrics {
@@ -922,6 +953,11 @@ a {
   font-size: 1.2rem;
   font-weight: 600;
   color: var(--foreground);
+}
+
+.back-test-metric-sub {
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 
 .back-test-metric--positive { color: var(--accent); }

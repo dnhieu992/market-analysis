@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 
-const SUPPORTED_TIMEFRAMES = ['15m', '1h', '4h', '1d'];
+const SUPPORTED_TIMEFRAMES = ['15m', 'M30', '1h', '4h', '1d'];
 
 export class RunBackTestDto {
   @ApiProperty({ example: 'ema-crossover' })
@@ -25,4 +25,12 @@ export class RunBackTestDto {
   @IsString()
   @IsIn(SUPPORTED_TIMEFRAMES)
   timeframe?: string;
+
+  @ApiPropertyOptional({
+    description: 'Strategy-specific parameters (e.g. tpSteps, entryHourUtc, exitHourUtc for fomo)',
+    example: { tpSteps: 700, entryHourUtc: 2, exitHourUtc: 8 }
+  })
+  @IsOptional()
+  @IsObject()
+  params?: Record<string, unknown>;
 }

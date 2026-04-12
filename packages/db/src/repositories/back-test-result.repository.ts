@@ -25,6 +25,9 @@ export function createBackTestResultRepository(client = prisma) {
         orderBy: { createdAt: 'desc' },
         take: limit
       });
+    },
+    deleteById(id: string) {
+      return client.backTestResult.delete({ where: { id } });
     }
   };
 }

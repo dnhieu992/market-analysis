@@ -21,8 +21,6 @@ A file-based strategy back-testing system built into the API app. Strategies are
 |--------|------|-------------|
 | `GET` | `/back-test/strategies` | List all auto-discovered strategies |
 | `POST` | `/back-test/run` | Run a back-test |
-| `GET` | `/back-test/results` | List past results (filter by `?strategy=&symbol=`) |
-| `GET` | `/back-test/results/:id` | Get a specific result with full trade list |
 
 ### POST /back-test/run — Request Body
 ```json
@@ -75,6 +73,7 @@ apps/api/src/modules/back-test/
     strategy.interface.ts
     ema-crossover.strategy.ts
     rsi-reversal.strategy.ts
+    price-action.strategy.ts
 
 apps/api/src/modules/market/
   market.module.ts
@@ -234,6 +233,7 @@ export default EmaCrossoverStrategy;
 - [x] 7. Build `strategy-registry.service.ts`
 - [x] 8. Write `strategies/ema-crossover.strategy.ts`
 - [x] 9. Write `strategies/rsi-reversal.strategy.ts`
+- [x] 9b. Write `strategies/price-action.strategy.ts`
 - [x] 10. Create `back-test.providers.ts`
 - [x] 11. Build `back-test.service.ts`
 - [x] 12. Create `dto/run-back-test.dto.ts`

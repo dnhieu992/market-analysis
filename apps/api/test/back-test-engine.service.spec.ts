@@ -97,7 +97,8 @@ describe('BackTestEngineService', () => {
       expect(result.winRate).toBe(1);
       expect(result.trades[0]?.exitPrice).toBe(120);
       expect(result.trades[0]?.outcome).toBe('win');
-      expect(result.trades[0]?.pnl).toBe(20);
+      // notional=$1000, entry=100, size=10, priceDiff=20 → pnl=200
+      expect(result.trades[0]?.pnl).toBe(200);
     });
   });
 
@@ -136,7 +137,8 @@ describe('BackTestEngineService', () => {
       expect(result.winRate).toBe(0);
       expect(result.trades[0]?.exitPrice).toBe(80);
       expect(result.trades[0]?.outcome).toBe('loss');
-      expect(result.trades[0]?.pnl).toBe(-20);
+      // notional=$1000, entry=100, size=10, priceDiff=-20 → pnl=-200
+      expect(result.trades[0]?.pnl).toBe(-200);
     });
 
     it('prioritizes SL over TP when both are hit on the same candle', () => {
@@ -194,7 +196,8 @@ describe('BackTestEngineService', () => {
       expect(result.trades[0]?.direction).toBe('short');
       expect(result.trades[0]?.exitPrice).toBe(80);
       expect(result.trades[0]?.outcome).toBe('win');
-      expect(result.trades[0]?.pnl).toBe(20); // entry(100) - exit(80)
+      // notional=$1000, entry=100, size=10, priceDiff=20 → pnl=200
+      expect(result.trades[0]?.pnl).toBe(200);
     });
 
     it('records a loss for short trade when SL is reached', () => {
@@ -222,7 +225,8 @@ describe('BackTestEngineService', () => {
 
       expect(result.trades[0]?.exitPrice).toBe(120);
       expect(result.trades[0]?.outcome).toBe('loss');
-      expect(result.trades[0]?.pnl).toBe(-20); // entry(100) - exit(120)
+      // notional=$1000, entry=100, size=10, priceDiff=-20 → pnl=-200
+      expect(result.trades[0]?.pnl).toBe(-200);
     });
   });
 
@@ -310,7 +314,8 @@ describe('BackTestEngineService', () => {
 
       expect(result.totalTrades).toBe(1);
       expect(result.trades[0]?.exitPrice).toBe(110);
-      expect(result.trades[0]?.pnl).toBe(10);
+      // notional=$1000, entry=100, size=10, priceDiff=10 → pnl=100
+      expect(result.trades[0]?.pnl).toBe(100);
     });
   });
 

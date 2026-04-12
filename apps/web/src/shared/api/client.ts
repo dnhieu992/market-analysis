@@ -14,6 +14,7 @@ import type {
   UpsertSettingsInput
 } from './types';
 
+
 type JsonRecord = Record<string, unknown>;
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -311,6 +312,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     async fetchBackTestResult(id: string): Promise<BackTestResult> {
       return fetchJson<BackTestResult>(fetchImpl, `${baseUrl}/back-test/results/${id}`, withDefaults());
+    },
+    async deleteBackTestResult(id: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/back-test/results/${id}`, withDefaults({ method: 'DELETE' }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/back-test/results/${id}: ${response.status}`);
+      }
     },
     async login(input: { email: string; password: string }) {
       const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({

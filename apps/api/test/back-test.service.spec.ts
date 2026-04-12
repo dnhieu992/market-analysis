@@ -41,7 +41,7 @@ describe('BackTestService', () => {
   let mockRegistry: jest.Mocked<Pick<StrategyRegistryService, 'listStrategies' | 'getStrategy'>>;
   let mockEngine: jest.Mocked<Pick<BackTestEngineService, 'run'>>;
   let mockMarketData: { getCandlesInRange: jest.Mock };
-  let mockRepository: { create: jest.Mock; findById: jest.Mock; listByStrategy: jest.Mock; listLatest: jest.Mock };
+  let mockRepository: { create: jest.Mock; findById: jest.Mock; listByStrategy: jest.Mock; listLatest: jest.Mock; deleteById: jest.Mock };
 
   beforeEach(() => {
     mockRegistry = {
@@ -61,7 +61,8 @@ describe('BackTestService', () => {
       create: jest.fn().mockResolvedValue({ id: 'result-1', ...mockSummary }),
       findById: jest.fn(),
       listByStrategy: jest.fn().mockResolvedValue([]),
-      listLatest: jest.fn().mockResolvedValue([])
+      listLatest: jest.fn().mockResolvedValue([]),
+      deleteById: jest.fn().mockResolvedValue(undefined)
     };
 
     service = new BackTestService(
@@ -195,6 +196,22 @@ describe('BackTestService', () => {
       mockRepository.findById.mockResolvedValue(null);
 
       await expect(service.getResult('nonexistent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('deleteResult', () => {
+    it('deletes the record when found', async () => {
+      mockRepository.findById.mockResolvedValue({ id: 'result-1', strategy: 'ema-crossover' });
+
+      await service.deleteResult('result-1');
+
+      expect(mockRepository.deleteById).toHaveBeenCalledWith('result-1');
+    });
+
+    it('throws NotFoundException when record is not found', async () => {
+      mockRepository.findById.mockResolvedValue(null);
+
+      await expect(service.deleteResult('nonexistent')).rejects.toThrow(NotFoundException);
     });
   });
 });

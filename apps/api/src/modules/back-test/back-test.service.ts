@@ -15,6 +15,7 @@ export type RunBackTestDto = {
   from: string;
   to: string;
   timeframe?: string;
+  params?: Record<string, unknown>;
 };
 
 @Injectable()
@@ -38,7 +39,7 @@ export class BackTestService {
       throw new NotFoundException(`Strategy '${dto.strategy}' not found`);
     }
 
-    const timeframe = (dto.timeframe ?? strategy.defaultTimeframe) as AnalysisTimeframe;
+    const timeframe = (strategy.forcedTimeframe ?? dto.timeframe ?? strategy.defaultTimeframe) as AnalysisTimeframe;
 
     const candles = await this.marketData.getCandlesInRange(
       dto.symbol,
@@ -51,7 +52,21 @@ export class BackTestService {
       throw new BadRequestException('Insufficient candles for the requested date range');
     }
 
-    const summary = this.engine.run(strategy, candles, dto.symbol);
+    const htfTimeframes = ['4h', '1h'].filter((tf) => tf !== timeframe);
+    const htfEntries = await Promise.all(
+      htfTimeframes.map(async (tf) => {
+        const htf = await this.marketData.getCandlesInRange(
+          dto.symbol,
+          tf as AnalysisTimeframe,
+          new Date(dto.from),
+          new Date(dto.to)
+        );
+        return [tf, htf] as const;
+      })
+    );
+    const htfCandles = Object.fromEntries(htfEntries);
+
+    const summary = this.engine.run(strategy, candles, dto.symbol, htfCandles, dto.params ?? {});
 
     const record = await this.repository.create({
       strategy: dto.strategy,
@@ -92,5 +107,12 @@ export class BackTestService {
 
     const trades = record.tradesJson ? (JSON.parse(record.tradesJson) as unknown[]) : [];
     return { ...record, trades };
+  }
+
+  async deleteResult(id: string) {
+    const record = await this.repository.findById(id);
+    if (!record) throw new NotFoundException(`Back-test result '${id}' not found`);
+
+    await this.repository.deleteById(id);
   }
 }

@@ -33,6 +33,7 @@ export function TradesTable({ orders }: TradesTableProps) {
           <span role="columnheader">Side</span>
           <span role="columnheader">Status</span>
           <span role="columnheader">Entry</span>
+          <span role="columnheader">Volume</span>
           <span role="columnheader">Opened</span>
           <span role="columnheader">Actions</span>
         </div>
@@ -47,6 +48,7 @@ export function TradesTable({ orders }: TradesTableProps) {
               <OrderStatusPill status={order.status} />
             </span>
             <span role="cell">{formatPrice(order.entryPrice)}</span>
+            <span role="cell">{order.quantity != null ? order.quantity : '—'}</span>
             <span role="cell">{formatDateTime(order.openedAt)}</span>
             <span role="cell">
               <CloseTradeForm orderId={order.id} status={order.status} />

@@ -38,7 +38,8 @@ describe('SettingsPage', () => {
       fetchBackTestStrategies: async () => [],
       runBackTest: async () => { throw new Error('not used'); },
       fetchBackTestResults: async () => [],
-      fetchBackTestResult: async () => { throw new Error('not used'); }
+      fetchBackTestResult: async () => { throw new Error('not used'); },
+      deleteBackTestResult: async () => { throw new Error('not used'); }
     } as ReturnType<typeof createApiClient>);
   });
 
@@ -71,7 +72,8 @@ describe('SettingsPage', () => {
       fetchBackTestStrategies: async () => [],
       runBackTest: async () => { throw new Error('not used'); },
       fetchBackTestResults: async () => [],
-      fetchBackTestResult: async () => { throw new Error('not used'); }
+      fetchBackTestResult: async () => { throw new Error('not used'); },
+      deleteBackTestResult: async () => { throw new Error('not used'); }
     } as ReturnType<typeof createApiClient>);
 
     const markup = renderToStaticMarkup(await SettingsPage());

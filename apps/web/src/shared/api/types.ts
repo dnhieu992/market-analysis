@@ -131,30 +131,10 @@ export type BackTestTrade = {
   stopLoss: number;
   takeProfit: number;
   direction: 'long' | 'short';
+  size: number;
   pnl: number;
   pnlPercent: number;
   outcome: 'win' | 'loss' | 'breakeven';
-};
-
-export type BackTestResult = {
-  id: string;
-  strategy: string;
-  symbol: string;
-  timeframe: string;
-  // from runBackTest response
-  from?: string;
-  to?: string;
-  // from getResult (DB record)
-  fromDate?: string;
-  toDate?: string;
-  totalTrades: number;
-  wins: number;
-  losses: number;
-  winRate: number;
-  totalPnl: number;
-  maxDrawdown: number;
-  sharpeRatio: number | null;
-  trades: BackTestTrade[];
 };
 
 export type BackTestResultRecord = {
@@ -173,11 +153,31 @@ export type BackTestResultRecord = {
   createdAt: string;
 };
 
+export type BackTestResult = {
+  id: string;
+  strategy: string;
+  symbol: string;
+  timeframe: string;
+  from?: string;
+  to?: string;
+  fromDate?: string;
+  toDate?: string;
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalPnl: number;
+  maxDrawdown: number;
+  sharpeRatio: number | null;
+  trades: BackTestTrade[];
+};
+
 export type RunBackTestInput = {
   strategy: string;
   symbol: string;
   from: string;
   to: string;
   timeframe?: string;
+  params?: Record<string, unknown>;
 };
 import type { DailyAnalysisPlan } from '@app/core';
