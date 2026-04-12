@@ -197,7 +197,7 @@ describe('DailyAnalysisService', () => {
   function makeService(
     d1Candles: Candle[],
     h4Candles: Candle[],
-    repo?: { findByDate: jest.Mock; create: jest.Mock; listLatest: jest.Mock },
+    repo?: { findByDate: jest.Mock; create: jest.Mock; listLatest: jest.Mock; listAll: jest.Mock },
     llmGateway?: { runDailyAnalysisPipeline: jest.Mock }
   ) {
     const getCandles = jest.fn().mockImplementation((_symbol: string, timeframe: string) => {
