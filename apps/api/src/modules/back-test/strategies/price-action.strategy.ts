@@ -5,10 +5,12 @@ import type { IBackTestStrategy } from './strategy.interface';
 import type { StrategyContext, TradeSignal } from '../types/back-test.types';
 
 const ATR_PERIOD = 14;
-const SR_LOOKBACK = 100;       // was 40 → 100 H1 candles (~4 days)
-const SR_PROXIMITY = 0.003;    // was 0.005 → tighter 0.3%
-const SR_MIN_TOUCHES = 2;      // level must be tested at least 2 times
+const SR_LOOKBACK = 100;       // 100 H1 candles (~4 days)
+const SR_CLUSTER_TOL = 0.003;  // 0.3% — cluster swing points into one level
+const SR_PROXIMITY = 0.005;    // 0.5% — how close price must be to a level
+const SR_MIN_TOUCHES = 1;      // min swing touches to qualify a level (1 = any swing)
 const TREND_EMA = 21;
+const TREND_EMA_MIN_DIFF = 0.001; // 0.1% — price must be this far from EMA to confirm trend
 
 // ── Fix 1 — S/R extraction with swing highs/lows + min touches ──────────────
 
@@ -23,7 +25,7 @@ function extractSRLevels(candles: Candle[]): number[] {
       c.high > candles[i - 1]!.high && c.high > candles[i - 2]!.high &&
       c.high > candles[i + 1]!.high && c.high > candles[i + 2]!.high
     ) {
-      const existing = levels.find((l) => Math.abs(l.price - c.high) / c.high < 0.002);
+      const existing = levels.find((l) => Math.abs(l.price - c.high) / c.high < SR_CLUSTER_TOL);
       if (existing) existing.touches++;
       else levels.push({ price: c.high, touches: 1 });
     }
@@ -33,7 +35,7 @@ function extractSRLevels(candles: Candle[]): number[] {
       c.low < candles[i - 1]!.low && c.low < candles[i - 2]!.low &&
       c.low < candles[i + 1]!.low && c.low < candles[i + 2]!.low
     ) {
-      const existing = levels.find((l) => Math.abs(l.price - c.low) / c.low < 0.002);
+      const existing = levels.find((l) => Math.abs(l.price - c.low) / c.low < SR_CLUSTER_TOL);
       if (existing) existing.touches++;
       else levels.push({ price: c.low, touches: 1 });
     }
@@ -63,8 +65,8 @@ function getTrendH4(candles: Candle[]): TrendDirection {
   const price = candles[candles.length - 1]!.close;
   const diff = (price - ema) / ema;
 
-  if (diff > 0.002) return 'bullish';
-  if (diff < -0.002) return 'bearish';
+  if (diff > TREND_EMA_MIN_DIFF) return 'bullish';
+  if (diff < -TREND_EMA_MIN_DIFF) return 'bearish';
   return 'neutral'; // neutral blocks ALL entries
 }
 
