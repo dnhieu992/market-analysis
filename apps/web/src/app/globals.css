@@ -1201,6 +1201,12 @@ a {
 .table-header h2 { margin: 0; }
 .table-header p  { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; }
 
+.table-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ── Dialog ──────────────────────────────────────────────────────────────────── */
 
 .dialog-backdrop {
@@ -1264,3 +1270,97 @@ a {
   padding: 20px;
   flex: 1;
 }
+
+.dialog--wide { max-width: 780px; }
+
+/* ── Multi-trade form ────────────────────────────────────────────────────────── */
+
+.multi-trade-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.multi-trade-common {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.multi-trade-note { grid-column: 1 / -1; }
+
+.multi-trade-rows-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 32px;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 2px;
+}
+
+.multi-trade-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.multi-trade-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 32px;
+  gap: 8px;
+  align-items: center;
+}
+
+.multi-trade-remove {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.multi-trade-remove:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.15);
+  color: #c0392b;
+  border-color: #c0392b;
+}
+
+.multi-trade-remove:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.multi-trade-add-row {
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed rgba(255,255,255,0.2);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.multi-trade-add-row:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.multi-trade-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.multi-trade-result--ok  { color: var(--accent); }
+.multi-trade-result--err { color: #c0392b; }

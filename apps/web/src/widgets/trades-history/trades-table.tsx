@@ -7,9 +7,19 @@ import { OrderStatusPill } from '@web/entities/order/order-status-pill';
 type TradesTableProps = Readonly<{
   orders: DashboardOrder[];
   onAddTrade: () => void;
+  onAddMultiple: () => void;
 }>;
 
-export function TradesTable({ orders, onAddTrade }: TradesTableProps) {
+function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; onAddMultiple: () => void }) {
+  return (
+    <div className="table-actions">
+      <button className="btn btn--primary" onClick={onAddTrade}>+ Add Trade</button>
+      <button className="btn btn--secondary" onClick={onAddMultiple}>Add Multiple Orders</button>
+    </div>
+  );
+}
+
+export function TradesTable({ orders, onAddTrade, onAddMultiple }: TradesTableProps) {
   if (orders.length === 0) {
     return (
       <article className="panel">
@@ -18,7 +28,7 @@ export function TradesTable({ orders, onAddTrade }: TradesTableProps) {
             <h2>Trade History</h2>
             <p>No manual trades yet.</p>
           </div>
-          <button className="btn btn--primary" onClick={onAddTrade}>+ Add Trade</button>
+          <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
         </div>
       </article>
     );
@@ -31,7 +41,7 @@ export function TradesTable({ orders, onAddTrade }: TradesTableProps) {
           <h2>Trade History</h2>
           <p>Manual positions stored in the app.</p>
         </div>
-        <button className="btn btn--primary" onClick={onAddTrade}>+ Add Trade</button>
+        <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
       </div>
 
       <div className="trades-table" role="table" aria-label="trade history table">
@@ -47,13 +57,9 @@ export function TradesTable({ orders, onAddTrade }: TradesTableProps) {
 
         {orders.map((order) => (
           <div key={order.id} className="trades-row" role="row">
-            <span role="cell" className="trades-symbol">
-              {order.symbol}
-            </span>
+            <span role="cell" className="trades-symbol">{order.symbol}</span>
             <span role="cell">{order.side}</span>
-            <span role="cell">
-              <OrderStatusPill status={order.status} />
-            </span>
+            <span role="cell"><OrderStatusPill status={order.status} /></span>
             <span role="cell">{formatPrice(order.entryPrice)}</span>
             <span role="cell">{order.quantity != null ? order.quantity : '—'}</span>
             <span role="cell">{formatDateTime(order.openedAt)}</span>
