@@ -1208,7 +1208,7 @@ a {
 }
 
 .dialog {
-  background: var(--card-bg);
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 16px;
   width: 100%;
