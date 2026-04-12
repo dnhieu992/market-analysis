@@ -6,14 +6,20 @@ import { OrderStatusPill } from '@web/entities/order/order-status-pill';
 
 type TradesTableProps = Readonly<{
   orders: DashboardOrder[];
+  onAddTrade: () => void;
 }>;
 
-export function TradesTable({ orders }: TradesTableProps) {
+export function TradesTable({ orders, onAddTrade }: TradesTableProps) {
   if (orders.length === 0) {
     return (
       <article className="panel">
-        <h2>Trade History</h2>
-        <p>No manual trades yet. Use the form to open a position.</p>
+        <div className="table-header">
+          <div>
+            <h2>Trade History</h2>
+            <p>No manual trades yet.</p>
+          </div>
+          <button className="btn btn--primary" onClick={onAddTrade}>+ Add Trade</button>
+        </div>
       </article>
     );
   }
@@ -25,6 +31,7 @@ export function TradesTable({ orders }: TradesTableProps) {
           <h2>Trade History</h2>
           <p>Manual positions stored in the app.</p>
         </div>
+        <button className="btn btn--primary" onClick={onAddTrade}>+ Add Trade</button>
       </div>
 
       <div className="trades-table" role="table" aria-label="trade history table">

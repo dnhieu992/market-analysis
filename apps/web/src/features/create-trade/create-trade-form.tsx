@@ -35,11 +35,7 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
   }
 
   return (
-    <article className="panel trade-form-panel">
-      <h2>Add Manual Trade</h2>
-      <p>Open a position manually and store it in history.</p>
-
-      <form className="trade-form" onSubmit={handleSubmit}>
+    <form className="trade-form" onSubmit={handleSubmit}>
         <label className="trade-field">
           <span>Symbol</span>
           <input name="symbol" type="text" placeholder="BTCUSDT" required />
@@ -94,6 +90,5 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
           {isPending ? 'Submitting...' : 'Submit Trade'}
         </button>
       </form>
-    </article>
   );
 }
