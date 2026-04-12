@@ -104,13 +104,13 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
       </label>
 
       <label className="trade-field">
-        <span>Exchange</span>
-        <input name="exchange" type="text" defaultValue="BINGX" />
-      </label>
-
-      <label className="trade-field trade-field-wide">
         <span>Opened At</span>
         <input name="openedAt" type="datetime-local" defaultValue={toDatetimeLocal(new Date())} />
+      </label>
+
+      <label className="trade-field">
+        <span>Exchange</span>
+        <input name="exchange" type="text" defaultValue="BINGX" />
       </label>
 
       <label className="trade-field trade-field-wide">
