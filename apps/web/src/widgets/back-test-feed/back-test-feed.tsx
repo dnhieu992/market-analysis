@@ -8,7 +8,7 @@ import type { BackTestResult, BackTestResultRecord, BackTestStrategy } from '@we
 const apiClient = createApiClient();
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
-const TIMEFRAMES = ['15m', 'M30', '1h', '4h', '1d'];
+const TIMEFRAMES = ['5m', '15m', 'M30', '1h', '4h', '1d'];
 
 type BackTestFeedProps = Readonly<{
   strategies: BackTestStrategy[];
