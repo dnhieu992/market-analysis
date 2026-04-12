@@ -53,15 +53,17 @@ export class AuthController {
   }
 }
 
+const isSecureCookie = process.env.SECURE_COOKIE === 'true';
+
 function buildSessionCookie(name: string, value: string, expiresAt: Date): string {
   const parts = [`${name}=${value}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Expires=${expiresAt.toUTCString()}`];
-  if (process.env.NODE_ENV === 'production') parts.push('Secure');
+  if (isSecureCookie) parts.push('Secure');
   return parts.join('; ');
 }
 
 function clearSessionCookie(name: string): string {
   const parts = [`${name}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'];
-  if (process.env.NODE_ENV === 'production') parts.push('Secure');
+  if (isSecureCookie) parts.push('Secure');
   return parts.join('; ');
 }
 
