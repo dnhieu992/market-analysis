@@ -3,10 +3,11 @@ import { calculateEma, calculateAtr } from '@app/core';
 import type { IBackTestStrategy } from './strategy.interface';
 import type { StrategyContext, TradeSignal } from '../types/back-test.types';
 
-const EMA_FAST      = 9;
-const EMA_SLOW      = 21;
-const EMA_TREND     = 200;
-const EMA_H1_TREND  = 50;   // H1 EMA50: price above → bullish, below → bearish
+const EMA_A         = 8;    // fastest — trigger
+const EMA_B         = 13;   // middle — confirmation
+const EMA_C         = 21;   // slowest — trend
+const EMA_TREND     = 200;  // M5 macro trend
+const EMA_H1_TREND  = 50;   // H1 trend alignment
 const ATR_PERIOD    = 14;
 const ADX_PERIOD    = 14;
 const RSI_PERIOD    = 14;
@@ -81,7 +82,7 @@ function calculateRsi(closes: number[], period: number): number {
 export class EmaCrossoverStrategy implements IBackTestStrategy {
   readonly name = 'ema-crossover';
   readonly description =
-    'EMA9/21 cross + EMA200 trend + ADX>20 + RSI filter + H1 EMA50 trend align. M5. SL=1×ATR, TP=2×ATR.';
+    'Triple EMA 8/13/21: all 3 aligned → entry. EMA200 macro trend + ADX>20 + RSI + H1 EMA50 align. M5. SL=1×ATR, TP=2×ATR.';
   readonly defaultTimeframe = '5m';
 
   evaluate(ctx: StrategyContext): TradeSignal | null {
@@ -91,16 +92,23 @@ export class EmaCrossoverStrategy implements IBackTestStrategy {
     const highs  = ctx.candles.map((c) => c.high);
     const lows   = ctx.candles.map((c) => c.low);
 
-    // ── EMA crossover ────────────────────────────────────────────────────────
-    const ema9  = calculateEma(closes, EMA_FAST);
-    const ema21 = calculateEma(closes, EMA_SLOW);
+    // ── Triple EMA 8 / 13 / 21 ───────────────────────────────────────────────
+    // Signal: EMA8 crosses EMA13
+    // Confirmation: EMA21 aligned (8 > 13 > 21 for long, 8 < 13 < 21 for short)
+    const emaA = calculateEma(closes, EMA_A);
+    const emaB = calculateEma(closes, EMA_B);
+    const emaC = calculateEma(closes, EMA_C);
 
     const prevCloses = closes.slice(0, -1);
-    const prevEma9   = calculateEma(prevCloses, EMA_FAST);
-    const prevEma21  = calculateEma(prevCloses, EMA_SLOW);
+    const prevEmaA   = calculateEma(prevCloses, EMA_A);
+    const prevEmaB   = calculateEma(prevCloses, EMA_B);
 
-    const isBullCross = prevEma9 <= prevEma21 && ema9 > ema21;
-    const isBearCross = prevEma9 >= prevEma21 && ema9 < ema21;
+    const crossedAbove = prevEmaA <= prevEmaB && emaA > emaB;
+    const crossedBelow = prevEmaA >= prevEmaB && emaA < emaB;
+
+    // All 3 EMAs must be in order to confirm trend
+    const isBullCross = crossedAbove && emaA > emaB && emaB > emaC;
+    const isBearCross = crossedBelow && emaA < emaB && emaB < emaC;
     if (!isBullCross && !isBearCross) return null;
 
     // ── Filter 1: EMA200 trend ───────────────────────────────────────────────
