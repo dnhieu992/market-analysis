@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import { resolve } from 'path';
 import { config } from 'dotenv';
 
-// Load .env from repo root (two levels up from apps/api/)
-config({ path: resolve(__dirname, '../../../.env') });
+// Load .env from repo root (cwd is set to repo root by pm2/node)
+config({ path: resolve(process.cwd(), '.env') });
 
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
