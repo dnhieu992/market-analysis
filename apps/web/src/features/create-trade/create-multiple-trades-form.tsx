@@ -77,10 +77,6 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
     await Promise.all(
       rows.map(async (row) => {
         try {
-          const entryPrice = Number(row.entryPrice);
-          const volume = Number(row.volume) || undefined;
-          const quantity = volume && entryPrice > 0 ? volume / entryPrice : undefined;
-
           await submitManualOrder({
             symbol: row.symbol.toUpperCase(),
             side,

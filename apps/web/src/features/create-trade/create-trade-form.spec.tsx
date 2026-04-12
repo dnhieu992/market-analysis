@@ -66,7 +66,7 @@ describe('TradeForm', () => {
       symbol: 'BTCUSDT',
       side: 'long',
       entryPrice: '68000',
-      quantity: '1'
+      volume: '68000'
     });
 
     expect(result.id).toBe('order-1');
