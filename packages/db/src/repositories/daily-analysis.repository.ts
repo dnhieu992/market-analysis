@@ -18,6 +18,12 @@ export function createDailyAnalysisRepository(client = prisma) {
         orderBy: { date: 'desc' },
         take: limit
       });
+    },
+    listAll(limit = 60) {
+      return client.dailyAnalysis.findMany({
+        orderBy: { date: 'desc' },
+        take: limit
+      });
     }
   };
 }

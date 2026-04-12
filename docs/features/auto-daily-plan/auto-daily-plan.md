@@ -143,6 +143,34 @@ Structural fields (`d1Trend`, `h4Trend`, `d1S1`…`h4R2`) are nullable and left 
 
 ---
 
+## Web Dashboard Integration
+
+The `/daily-plan` page in the web app displays the results of the daily analysis for all tracked symbols.
+
+### Requirements
+
+- The page fetches all `DailyAnalysis` records across all symbols (not limited to one symbol), ordered by date descending
+- Each record is displayed as a card showing:
+  - Symbol, date, and status badge (`PUBLISHED`, `WAIT`, `TRADE_READY`, etc.)
+  - AI analysis text (`summary` field) rendered in a scrollable pre-formatted block
+  - Trend badges (D1 / H4) and S/R level rows — only shown when the structural fields are non-null
+  - LLM model name in the card footer
+- Structural fields (`d1Trend`, `h4Trend`, `d1S1`…`h4R2`) are treated as optional — cards render correctly when they are null (as produced by this feature)
+
+### Affected Files
+
+| File | Change |
+|---|---|
+| `packages/db/src/repositories/daily-analysis.repository.ts` | Added `listAll(limit)` method to fetch records across all symbols |
+| `apps/api/src/modules/daily-analysis/daily-analysis.service.ts` | `list()` without a symbol argument calls `listAll()` instead of defaulting to BTCUSDT |
+| `apps/web/src/shared/api/types.ts` | Structural fields made `\| null`; `status` accepts `'PUBLISHED'` |
+| `apps/web/src/shared/api/client.ts` | `fetchDailyAnalysis()` without args omits the symbol query param; mapper is null-safe for all structural fields |
+| `apps/web/src/_pages/daily-plan-page/daily-plan-page.tsx` | Calls `fetchDailyAnalysis()` with no argument to fetch all symbols |
+| `apps/web/src/widgets/daily-plan-feed/daily-plan-feed.tsx` | Rebuilt to show AI analysis text prominently; structural sections rendered conditionally |
+| `apps/web/src/app/globals.css` | Added all daily plan card styles |
+
+---
+
 ## Known Constraints
 
 - The cron job fires at `00:00 UTC`. For Vietnam time (UTC+7) this means 07:00 AM local.

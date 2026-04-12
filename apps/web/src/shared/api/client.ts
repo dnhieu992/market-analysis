@@ -166,16 +166,16 @@ function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
     symbol: String(row.symbol),
     date: String(row.date),
     status: String(row.status ?? 'WAIT') as DailyAnalysis['status'],
-    d1Trend: String(row.d1Trend) as DailyAnalysis['d1Trend'],
-    h4Trend: String(row.h4Trend) as DailyAnalysis['h4Trend'],
-    d1S1: Number(row.d1S1),
-    d1S2: Number(row.d1S2),
-    d1R1: Number(row.d1R1),
-    d1R2: Number(row.d1R2),
-    h4S1: Number(row.h4S1),
-    h4S2: Number(row.h4S2),
-    h4R1: Number(row.h4R1),
-    h4R2: Number(row.h4R2),
+    d1Trend: row.d1Trend != null ? (String(row.d1Trend) as 'bullish' | 'bearish' | 'neutral') : null,
+    h4Trend: row.h4Trend != null ? (String(row.h4Trend) as 'bullish' | 'bearish' | 'neutral') : null,
+    d1S1: row.d1S1 != null ? Number(row.d1S1) : null,
+    d1S2: row.d1S2 != null ? Number(row.d1S2) : null,
+    d1R1: row.d1R1 != null ? Number(row.d1R1) : null,
+    d1R2: row.d1R2 != null ? Number(row.d1R2) : null,
+    h4S1: row.h4S1 != null ? Number(row.h4S1) : null,
+    h4S2: row.h4S2 != null ? Number(row.h4S2) : null,
+    h4R1: row.h4R1 != null ? Number(row.h4R1) : null,
+    h4R2: row.h4R2 != null ? Number(row.h4R2) : null,
     llmProvider: String(row.llmProvider ?? ''),
     llmModel: String(row.llmModel ?? ''),
     pipelineDebugJson:
@@ -240,8 +240,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
     async fetchHealth(): Promise<DashboardHealth> {
       return fetchJson<DashboardHealth>(fetchImpl, `${baseUrl}/health`, withDefaults());
     },
-    async fetchDailyAnalysis(symbol = 'BTCUSDT'): Promise<DailyAnalysis[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/daily-analysis?symbol=${symbol}`, withDefaults());
+    async fetchDailyAnalysis(symbol?: string): Promise<DailyAnalysis[]> {
+      const url = symbol
+        ? `${baseUrl}/daily-analysis?symbol=${symbol}`
+        : `${baseUrl}/daily-analysis`;
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
       return rows.map(mapDailyAnalysis);
     },
     async createOrder(input: CreateDashboardOrderInput): Promise<DashboardOrder> {

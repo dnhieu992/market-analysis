@@ -1033,3 +1033,149 @@ a {
   font-size: 0.9rem;
   padding: 8px 0;
 }
+
+/* ── Daily Plan ─────────────────────────────────────────────────────────────── */
+
+.daily-plan-shell { gap: 24px; }
+
+.daily-plan-hero { margin-bottom: 0; }
+
+.daily-plan-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  gap: 20px;
+  padding: 0 24px 32px;
+}
+
+.daily-plan-empty {
+  color: var(--muted);
+  padding: 24px;
+  font-size: 0.9rem;
+}
+
+.daily-plan-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.daily-plan-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.daily-plan-card-symbol {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.daily-plan-card-date {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.daily-plan-trends {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.daily-plan-trend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.trend-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.trend-badge--bullish { background: rgba(31,111,91,0.12); color: var(--accent); }
+.trend-badge--bearish { background: rgba(192,57,43,0.10); color: #c0392b; }
+.trend-badge--neutral { background: rgba(23,18,13,0.08); color: var(--muted); }
+
+.daily-plan-levels {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.daily-plan-levels-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 24px;
+}
+
+.daily-plan-levels-grid {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.level {
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.level--resistance { background: rgba(192,57,43,0.08); color: #c0392b; }
+.level--support { background: rgba(31,111,91,0.08); color: var(--accent); }
+
+.daily-plan-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.daily-plan-analysis-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.daily-plan-analysis-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--fg);
+  background: rgba(0,0,0,0.15);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.daily-plan-card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.daily-plan-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.6;
+}

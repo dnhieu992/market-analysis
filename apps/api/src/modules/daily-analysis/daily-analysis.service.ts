@@ -38,7 +38,9 @@ export class DailyAnalysisService {
   ) {}
 
   async list(symbol?: string): Promise<DailyAnalysisRecord[]> {
-    const rows = await this.dailyAnalysisRepository.listLatest(symbol ?? 'BTCUSDT', 30);
+    const rows = symbol
+      ? await this.dailyAnalysisRepository.listLatest(symbol, 30)
+      : await this.dailyAnalysisRepository.listAll(60);
     return rows.map((row) => this.mapRecord(row as DailyAnalysisRecord));
   }
 

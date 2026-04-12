@@ -6,7 +6,7 @@ async function loadDailyAnalysis(): Promise<DailyAnalysis[]> {
   const client = createServerApiClient();
 
   try {
-    return await client.fetchDailyAnalysis('BTCUSDT');
+    return await client.fetchDailyAnalysis();
   } catch {
     return [];
   }
