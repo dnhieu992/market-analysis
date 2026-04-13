@@ -53,12 +53,22 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
       .catch(() => {/* ignore */});
   }, []);
 
+  useEffect(() => {
+    rows.forEach((row) => {
+      if (!row.entryPrice) void fetchPrice(row.id, row.symbol);
+    });
+    // only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function updateRow(id: string, field: keyof Omit<OrderRow, 'id'>, value: string) {
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, [field]: value } : r));
   }
 
-  function addRow() {
-    setRows((prev) => [...prev, newRow()]);
+  async function addRow() {
+    const row = newRow();
+    setRows((prev) => [...prev, row]);
+    await fetchPrice(row.id, row.symbol);
   }
 
   function removeRow(id: string) {
