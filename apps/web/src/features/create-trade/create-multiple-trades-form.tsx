@@ -23,8 +23,15 @@ function toDatetimeLocal(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
 function newRow(): OrderRow {
-  return { id: crypto.randomUUID(), symbol: 'BTCUSDT', entryPrice: '', volume: '' };
+  return { id: generateId(), symbol: 'BTCUSDT', entryPrice: '', volume: '' };
 }
 
 export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFormProps) {
