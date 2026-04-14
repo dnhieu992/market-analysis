@@ -410,7 +410,7 @@ a {
   display: grid;
   grid-template-columns: 1.2fr 0.55fr 0.7fr 0.9fr 0.9fr 1.1fr 108px;
   gap: 10px;
-  align-items: end;
+  align-items: start;
   padding: 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.68);
@@ -445,7 +445,29 @@ a {
 }
 
 .trades-cell-actions {
-  align-self: end;
+  align-self: start;
+}
+
+.trades-side-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.trades-side-badge--long {
+  background: rgba(31, 111, 91, 0.14);
+  color: var(--accent);
+}
+
+.trades-side-badge--short {
+  background: rgba(155, 44, 44, 0.12);
+  color: #9b2c2c;
 }
 
 .trade-status-pill {

@@ -90,7 +90,11 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
         {orders.map((order) => (
           <div key={order.id} className="trades-row" role="row">
             <TradeCell label="Symbol">{order.symbol}</TradeCell>
-            <TradeCell label="Side">{order.side}</TradeCell>
+            <TradeCell label="Side">
+              <span className={`trades-side-badge trades-side-badge--${order.side.toLowerCase()}`}>
+                {order.side}
+              </span>
+            </TradeCell>
             <TradeCell label="Status"><OrderStatusPill status={order.status} /></TradeCell>
             <TradeCell label="Entry Price">{formatDecimal(order.entryPrice)}</TradeCell>
             <TradeCell label="Volume (USD)">
