@@ -437,7 +437,7 @@ a {
   padding: 10px 14px;
   min-height: 42px;
   border-radius: 14px;
-  border: 1px solid var(--border);
+  border: none;
   background: rgba(255, 255, 255, 0.92);
   color: var(--foreground);
   font-size: 0.95rem;
