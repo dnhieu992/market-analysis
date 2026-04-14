@@ -36,6 +36,15 @@ function IconTrash() {
   );
 }
 
+function TradeCell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="trades-cell">
+      <span className="trades-cell-label">{label}</span>
+      <div className="trades-cell-value">{children}</div>
+    </div>
+  );
+}
+
 function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; onAddMultiple: () => void }) {
   return (
     <div className="table-actions">
@@ -71,52 +80,45 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
       </div>
 
       <div className="trades-table" role="table" aria-label="trade history table">
-        <div className="trades-row trades-row-head" role="row">
-          <span role="columnheader">Symbol</span>
-          <span role="columnheader">Side</span>
-          <span role="columnheader">Status</span>
-          <span role="columnheader">Entry</span>
-          <span role="columnheader">Volume</span>
-          <span role="columnheader">Opened</span>
-          <span role="columnheader">Actions</span>
-        </div>
-
         {orders.map((order) => (
           <div key={order.id} className="trades-row" role="row">
-            <span role="cell" className="trades-symbol">{order.symbol}</span>
-            <span role="cell">{order.side}</span>
-            <span role="cell"><OrderStatusPill status={order.status} /></span>
-            <span role="cell">{formatPrice(order.entryPrice)}</span>
-            <span role="cell">{order.quantity != null ? `${order.quantity} USDT` : '—'}</span>
-            <span role="cell">{formatDateTime(order.openedAt)}</span>
-            <span role="cell" className="trades-actions">
-              {order.status.toLowerCase() === 'open' && (
+            <TradeCell label="Symbol">{order.symbol}</TradeCell>
+            <TradeCell label="Side">{order.side}</TradeCell>
+            <TradeCell label="Status"><OrderStatusPill status={order.status} /></TradeCell>
+            <TradeCell label="Entry Price">{formatPrice(order.entryPrice)}</TradeCell>
+            <TradeCell label="Volume (USD)">{order.quantity != null ? `${order.quantity} USDT` : '—'}</TradeCell>
+            <TradeCell label="Opened">{formatDateTime(order.openedAt)}</TradeCell>
+            <div className="trades-cell trades-cell-actions">
+              <span className="trades-cell-label">Actions</span>
+              <div className="trades-actions">
+                {order.status.toLowerCase() === 'open' && (
+                  <button
+                    className="btn--icon btn--icon-success"
+                    data-tooltip="Close Trade"
+                    aria-label="Close Trade"
+                    onClick={() => onCloseTrade(order.id)}
+                  >
+                    <IconClose />
+                  </button>
+                )}
                 <button
-                  className="btn--icon btn--icon-success"
-                  data-tooltip="Close Trade"
-                  aria-label="Close Trade"
-                  onClick={() => onCloseTrade(order.id)}
+                  className="btn--icon"
+                  data-tooltip="Edit"
+                  aria-label="Edit Trade"
+                  onClick={() => onEditTrade(order)}
                 >
-                  <IconClose />
+                  <IconEdit />
                 </button>
-              )}
-              <button
-                className="btn--icon"
-                data-tooltip="Edit"
-                aria-label="Edit Trade"
-                onClick={() => onEditTrade(order)}
-              >
-                <IconEdit />
-              </button>
-              <button
-                className="btn--icon btn--icon-danger"
-                data-tooltip="Delete"
-                aria-label="Delete Trade"
-                onClick={() => onRemoveTrade(order.id)}
-              >
-                <IconTrash />
-              </button>
-            </span>
+                <button
+                  className="btn--icon btn--icon-danger"
+                  data-tooltip="Delete"
+                  aria-label="Delete Trade"
+                  onClick={() => onRemoveTrade(order.id)}
+                >
+                  <IconTrash />
+                </button>
+              </div>
+            </div>
           </div>
         ))}
       </div>

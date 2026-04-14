@@ -410,25 +410,42 @@ a {
   display: grid;
   grid-template-columns: 1.2fr 0.55fr 0.7fr 0.9fr 0.9fr 1.1fr 108px;
   gap: 10px;
-  align-items: center;
-  padding: 12px 14px;
+  align-items: end;
+  padding: 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.68);
   border: 1px solid var(--border);
 }
 
-.trades-row-head {
-  background: transparent;
-  border: 0;
-  padding-bottom: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.trades-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.trades-symbol {
+.trades-cell-label {
+  font-size: 0.75rem;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.trades-cell-value {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--foreground);
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.trades-cell-actions {
+  align-self: end;
 }
 
 .trade-status-pill {
