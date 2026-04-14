@@ -56,10 +56,11 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
     setError(null);
 
     try {
-      const formData = new FormData(event.currentTarget);
+      const form = event.currentTarget;
+      const formData = new FormData(form);
       const parsed = parseCreateOrderFormData(formData);
       await submitManualOrder(parsed);
-      event.currentTarget.reset();
+      form.reset();
 
       startTransition(() => {
         onSubmitted?.();
