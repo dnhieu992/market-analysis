@@ -26,10 +26,11 @@ export function CloseTradeForm({ orderId, status, onSubmitted }: CloseTradeFormP
     setError(null);
 
     try {
-      const formData = new FormData(event.currentTarget);
+      const form = event.currentTarget;
+      const formData = new FormData(form);
       const parsed = parseCloseOrderFormData(formData);
       await submitCloseOrder(orderId, parsed);
-      event.currentTarget.reset();
+      form.reset();
 
       startTransition(() => {
         onSubmitted?.();

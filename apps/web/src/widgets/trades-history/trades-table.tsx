@@ -1,13 +1,13 @@
 import { formatDateTime, formatPrice } from '@web/shared/lib/format';
 import type { DashboardOrder } from '@web/shared/api/types';
 
-import { CloseTradeForm } from '@web/features/close-trade/close-trade-form';
 import { OrderStatusPill } from '@web/entities/order/order-status-pill';
 
 type TradesTableProps = Readonly<{
   orders: DashboardOrder[];
   onAddTrade: () => void;
   onAddMultiple: () => void;
+  onCloseTrade: (orderId: string) => void;
 }>;
 
 function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; onAddMultiple: () => void }) {
@@ -19,7 +19,7 @@ function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; o
   );
 }
 
-export function TradesTable({ orders, onAddTrade, onAddMultiple }: TradesTableProps) {
+export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade }: TradesTableProps) {
   if (orders.length === 0) {
     return (
       <article className="panel">
@@ -61,10 +61,14 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple }: TradesTablePr
             <span role="cell">{order.side}</span>
             <span role="cell"><OrderStatusPill status={order.status} /></span>
             <span role="cell">{formatPrice(order.entryPrice)}</span>
-            <span role="cell">{order.quantity != null ? order.quantity : '—'}</span>
+            <span role="cell">{order.quantity != null ? `${order.quantity} USDT` : '—'}</span>
             <span role="cell">{formatDateTime(order.openedAt)}</span>
             <span role="cell">
-              <CloseTradeForm orderId={order.id} status={order.status} />
+              {order.status.toLowerCase() === 'open' && (
+                <button className="btn btn--secondary" onClick={() => onCloseTrade(order.id)}>
+                  Close Trade
+                </button>
+              )}
             </span>
           </div>
         ))}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { TradeForm } from '@web/features/create-trade/create-trade-form';
 import { CreateMultipleTradesForm } from '@web/features/create-trade/create-multiple-trades-form';
+import { CloseTradeForm } from '@web/features/close-trade/close-trade-form';
 import type { DashboardOrder } from '@web/shared/api/types';
 
 import { TradesTable } from './trades-table';
@@ -15,6 +16,7 @@ type TradesHistoryProps = Readonly<{
 export function TradesHistory({ orders }: TradesHistoryProps) {
   const [singleOpen, setSingleOpen] = useState(false);
   const [multiOpen, setMultiOpen] = useState(false);
+  const [closeTradeOrderId, setCloseTradeOrderId] = useState<string | null>(null);
 
   return (
     <main className="dashboard-shell trades-shell">
@@ -22,6 +24,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
         orders={orders}
         onAddTrade={() => setSingleOpen(true)}
         onAddMultiple={() => setMultiOpen(true)}
+        onCloseTrade={(orderId) => setCloseTradeOrderId(orderId)}
       />
 
       {/* Single trade dialog */}
@@ -34,6 +37,21 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
             </div>
             <div className="dialog-body">
               <TradeForm onSubmitted={() => setSingleOpen(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close trade dialog */}
+      {closeTradeOrderId && (
+        <div className="dialog-backdrop" onClick={() => setCloseTradeOrderId(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <span className="dialog-title">Close Trade</span>
+              <button className="dialog-close" onClick={() => setCloseTradeOrderId(null)} aria-label="Close">✕</button>
+            </div>
+            <div className="dialog-body">
+              <CloseTradeForm orderId={closeTradeOrderId} status="open" onSubmitted={() => setCloseTradeOrderId(null)} />
             </div>
           </div>
         </div>
