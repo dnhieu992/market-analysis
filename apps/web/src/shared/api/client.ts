@@ -11,6 +11,7 @@ import type {
   DashboardSignal,
   RunBackTestInput,
   TrackingSettings,
+  UpdateDashboardOrderInput,
   UpsertSettingsInput
 } from './types';
 
@@ -261,6 +262,26 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }
 
       return mapOrder((await response.json()) as JsonRecord);
+    },
+    async updateOrder(orderId: string, input: UpdateDashboardOrderInput): Promise<DashboardOrder> {
+      const response = await fetchImpl(`${baseUrl}/orders/${orderId}`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/orders/${orderId}: ${response.status}`);
+      }
+
+      return mapOrder((await response.json()) as JsonRecord);
+    },
+    async deleteOrder(orderId: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/orders/${orderId}`, withDefaults({ method: 'DELETE' }));
+
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/orders/${orderId}: ${response.status}`);
+      }
     },
     async closeOrder(orderId: string, input: CloseDashboardOrderInput): Promise<DashboardOrder> {
       const response = await fetchImpl(`${baseUrl}/orders/${orderId}/close`, withDefaults({

@@ -79,6 +79,16 @@ export type CloseDashboardOrderInput = {
   closedAt?: string;
 };
 
+export type UpdateDashboardOrderInput = {
+  symbol?: string;
+  side?: 'long' | 'short';
+  entryPrice?: number;
+  quantity?: number;
+  openedAt?: string;
+  note?: string;
+  exchange?: string;
+};
+
 export type DailyAnalysis = {
   aiOutput: DailyAnalysisPlan;
   id: string;

@@ -21,6 +21,9 @@ export function createOrderRepository(client = prisma) {
         where: { id },
         data
       });
+    },
+    remove(id: string) {
+      return client.order.delete({ where: { id } });
     }
   };
 }

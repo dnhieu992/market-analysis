@@ -3,12 +3,14 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ORDER_REPOSITORY } from '../database/database.providers';
 import type { CloseOrderDto } from './dto/close-order.dto';
 import type { CreateOrderDto } from './dto/create-order.dto';
+import type { UpdateOrderDto } from './dto/update-order.dto';
 
 type OrderRepository = {
   create: (data: Record<string, unknown>) => Promise<unknown>;
   findById: (id: string) => Promise<unknown | null>;
   listLatest: (limit?: number) => Promise<unknown[]>;
   update: (id: string, data: Record<string, unknown>) => Promise<unknown>;
+  remove: (id: string) => Promise<unknown>;
 };
 
 @Injectable()
@@ -39,6 +41,18 @@ export class OrdersService {
       status: 'open',
       openedAt: input.openedAt ? new Date(input.openedAt) : new Date()
     });
+  }
+
+  updateOrder(id: string, input: UpdateOrderDto) {
+    return this.orderRepository.update(id, {
+      ...input,
+      ...(input.openedAt ? { openedAt: new Date(input.openedAt) } : {})
+    });
+  }
+
+  async removeOrder(id: string) {
+    await this.getOrderById(id);
+    return this.orderRepository.remove(id);
   }
 
   async closeOrder(id: string, input: CloseOrderDto) {
