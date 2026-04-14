@@ -1,4 +1,11 @@
-import { formatDateTime, formatPrice } from '@web/shared/lib/format';
+import { formatDateTime } from '@web/shared/lib/format';
+
+function formatDecimal(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
 import type { DashboardOrder } from '@web/shared/api/types';
 
 import { OrderStatusPill } from '@web/entities/order/order-status-pill';
@@ -85,8 +92,10 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
             <TradeCell label="Symbol">{order.symbol}</TradeCell>
             <TradeCell label="Side">{order.side}</TradeCell>
             <TradeCell label="Status"><OrderStatusPill status={order.status} /></TradeCell>
-            <TradeCell label="Entry Price">{formatPrice(order.entryPrice)}</TradeCell>
-            <TradeCell label="Volume (USD)">{order.quantity != null ? `${order.quantity} USDT` : '—'}</TradeCell>
+            <TradeCell label="Entry Price">{formatDecimal(order.entryPrice)}</TradeCell>
+            <TradeCell label="Volume (USD)">
+              {order.quantity != null ? formatDecimal(order.quantity * order.entryPrice) : '—'}
+            </TradeCell>
             <TradeCell label="Opened">{formatDateTime(order.openedAt)}</TradeCell>
             <div className="trades-cell trades-cell-actions">
               <span className="trades-cell-label">Actions</span>
