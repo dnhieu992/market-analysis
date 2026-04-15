@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import { formatDateTime } from '@web/shared/lib/format';
 
 function formatDecimal(value: number): string {
@@ -10,11 +13,13 @@ import type { DashboardOrder } from '@web/shared/api/types';
 
 import { OrderStatusPill } from '@web/entities/order/order-status-pill';
 
+type StatusFilter = 'all' | 'open' | 'closed';
+
 type TradesTableProps = Readonly<{
   orders: DashboardOrder[];
   onAddTrade: () => void;
   onAddMultiple: () => void;
-  onCloseTrade: (orderId: string) => void;
+  onCloseTrade: (order: DashboardOrder) => void;
   onEditTrade: (order: DashboardOrder) => void;
   onRemoveTrade: (orderId: string) => void;
 }>;
@@ -52,85 +57,127 @@ function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; o
   );
 }
 
+function PnlCell({ pnl }: { pnl: number | null | undefined }) {
+  if (pnl == null) return <span>—</span>;
+  const isPositive = pnl >= 0;
+  return (
+    <span style={{ color: isPositive ? 'var(--color-success, #22c55e)' : 'var(--color-danger, #ef4444)', fontWeight: 600 }}>
+      {isPositive ? '+' : ''}{formatDecimal(pnl)}
+    </span>
+  );
+}
+
 export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade }: TradesTableProps) {
-  if (orders.length === 0) {
-    return (
-      <article className="panel">
-        <div className="table-header">
-          <div>
-            <h2>Trade History</h2>
-            <p>No manual trades yet.</p>
-          </div>
-          <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
-        </div>
-      </article>
-    );
-  }
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
+  const openCount = orders.filter(o => o.status.toLowerCase() === 'open').length;
+  const closedCount = orders.filter(o => o.status.toLowerCase() === 'closed').length;
+
+  const filteredOrders = orders.filter(o => {
+    if (statusFilter === 'open') return o.status.toLowerCase() === 'open';
+    if (statusFilter === 'closed') return o.status.toLowerCase() === 'closed';
+    return true;
+  });
 
   return (
     <article className="panel">
       <div className="table-header">
         <div>
           <h2>Trade History</h2>
-          <p>Manual positions stored in the app.</p>
+          {orders.length === 0 ? (
+            <p>No manual trades yet.</p>
+          ) : (
+            <p>Manual positions stored in the app.</p>
+          )}
         </div>
         <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
       </div>
 
-      <div className="trades-table" role="table" aria-label="trade history table">
-        <div className="trades-row trades-row-head" role="row">
-          <span role="columnheader">Symbol</span>
-          <span role="columnheader">Side</span>
-          <span role="columnheader">Status</span>
-          <span role="columnheader">Entry Price</span>
-          <span role="columnheader">Volume (USD)</span>
-          <span role="columnheader">Opened</span>
-          <span role="columnheader">Actions</span>
+      {orders.length > 0 && (
+        <div className="trades-filter-bar">
+          <button
+            className={`trades-filter-badge${statusFilter === 'all' ? ' trades-filter-badge--active' : ''}`}
+            onClick={() => setStatusFilter('all')}
+          >
+            All <span className="trades-filter-count">{orders.length}</span>
+          </button>
+          <button
+            className={`trades-filter-badge trades-filter-badge--open${statusFilter === 'open' ? ' trades-filter-badge--active' : ''}`}
+            onClick={() => setStatusFilter('open')}
+          >
+            Open <span className="trades-filter-count">{openCount}</span>
+          </button>
+          <button
+            className={`trades-filter-badge trades-filter-badge--closed${statusFilter === 'closed' ? ' trades-filter-badge--active' : ''}`}
+            onClick={() => setStatusFilter('closed')}
+          >
+            Closed <span className="trades-filter-count">{closedCount}</span>
+          </button>
         </div>
+      )}
 
-        {orders.map((order) => (
-          <div key={order.id} className="trades-row" role="row">
-            <span role="cell" className="trades-symbol">{order.symbol}</span>
-            <span role="cell">
-              <span className={`trades-side-badge trades-side-badge--${order.side.toLowerCase()}`}>
-                {order.side}
-              </span>
-            </span>
-            <span role="cell"><OrderStatusPill status={order.status} /></span>
-            <span role="cell">{formatDecimal(order.entryPrice)}</span>
-            <span role="cell">{order.quantity != null ? formatDecimal(order.quantity * order.entryPrice) : '—'}</span>
-            <span role="cell">{formatDateTime(order.openedAt)}</span>
-            <span role="cell" className="trades-actions">
-              {order.status.toLowerCase() === 'open' && (
-                <button
-                  className="btn--icon btn--icon-success"
-                  data-tooltip="Close Trade"
-                  aria-label="Close Trade"
-                  onClick={() => onCloseTrade(order.id)}
-                >
-                  <IconClose />
-                </button>
-              )}
-              <button
-                className="btn--icon"
-                data-tooltip="Edit"
-                aria-label="Edit Trade"
-                onClick={() => onEditTrade(order)}
-              >
-                <IconEdit />
-              </button>
-              <button
-                className="btn--icon btn--icon-danger"
-                data-tooltip="Delete"
-                aria-label="Delete Trade"
-                onClick={() => onRemoveTrade(order.id)}
-              >
-                <IconTrash />
-              </button>
-            </span>
+      {filteredOrders.length === 0 ? null : (
+        <div className="trades-table" role="table" aria-label="trade history table">
+          <div className="trades-row trades-row-head" role="row">
+            <span role="columnheader">Symbol</span>
+            <span role="columnheader">Side</span>
+            <span role="columnheader">Status</span>
+            <span role="columnheader">Entry Price</span>
+            <span role="columnheader">Close Price</span>
+            <span role="columnheader">Volume (USD)</span>
+            <span role="columnheader">PnL</span>
+            <span role="columnheader">Opened</span>
+            <span role="columnheader">Closed</span>
+            <span role="columnheader">Actions</span>
           </div>
-        ))}
-      </div>
+
+          {filteredOrders.map((order) => (
+            <div key={order.id} className="trades-row" role="row">
+              <span role="cell" className="trades-symbol">{order.symbol}</span>
+              <span role="cell">
+                <span className={`trades-side-badge trades-side-badge--${order.side.toLowerCase()}`}>
+                  {order.side}
+                </span>
+              </span>
+              <span role="cell"><OrderStatusPill status={order.status} /></span>
+              <span role="cell">{formatDecimal(order.entryPrice)}</span>
+              <span role="cell">{order.closePrice != null ? formatDecimal(order.closePrice) : '—'}</span>
+              <span role="cell">{order.quantity != null ? formatDecimal(order.quantity * order.entryPrice) : '—'}</span>
+              <span role="cell"><PnlCell pnl={order.pnl} /></span>
+              <span role="cell">{formatDateTime(order.openedAt)}</span>
+              <span role="cell">{order.closedAt ? formatDateTime(order.closedAt) : '—'}</span>
+              <span role="cell" className="trades-actions">
+                {order.status.toLowerCase() === 'open' && (
+                  <button
+                    className="btn--icon btn--icon-success"
+                    data-tooltip="Close Trade"
+                    aria-label="Close Trade"
+                    onClick={() => onCloseTrade(order)}
+                  >
+                    <IconClose />
+                  </button>
+                )}
+                <button
+                  className="btn--icon"
+                  data-tooltip="Edit"
+                  aria-label="Edit Trade"
+                  onClick={() => onEditTrade(order)}
+                >
+                  <IconEdit />
+                </button>
+                <button
+                  className="btn--icon btn--icon-danger"
+                  data-tooltip="Delete"
+                  aria-label="Delete Trade"
+                  onClick={() => onRemoveTrade(order.id)}
+                >
+                  <IconTrash />
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </article>
   );
 }

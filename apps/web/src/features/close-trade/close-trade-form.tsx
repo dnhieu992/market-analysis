@@ -10,16 +10,24 @@ import {
 type CloseTradeFormProps = Readonly<{
   orderId: string;
   status: string;
+  defaultClosePrice?: number;
   onSubmitted?: () => void;
 }>;
 
-export function CloseTradeForm({ orderId, status, onSubmitted }: CloseTradeFormProps) {
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function CloseTradeForm({ orderId, status, defaultClosePrice, onSubmitted }: CloseTradeFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   if (status.toLowerCase() !== 'open') {
     return null;
   }
+
+  const defaultClosedAt = toDatetimeLocalValue(new Date());
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,7 +53,25 @@ export function CloseTradeForm({ orderId, status, onSubmitted }: CloseTradeFormP
     <form className="close-trade-form" onSubmit={handleSubmit}>
       <label className="trade-field">
         <span>Close Price</span>
-        <input name="closePrice" type="number" min="0" step="0.01" placeholder="69000" required />
+        <input
+          name="closePrice"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="69000"
+          defaultValue={defaultClosePrice ?? ''}
+          required
+        />
+      </label>
+
+      <label className="trade-field">
+        <span>Close Date &amp; Time</span>
+        <input
+          name="closedAt"
+          type="datetime-local"
+          defaultValue={defaultClosedAt}
+          required
+        />
       </label>
 
       <label className="trade-field">

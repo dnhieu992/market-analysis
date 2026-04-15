@@ -18,7 +18,7 @@ type TradesHistoryProps = Readonly<{
 export function TradesHistory({ orders }: TradesHistoryProps) {
   const [singleOpen, setSingleOpen] = useState(false);
   const [multiOpen, setMultiOpen] = useState(false);
-  const [closeTradeOrderId, setCloseTradeOrderId] = useState<string | null>(null);
+  const [closeTradeOrder, setCloseTradeOrder] = useState<DashboardOrder | null>(null);
   const [editOrder, setEditOrder] = useState<DashboardOrder | null>(null);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -40,7 +40,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
         orders={orders}
         onAddTrade={() => setSingleOpen(true)}
         onAddMultiple={() => setMultiOpen(true)}
-        onCloseTrade={(orderId) => setCloseTradeOrderId(orderId)}
+        onCloseTrade={(order) => setCloseTradeOrder(order)}
         onEditTrade={(order) => setEditOrder(order)}
         onRemoveTrade={(orderId) => setDeleteOrderId(orderId)}
       />
@@ -61,15 +61,20 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
       )}
 
       {/* Close trade dialog */}
-      {closeTradeOrderId && (
-        <div className="dialog-backdrop" onClick={() => setCloseTradeOrderId(null)}>
+      {closeTradeOrder && (
+        <div className="dialog-backdrop" onClick={() => setCloseTradeOrder(null)}>
           <div className="dialog" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
-              <span className="dialog-title">Close Trade</span>
-              <button className="dialog-close" onClick={() => setCloseTradeOrderId(null)} aria-label="Close">✕</button>
+              <span className="dialog-title">Close Trade — {closeTradeOrder.symbol}</span>
+              <button className="dialog-close" onClick={() => setCloseTradeOrder(null)} aria-label="Close">✕</button>
             </div>
             <div className="dialog-body">
-              <CloseTradeForm orderId={closeTradeOrderId} status="open" onSubmitted={() => setCloseTradeOrderId(null)} />
+              <CloseTradeForm
+                orderId={closeTradeOrder.id}
+                status="open"
+                defaultClosePrice={closeTradeOrder.entryPrice}
+                onSubmitted={() => setCloseTradeOrder(null)}
+              />
             </div>
           </div>
         </div>
