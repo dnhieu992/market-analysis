@@ -2,9 +2,6 @@
 
 import { useEffect, useId, useState, useTransition } from 'react';
 
-import { createApiClient } from '@web/shared/api/client';
-import type { BackTestStrategy } from '@web/shared/api/types';
-
 import { submitManualOrder } from './create-trade.model';
 
 type OrderRow = {
@@ -39,19 +36,11 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
   const [rows, setRows] = useState<OrderRow[]>([newRow()]);
   const [side, setSide] = useState<'long' | 'short'>('short');
   const [openedAt, setOpenedAt] = useState(toDatetimeLocal(new Date()));
-  const [strategy, setStrategy] = useState('');
+  const [exchange, setExchange] = useState('BINGX');
   const [note, setNote] = useState('');
-  const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<{ symbol: string; ok: boolean; msg?: string }[]>([]);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    const client = createApiClient();
-    client.fetchBackTestStrategies()
-      .then(setStrategies)
-      .catch(() => {/* ignore */});
-  }, []);
 
   useEffect(() => {
     rows.forEach((row) => {
@@ -99,7 +88,7 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
             side,
             entryPrice: row.entryPrice,
             volume: row.volume,
-            exchange: strategy || undefined,
+            exchange: exchange || undefined,
             openedAt: openedAt || undefined,
             note: note || undefined
           });
@@ -142,12 +131,11 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
         </label>
 
         <label className="trade-field">
-          <span>Strategy</span>
-          <select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-            <option value="">— none —</option>
-            {strategies.map((s) => (
-              <option key={s.name} value={s.name}>{s.name}</option>
-            ))}
+          <span>Source</span>
+          <select value={exchange} onChange={(e) => setExchange(e.target.value)}>
+            <option value="BINANCE">BINANCE</option>
+            <option value="BINGX">BINGX</option>
+            <option value="OKX">OKX</option>
           </select>
         </label>
 

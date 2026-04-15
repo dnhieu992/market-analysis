@@ -159,7 +159,6 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                 <th>Name</th>
                 <th>Open</th>
                 <th>Close</th>
-                <th>Level</th>
                 <th>Volume</th>
                 <th>Source</th>
                 <th>Profit/Loss</th>
@@ -195,9 +194,6 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                         <span>Date: {order.closedAt ? formatDate(order.closedAt) : '-'}</span>
                       </div>
                     </td>
-
-                    {/* LEVEL */}
-                    <td>{order.leverage ?? '-'}</td>
 
                     {/* VOLUME */}
                     <td>{order.quantity != null ? formatVolume(order.quantity * order.entryPrice) : '-'}</td>

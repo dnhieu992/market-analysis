@@ -74,8 +74,12 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
       </label>
 
       <label className="trade-field">
-        <span>Exchange / Strategy</span>
-        <input name="exchange" type="text" defaultValue={order.exchange ?? ''} />
+        <span>Source</span>
+        <select name="exchange" defaultValue={order.exchange ?? 'BINGX'}>
+          <option value="BINANCE">BINANCE</option>
+          <option value="BINGX">BINGX</option>
+          <option value="OKX">OKX</option>
+        </select>
       </label>
 
       <label className="trade-field trade-field-wide">

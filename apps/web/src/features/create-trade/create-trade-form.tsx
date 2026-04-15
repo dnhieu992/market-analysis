@@ -2,9 +2,6 @@
 
 import { useEffect, useState, useTransition, type FormEvent } from 'react';
 
-import { createApiClient } from '@web/shared/api/client';
-import type { BackTestStrategy } from '@web/shared/api/types';
-
 import { parseCreateOrderFormData, submitManualOrder } from './create-trade.model';
 
 type TradeFormProps = Readonly<{
@@ -20,7 +17,6 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [entryPrice, setEntryPrice] = useState('');
   const [priceLoading, setPriceLoading] = useState(false);
-  const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -40,11 +36,6 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
 
   useEffect(() => {
     void fetchPrice(symbol);
-
-    const client = createApiClient();
-    client.fetchBackTestStrategies()
-      .then(setStrategies)
-      .catch(() => {/* silently ignore */});
   }, []);
 
   function handleSymbolBlur() {
@@ -119,12 +110,11 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
       </label>
 
       <label className="trade-field">
-        <span>Strategy</span>
-        <select name="exchange">
-          <option value="">— none —</option>
-          {strategies.map((s) => (
-            <option key={s.name} value={s.name}>{s.name}</option>
-          ))}
+        <span>Source</span>
+        <select name="exchange" defaultValue="BINGX">
+          <option value="BINANCE">BINANCE</option>
+          <option value="BINGX">BINGX</option>
+          <option value="OKX">OKX</option>
         </select>
       </label>
 
