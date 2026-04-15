@@ -109,6 +109,7 @@ function mapOrder(row: JsonRecord): DashboardOrder {
     note: row.note == null ? null : String(row.note),
     source: row.source == null ? undefined : String(row.source),
     exchange: row.exchange == null ? null : String(row.exchange),
+    broker: row.broker == null ? null : String(row.broker),
     signalId: row.signalId == null ? null : String(row.signalId)
   };
 }

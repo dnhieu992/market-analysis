@@ -191,7 +191,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                     <td>{order.quantity != null ? formatVolume(order.quantity * order.entryPrice) : '-'}</td>
 
                     {/* SOURCE */}
-                    <td>{order.exchange ?? '-'}</td>
+                    <td>{order.broker ?? '-'}</td>
 
                     {/* PROFIT/LOSS */}
                     <td><PnlCell pnl={order.pnl} /></td>

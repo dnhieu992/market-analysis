@@ -37,4 +37,9 @@ export class UpdateOrderDto {
   @IsOptional()
   @IsString()
   exchange?: string;
+
+  @ApiPropertyOptional({ example: 'BINGX' })
+  @IsOptional()
+  @IsString()
+  broker?: string;
 }

@@ -40,6 +40,11 @@ export class CreateOrderDto {
   @IsString()
   exchange?: string;
 
+  @ApiPropertyOptional({ example: 'BINGX' })
+  @IsOptional()
+  @IsString()
+  broker?: string;
+
   @ApiPropertyOptional({ example: '2024-01-01T00:00:00.000Z' })
   @IsOptional()
   @IsString()
