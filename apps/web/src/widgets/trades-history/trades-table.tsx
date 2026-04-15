@@ -84,6 +84,22 @@ function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; o
   );
 }
 
+function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
+  const closedOrders = orders.filter(o => o.status.toLowerCase() === 'closed');
+  const total = closedOrders.reduce((sum, o) => sum + (o.pnl ?? 0), 0);
+  const isPositive = total >= 0;
+
+  return (
+    <div className="tt-pnl-card">
+      <span className="tt-pnl-card__label">Total Profit/Loss</span>
+      <span className={`tt-pnl-card__value ${isPositive ? 'tt-pnl-card__value--positive' : 'tt-pnl-card__value--negative'}`}>
+        {isPositive ? '+' : ''}{formatVolume(total)}
+      </span>
+      <span className="tt-pnl-card__note">Based on current filters (closed trades only)</span>
+    </div>
+  );
+}
+
 export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade }: TradesTableProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
@@ -105,6 +121,12 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
         </div>
         <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
       </div>
+
+      {orders.length > 0 && (
+        <div className="tt-summary-bar">
+          <TotalPnlCard orders={orders} />
+        </div>
+      )}
 
       {orders.length > 0 && (
         <div className="trades-filter-bar">
