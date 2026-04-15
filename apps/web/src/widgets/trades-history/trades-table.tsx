@@ -4,6 +4,32 @@ import { useState } from 'react';
 import type { DashboardOrder } from '@web/shared/api/types';
 
 type StatusFilter = 'all' | 'open' | 'closed';
+type DateFilter = 'today' | '7D' | '30D' | 'custom';
+
+function getDateRange(filter: DateFilter, customFrom: string, customTo: string): { from: Date; to: Date } | null {
+  const now = new Date();
+  if (filter === 'today') {
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { from, to };
+  }
+  if (filter === '7D') {
+    const from = new Date(now);
+    from.setDate(from.getDate() - 7);
+    from.setHours(0, 0, 0, 0);
+    return { from, to: now };
+  }
+  if (filter === '30D') {
+    const from = new Date(now);
+    from.setDate(from.getDate() - 30);
+    from.setHours(0, 0, 0, 0);
+    return { from, to: now };
+  }
+  if (filter === 'custom' && customFrom && customTo) {
+    return { from: new Date(customFrom), to: new Date(customTo + 'T23:59:59') };
+  }
+  return null;
+}
 
 type TradesTableProps = Readonly<{
   orders: DashboardOrder[];
@@ -87,22 +113,51 @@ function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
       <span className={`tt-pnl-card__value ${isPositive ? 'tt-pnl-card__value--positive' : 'tt-pnl-card__value--negative'}`}>
         {isPositive ? '+' : ''}{formatVolume(total)}
       </span>
-      <span className="tt-pnl-card__note">Based on current filters (closed trades only)</span>
+      <span className="tt-pnl-card__note">Closed trades in selected period</span>
     </div>
   );
 }
 
 export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade }: TradesTableProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter | null>(null);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [showCustomPopover, setShowCustomPopover] = useState(false);
 
-  const openCount = orders.filter(o => o.status.toLowerCase() === 'open').length;
-  const closedCount = orders.filter(o => o.status.toLowerCase() === 'closed').length;
+  const dateRange = dateFilter ? getDateRange(dateFilter, customFrom, customTo) : null;
 
-  const filteredOrders = orders.filter(o => {
+  const dateFilteredOrders = orders.filter(o => {
+    if (!dateRange) return true;
+    const opened = new Date(o.openedAt);
+    return opened >= dateRange.from && opened <= dateRange.to;
+  });
+
+  const openCount = dateFilteredOrders.filter(o => o.status.toLowerCase() === 'open').length;
+  const closedCount = dateFilteredOrders.filter(o => o.status.toLowerCase() === 'closed').length;
+
+  const filteredOrders = dateFilteredOrders.filter(o => {
     if (statusFilter === 'open') return o.status.toLowerCase() === 'open';
     if (statusFilter === 'closed') return o.status.toLowerCase() === 'closed';
     return true;
   });
+
+  function handleDateFilter(f: DateFilter) {
+    if (f === 'custom') {
+      setShowCustomPopover(v => !v);
+      setDateFilter('custom');
+    } else {
+      setShowCustomPopover(false);
+      setDateFilter(prev => prev === f ? null : f);
+    }
+  }
+
+  function applyCustom() {
+    if (customFrom && customTo) {
+      setDateFilter('custom');
+      setShowCustomPopover(false);
+    }
+  }
 
   return (
     <article className="panel">
@@ -116,17 +171,18 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
 
       {orders.length > 0 && (
         <div className="tt-summary-bar">
-          <TotalPnlCard orders={orders} />
+          <TotalPnlCard orders={filteredOrders} />
         </div>
       )}
 
       {orders.length > 0 && (
         <div className="trades-filter-bar">
+          {/* Status filter */}
           <button
             className={`trades-filter-badge${statusFilter === 'all' ? ' trades-filter-badge--active' : ''}`}
             onClick={() => setStatusFilter('all')}
           >
-            All <span className="trades-filter-count">{orders.length}</span>
+            All <span className="trades-filter-count">{dateFilteredOrders.length}</span>
           </button>
           <button
             className={`trades-filter-badge trades-filter-badge--open${statusFilter === 'open' ? ' trades-filter-badge--active' : ''}`}
@@ -140,6 +196,65 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
           >
             Closed <span className="trades-filter-count">{closedCount}</span>
           </button>
+
+          {/* Divider */}
+          <span className="trades-filter-divider" />
+
+          {/* Date filter */}
+          {(['today', '7D', '30D'] as DateFilter[]).map(f => (
+            <button
+              key={f}
+              className={`trades-filter-badge trades-filter-badge--date${dateFilter === f ? ' trades-filter-badge--active' : ''}`}
+              onClick={() => handleDateFilter(f)}
+            >
+              {f}
+            </button>
+          ))}
+
+          <div className="trades-date-custom-wrap">
+            <button
+              className={`trades-filter-badge trades-filter-badge--date${dateFilter === 'custom' ? ' trades-filter-badge--active' : ''}`}
+              onClick={() => handleDateFilter('custom')}
+            >
+              {dateFilter === 'custom' && customFrom && customTo
+                ? `${customFrom} – ${customTo}`
+                : 'Custom'}
+            </button>
+            {showCustomPopover && (
+              <div className="trades-date-popover">
+                <label className="trades-date-popover__label">From</label>
+                <input
+                  type="date"
+                  className="trades-date-popover__input"
+                  value={customFrom}
+                  onChange={e => setCustomFrom(e.target.value)}
+                />
+                <label className="trades-date-popover__label">To</label>
+                <input
+                  type="date"
+                  className="trades-date-popover__input"
+                  value={customTo}
+                  onChange={e => setCustomTo(e.target.value)}
+                />
+                <button
+                  className="btn btn--primary trades-date-popover__apply"
+                  onClick={applyCustom}
+                  disabled={!customFrom || !customTo}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+
+          {dateFilter && (
+            <button
+              className="trades-filter-badge trades-filter-badge--clear"
+              onClick={() => { setDateFilter(null); setShowCustomPopover(false); setCustomFrom(''); setCustomTo(''); }}
+            >
+              ✕ Clear date
+            </button>
+          )}
         </div>
       )}
 
@@ -153,6 +268,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                 <th>Close</th>
                 <th>Volume</th>
                 <th>Source</th>
+                <th>Strategy</th>
                 <th>Profit/Loss</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -192,6 +308,9 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
 
                     {/* SOURCE */}
                     <td>{order.broker ?? '-'}</td>
+
+                    {/* STRATEGY */}
+                    <td>{order.exchange ?? '-'}</td>
 
                     {/* PROFIT/LOSS */}
                     <td><PnlCell pnl={order.pnl} /></td>

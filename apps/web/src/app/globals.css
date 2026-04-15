@@ -687,6 +687,84 @@ a {
   color: inherit;
 }
 
+.trades-filter-divider {
+  display: inline-block;
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 4px;
+  align-self: center;
+}
+
+.trades-filter-badge--date.trades-filter-badge--active {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #fff;
+}
+
+.trades-filter-badge--clear {
+  color: var(--muted);
+  border-color: transparent;
+  font-size: 0.78rem;
+}
+
+.trades-filter-badge--clear:hover {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.07);
+}
+
+.trades-date-custom-wrap {
+  position: relative;
+}
+
+.trades-date-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.trades-date-popover__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.trades-date-popover__input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: var(--background);
+  color: var(--foreground);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.trades-date-popover__input:focus {
+  border-color: #1e40af;
+  box-shadow: 0 0 0 2px rgba(30, 64, 175, 0.15);
+}
+
+.trades-date-popover__apply {
+  margin-top: 6px;
+  width: 100%;
+  justify-content: center;
+}
+
 
 .trade-status-pill {
   display: inline-flex;
