@@ -38,14 +38,6 @@ function IconCircleCheck() {
   );
 }
 
-function IconEdit() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-    </svg>
-  );
-}
-
 function IconTrash() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -174,7 +166,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                     {/* NAME */}
                     <td>
                       <div className="tt-name">
-                        <span className="tt-symbol">{order.symbol}</span>
+                        <button className="tt-symbol-btn" onClick={() => onEditTrade(order)}>{order.symbol}</button>
                         <span className={`tt-side tt-side--${order.side.toLowerCase()}`}>{order.side.toUpperCase()}</span>
                       </div>
                     </td>
@@ -220,14 +212,6 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                             <IconCircleCheck />
                           </button>
                         )}
-                        <button
-                          className="tt-btn"
-                          data-tooltip="Edit"
-                          aria-label="Edit Trade"
-                          onClick={() => onEditTrade(order)}
-                        >
-                          <IconEdit />
-                        </button>
                         <button
                           className="tt-btn tt-btn--danger"
                           data-tooltip="Delete"
