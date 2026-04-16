@@ -1,11 +1,7 @@
 -- Seed TradingStrategy table with strategies from back-test module
 
-INSERT INTO `TradingStrategy` (`id`, `name`, `content`, `imageReference`, `version`, `createdAt`, `updatedAt`) VALUES
-
-(
-  'strat_rsi_reversal_v1',
-  'rsi-reversal',
-  'RSI Reversal Strategy
+INSERT INTO `TradingStrategy` (`id`, `name`, `content`, `imageReference`, `version`, `createdAt`, `updatedAt`)
+VALUES (UUID(), 'rsi-reversal', 'RSI Reversal Strategy
 
 Timeframe: 4h
 Indicators: RSI(14), ATR(14)
@@ -21,17 +17,10 @@ Exit Rules:
 
 Notes:
 - Requires at least RSI_PERIOD + 2 candles (16 candles minimum)
-- ATR is calculated over 14 periods and used for dynamic SL/TP sizing',
-  '[]',
-  '1.0.0',
-  NOW(),
-  NOW()
-),
+- ATR is calculated over 14 periods and used for dynamic SL/TP sizing', '[]', '1.0.0', NOW(), NOW());
 
-(
-  'strat_rsi_crossover_v1',
-  'rsi-signal-crossover',
-  'RSI Signal-Line Crossover Strategy
+INSERT INTO `TradingStrategy` (`id`, `name`, `content`, `imageReference`, `version`, `createdAt`, `updatedAt`)
+VALUES (UUID(), 'rsi-signal-crossover', 'RSI Signal-Line Crossover Strategy
 
 Timeframe: 4h
 Indicators: RSI(14), EMA(9) applied on RSI series (signal line), ATR(14)
@@ -48,17 +37,10 @@ Exit Rules:
 Notes:
 - Minimum candles required: RSI_PERIOD(14) + SIGNAL_PERIOD(9) + 1 = 24 candles
 - RSI series is built from index RSI_PERIOD onward, then EMA-9 is applied to that series
-- The dual condition (RSI + zone filter) reduces false signals in ranging markets',
-  '[]',
-  '1.0.0',
-  NOW(),
-  NOW()
-),
+- The dual condition (RSI + zone filter) reduces false signals in ranging markets', '[]', '1.0.0', NOW(), NOW());
 
-(
-  'strat_supertrend_engulf_v1',
-  'supertrend-engulfing',
-  'Supertrend + Engulfing Candle Strategy
+INSERT INTO `TradingStrategy` (`id`, `name`, `content`, `imageReference`, `version`, `createdAt`, `updatedAt`)
+VALUES (UUID(), 'supertrend-engulfing', 'Supertrend + Engulfing Candle Strategy
 
 Timeframe: M30 (30-minute, forced)
 Indicators: Supertrend(period=10, multiplier=3.0) using Wilder RMA for ATR, Engulfing candle patterns
@@ -80,17 +62,10 @@ Filters:
 
 Notes:
 - Supertrend uses Wilder smoothing (RMA) for ATR calculation, not simple EMA
-- Direction flips when price closes above upper band (bearish→bullish) or below lower band (bullish→bearish)',
-  '[]',
-  '1.0.0',
-  NOW(),
-  NOW()
-),
+- Direction flips when price closes above upper band (bearish→bullish) or below lower band (bullish→bearish)', '[]', '1.0.0', NOW(), NOW());
 
-(
-  'strat_fomo_short_v1',
-  'fomo-short',
-  'FOMO Short Strategy (Time-Based)
+INSERT INTO `TradingStrategy` (`id`, `name`, `content`, `imageReference`, `version`, `createdAt`, `updatedAt`)
+VALUES (UUID(), 'fomo-short', 'FOMO Short Strategy (Time-Based)
 
 Timeframe: 1h (forced)
 Type: Time-based short — no technical indicators
@@ -112,17 +87,10 @@ Configurable Parameters:
 Notes:
 - Exploits the observation that early morning UTC pumps tend to fade by NY open
 - Time is the only risk control — no traditional stop loss
-- Best suited for high-volatility assets like BTC/ETH',
-  '[]',
-  '1.0.0',
-  NOW(),
-  NOW()
-),
+- Best suited for high-volatility assets like BTC/ETH', '[]', '1.0.0', NOW(), NOW());
 
-(
-  'strat_price_action_v1',
-  'price-action',
-  'Multi-Timeframe Price Action Strategy
+INSERT INTO `TradingStrategy` (`id`, `name`, `content`, `imageReference`, `version`, `createdAt`, `updatedAt`)
+VALUES (UUID(), 'price-action', 'Multi-Timeframe Price Action Strategy
 
 Timeframe: 15m
 Indicators: ATR(14), EMA-21 on H4, Swing S/R on H1
@@ -160,17 +128,10 @@ Session Filter:
 - Trades skipped outside these windows
 
 H4 Trend Fallback (when < 26 H4 candles):
-- Uses Higher Highs/Higher Lows over last 6 candles',
-  '[]',
-  '1.0.0',
-  NOW(),
-  NOW()
-),
+- Uses Higher Highs/Higher Lows over last 6 candles', '[]', '1.0.0', NOW(), NOW());
 
-(
-  'strat_ema_crossover_v1',
-  'ema-crossover',
-  'Triple EMA Crossover Strategy (Multi-Filter)
+INSERT INTO `TradingStrategy` (`id`, `name`, `content`, `imageReference`, `version`, `createdAt`, `updatedAt`)
+VALUES (UUID(), 'ema-crossover', 'Triple EMA Crossover Strategy (Multi-Filter)
 
 Timeframe: 5m
 Indicators: EMA(8), EMA(13), EMA(21), EMA(200), ADX(14), RSI(14), H1 EMA(50), ATR(14)
@@ -202,9 +163,4 @@ Exit Rules:
 Notes:
 - Minimum candles required: EMA_TREND(200) + ATR_PERIOD(14) + 2 = 216 candles
 - ADX uses Wilder smoothing; values < 20 indicate ranging — skip all entries
-- H1 EMA50 filter is skipped if fewer than 51 H1 candles are available',
-  '[]',
-  '1.0.0',
-  NOW(),
-  NOW()
-);
+- H1 EMA50 filter is skipped if fewer than 51 H1 candles are available', '[]', '1.0.0', NOW(), NOW());

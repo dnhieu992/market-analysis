@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE `TradingStrategy` (
-    `id` VARCHAR(191) NOT NULL,
+    `id` CHAR(36) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
     `content` TEXT NOT NULL,
     `imageReference` JSON NOT NULL DEFAULT ('[]'),

@@ -150,7 +150,7 @@ model BackTestResult {
 }
 
 model TradingStrategy {
-  id             String   @id @default(cuid())
+  id             String   @id @default(uuid()) @db.Char(36)
   name           String
   content        String   @db.Text
   imageReference Json     @default("[]")
