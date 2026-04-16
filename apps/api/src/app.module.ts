@@ -11,11 +11,12 @@ import { HealthModule } from './modules/health/health.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SignalsModule } from './modules/signals/signals.module';
+import { StrategiesModule } from './modules/strategies/strategies.module';
 import { TelegramLogsModule } from './modules/telegram-logs/telegram-logs.module';
 import { WorkerModule } from './modules/worker/worker.module';
 
 @Module({
-  imports: [HealthModule, AuthModule, AnalysisModule, BackTestModule, ChatModule, SignalsModule, OrdersModule, TelegramLogsModule, WorkerModule, DailyAnalysisModule, SettingsModule],
+  imports: [HealthModule, AuthModule, AnalysisModule, BackTestModule, ChatModule, SignalsModule, OrdersModule, TelegramLogsModule, WorkerModule, DailyAnalysisModule, SettingsModule, StrategiesModule],
   providers: [
     {
       provide: APP_GUARD,

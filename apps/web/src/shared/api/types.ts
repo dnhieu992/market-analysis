@@ -196,4 +196,28 @@ export type RunBackTestInput = {
   timeframe?: string;
   params?: Record<string, unknown>;
 };
+export type TradingStrategy = {
+  id: string;
+  name: string;
+  content: string;
+  imageReference: string[];
+  version: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateTradingStrategyInput = {
+  name: string;
+  content: string;
+  imageReference?: string[];
+  version: string;
+};
+
+export type UpdateTradingStrategyInput = {
+  name?: string;
+  content?: string;
+  imageReference?: string[];
+  version?: string;
+};
+
 import type { DailyAnalysisPlan } from '@app/core';

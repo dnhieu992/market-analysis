@@ -4,6 +4,7 @@ import type {
   BackTestStrategy,
   CloseDashboardOrderInput,
   CreateDashboardOrderInput,
+  CreateTradingStrategyInput,
   DailyAnalysis,
   DashboardAnalysisRun,
   DashboardHealth,
@@ -11,7 +12,9 @@ import type {
   DashboardSignal,
   RunBackTestInput,
   TrackingSettings,
+  TradingStrategy,
   UpdateDashboardOrderInput,
+  UpdateTradingStrategyInput,
   UpsertSettingsInput
 } from './types';
 
@@ -201,6 +204,21 @@ function mapSettings(row: JsonRecord): TrackingSettings {
   };
 }
 
+function mapTradingStrategy(row: JsonRecord): TradingStrategy {
+  const imageReference = Array.isArray(row.imageReference)
+    ? (row.imageReference as unknown[]).map(String)
+    : [];
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    content: String(row.content),
+    imageReference,
+    version: String(row.version),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt)
+  };
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = (options.baseUrl ?? readConfiguredBaseUrl()).replace(/\/+$/, '');
   const fetchImpl = options.fetchImpl ?? globalThis.fetch?.bind(globalThis);
@@ -343,6 +361,38 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const response = await fetchImpl(`${baseUrl}/back-test/results/${id}`, withDefaults({ method: 'DELETE' }));
       if (!response.ok) {
         throw new Error(`Request failed for ${baseUrl}/back-test/results/${id}: ${response.status}`);
+      }
+    },
+    async fetchTradingStrategies(): Promise<TradingStrategy[]> {
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/strategies`, withDefaults());
+      return rows.map(mapTradingStrategy);
+    },
+    async createTradingStrategy(input: CreateTradingStrategyInput): Promise<TradingStrategy> {
+      const response = await fetchImpl(`${baseUrl}/strategies`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/strategies: ${response.status}`);
+      }
+      return mapTradingStrategy((await response.json()) as JsonRecord);
+    },
+    async updateTradingStrategy(id: string, input: UpdateTradingStrategyInput): Promise<TradingStrategy> {
+      const response = await fetchImpl(`${baseUrl}/strategies/${id}`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/strategies/${id}: ${response.status}`);
+      }
+      return mapTradingStrategy((await response.json()) as JsonRecord);
+    },
+    async deleteTradingStrategy(id: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/strategies/${id}`, withDefaults({ method: 'DELETE' }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/strategies/${id}: ${response.status}`);
       }
     },
     async login(input: { email: string; password: string }) {

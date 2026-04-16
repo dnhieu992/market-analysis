@@ -7,6 +7,7 @@ import {
   createSettingsRepository,
   createSignalRepository,
   createTelegramMessageLogRepository,
+  createTradingStrategyRepository,
   createUserRepository,
   prisma
 } from '@app/db';
@@ -19,6 +20,7 @@ export const TELEGRAM_LOG_REPOSITORY = Symbol('TELEGRAM_LOG_REPOSITORY');
 export const SETTINGS_REPOSITORY = Symbol('SETTINGS_REPOSITORY');
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 export const SESSION_REPOSITORY = Symbol('SESSION_REPOSITORY');
+export const STRATEGY_REPOSITORY = Symbol('STRATEGY_REPOSITORY');
 
 export const DatabaseProviders: Provider[] = [
   {
@@ -56,5 +58,9 @@ export const DatabaseProviders: Provider[] = [
   {
     provide: SESSION_REPOSITORY,
     useFactory: () => createSessionRepository()
+  },
+  {
+    provide: STRATEGY_REPOSITORY,
+    useFactory: () => createTradingStrategyRepository()
   }
 ];

@@ -149,6 +149,18 @@ model BackTestResult {
   @@index([strategy, symbol, createdAt])
 }
 
+model TradingStrategy {
+  id             String   @id @default(cuid())
+  name           String
+  content        String   @db.Text
+  imageReference Json     @default("[]")
+  version        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([name])
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique

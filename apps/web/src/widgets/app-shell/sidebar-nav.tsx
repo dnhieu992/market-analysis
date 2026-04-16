@@ -34,6 +34,11 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: '/strategy',
+    label: 'Strategies',
+    description: 'Manage trading strategies'
+  },
+  {
+    href: '/strategy-test',
     label: 'Strategy Lab',
     description: 'Back-test trading strategies'
   },
