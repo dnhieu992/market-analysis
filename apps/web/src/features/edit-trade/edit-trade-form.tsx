@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useState, useTransition, type FormEvent } from 'react';
 
-import type { DashboardOrder } from '@web/shared/api/types';
+import { createApiClient } from '@web/shared/api/client';
+import type { BackTestStrategy, DashboardOrder } from '@web/shared/api/types';
 
 import { parseEditOrderFormData, submitEditOrder } from './edit-trade.model';
 
@@ -19,6 +20,13 @@ function toDatetimeLocal(date: Date): string {
 export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
+
+  useEffect(() => {
+    createApiClient().fetchBackTestStrategies()
+      .then(setStrategies)
+      .catch(() => {/* ignore */});
+  }, []);
 
   const volume = order.quantity != null && order.entryPrice > 0
     ? (order.quantity * order.entryPrice).toFixed(2)
@@ -75,7 +83,21 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
 
       <label className="trade-field">
         <span>Strategy</span>
-        <input name="exchange" type="text" defaultValue={order.exchange ?? ''} />
+        <select name="exchange" defaultValue={order.exchange ?? ''}>
+          <option value="">— none —</option>
+          <option value="daily plan">daily plan</option>
+          {strategies.map((s) => (
+            <option key={s.name} value={s.name}>{s.name}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="trade-field">
+        <span>Order Type</span>
+        <select name="orderType" defaultValue={order.orderType ?? 'market'}>
+          <option value="market">market</option>
+          <option value="limit">limit</option>
+        </select>
       </label>
 
       <label className="trade-field">

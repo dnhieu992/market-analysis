@@ -120,9 +120,18 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
         <span>Strategy</span>
         <select name="exchange">
           <option value="">— none —</option>
+          <option value="daily plan">daily plan</option>
           {strategies.map((s) => (
             <option key={s.name} value={s.name}>{s.name}</option>
           ))}
+        </select>
+      </label>
+
+      <label className="trade-field">
+        <span>Order Type</span>
+        <select name="orderType" defaultValue="market">
+          <option value="market">market</option>
+          <option value="limit">limit</option>
         </select>
       </label>
 

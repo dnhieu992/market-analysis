@@ -65,6 +65,7 @@ model Order {
   leverage   Float?
   exchange   String?
   broker     String?
+  orderType  String?
   status     String
   openedAt   DateTime
   closedAt   DateTime?

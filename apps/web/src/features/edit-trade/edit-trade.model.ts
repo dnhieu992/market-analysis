@@ -10,6 +10,7 @@ export function parseEditOrderFormData(formData: FormData): UpdateDashboardOrder
   const note = formData.get('note')?.toString().trim() || undefined;
   const exchange = formData.get('exchange')?.toString().trim() || undefined;
   const broker = formData.get('broker')?.toString().trim() || undefined;
+  const orderType = (formData.get('orderType')?.toString().trim() as 'market' | 'limit' | undefined) || undefined;
 
   const entryPrice = entryPriceRaw ? Number(entryPriceRaw) : undefined;
   const volume = volumeRaw ? Number(volumeRaw) : undefined;
@@ -17,7 +18,7 @@ export function parseEditOrderFormData(formData: FormData): UpdateDashboardOrder
     ? volume / entryPrice
     : undefined;
 
-  return { symbol, side, entryPrice, quantity, openedAt, note, exchange, broker };
+  return { symbol, side, entryPrice, quantity, openedAt, note, exchange, broker, orderType };
 }
 
 export async function submitEditOrder(orderId: string, input: UpdateDashboardOrderInput): Promise<DashboardOrder> {

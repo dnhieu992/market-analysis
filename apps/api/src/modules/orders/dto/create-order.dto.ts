@@ -45,6 +45,12 @@ export class CreateOrderDto {
   @IsString()
   broker?: string;
 
+  @ApiPropertyOptional({ enum: ['market', 'limit'], example: 'market' })
+  @IsOptional()
+  @IsString()
+  @IsIn(['market', 'limit'])
+  orderType?: 'market' | 'limit';
+
   @ApiPropertyOptional({ example: '2024-01-01T00:00:00.000Z' })
   @IsOptional()
   @IsString()

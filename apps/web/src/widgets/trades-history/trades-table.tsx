@@ -270,6 +270,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                 <th>Source</th>
                 <th>Strategy</th>
                 <th>Profit/Loss</th>
+                <th>Order Type</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -314,6 +315,9 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
 
                     {/* PROFIT/LOSS */}
                     <td><PnlCell pnl={order.pnl} /></td>
+
+                    {/* ORDER ACTION */}
+                    <td>{order.orderType ?? '-'}</td>
 
                     {/* STATUS */}
                     <td><StatusPill status={order.status} /></td>

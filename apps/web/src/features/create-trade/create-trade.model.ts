@@ -13,6 +13,7 @@ type ManualOrderFormInput = {
   volume?: string;
   exchange?: string;
   broker?: string;
+  orderType?: string;
   openedAt?: string;
   note?: string;
 };
@@ -60,6 +61,7 @@ export function parseCreateOrderFormData(formData: FormData): ManualOrderFormInp
     volume: formData.get('volume')?.toString() ?? undefined,
     exchange: formData.get('exchange')?.toString() || undefined,
     broker: formData.get('broker')?.toString() || undefined,
+    orderType: formData.get('orderType')?.toString() || undefined,
     openedAt: formData.get('openedAt')?.toString() ?? undefined,
     note: formData.get('note')?.toString() ?? undefined
   };
@@ -81,6 +83,7 @@ export async function submitManualOrder(input: ManualOrderFormInput): Promise<Da
     quantity,
     exchange: input.exchange?.trim() || undefined,
     broker: input.broker?.trim() || undefined,
+    orderType: (input.orderType?.trim() as 'market' | 'limit' | undefined) || undefined,
     openedAt: input.openedAt?.trim() || undefined,
     note: input.note?.trim() || undefined
   };

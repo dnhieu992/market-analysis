@@ -41,6 +41,7 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
   const [openedAt, setOpenedAt] = useState(toDatetimeLocal(new Date()));
   const [exchange, setExchange] = useState('');
   const [broker, setBroker] = useState('BINGX');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [note, setNote] = useState('');
   const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +102,7 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
             volume: row.volume,
             exchange: exchange || undefined,
             broker: broker || undefined,
+            orderType: orderType || undefined,
             openedAt: openedAt || undefined,
             note: note || undefined
           });
@@ -146,9 +148,18 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
           <span>Strategy</span>
           <select value={exchange} onChange={(e) => setExchange(e.target.value)}>
             <option value="">— none —</option>
+            <option value="daily plan">daily plan</option>
             {strategies.map((s) => (
               <option key={s.name} value={s.name}>{s.name}</option>
             ))}
+          </select>
+        </label>
+
+        <label className="trade-field">
+          <span>Order Type</span>
+          <select value={orderType} onChange={(e) => setOrderType(e.target.value as 'market' | 'limit')}>
+            <option value="market">market</option>
+            <option value="limit">limit</option>
           </select>
         </label>
 

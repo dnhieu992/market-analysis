@@ -42,4 +42,10 @@ export class UpdateOrderDto {
   @IsOptional()
   @IsString()
   broker?: string;
+
+  @ApiPropertyOptional({ enum: ['market', 'limit'], example: 'market' })
+  @IsOptional()
+  @IsString()
+  @IsIn(['market', 'limit'])
+  orderType?: 'market' | 'limit';
 }

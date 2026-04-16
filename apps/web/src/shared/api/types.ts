@@ -16,6 +16,7 @@ export type DashboardOrder = {
   source?: string;
   exchange?: string | null;
   broker?: string | null;
+  orderType?: string | null;
   signalId?: string | null;
 };
 
@@ -70,6 +71,7 @@ export type CreateDashboardOrderInput = {
   leverage?: number;
   exchange?: string;
   broker?: string;
+  orderType?: 'market' | 'limit';
   openedAt?: string;
   note?: string;
   signalId?: string;
@@ -90,6 +92,7 @@ export type UpdateDashboardOrderInput = {
   note?: string;
   exchange?: string;
   broker?: string;
+  orderType?: 'market' | 'limit';
 };
 
 export type DailyAnalysis = {
