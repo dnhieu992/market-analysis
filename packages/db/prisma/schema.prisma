@@ -162,13 +162,14 @@ model TradingStrategy {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String      @id @default(cuid())
+  email        String      @unique
   passwordHash String
   name         String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
   sessions     Session[]
+  portfolios   Portfolio[]
 
   @@map("users")
 }
@@ -184,4 +185,70 @@ model Session {
 
   @@index([userId, expiresAt])
   @@map("sessions")
+}
+
+model Portfolio {
+  id           String            @id @default(uuid()) @db.Char(36)
+  userId       String
+  name         String            @db.VarChar(100)
+  description  String?           @db.Text
+  createdAt    DateTime          @default(now())
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions CoinTransaction[]
+  holdings     Holding[]
+  pnlHistory   PnlHistory[]
+
+  @@index([userId])
+  @@map("portfolios")
+}
+
+model CoinTransaction {
+  id           String    @id @default(uuid()) @db.Char(36)
+  portfolioId  String    @db.Char(36)
+  coinId       String    @db.VarChar(50)
+  type         String    @db.VarChar(10)
+  price        Decimal   @db.Decimal(20, 8)
+  amount       Decimal   @db.Decimal(20, 8)
+  totalValue   Decimal   @db.Decimal(20, 8)
+  fee          Decimal   @default(0) @db.Decimal(20, 8)
+  note         String?   @db.Text
+  transactedAt DateTime
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+  portfolio    Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioId, coinId])
+  @@index([transactedAt(sort: Desc)])
+  @@map("transactions")
+}
+
+model Holding {
+  id          String    @id @default(uuid()) @db.Char(36)
+  portfolioId String    @db.Char(36)
+  coinId      String    @db.VarChar(50)
+  totalAmount Decimal   @db.Decimal(20, 8)
+  totalCost   Decimal   @db.Decimal(20, 8)
+  avgCost     Decimal   @db.Decimal(20, 8)
+  realizedPnl Decimal   @default(0) @db.Decimal(20, 8)
+  updatedAt   DateTime  @updatedAt
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, coinId])
+  @@index([portfolioId])
+  @@map("holdings")
+}
+
+model PnlHistory {
+  id            String    @id @default(uuid()) @db.Char(36)
+  portfolioId   String    @db.Char(36)
+  coinId        String?   @db.VarChar(50)
+  date          DateTime  @db.Date
+  realizedPnl   Decimal   @db.Decimal(20, 8)
+  unrealizedPnl Decimal   @db.Decimal(20, 8)
+  totalValue    Decimal   @db.Decimal(20, 8)
+  portfolio     Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, coinId, date])
+  @@index([portfolioId, date(sort: Desc)])
+  @@map("pnl_history")
 }

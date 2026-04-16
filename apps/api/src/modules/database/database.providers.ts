@@ -1,8 +1,12 @@
 import type { Provider } from '@nestjs/common';
 import {
   createAnalysisRunRepository,
+  createCoinTransactionRepository,
   createDailyAnalysisRepository,
+  createHoldingRepository,
   createOrderRepository,
+  createPnlHistoryRepository,
+  createPortfolioRepository,
   createSessionRepository,
   createSettingsRepository,
   createSignalRepository,
@@ -21,6 +25,10 @@ export const SETTINGS_REPOSITORY = Symbol('SETTINGS_REPOSITORY');
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 export const SESSION_REPOSITORY = Symbol('SESSION_REPOSITORY');
 export const STRATEGY_REPOSITORY = Symbol('STRATEGY_REPOSITORY');
+export const PORTFOLIO_REPOSITORY = Symbol('PORTFOLIO_REPOSITORY');
+export const COIN_TRANSACTION_REPOSITORY = Symbol('COIN_TRANSACTION_REPOSITORY');
+export const HOLDING_REPOSITORY = Symbol('HOLDING_REPOSITORY');
+export const PNL_HISTORY_REPOSITORY = Symbol('PNL_HISTORY_REPOSITORY');
 
 export const DatabaseProviders: Provider[] = [
   {
@@ -62,5 +70,21 @@ export const DatabaseProviders: Provider[] = [
   {
     provide: STRATEGY_REPOSITORY,
     useFactory: () => createTradingStrategyRepository()
+  },
+  {
+    provide: PORTFOLIO_REPOSITORY,
+    useFactory: () => createPortfolioRepository()
+  },
+  {
+    provide: COIN_TRANSACTION_REPOSITORY,
+    useFactory: () => createCoinTransactionRepository()
+  },
+  {
+    provide: HOLDING_REPOSITORY,
+    useFactory: () => createHoldingRepository()
+  },
+  {
+    provide: PNL_HISTORY_REPOSITORY,
+    useFactory: () => createPnlHistoryRepository()
   }
 ];
