@@ -87,6 +87,7 @@ export type UpdateDashboardOrderInput = {
   symbol?: string;
   side?: 'long' | 'short';
   entryPrice?: number;
+  closePrice?: number;
   quantity?: number;
   openedAt?: string;
   note?: string;
@@ -218,6 +219,77 @@ export type UpdateTradingStrategyInput = {
   content?: string;
   imageReference?: string[];
   version?: string;
+};
+
+export type Portfolio = {
+  id: string;
+  name: string;
+  description: string | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CoinTransaction = {
+  id: string;
+  portfolioId: string;
+  coinId: string;
+  type: 'BUY' | 'SELL';
+  amount: number;
+  price: number;
+  totalValue: number;
+  date: string;
+  deletedAt: string | null;
+  createdAt: string;
+};
+
+export type Holding = {
+  portfolioId: string;
+  coinId: string;
+  totalAmount: number;
+  avgCost: number;
+  totalInvested: number;
+  realizedPnl: number;
+};
+
+export type PnlSnapshot = {
+  id: string;
+  portfolioId: string;
+  coinId: string | null;
+  date: string;
+  unrealizedPnl: number;
+  totalValue: number;
+};
+
+export type CreatePortfolioInput = {
+  name: string;
+  description?: string;
+};
+
+export type UpdatePortfolioInput = {
+  name?: string;
+  description?: string;
+};
+
+export type CreateTransactionInput = {
+  coinId: string;
+  type: 'BUY' | 'SELL';
+  amount: number;
+  price: number;
+  date?: string;
+};
+
+export type QueryTransactionsInput = {
+  coinId?: string;
+  type?: 'BUY' | 'SELL';
+  from?: string;
+  to?: string;
+};
+
+export type QueryPnlInput = {
+  from?: string;
+  to?: string;
+  coinId?: string;
 };
 
 import type { DailyAnalysisPlan } from '@app/core';

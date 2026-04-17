@@ -12,13 +12,16 @@ export function parseEditOrderFormData(formData: FormData): UpdateDashboardOrder
   const broker = formData.get('broker')?.toString().trim() || undefined;
   const orderType = (formData.get('orderType')?.toString().trim() as 'market' | 'limit' | undefined) || undefined;
 
+  const closePriceRaw = formData.get('closePrice')?.toString().trim();
+
   const entryPrice = entryPriceRaw ? Number(entryPriceRaw) : undefined;
+  const closePrice = closePriceRaw ? Number(closePriceRaw) : undefined;
   const volume = volumeRaw ? Number(volumeRaw) : undefined;
   const quantity = volume != null && entryPrice != null && entryPrice > 0
     ? volume / entryPrice
     : undefined;
 
-  return { symbol, side, entryPrice, quantity, openedAt, note, exchange, broker, orderType };
+  return { symbol, side, entryPrice, closePrice, quantity, openedAt, note, exchange, broker, orderType };
 }
 
 export async function submitEditOrder(orderId: string, input: UpdateDashboardOrderInput): Promise<DashboardOrder> {

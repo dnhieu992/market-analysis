@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { TradeForm } from '@web/features/create-trade/create-trade-form';
 import { CreateMultipleTradesForm } from '@web/features/create-trade/create-multiple-trades-form';
@@ -19,9 +19,27 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
   const [singleOpen, setSingleOpen] = useState(false);
   const [multiOpen, setMultiOpen] = useState(false);
   const [closeTradeOrder, setCloseTradeOrder] = useState<DashboardOrder | null>(null);
+  const [closeDefaultPrice, setCloseDefaultPrice] = useState<number | undefined>(undefined);
   const [editOrder, setEditOrder] = useState<DashboardOrder | null>(null);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!closeTradeOrder) {
+      setCloseDefaultPrice(undefined);
+      return;
+    }
+    async function fetchCurrentPrice(symbol: string) {
+      try {
+        const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol.toUpperCase()}`);
+        const data = await res.json() as { price?: string };
+        if (data.price) setCloseDefaultPrice(Number(data.price));
+      } catch {
+        // fallback: leave undefined so user types manually
+      }
+    }
+    void fetchCurrentPrice(closeTradeOrder.symbol);
+  }, [closeTradeOrder]);
 
   async function handleConfirmDelete() {
     if (!deleteOrderId) return;
@@ -72,7 +90,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
               <CloseTradeForm
                 orderId={closeTradeOrder.id}
                 status="open"
-                defaultClosePrice={closeTradeOrder.entryPrice}
+                defaultClosePrice={closeDefaultPrice}
                 onSubmitted={() => setCloseTradeOrder(null)}
               />
             </div>

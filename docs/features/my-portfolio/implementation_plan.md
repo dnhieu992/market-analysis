@@ -21,11 +21,15 @@ Auth is already implemented — all new routes are protected by the existing `Au
 
 Also add `portfolios Portfolio[]` relation to existing `User` model.
 
+- [ ] Edit `packages/db/prisma/schema.prisma` — add 4 models + `User` relation
+
 ### 1.2 Migration
 
 File: `packages/db/prisma/migrations/20260416200000_add_portfolio_tracker/migration.sql`
 
 Creates the 4 tables with indexes, foreign keys, and constraints per spec.
+
+- [ ] Create migration SQL file
 
 ### 1.3 Repositories
 
@@ -38,6 +42,12 @@ Creates the 4 tables with indexes, foreign keys, and constraints per spec.
 
 Export all from `packages/db/src/index.ts`.
 
+- [ ] Create `portfolio.repository.ts`
+- [ ] Create `coin-transaction.repository.ts`
+- [ ] Create `holding.repository.ts`
+- [ ] Create `pnl-history.repository.ts`
+- [ ] Edit `packages/db/src/index.ts` — export all repositories
+
 ---
 
 ## Phase 2: API Layer (`apps/api`)
@@ -48,6 +58,8 @@ Add to `apps/api/package.json` for the daily PnL cron job.
 
 > Run `pnpm install` after files are created.
 
+- [ ] Edit `apps/api/package.json` — add `@nestjs/schedule`
+
 ### 2.2 Database Providers
 
 Add 4 new symbols + provider entries to `database.providers.ts`:
@@ -55,6 +67,8 @@ Add 4 new symbols + provider entries to `database.providers.ts`:
 - `COIN_TRANSACTION_REPOSITORY`
 - `HOLDING_REPOSITORY`
 - `PNL_HISTORY_REPOSITORY`
+
+- [ ] Edit `apps/api/src/modules/database/database.providers.ts`
 
 ### 2.3 Modules
 
@@ -70,6 +84,12 @@ Add 4 new symbols + provider entries to `database.providers.ts`:
 
 - Ownership validation: only portfolios owned by `authUser.id` are accessible.
 
+- [ ] Create `portfolio.module.ts`
+- [ ] Create `portfolio.service.ts`
+- [ ] Create `portfolio.controller.ts`
+- [ ] Create `dto/create-portfolio.dto.ts`
+- [ ] Create `dto/update-portfolio.dto.ts`
+
 #### TransactionModule (`/portfolios/:portfolioId/transactions`)
 
 | Method | Route | Description |
@@ -81,6 +101,12 @@ Add 4 new symbols + provider entries to `database.providers.ts`:
 - BUY flow: insert → `HoldingsService.updateOnBuy()` (in DB transaction)
 - SELL flow: validate amount ≤ holdings.totalAmount → insert → `HoldingsService.updateOnSell()` (in DB transaction)
 - DELETE: soft-delete → `HoldingsService.recalculate(portfolioId, coinId)`
+
+- [ ] Create `transaction.module.ts`
+- [ ] Create `transaction.service.ts`
+- [ ] Create `transaction.controller.ts`
+- [ ] Create `dto/create-transaction.dto.ts`
+- [ ] Create `dto/query-transactions.dto.ts`
 
 #### HoldingsModule (`/portfolios/:portfolioId/holdings`)
 
@@ -94,6 +120,10 @@ Add 4 new symbols + provider entries to `database.providers.ts`:
 - `updateOnSell(portfolioId, coinId, amount, price)`: update realized PnL, reduce amount/cost
 - `recalculate(portfolioId, coinId?)`: replay all non-deleted transactions in time order
 
+- [ ] Create `holdings.module.ts`
+- [ ] Create `holdings.service.ts`
+- [ ] Create `holdings.controller.ts`
+
 #### PnlModule (`/portfolios/:portfolioId/pnl`)
 
 | Method | Route | Description |
@@ -103,6 +133,11 @@ Add 4 new symbols + provider entries to `database.providers.ts`:
 - Cron job: `@Cron('0 23 * * *')` → `snapshotDaily()`
   - For each portfolio + each coin in holdings: fetch latest Binance price (symbol + USDT), compute unrealized PnL, insert snapshot.
   - Also insert one aggregate snapshot per portfolio (coinId = null).
+
+- [ ] Create `pnl.module.ts`
+- [ ] Create `pnl.service.ts`
+- [ ] Create `pnl.controller.ts`
+- [ ] Create `dto/query-pnl.dto.ts`
 
 ### 2.4 App Module
 
@@ -114,62 +149,12 @@ Register in `app.module.ts`:
 
 Also add `ScheduleModule.forRoot()` to `app.module.ts` imports.
 
----
-
-## File Checklist
-
-```
-packages/db/
-  prisma/
-    schema.prisma                              [EDIT]
-    migrations/
-      20260416200000_add_portfolio_tracker/
-        migration.sql                          [NEW]
-  src/
-    repositories/
-      portfolio.repository.ts                  [NEW]
-      coin-transaction.repository.ts           [NEW]
-      holding.repository.ts                    [NEW]
-      pnl-history.repository.ts               [NEW]
-    index.ts                                   [EDIT]
-
-apps/api/
-  package.json                                 [EDIT - add @nestjs/schedule]
-  src/
-    app.module.ts                              [EDIT]
-    modules/
-      database/
-        database.providers.ts                  [EDIT]
-      portfolio/
-        portfolio.module.ts                    [NEW]
-        portfolio.service.ts                   [NEW]
-        portfolio.controller.ts                [NEW]
-        dto/
-          create-portfolio.dto.ts              [NEW]
-          update-portfolio.dto.ts              [NEW]
-      transaction/
-        transaction.module.ts                  [NEW]
-        transaction.service.ts                 [NEW]
-        transaction.controller.ts              [NEW]
-        dto/
-          create-transaction.dto.ts            [NEW]
-          query-transactions.dto.ts            [NEW]
-      holdings/
-        holdings.module.ts                     [NEW]
-        holdings.service.ts                    [NEW]
-        holdings.controller.ts                 [NEW]
-      pnl/
-        pnl.module.ts                          [NEW]
-        pnl.service.ts                         [NEW]
-        pnl.controller.ts                      [NEW]
-        dto/
-          query-pnl.dto.ts                     [NEW]
-```
+- [ ] Edit `apps/api/src/app.module.ts`
 
 ---
 
 ## Post-Implementation Steps
 
-1. Run `pnpm install` to install `@nestjs/schedule`
-2. Run `prisma migrate deploy` (or `prisma db push` for dev) to apply migrations
-3. Run `prisma generate` to regenerate the Prisma client
+- [ ] Run `pnpm install` to install `@nestjs/schedule`
+- [ ] Run `prisma migrate deploy` (or `prisma db push` for dev) to apply migrations
+- [ ] Run `prisma generate` to regenerate the Prisma client

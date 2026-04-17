@@ -3,17 +3,26 @@ import type {
   BackTestResultRecord,
   BackTestStrategy,
   CloseDashboardOrderInput,
+  CoinTransaction,
   CreateDashboardOrderInput,
+  CreatePortfolioInput,
+  CreateTransactionInput,
   CreateTradingStrategyInput,
   DailyAnalysis,
   DashboardAnalysisRun,
   DashboardHealth,
   DashboardOrder,
   DashboardSignal,
+  Holding,
+  PnlSnapshot,
+  Portfolio,
+  QueryPnlInput,
+  QueryTransactionsInput,
   RunBackTestInput,
   TrackingSettings,
   TradingStrategy,
   UpdateDashboardOrderInput,
+  UpdatePortfolioInput,
   UpdateTradingStrategyInput,
   UpsertSettingsInput
 } from './types';
@@ -219,6 +228,54 @@ function mapTradingStrategy(row: JsonRecord): TradingStrategy {
   };
 }
 
+function mapPortfolio(row: JsonRecord): Portfolio {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    description: row.description == null ? null : String(row.description),
+    userId: String(row.userId),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt)
+  };
+}
+
+function mapTransaction(row: JsonRecord): CoinTransaction {
+  return {
+    id: String(row.id),
+    portfolioId: String(row.portfolioId),
+    coinId: String(row.coinId),
+    type: String(row.type) as 'BUY' | 'SELL',
+    amount: Number(row.amount),
+    price: Number(row.price),
+    totalValue: Number(row.totalValue),
+    date: String(row.date),
+    deletedAt: row.deletedAt == null ? null : String(row.deletedAt),
+    createdAt: String(row.createdAt)
+  };
+}
+
+function mapHolding(row: JsonRecord): Holding {
+  return {
+    portfolioId: String(row.portfolioId),
+    coinId: String(row.coinId),
+    totalAmount: Number(row.totalAmount),
+    avgCost: Number(row.avgCost),
+    totalInvested: Number(row.totalInvested),
+    realizedPnl: Number(row.realizedPnl)
+  };
+}
+
+function mapPnlSnapshot(row: JsonRecord): PnlSnapshot {
+  return {
+    id: String(row.id),
+    portfolioId: String(row.portfolioId),
+    coinId: row.coinId == null ? null : String(row.coinId),
+    date: String(row.date),
+    unrealizedPnl: Number(row.unrealizedPnl),
+    totalValue: Number(row.totalValue)
+  };
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = (options.baseUrl ?? readConfiguredBaseUrl()).replace(/\/+$/, '');
   const fetchImpl = options.fetchImpl ?? globalThis.fetch?.bind(globalThis);
@@ -394,6 +451,79 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (!response.ok) {
         throw new Error(`Request failed for ${baseUrl}/strategies/${id}: ${response.status}`);
       }
+    },
+    async fetchPortfolios(): Promise<Portfolio[]> {
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios`, withDefaults());
+      return rows.map(mapPortfolio);
+    },
+    async fetchPortfolio(id: string): Promise<Portfolio> {
+      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/portfolios/${id}`, withDefaults());
+      return mapPortfolio(row);
+    },
+    async createPortfolio(input: CreatePortfolioInput): Promise<Portfolio> {
+      const response = await fetchImpl(`${baseUrl}/portfolios`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios: ${response.status}`);
+      return mapPortfolio((await response.json()) as JsonRecord);
+    },
+    async updatePortfolio(id: string, input: UpdatePortfolioInput): Promise<Portfolio> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${id}`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${id}: ${response.status}`);
+      return mapPortfolio((await response.json()) as JsonRecord);
+    },
+    async deletePortfolio(id: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${id}`, withDefaults({ method: 'DELETE' }));
+      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${id}: ${response.status}`);
+    },
+    async fetchTransactions(portfolioId: string, query?: QueryTransactionsInput): Promise<CoinTransaction[]> {
+      const params = new URLSearchParams();
+      if (query?.coinId) params.set('coinId', query.coinId);
+      if (query?.type) params.set('type', query.type);
+      if (query?.from) params.set('from', query.from);
+      if (query?.to) params.set('to', query.to);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/transactions${qs}`, withDefaults());
+      return rows.map(mapTransaction);
+    },
+    async createTransaction(portfolioId: string, input: CreateTransactionInput): Promise<CoinTransaction> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/transactions`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${portfolioId}/transactions: ${response.status}`);
+      return mapTransaction((await response.json()) as JsonRecord);
+    },
+    async deleteTransaction(portfolioId: string, id: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/transactions/${id}`, withDefaults({ method: 'DELETE' }));
+      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${portfolioId}/transactions/${id}: ${response.status}`);
+    },
+    async fetchHoldings(portfolioId: string, prices?: Record<string, number>): Promise<Holding[]> {
+      const params = new URLSearchParams();
+      if (prices) params.set('prices', JSON.stringify(prices));
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/holdings${qs}`, withDefaults());
+      return rows.map(mapHolding);
+    },
+    async recalculateHoldings(portfolioId: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/holdings/recalculate`, withDefaults({ method: 'POST' }));
+      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${portfolioId}/holdings/recalculate: ${response.status}`);
+    },
+    async fetchPnlHistory(portfolioId: string, query?: QueryPnlInput): Promise<PnlSnapshot[]> {
+      const params = new URLSearchParams();
+      if (query?.from) params.set('from', query.from);
+      if (query?.to) params.set('to', query.to);
+      if (query?.coinId) params.set('coinId', query.coinId);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/pnl${qs}`, withDefaults());
+      return rows.map(mapPnlSnapshot);
     },
     async login(input: { email: string; password: string }) {
       const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({

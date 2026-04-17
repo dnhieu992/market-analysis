@@ -43,11 +43,34 @@ export class OrdersService {
     });
   }
 
-  updateOrder(id: string, input: UpdateOrderDto) {
-    return this.orderRepository.update(id, {
+  async updateOrder(id: string, input: UpdateOrderDto) {
+    const existingOrder = (await this.getOrderById(id)) as {
+      status?: string;
+      entryPrice?: number;
+      closePrice?: number;
+      quantity?: number;
+      side?: 'long' | 'short';
+    };
+
+    const updateData: Record<string, unknown> = {
       ...input,
       ...(input.openedAt ? { openedAt: new Date(input.openedAt) } : {})
-    });
+    };
+
+    // Recalculate PnL if the order is closed and price/quantity fields changed
+    if (existingOrder.status === 'closed') {
+      const entryPrice = input.entryPrice ?? existingOrder.entryPrice ?? 0;
+      const closePrice = input.closePrice ?? existingOrder.closePrice ?? 0;
+      const quantity = input.quantity ?? existingOrder.quantity ?? 1;
+      const side = input.side ?? existingOrder.side;
+
+      updateData.pnl =
+        side === 'short'
+          ? (entryPrice - closePrice) * quantity
+          : (closePrice - entryPrice) * quantity;
+    }
+
+    return this.orderRepository.update(id, updateData);
   }
 
   async removeOrder(id: string) {

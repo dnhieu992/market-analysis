@@ -28,6 +28,11 @@ export class UpdateOrderDto {
   @IsString()
   openedAt?: string;
 
+  @ApiPropertyOptional({ example: 85000 })
+  @IsOptional()
+  @IsNumber()
+  closePrice?: number;
+
   @ApiPropertyOptional({ example: 'EMA crossover signal' })
   @IsOptional()
   @IsString()

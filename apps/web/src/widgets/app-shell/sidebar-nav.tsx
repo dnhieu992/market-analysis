@@ -33,6 +33,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'BTC daily analysis'
   },
   {
+    href: '/portfolio',
+    label: 'Portfolio',
+    description: 'Coin holdings & PnL tracker'
+  },
+  {
     href: '/strategy',
     label: 'Strategies',
     description: 'Manage trading strategies'

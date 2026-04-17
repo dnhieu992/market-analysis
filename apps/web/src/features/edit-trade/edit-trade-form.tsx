@@ -76,6 +76,13 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
         <input name="volume" type="number" min="0" step="0.01" defaultValue={volume || undefined} />
       </label>
 
+      {order.status.toLowerCase() === 'closed' && (
+        <label className="trade-field">
+          <span>Close Price</span>
+          <input name="closePrice" type="number" min="0" step="0.01" defaultValue={order.closePrice ?? ''} />
+        </label>
+      )}
+
       <label className="trade-field">
         <span>Opened At</span>
         <input name="openedAt" type="datetime-local" defaultValue={toDatetimeLocal(order.openedAt)} />
