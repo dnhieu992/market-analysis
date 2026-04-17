@@ -34,6 +34,10 @@ function buildOverviewCards(orders: DashboardOrder[], signals: DashboardSignal[]
           recentSignals.reduce((sum, signal) => sum + signal.confidence, 0) / recentSignals.length
         );
 
+  const totalPnl = closedOrders.reduce((sum, o) => sum + (o.pnl ?? 0), 0);
+  const totalPnlStr = (totalPnl >= 0 ? '+' : '') +
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(totalPnl);
+
   return [
     {
       label: 'Open Orders',
@@ -46,16 +50,17 @@ function buildOverviewCards(orders: DashboardOrder[], signals: DashboardSignal[]
       detail: 'Finished trades kept in history.'
     },
     {
-      label: 'Recent Signals',
-      value: String(signals.length),
-      detail: 'Worker outputs available for review.'
+      label: 'Total Profit / Loss',
+      value: closedOrders.length === 0 ? '--' : totalPnlStr,
+      detail: 'All-time realized P/L across closed trades.',
+      positive: closedOrders.length === 0 ? undefined : totalPnl >= 0
     },
     {
       label: 'Avg. Confidence',
       value: confidenceAverage,
       detail: 'Average confidence across the latest signals.'
     }
-  ] as const;
+  ];
 }
 
 export default async function OverviewPage() {
