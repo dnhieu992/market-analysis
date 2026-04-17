@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="#0f172a"/>
+
+  <!-- Chart bars -->
+  <rect x="80" y="300" width="60" height="132" rx="8" fill="#334155"/>
+  <rect x="160" y="240" width="60" height="192" rx="8" fill="#334155"/>
+  <rect x="240" y="200" width="60" height="232" rx="8" fill="#22c55e"/>
+  <rect x="320" y="160" width="60" height="272" rx="8" fill="#22c55e"/>
+  <rect x="400" y="220" width="60" height="212" rx="8" fill="#334155"/>
+
+  <!-- Trend line -->
+  <polyline
+    points="110,280 190,220 270,180 350,140 430,200"
+    fill="none"
+    stroke="#22c55e"
+    stroke-width="12"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Dot on trend line peak -->
+  <circle cx="350" cy="140" r="16" fill="#22c55e"/>
+</svg>
