@@ -1,6 +1,6 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DashboardAnalysisRun, DashboardOrder, DashboardSignal } from '@web/shared/api/types';
-import { formatConfidence, formatDateTime } from '@web/shared/lib/format';
+import { formatDateTime } from '@web/shared/lib/format';
 import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-overview';
 
 async function loadDashboardData() {
@@ -26,14 +26,6 @@ async function loadDashboardData() {
 function buildOverviewCards(orders: DashboardOrder[], signals: DashboardSignal[]) {
   const openOrders = orders.filter((order) => order.status === 'open');
   const closedOrders = orders.filter((order) => order.status === 'closed');
-  const recentSignals = signals.slice(0, 5);
-  const confidenceAverage =
-    recentSignals.length === 0
-      ? '--'
-      : formatConfidence(
-          recentSignals.reduce((sum, signal) => sum + signal.confidence, 0) / recentSignals.length
-        );
-
   const totalPnl = closedOrders.reduce((sum, o) => sum + (o.pnl ?? 0), 0);
   const totalPnlStr = (totalPnl >= 0 ? '+' : '') +
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(totalPnl);
@@ -55,11 +47,6 @@ function buildOverviewCards(orders: DashboardOrder[], signals: DashboardSignal[]
       detail: 'All-time realized P/L across closed trades.',
       positive: closedOrders.length === 0 ? undefined : totalPnl >= 0
     },
-    {
-      label: 'Avg. Confidence',
-      value: confidenceAverage,
-      detail: 'Average confidence across the latest signals.'
-    }
   ];
 }
 
