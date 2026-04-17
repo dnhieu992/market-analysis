@@ -32,23 +32,35 @@ export class SwingSignalService {
 
     this.logger.log(`SwingSignal: checking ${symbols.length} symbol(s): ${symbols.join(', ')}`);
 
+    const triggeredSymbols: string[] = [];
+
     for (const symbol of symbols) {
       try {
-        await this.checkSymbol(symbol);
+        const triggered = await this.checkSymbol(symbol);
+        if (triggered) triggeredSymbols.push(symbol);
       } catch (error) {
         this.logger.error(
           `SwingSignal failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
         );
       }
     }
+
+    if (triggeredSymbols.length === 0) {
+      const checkedList = symbols.map((s) => `• ${s}`).join('\n');
+      await this.telegramService.sendAnalysisMessage({
+        content: `📊 H4 Swing Signal Check — No signals\n\nChecked ${symbols.length} symbol(s):\n${checkedList}\n\nRSI(14) > ${RSI_OVERSOLD} for all. No oversold zone detected.`,
+        messageType: 'swing-signal-no-result'
+      });
+      this.logger.log('SwingSignal: no signals found, notification sent');
+    }
   }
 
-  private async checkSymbol(symbol: string): Promise<void> {
+  private async checkSymbol(symbol: string): Promise<boolean> {
     const candles = await this.marketDataService.getCandles(symbol, '4h', CANDLE_LIMIT);
 
     if (candles.length < RSI_PERIOD + 2) {
       this.logger.warn(`SwingSignal: not enough candles for ${symbol}`);
-      return;
+      return false;
     }
 
     const closes = candles.map((c) => c.close);
@@ -56,7 +68,7 @@ export class SwingSignalService {
 
     this.logger.log(`SwingSignal: ${symbol} RSI(14)=${rsi.toFixed(1)}`);
 
-    if (rsi > RSI_OVERSOLD) return;
+    if (rsi > RSI_OVERSOLD) return false;
 
     const currentPrice = candles[candles.length - 1]!.close;
     const message = formatSwingSignalMessage({ symbol, rsi, currentPrice });
@@ -67,5 +79,6 @@ export class SwingSignalService {
     });
 
     this.logger.log(`SwingSignal alert sent for ${symbol} (RSI=${rsi.toFixed(1)})`);
+    return true;
   }
 }
