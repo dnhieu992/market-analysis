@@ -259,8 +259,8 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
       )}
 
       {filteredOrders.length > 0 && (
-        <div className="tt-wrap">
-          <table className="tt">
+        <div className="tt-wrap tt-card-wrap">
+          <table className="tt tt-card">
             <thead>
               <tr>
                 <th>Name</th>
@@ -281,7 +281,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                 return (
                   <tr key={order.id}>
                     {/* NAME */}
-                    <td>
+                    <td data-label="Name" data-full="">
                       <div className="tt-name">
                         <button className="tt-symbol-btn" onClick={() => onEditTrade(order)}>{order.symbol}</button>
                         <span className={`tt-side tt-side--${order.side.toLowerCase()}`}>{order.side.toUpperCase()}</span>
@@ -289,7 +289,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                     </td>
 
                     {/* OPEN */}
-                    <td>
+                    <td data-label="Open">
                       <div className="tt-price-date">
                         <span>Price: {formatPrice(order.entryPrice)}</span>
                         <span>Date: {formatDate(order.openedAt)}</span>
@@ -297,7 +297,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                     </td>
 
                     {/* CLOSE */}
-                    <td>
+                    <td data-label="Close">
                       <div className="tt-price-date">
                         <span>Price: {order.closePrice != null ? formatPrice(order.closePrice) : '-'}</span>
                         <span>Date: {order.closedAt ? formatDate(order.closedAt) : '-'}</span>
@@ -305,25 +305,25 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                     </td>
 
                     {/* VOLUME */}
-                    <td>{order.quantity != null ? formatVolume(order.quantity * order.entryPrice) : '-'}</td>
+                    <td data-label="Volume">{order.quantity != null ? formatVolume(order.quantity * order.entryPrice) : '-'}</td>
 
                     {/* SOURCE */}
-                    <td>{order.broker ?? '-'}</td>
+                    <td data-label="Source">{order.broker ?? '-'}</td>
 
                     {/* STRATEGY */}
-                    <td>{order.exchange ?? '-'}</td>
+                    <td data-label="Strategy">{order.exchange ?? '-'}</td>
 
                     {/* PROFIT/LOSS */}
-                    <td><PnlCell pnl={order.pnl} /></td>
+                    <td data-label="P/L"><PnlCell pnl={order.pnl} /></td>
 
-                    {/* ORDER ACTION */}
-                    <td>{order.orderType ?? '-'}</td>
+                    {/* ORDER TYPE */}
+                    <td data-label="Order Type">{order.orderType ?? '-'}</td>
 
                     {/* STATUS */}
-                    <td><StatusPill status={order.status} /></td>
+                    <td data-label="Status"><StatusPill status={order.status} /></td>
 
                     {/* ACTIONS */}
-                    <td>
+                    <td data-label="Actions" data-full="">
                       <div className="tt-actions">
                         {isOpen && (
                           <button

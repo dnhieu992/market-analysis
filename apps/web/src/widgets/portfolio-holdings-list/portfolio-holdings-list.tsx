@@ -75,8 +75,8 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
       </div>
 
       {holdings.length > 0 && (
-        <div className="tt-wrap">
-          <table className="tt">
+        <div className="tt-wrap tt-card-wrap">
+          <table className="tt tt-card">
             <thead>
               <tr>
                 <th>Coin</th>
@@ -95,12 +95,12 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
 
                 return (
                   <tr key={h.coinId}>
-                    <td>
+                    <td data-label="Coin" data-full="">
                       <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
                         <strong>{h.coinId}</strong>
                       </Link>
                     </td>
-                    <td>
+                    <td data-label="Current Price">
                       {!pricesLoaded
                         ? <span className="tt-muted">loading…</span>
                         : currentPrice != null
@@ -108,14 +108,14 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                           : <span className="tt-muted">—</span>
                       }
                     </td>
-                    <td>{formatUsd(h.avgCost)}</td>
-                    <td>
+                    <td data-label="Avg. Buy">{formatUsd(h.avgCost)}</td>
+                    <td data-label="Holdings">
                       <div>{formatCrypto(h.totalAmount)} {h.coinId}</div>
                       {currentValue != null && (
                         <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{formatUsd(currentValue)}</div>
                       )}
                     </td>
-                    <td>
+                    <td data-label="P/L">
                       {pricesLoaded
                         ? <PnlCell value={totalPnl} invested={h.totalInvested} />
                         : <span className="tt-muted">loading…</span>

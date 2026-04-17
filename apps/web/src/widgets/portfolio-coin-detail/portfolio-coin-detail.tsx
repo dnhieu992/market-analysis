@@ -37,7 +37,6 @@ function StatCard({ label, children }: { label: string; children: React.ReactNod
       borderRadius: '12px',
       padding: '1.25rem 1.5rem',
       minWidth: 0,
-      flex: 1
     }}>
       <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>{label}</div>
       <div style={{ fontSize: '1.35rem', fontWeight: 700 }}>{children}</div>
@@ -126,7 +125,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem 0' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem', padding: '1rem 0' }}>
         <StatCard label="Quantity">
           {formatCrypto(totalAmount, coinId)}
         </StatCard>
@@ -150,15 +149,8 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
         </div>
 
         {transactions.length > 0 ? (
-          <div className="tt-wrap">
-            <table className="tt" style={{ tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '20%' }} />
-                <col style={{ width: '25%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '15%' }} />
-              </colgroup>
+          <div className="tt-wrap tt-card-wrap">
+            <table className="tt tt-card">
               <thead>
                 <tr>
                   <th>Type</th>
@@ -176,7 +168,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                   return (
                     <tr key={tx.id}>
                       {/* Type + date */}
-                      <td>
+                      <td data-label="Type" data-full="">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <TypeAvatar type={tx.type} />
                           <div>
@@ -186,9 +178,9 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                         </div>
                       </td>
                       {/* Price */}
-                      <td>{formatUsd(tx.price)}</td>
+                      <td data-label="Price">{formatUsd(tx.price)}</td>
                       {/* Amount */}
-                      <td>
+                      <td data-label="Amount">
                         <div style={{ color: amountColor, fontWeight: 500 }}>
                           {amountSign}{formatUsd(tx.totalValue)}
                         </div>
@@ -197,11 +189,11 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                         </div>
                       </td>
                       {/* Fees */}
-                      <td style={{ color: 'var(--muted)' }}>
+                      <td data-label="Fees" style={{ color: 'var(--muted)' }}>
                         {tx.fee > 0 ? formatUsd(tx.fee) : '--'}
                       </td>
                       {/* Actions */}
-                      <td>
+                      <td data-label="Actions">
                         <div className="tt-actions">
                           <button
                             className="tt-btn tt-btn--danger"

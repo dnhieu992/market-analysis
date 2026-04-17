@@ -1267,6 +1267,44 @@ a {
     height: auto;
     border-right: 0;
     border-bottom: 1px solid rgba(23, 18, 13, 0.08);
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .sidebar-brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+
+  .sidebar-nav-link-description,
+  .sidebar-footnote {
+    display: none;
+  }
+
+  .sidebar-nav-links {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .sidebar-nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar-nav-link {
+    padding: 10px 16px;
+    border-radius: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .sidebar-nav-link:hover {
+    transform: none;
   }
 
   .topbar {
@@ -1304,6 +1342,16 @@ a {
     padding: 10px 8px;
   }
 
+  .trades-filter-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .trades-filter-badge {
+    padding: 7px 14px;
+    font-size: 0.82rem;
+  }
+
   .analysis-layout,
   .analysis-card-meta,
   .analysis-detail-section dl {
@@ -1314,6 +1362,109 @@ a {
   .analysis-detail-head {
     align-items: start;
     flex-direction: column;
+  }
+}
+
+/* ── Mobile card-table layout (≤640px) ─────────────────────── */
+@media (max-width: 640px) {
+  .dashboard-shell {
+    padding: 16px 14px 48px;
+  }
+
+  .panel {
+    border-radius: 18px;
+    padding: 16px;
+  }
+
+  .table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .table-actions {
+    width: 100%;
+  }
+
+  .table-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Card-style table: trades & portfolio tables */
+  .tt-card thead {
+    display: none;
+  }
+
+  .tt-card,
+  .tt-card tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .tt-card tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 16px;
+    row-gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    margin-bottom: 10px;
+    background: rgba(255, 255, 255, 0.6);
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  .tt-card tbody td {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0;
+    white-space: normal;
+  }
+
+  .tt-card tbody td::before {
+    content: attr(data-label);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  /* Full-width cells (actions, name) */
+  .tt-card tbody td[data-full] {
+    grid-column: 1 / -1;
+  }
+
+  .tt-card-wrap {
+    overflow-x: unset;
+    margin-top: 12px;
+  }
+
+  /* PnL summary card full width on mobile */
+  .tt-summary-bar {
+    justify-content: stretch;
+  }
+
+  .tt-pnl-card {
+    width: 100%;
+    min-width: unset;
+    align-items: flex-start;
+  }
+
+  /* Dialogs full screen on mobile */
+  .dialog-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .dialog,
+  .dialog--compact,
+  .dialog--wide {
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
   }
 }
 
