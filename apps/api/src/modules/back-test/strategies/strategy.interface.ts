@@ -6,5 +6,7 @@ export interface IBackTestStrategy {
   readonly defaultTimeframe: string;
   /** If set, the engine always uses this timeframe and ignores the UI selection */
   readonly forcedTimeframe?: string;
+  /** If true, the engine skips the breakeven SL move for this strategy */
+  readonly disableBreakeven?: boolean;
   evaluate(ctx: StrategyContext): TradeSignal | null;
 }

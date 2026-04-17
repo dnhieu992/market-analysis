@@ -62,7 +62,7 @@ export class BackTestEngineService {
             outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
           });
           openTrade = null;
-        } else if (!openTrade.breakevenTriggered) {
+        } else if (!openTrade.breakevenTriggered && !strategy.disableBreakeven) {
           // No exit this candle — check if price traveled 1R so we can move SL to entry
           const hit =
             openTrade.direction === 'long'

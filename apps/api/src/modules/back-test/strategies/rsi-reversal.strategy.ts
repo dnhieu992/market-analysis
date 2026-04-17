@@ -13,6 +13,7 @@ export class RsiReversalStrategy implements IBackTestStrategy {
   readonly description =
     'Enter long when RSI <= 30, take profit at +10%, stop loss at -5%';
   readonly defaultTimeframe = '4h';
+  readonly disableBreakeven = true;
 
   evaluate(ctx: StrategyContext): TradeSignal | null {
     if (ctx.candles.length < RSI_PERIOD + 2) return null;
