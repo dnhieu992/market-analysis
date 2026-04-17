@@ -1,31 +1,18 @@
-import type { DashboardAnalysisRun, DashboardOrder, DashboardSignal } from '@web/shared/api/types';
-
 import { OverviewCards } from './overview-cards';
-import { QuickActions } from './quick-actions';
-import { RecentAnalysisPanel } from './recent-analysis-panel';
-import { RecentOrdersPanel } from './recent-orders-panel';
 
 type OverviewCard = Readonly<{
   label: string;
   value: string;
   detail: string;
+  positive?: boolean;
 }>;
 
 type DashboardOverviewProps = Readonly<{
   cards: readonly OverviewCard[];
-  orders: DashboardOrder[];
-  signals: DashboardSignal[];
-  analysisRuns: DashboardAnalysisRun[];
   lastUpdatedLabel: string;
 }>;
 
-export function DashboardOverview({
-  cards,
-  orders,
-  signals,
-  analysisRuns,
-  lastUpdatedLabel
-}: DashboardOverviewProps) {
+export function DashboardOverview({ cards, lastUpdatedLabel }: DashboardOverviewProps) {
   return (
     <main className="dashboard-shell">
       <section className="hero-card">
@@ -44,13 +31,6 @@ export function DashboardOverview({
       </section>
 
       <OverviewCards cards={cards} />
-
-      <section className="content-grid">
-        <RecentAnalysisPanel signals={signals} analysisRuns={analysisRuns} />
-        <RecentOrdersPanel orders={orders} />
-      </section>
-
-      <QuickActions lastUpdatedLabel={lastUpdatedLabel} />
     </main>
   );
 }
