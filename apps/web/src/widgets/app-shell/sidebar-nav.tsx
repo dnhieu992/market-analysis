@@ -18,14 +18,14 @@ type NavItem = Readonly<{
 
 const NAV_ITEMS: NavItem[] = [
   {
-    href: '/portfolio',
-    label: 'Portfolio',
-    description: 'Coin holdings & PnL tracker'
-  },
-  {
     href: '/',
     label: 'Overview',
     description: 'Dashboard summary'
+  },
+  {
+    href: '/portfolio',
+    label: 'Portfolio',
+    description: 'Coin holdings & PnL tracker'
   },
   {
     href: '/trades',
@@ -46,11 +46,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/strategy-test',
     label: 'Strategy Lab',
     description: 'Back-test trading strategies'
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    description: 'Tracking symbol configuration'
   }
 ];
 
