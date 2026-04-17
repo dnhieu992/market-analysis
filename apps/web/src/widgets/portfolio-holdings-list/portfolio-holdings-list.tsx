@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import type { Holding } from '@web/shared/api/types';
 
 type PortfolioHoldingsListProps = Readonly<{
@@ -53,6 +54,7 @@ async function fetchPrices(coinIds: string[]): Promise<Record<string, number>> {
 export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
     if (holdings.length === 0) { setPricesLoaded(true); return; }
@@ -66,6 +68,9 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
         <div>
           <h2>Holdings</h2>
           <p>{holdings.length === 0 ? 'No holdings yet.' : `${holdings.length} coin${holdings.length === 1 ? '' : 's'}`}</p>
+        </div>
+        <div className="table-actions">
+          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
         </div>
       </div>
 
@@ -121,6 +126,20 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {addOpen && (
+        <div className="dialog-backdrop" onClick={() => setAddOpen(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <span className="dialog-title">Add Transaction</span>
+              <button className="dialog-close" onClick={() => setAddOpen(false)} aria-label="Close">✕</button>
+            </div>
+            <div className="dialog-body">
+              <CreateTransactionForm portfolioId={portfolioId} onSubmitted={() => setAddOpen(false)} />
+            </div>
+          </div>
         </div>
       )}
     </article>
