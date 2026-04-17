@@ -29,7 +29,7 @@ export function CreateTransactionForm({ portfolioId, onSubmitted }: CreateTransa
       const parsed = parseCreateTransactionFormData(formData);
       await submitCreateTransaction(portfolioId, parsed);
       form.reset();
-      setType('BUY');
+      setType('buy');
       startTransition(() => {
         onSubmitted?.();
         window.location.reload();
