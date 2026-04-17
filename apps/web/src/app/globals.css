@@ -234,6 +234,89 @@ a {
   color: var(--muted);
 }
 
+/* ── Holdings Allocation Chart ───────────────────────────── */
+.alloc-card {
+  border: 1px solid var(--border);
+  background: var(--background-elevated);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  border-radius: 24px;
+  padding: 24px;
+  margin-top: 18px;
+}
+
+.alloc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.alloc-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.alloc-sub {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.alloc-total {
+  text-align: right;
+}
+
+.alloc-total-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.alloc-total-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.alloc-body {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.alloc-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  gap: 6px 32px;
+  flex: 1;
+  min-width: 0;
+}
+
+.alloc-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.alloc-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.alloc-legend-name {
+  font-weight: 600;
+  min-width: 48px;
+}
+
+.alloc-legend-pct {
+  color: var(--muted);
+}
+
 .topbar {
   display: flex;
   align-items: flex-start;

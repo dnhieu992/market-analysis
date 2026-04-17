@@ -6,13 +6,40 @@ import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-ove
 async function loadDashboardData() {
   const client = createServerApiClient();
   try {
-    const [orders, analysisRuns] = await Promise.all([
+    const [orders, analysisRuns, portfolios] = await Promise.all([
       client.fetchOrders(),
-      client.fetchAnalysisRuns()
+      client.fetchAnalysisRuns(),
+      client.fetchPortfolios(),
     ]);
-    return { orders, analysisRuns };
+
+    // fetch holdings for all portfolios in parallel
+    const holdingsByPortfolio = await Promise.all(
+      portfolios.map((p) => client.fetchHoldings(p.id).catch(() => []))
+    );
+
+    // aggregate by coinId across all portfolios
+    const map = new Map<string, { totalAmount: number; totalCost: number }>();
+    for (const holdings of holdingsByPortfolio) {
+      for (const h of holdings) {
+        const existing = map.get(h.coinId);
+        if (existing) {
+          existing.totalAmount += h.totalAmount;
+          existing.totalCost += h.totalInvested;
+        } else {
+          map.set(h.coinId, { totalAmount: h.totalAmount, totalCost: h.totalInvested });
+        }
+      }
+    }
+
+    const allHoldings = Array.from(map.entries()).map(([coinId, v]) => ({
+      coinId,
+      totalAmount: v.totalAmount,
+      totalCost: v.totalCost,
+    }));
+
+    return { orders, analysisRuns, allHoldings };
   } catch {
-    return { orders: [] as DashboardOrder[], analysisRuns: [] };
+    return { orders: [] as DashboardOrder[], analysisRuns: [], allHoldings: [] };
   }
 }
 
@@ -45,12 +72,12 @@ function buildOverviewCards(orders: DashboardOrder[]) {
 }
 
 export default async function OverviewPage() {
-  const { orders, analysisRuns } = await loadDashboardData();
+  const { orders, analysisRuns, allHoldings } = await loadDashboardData();
   const cards = buildOverviewCards(orders);
   const lastUpdated =
     analysisRuns[0]?.createdAt instanceof Date
       ? formatDateTime(analysisRuns[0].createdAt)
       : 'just now';
 
-  return <DashboardOverview cards={cards} lastUpdatedLabel={lastUpdated} />;
+  return <DashboardOverview cards={cards} lastUpdatedLabel={lastUpdated} allHoldings={allHoldings} />;
 }
