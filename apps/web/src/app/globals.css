@@ -1000,7 +1000,7 @@ a {
 .analysis-card-head,
 .analysis-detail-head {
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
@@ -1067,7 +1067,7 @@ a {
 }
 
 .analysis-detail-panel {
-  align-content: start;
+  align-content: flex-start;
 }
 
 .analysis-detail-grid {
@@ -1530,7 +1530,7 @@ a {
 
   .analysis-card-head,
   .analysis-detail-head {
-    align-items: start;
+    align-items: flex-start;
     flex-direction: column;
   }
 }
