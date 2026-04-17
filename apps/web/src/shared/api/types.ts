@@ -238,6 +238,8 @@ export type CoinTransaction = {
   amount: number;
   price: number;
   totalValue: number;
+  fee: number;
+  note: string | null;
   transactedAt: string;
   deletedAt: string | null;
   createdAt: string;

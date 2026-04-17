@@ -1,8 +1,8 @@
+import Link from 'next/link';
+
 import { createServerApiClient } from '@web/shared/auth/api-auth';
-import type { CoinTransaction, Holding, PnlSnapshot, Portfolio } from '@web/shared/api/types';
-import { PortfolioHoldings } from '@web/widgets/portfolio-holdings/portfolio-holdings';
-import { PortfolioPnl } from '@web/widgets/portfolio-pnl/portfolio-pnl';
-import { PortfolioTransactions } from '@web/widgets/portfolio-transactions/portfolio-transactions';
+import type { Holding, Portfolio } from '@web/shared/api/types';
+import { PortfolioHoldingsList } from '@web/widgets/portfolio-holdings-list/portfolio-holdings-list';
 
 type PortfolioDetailPageProps = Readonly<{
   portfolioId: string;
@@ -11,28 +11,21 @@ type PortfolioDetailPageProps = Readonly<{
 async function loadPortfolioData(portfolioId: string): Promise<{
   portfolio: Portfolio | null;
   holdings: Holding[];
-  transactions: CoinTransaction[];
-  pnlHistory: PnlSnapshot[];
 }> {
   const client = createServerApiClient();
-
-  const [portfolio, holdings, transactions, pnlHistory] = await Promise.allSettled([
+  const [portfolio, holdings] = await Promise.allSettled([
     client.fetchPortfolio(portfolioId),
-    client.fetchHoldings(portfolioId),
-    client.fetchTransactions(portfolioId),
-    client.fetchPnlHistory(portfolioId)
+    client.fetchHoldings(portfolioId)
   ]);
 
   return {
     portfolio: portfolio.status === 'fulfilled' ? portfolio.value : null,
-    holdings: holdings.status === 'fulfilled' ? holdings.value : [],
-    transactions: transactions.status === 'fulfilled' ? transactions.value : [],
-    pnlHistory: pnlHistory.status === 'fulfilled' ? pnlHistory.value : []
+    holdings: holdings.status === 'fulfilled' ? holdings.value : []
   };
 }
 
 export default async function PortfolioDetailPage({ portfolioId }: PortfolioDetailPageProps) {
-  const { portfolio, holdings, transactions, pnlHistory } = await loadPortfolioData(portfolioId);
+  const { portfolio, holdings } = await loadPortfolioData(portfolioId);
 
   if (!portfolio) {
     return (
@@ -46,14 +39,21 @@ export default async function PortfolioDetailPage({ portfolioId }: PortfolioDeta
 
   return (
     <main className="dashboard-shell">
-      <div style={{ padding: '1rem 0 0.5rem' }}>
-        <h1 style={{ margin: 0 }}>{portfolio.name}</h1>
-        {portfolio.description && <p className="tt-muted">{portfolio.description}</p>}
+      <div style={{ padding: '0.75rem 0 0' }}>
+        <Link
+          href="/portfolio"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--muted)', textDecoration: 'none', fontSize: '0.95rem' }}
+        >
+          ‹ Back
+        </Link>
       </div>
 
-      <PortfolioHoldings portfolioId={portfolioId} holdings={holdings} />
-      <PortfolioTransactions portfolioId={portfolioId} transactions={transactions} />
-      <PortfolioPnl snapshots={pnlHistory} />
+      <div style={{ padding: '0.5rem 0 0.75rem' }}>
+        <h1 style={{ margin: 0 }}>{portfolio.name}</h1>
+        {portfolio.description && <p className="tt-muted" style={{ margin: '0.25rem 0 0' }}>{portfolio.description}</p>}
+      </div>
+
+      <PortfolioHoldingsList portfolioId={portfolioId} holdings={holdings} />
     </main>
   );
 }

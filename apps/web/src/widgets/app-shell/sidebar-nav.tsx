@@ -13,6 +13,11 @@ type NavItem = Readonly<{
 
 const NAV_ITEMS: NavItem[] = [
   {
+    href: '/portfolio',
+    label: 'Portfolio',
+    description: 'Coin holdings & PnL tracker'
+  },
+  {
     href: '/',
     label: 'Overview',
     description: 'Dashboard summary'
@@ -23,19 +28,9 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Manual orders'
   },
   {
-    href: '/analysis',
-    label: 'Analysis Feed',
-    description: 'Worker signals'
-  },
-  {
     href: '/daily-plan',
     label: 'Daily Plan',
     description: 'BTC daily analysis'
-  },
-  {
-    href: '/portfolio',
-    label: 'Portfolio',
-    description: 'Coin holdings & PnL tracker'
   },
   {
     href: '/strategy',

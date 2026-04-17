@@ -244,10 +244,12 @@ function mapTransaction(row: JsonRecord): CoinTransaction {
     id: String(row.id),
     portfolioId: String(row.portfolioId),
     coinId: String(row.coinId),
-    type: String(row.type) as 'BUY' | 'SELL',
+    type: String(row.type) as 'buy' | 'sell',
     amount: Number(row.amount),
     price: Number(row.price),
     totalValue: Number(row.totalValue),
+    fee: row.fee == null ? 0 : Number(row.fee),
+    note: row.note == null ? null : String(row.note),
     transactedAt: String(row.transactedAt),
     deletedAt: row.deletedAt == null ? null : String(row.deletedAt),
     createdAt: String(row.createdAt)
