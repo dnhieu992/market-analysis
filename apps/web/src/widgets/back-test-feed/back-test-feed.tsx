@@ -47,6 +47,9 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
   const [fomoTpSteps, setFomoTpSteps] = useState(1000);
   const [fomoEntryHour, setFomoEntryHour] = useState(3);
   const [fomoExitHour, setFomoExitHour] = useState(16);
+  // RSI Reversal params
+  const [rsiTpPct, setRsiTpPct] = useState(10);
+  const [rsiSlPct, setRsiSlPct] = useState(10);
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BackTestResult | null>(null);
@@ -61,9 +64,11 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
     setResult(null);
 
     try {
-      const fomoParams = strategy.startsWith('fomo')
+      const params = strategy.startsWith('fomo')
         ? { tpSteps: fomoTpSteps, entryHourUtc: fomoEntryHour, exitHourUtc: fomoExitHour }
-        : undefined;
+        : strategy === 'rsi-reversal'
+          ? { tpPct: rsiTpPct / 100, slPct: rsiSlPct / 100 }
+          : undefined;
 
       const res = await apiClient.runBackTest({
         strategy,
@@ -71,7 +76,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
         from: new Date(from).toISOString(),
         to: new Date(to).toISOString(),
         timeframe: timeframe || undefined,
-        params: fomoParams
+        params
       });
       setResult(res);
 
@@ -159,6 +164,33 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                 ))}
               </select>
             </div>
+
+            {strategy === 'rsi-reversal' && (
+              <>
+                <div className="settings-field">
+                  <label className="settings-label">Take Profit (%)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0.1}
+                    step={0.1}
+                    value={rsiTpPct}
+                    onChange={(e) => setRsiTpPct(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">Stop Loss (%)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0.1}
+                    step={0.1}
+                    value={rsiSlPct}
+                    onChange={(e) => setRsiSlPct(Number(e.target.value))}
+                  />
+                </div>
+              </>
+            )}
 
             {strategy.startsWith('fomo') && (
               <>
