@@ -20,12 +20,16 @@ describe('SchedulerService', () => {
     const telegramService = {
       sendAnalysisMessage: jest.fn().mockResolvedValue({ success: true, messageId: 1 })
     };
+    const swingSignalService = {
+      checkAll: jest.fn().mockResolvedValue(undefined)
+    };
 
     return {
       service: new SchedulerService(
         analysisOrchestratorService as never,
         dailyAnalysisService as never,
         telegramService as never,
+        swingSignalService as never,
         { trackedSymbols: ['BTCUSDT', 'ETHUSDT'] }
       ),
       sonicRSignalService,
