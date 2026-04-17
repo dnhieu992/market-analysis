@@ -21,53 +21,53 @@ User quản lý danh sách coin theo dõi qua trang Profile (thay thế footnote
 
 ### 1. Database — thêm `symbolsTracking` vào User
 
-- [ ] **`packages/db/prisma/schema.prisma`** — thêm field vào model `User`:
+- [x] **`packages/db/prisma/schema.prisma`** — thêm field vào model `User`:
   ```prisma
   symbolsTracking Json @default("[]")
   ```
-- [ ] Chạy migration: `pnpm prisma migrate dev --name add_user_symbols_tracking`
-- [ ] **`packages/db/src/repositories/user.repository.ts`** — cập nhật `findByEmail`, `findById`, `create`, thêm method `updateSymbolsTracking(userId, symbols)` và `findFirst()` (lấy user duy nhất cho worker)
+- [x] Chạy migration: `pnpm prisma migrate dev --name add_user_symbols_tracking`
+- [x] **`packages/db/src/repositories/user.repository.ts`** — cập nhật `findByEmail`, `findById`, `create`, thêm method `updateSymbolsTracking(userId, symbols)` và `findFirst()` (lấy user duy nhất cho worker)
 
 ---
 
 ### 2. API — User profile endpoint
 
-- [ ] **`apps/api/src/modules/auth/auth.types.ts`** — thêm `symbolsTracking: string[]` vào `AuthUser`
-- [ ] **`apps/api/src/modules/auth/auth.service.ts`** — include `symbolsTracking` trong `toAuthUser()`
-- [ ] Tạo **`apps/api/src/modules/user/dto/update-profile.dto.ts`**:
+- [x] **`apps/api/src/modules/auth/auth.types.ts`** — thêm `symbolsTracking: string[]` vào `AuthUser`
+- [x] **`apps/api/src/modules/auth/auth.service.ts`** — include `symbolsTracking` trong `toAuthUser()`
+- [x] Tạo **`apps/api/src/modules/user/dto/update-profile.dto.ts`**:
   ```ts
   { name?: string; symbolsTracking?: string[] }
   ```
-- [ ] Tạo **`apps/api/src/modules/user/user.service.ts`** — `getProfile(userId)`, `updateProfile(userId, dto)`
-- [ ] Tạo **`apps/api/src/modules/user/user.controller.ts`**:
+- [x] Tạo **`apps/api/src/modules/user/user.service.ts`** — `getProfile(userId)`, `updateProfile(userId, dto)`
+- [x] Tạo **`apps/api/src/modules/user/user.controller.ts`**:
   - `GET /user/profile` → trả về profile + symbolsTracking
   - `PATCH /user/profile` → update name + symbolsTracking
-- [ ] Tạo **`apps/api/src/modules/user/user.module.ts`**
-- [ ] **`apps/api/src/app.module.ts`** — import `UserModule`
+- [x] Tạo **`apps/api/src/modules/user/user.module.ts`**
+- [x] **`apps/api/src/app.module.ts`** — import `UserModule`
 
 ---
 
 ### 3. Frontend — User profile & sidebar
 
 #### Sidebar
-- [ ] **`apps/web/src/widgets/app-shell/sidebar-nav.tsx`**:
+- [x] **`apps/web/src/widgets/app-shell/sidebar-nav.tsx`**:
   - Xoá footnote `"Overview, trades, and worker analysis in one place."`
-  - Thêm user avatar + tên + email ở cuối sidebar (fetch từ `GET /auth/me`)
+  - Thêm user avatar + tên + email ở cuối sidebar (fetch từ `GET /user/profile`)
   - Click vào user info → navigate `/profile`
   - Sidebar trở thành `'use client'` để fetch user
 
 #### API client & types
-- [ ] **`apps/web/src/shared/api/types.ts`** — thêm `UserProfile` type:
+- [x] **`apps/web/src/shared/api/types.ts`** — thêm `UserProfile` type:
   ```ts
   type UserProfile = { id: string; email: string; name: string; symbolsTracking: string[] }
   ```
-- [ ] **`apps/web/src/shared/api/client.ts`** — thêm:
+- [x] **`apps/web/src/shared/api/client.ts`** — thêm:
   - `fetchUserProfile()` → `GET /user/profile`
   - `updateUserProfile(data)` → `PATCH /user/profile`
 
 #### Profile page
-- [ ] Tạo **`apps/web/src/app/profile/page.tsx`** — server component, load profile
-- [ ] Tạo **`apps/web/src/_pages/profile-page/profile-page.tsx`** — client component:
+- [x] Tạo **`apps/web/src/app/profile/page.tsx`** — server component, load profile
+- [x] Tạo **`apps/web/src/_pages/profile-page/profile-page.tsx`** — client component:
   - Hiển thị: avatar (initials), email, name
   - Form edit: name, danh sách symbolsTracking (add/remove tags giống settings page)
   - Submit gọi `PATCH /user/profile`
@@ -77,24 +77,24 @@ User quản lý danh sách coin theo dõi qua trang Profile (thay thế footnote
 ### 4. Worker — Swing Signal job
 
 #### SwingSignal module
-- [ ] Tạo **`apps/worker/src/modules/swing-signal/swing-signal.service.ts`**:
+- [x] Tạo **`apps/worker/src/modules/swing-signal/swing-signal.service.ts`**:
   - Import `@app/db` để query `User.findFirst()` → lấy `symbolsTracking`
   - Với mỗi symbol: fetch 20 nến H4 từ Binance → tính RSI(14) dùng `calculateRsi` từ `@app/core`
   - Nếu RSI ≤ 30: gọi `TelegramService.sendAnalysisMessage()` với message alert
   - Format message: symbol, giá hiện tại, RSI value, TP/SL gợi ý
-- [ ] Tạo **`apps/worker/src/modules/swing-signal/swing-signal.module.ts`**
-- [ ] **`apps/worker/src/worker.module.ts`** — import `SwingSignalModule`
+- [x] Tạo **`apps/worker/src/modules/swing-signal/swing-signal.module.ts`**
+- [x] **`apps/worker/src/worker.module.ts`** — import `SwingSignalModule`
 
 #### Cron job
-- [ ] **`apps/worker/src/modules/scheduler/scheduler.service.ts`** — thêm cron H4:
+- [x] **`apps/worker/src/modules/scheduler/scheduler.service.ts`** — thêm cron H4:
   ```ts
   @Cron('0 0,4,8,12,16,20 * * *', { timeZone: 'UTC' })
   async checkSwingSignals() { ... }
   ```
-- [ ] **`apps/worker/src/modules/scheduler/scheduler.module.ts`** — import `SwingSignalModule`
+- [x] **`apps/worker/src/modules/scheduler/scheduler.module.ts`** — import `SwingSignalModule`
 
 #### Telegram message format
-- [ ] Tạo **`packages/core/src/telegram/format-swing-signal-message.ts`**:
+- [x] Tạo **`packages/core/src/telegram/format-swing-signal-message.ts`**:
   ```
   🔔 SWING SIGNAL — BTCUSDT H4
   RSI(14): 28.4 — Oversold zone
@@ -105,7 +105,7 @@ User quản lý danh sách coin theo dõi qua trang Profile (thay thế footnote
 
   ⚠️ Đây là tín hiệu tự động theo chiến lược RSI Reversal.
   ```
-- [ ] Export từ **`packages/core/src/index.ts`**
+- [x] Export từ **`packages/core/src/index.ts`**
 
 ---
 

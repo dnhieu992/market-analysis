@@ -18,6 +18,7 @@ import { SignalsModule } from './modules/signals/signals.module';
 import { StrategiesModule } from './modules/strategies/strategies.module';
 import { TelegramLogsModule } from './modules/telegram-logs/telegram-logs.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
+import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 
 @Module({
@@ -38,7 +39,8 @@ import { WorkerModule } from './modules/worker/worker.module';
     PortfolioModule,
     TransactionModule,
     HoldingsModule,
-    PnlModule
+    PnlModule,
+    UserModule
   ],
   providers: [
     {

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 
 import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
+import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
 
@@ -15,6 +16,7 @@ export class SchedulerService {
     private readonly analysisOrchestratorService: AnalysisOrchestratorService,
     private readonly visualAnalysisService: VisualAnalysisService,
     private readonly telegramService: TelegramService,
+    private readonly swingSignalService: SwingSignalService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -34,6 +36,13 @@ export class SchedulerService {
   async sendDailySignals() {
     this.logger.log('Running daily signal job');
     await this.runDailyAnalysisForSymbols(this.trackedSymbols);
+  }
+
+  // Runs after every H4 candle close: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC
+  @Cron('0 0,4,8,12,16,20 * * *', { timeZone: 'UTC' })
+  async checkSwingSignals() {
+    this.logger.log('Running H4 swing signal check');
+    await this.swingSignalService.checkAll();
   }
 
   async runDailyAnalysisForSymbols(symbols: string[]) {

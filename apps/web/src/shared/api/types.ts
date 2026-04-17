@@ -294,4 +294,16 @@ export type QueryPnlInput = {
   coinId?: string;
 };
 
+export type UserProfile = {
+  id: string;
+  email: string;
+  name: string;
+  symbolsTracking: string[];
+};
+
+export type UpdateProfileInput = {
+  name?: string;
+  symbolsTracking?: string[];
+};
+
 import type { DailyAnalysisPlan } from '@app/core';

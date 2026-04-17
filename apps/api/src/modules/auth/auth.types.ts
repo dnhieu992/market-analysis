@@ -2,6 +2,7 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  symbolsTracking: string[];
   createdAt?: Date;
   updatedAt?: Date;
 };

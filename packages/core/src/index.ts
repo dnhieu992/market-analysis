@@ -10,6 +10,8 @@ export { normalizeLlmSignal } from './normalizers/normalize-llm-signal';
 export { buildAnalysisPrompt } from './prompts/build-analysis-prompt';
 export { formatAnalysisMessage } from './telegram/format-analysis-message';
 export { formatDailyAnalysisPlanMessage } from './telegram/format-daily-analysis-plan-message';
+export { formatSwingSignalMessage } from './telegram/format-swing-signal-message';
+export type { SwingSignalInput } from './telegram/format-swing-signal-message';
 export type { IndicatorSnapshot } from './types/analysis';
 export type { Candle } from './types/candle';
 export type { Bias, LlmSignal, Trend } from './types/signal';

@@ -106,6 +106,7 @@ export class AuthService {
     id: string;
     email: string;
     name: string;
+    symbolsTracking?: unknown;
     createdAt?: Date;
     updatedAt?: Date;
   }): AuthUser {
@@ -113,6 +114,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
+      symbolsTracking: Array.isArray(user.symbolsTracking) ? (user.symbolsTracking as string[]) : [],
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };

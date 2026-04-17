@@ -23,8 +23,10 @@ import type {
   TradingStrategy,
   UpdateDashboardOrderInput,
   UpdatePortfolioInput,
+  UpdateProfileInput,
   UpdateTradingStrategyInput,
-  UpsertSettingsInput
+  UpsertSettingsInput,
+  UserProfile
 } from './types';
 
 
@@ -539,6 +541,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }
 
       return (await response.json()) as { user: { id: string; email: string; name: string } };
-    }
+    },
+    async fetchUserProfile(): Promise<UserProfile> {
+      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/user/profile`, withDefaults());
+      return {
+        id: String(row.id),
+        email: String(row.email),
+        name: String(row.name),
+        symbolsTracking: Array.isArray(row.symbolsTracking) ? (row.symbolsTracking as unknown[]).map(String) : [],
+      };
+    },
+    async updateUserProfile(input: UpdateProfileInput): Promise<UserProfile> {
+      const response = await fetchImpl(`${baseUrl}/user/profile`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/user/profile: ${response.status}`);
+      }
+      const row = (await response.json()) as JsonRecord;
+      return {
+        id: String(row.id),
+        email: String(row.email),
+        name: String(row.name),
+        symbolsTracking: Array.isArray(row.symbolsTracking) ? (row.symbolsTracking as unknown[]).map(String) : [],
+      };
+    },
   };
 }

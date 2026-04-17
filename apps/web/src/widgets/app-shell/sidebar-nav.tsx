@@ -1,5 +1,10 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+
+import { createApiClient } from '@web/shared/api/client';
 
 type SidebarNavProps = Readonly<{
   currentPath: string;
@@ -69,7 +74,19 @@ function NavLink({
   );
 }
 
+const apiClient = createApiClient();
+
 export function SidebarNav({ currentPath }: SidebarNavProps) {
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+
+  useEffect(() => {
+    apiClient.fetchUserProfile().then(setUser).catch(() => setUser(null));
+  }, []);
+
+  const initials = user
+    ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+    : '?';
+
   return (
     <aside className="sidebar-nav">
       <div className="sidebar-brand">
@@ -86,10 +103,13 @@ export function SidebarNav({ currentPath }: SidebarNavProps) {
         ))}
       </nav>
 
-      <div className="sidebar-footnote">
-        <span className="status-dot" />
-        <p>Overview, trades, and worker analysis in one place.</p>
-      </div>
+      <Link href="/profile" className="sidebar-user">
+        <span className="sidebar-user-avatar">{initials}</span>
+        <div className="sidebar-user-info">
+          <p className="sidebar-user-name">{user?.name ?? '…'}</p>
+          <p className="sidebar-user-email">{user?.email ?? ''}</p>
+        </div>
+      </Link>
     </aside>
   );
 }
