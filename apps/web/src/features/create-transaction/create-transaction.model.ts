@@ -3,10 +3,10 @@ import type { CoinTransaction, CreateTransactionInput } from '@web/shared/api/ty
 
 type TransactionFormInput = {
   coinId: string;
-  type: 'BUY' | 'SELL';
+  type: 'buy' | 'sell';
   amount: string;
   price: string;
-  date?: string;
+  transactedAt?: string;
 };
 
 function requireText(value: FormDataEntryValue | null, fieldName: string): string {
@@ -23,14 +23,14 @@ function toPositiveNumber(value: string, fieldName: string): number {
 
 export function parseCreateTransactionFormData(formData: FormData): TransactionFormInput {
   const type = requireText(formData.get('type'), 'Type');
-  if (type !== 'BUY' && type !== 'SELL') throw new Error('Type must be BUY or SELL');
+  if (type !== 'buy' && type !== 'sell') throw new Error('Type must be buy or sell');
 
   return {
     coinId: requireText(formData.get('coinId'), 'Coin').toUpperCase(),
     type,
     amount: requireText(formData.get('amount'), 'Amount'),
     price: requireText(formData.get('price'), 'Price'),
-    date: formData.get('date')?.toString().trim() || undefined
+    transactedAt: formData.get('transactedAt')?.toString().trim() || undefined
   };
 }
 
@@ -40,7 +40,7 @@ export async function submitCreateTransaction(portfolioId: string, input: Transa
     type: input.type,
     amount: toPositiveNumber(input.amount, 'Amount'),
     price: toPositiveNumber(input.price, 'Price'),
-    date: input.date
+    transactedAt: input.transactedAt
   };
   return createApiClient().createTransaction(portfolioId, payload);
 }

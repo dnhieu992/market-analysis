@@ -15,7 +15,7 @@ function toDateInputValue(date: Date): string {
 }
 
 export function CreateTransactionForm({ portfolioId, onSubmitted }: CreateTransactionFormProps) {
-  const [type, setType] = useState<'BUY' | 'SELL'>('BUY');
+  const [type, setType] = useState<'buy' | 'sell'>('buy');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -48,9 +48,9 @@ export function CreateTransactionForm({ portfolioId, onSubmitted }: CreateTransa
 
       <label className="trade-field">
         <span>Type</span>
-        <select name="type" value={type} onChange={(e) => setType(e.target.value as 'BUY' | 'SELL')} required>
-          <option value="BUY">BUY</option>
-          <option value="SELL">SELL</option>
+        <select name="type" value={type} onChange={(e) => setType(e.target.value as 'buy' | 'sell')} required>
+          <option value="buy">BUY</option>
+          <option value="sell">SELL</option>
         </select>
       </label>
 
@@ -66,13 +66,13 @@ export function CreateTransactionForm({ portfolioId, onSubmitted }: CreateTransa
 
       <label className="trade-field">
         <span>Date</span>
-        <input name="date" type="date" defaultValue={toDateInputValue(new Date())} />
+        <input name="transactedAt" type="date" defaultValue={toDateInputValue(new Date())} />
       </label>
 
       {error ? <p className="trade-form-error">{error}</p> : null}
 
       <button type="submit" className="trade-submit" disabled={isPending}>
-        {isPending ? 'Adding...' : `Add ${type} Transaction`}
+        {isPending ? 'Adding...' : `Add ${type.toUpperCase()} Transaction`}
       </button>
     </form>
   );

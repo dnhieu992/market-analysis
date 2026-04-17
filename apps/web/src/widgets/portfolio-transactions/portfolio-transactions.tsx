@@ -63,11 +63,11 @@ export function PortfolioTransactions({ portfolioId, transactions }: PortfolioTr
             <tbody>
               {transactions.map((tx) => (
                 <tr key={tx.id}>
-                  <td className="tt-muted">{formatDate(tx.date)}</td>
+                  <td className="tt-muted">{formatDate(tx.transactedAt)}</td>
                   <td><strong>{tx.coinId}</strong></td>
                   <td>
-                    <span className={`tt-side tt-side--${tx.type === 'BUY' ? 'long' : 'short'}`}>
-                      {tx.type}
+                    <span className={`tt-side tt-side--${tx.type === 'buy' ? 'long' : 'short'}`}>
+                      {tx.type.toUpperCase()}
                     </span>
                   </td>
                   <td>{formatNumber(tx.amount)}</td>

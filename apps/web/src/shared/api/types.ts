@@ -234,11 +234,11 @@ export type CoinTransaction = {
   id: string;
   portfolioId: string;
   coinId: string;
-  type: 'BUY' | 'SELL';
+  type: 'buy' | 'sell';
   amount: number;
   price: number;
   totalValue: number;
-  date: string;
+  transactedAt: string;
   deletedAt: string | null;
   createdAt: string;
 };
@@ -273,15 +273,15 @@ export type UpdatePortfolioInput = {
 
 export type CreateTransactionInput = {
   coinId: string;
-  type: 'BUY' | 'SELL';
+  type: 'buy' | 'sell';
   amount: number;
   price: number;
-  date?: string;
+  transactedAt?: string;
 };
 
 export type QueryTransactionsInput = {
   coinId?: string;
-  type?: 'BUY' | 'SELL';
+  type?: 'buy' | 'sell';
   from?: string;
   to?: string;
 };

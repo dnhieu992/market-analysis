@@ -248,7 +248,7 @@ function mapTransaction(row: JsonRecord): CoinTransaction {
     amount: Number(row.amount),
     price: Number(row.price),
     totalValue: Number(row.totalValue),
-    date: String(row.date),
+    transactedAt: String(row.transactedAt),
     deletedAt: row.deletedAt == null ? null : String(row.deletedAt),
     createdAt: String(row.createdAt)
   };
