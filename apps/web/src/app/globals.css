@@ -1263,7 +1263,7 @@ a {
 
 @media (max-width: 860px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sidebar-nav {
@@ -1273,6 +1273,8 @@ a {
     border-bottom: 1px solid rgba(23, 18, 13, 0.08);
     padding: 14px 16px;
     gap: 10px;
+    min-width: 0;
+    width: 100%;
   }
 
   .sidebar-brand-mark {
@@ -1294,6 +1296,7 @@ a {
     overflow-x: auto;
     padding-bottom: 4px;
     scrollbar-width: none;
+    min-width: 0;
   }
 
   .sidebar-nav-links::-webkit-scrollbar {
@@ -1309,6 +1312,11 @@ a {
 
   .sidebar-nav-link:hover {
     transform: none;
+  }
+
+  .app-shell-main {
+    min-width: 0;
+    width: 100%;
   }
 
   .topbar {
