@@ -28,12 +28,12 @@ echo "── Build all apps"
 pnpm -r build
 
 echo "── Restart API"
-pm2 restart "$PM2_API" \
-  || pm2 start apps/api/dist/apps/api/src/main.js --name "$PM2_API"
+pm2 delete "$PM2_API" 2>/dev/null || true
+pm2 start apps/api/dist/apps/api/src/main.js --name "$PM2_API"
 
 echo "── Restart Worker"
-pm2 restart "$PM2_WORKER" \
-  || pm2 start apps/worker/dist/apps/worker/src/main.js --name "$PM2_WORKER"
+pm2 delete "$PM2_WORKER" 2>/dev/null || true
+pm2 start apps/worker/dist/apps/worker/src/main.js --name "$PM2_WORKER"
 
 echo "── Restart Web"
 pm2 delete "$PM2_WEB" 2>/dev/null || true
