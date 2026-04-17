@@ -120,7 +120,7 @@ export function HoldingsAllocationChart({ holdings }: Props) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number, name: string) => [formatUsd(value), name]}
+              formatter={(value) => [formatUsd(Number(value)), '']}
             />
           </PieChart>
         </ResponsiveContainer>
