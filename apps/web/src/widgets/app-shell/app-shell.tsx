@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { SidebarNav } from './sidebar-nav';
-import { Topbar } from './topbar';
 
 type AppShellProps = Readonly<{
   children: ReactNode;
@@ -23,7 +22,6 @@ export function AppShell({ children, currentPath }: AppShellProps) {
     <div className="app-shell">
       <SidebarNav currentPath={resolvedPath} />
       <div className="app-shell-main">
-        <Topbar currentPath={resolvedPath} />
         <div className="app-shell-content">{children}</div>
       </div>
     </div>
