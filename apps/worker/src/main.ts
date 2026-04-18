@@ -10,8 +10,9 @@ const envResult = config({ path: envPath });
 console.log('[dotenv] cwd:', process.cwd());
 // eslint-disable-next-line no-console
 console.log('[dotenv] path:', envPath, '| error:', envResult.error?.message ?? 'none');
+const apiKey = process.env.CLAUDE_API_KEY || '';
 // eslint-disable-next-line no-console
-console.log('[dotenv] CLAUDE_API_KEY:', process.env.CLAUDE_API_KEY || 'MISSING');
+console.log('[dotenv] CLAUDE_API_KEY:', apiKey || 'MISSING', '| length:', apiKey.length, '| charCodes tail:', [...apiKey.slice(-5)].map(c => c.charCodeAt(0)));
 // eslint-disable-next-line no-console
 console.log('[dotenv] WORKER_SEND_DAILY_ON_BOOT:', process.env.WORKER_SEND_DAILY_ON_BOOT ?? 'MISSING');
 // eslint-disable-next-line no-console
