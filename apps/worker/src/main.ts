@@ -12,6 +12,12 @@ console.log('[dotenv] cwd:', process.cwd());
 console.log('[dotenv] path:', envPath, '| error:', envResult.error?.message ?? 'none');
 // eslint-disable-next-line no-console
 console.log('[dotenv] CLAUDE_API_KEY:', process.env.CLAUDE_API_KEY || 'MISSING');
+// eslint-disable-next-line no-console
+console.log('[dotenv] WORKER_SEND_DAILY_ON_BOOT:', process.env.WORKER_SEND_DAILY_ON_BOOT ?? 'MISSING');
+// eslint-disable-next-line no-console
+console.log('[dotenv] TELEGRAM_BOT_TOKEN:', process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.slice(0, 10) + '...' : 'MISSING');
+// eslint-disable-next-line no-console
+console.log('[dotenv] TELEGRAM_CHAT_ID:', process.env.TELEGRAM_CHAT_ID ?? 'MISSING');
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -25,7 +31,9 @@ export async function bootstrap() {
   const scheduler = app.get(SchedulerService);
   scheduler.register();
 
+  Logger.log(`WORKER_SEND_DAILY_ON_BOOT = "${process.env.WORKER_SEND_DAILY_ON_BOOT}"`, 'Bootstrap');
   if (process.env.WORKER_SEND_DAILY_ON_BOOT === 'true') {
+    Logger.log('Running boot daily analysis...', 'Bootstrap');
     await scheduler.runDailyAnalysisForSymbols(resolveTrackedSymbols());
   }
 

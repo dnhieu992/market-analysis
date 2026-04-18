@@ -50,11 +50,14 @@ export class SchedulerService {
       try {
         const { chartBuffer, analysisText } = await this.visualAnalysisService.analyze(symbol);
 
-        await this.telegramService.sendPhoto(chartBuffer, `${symbol} H4`);
-        await this.telegramService.sendAnalysisMessage({
+        const photoResult = await this.telegramService.sendPhoto(chartBuffer, `${symbol} H4`);
+        this.logger.log(`sendPhoto result for ${symbol}: ${JSON.stringify(photoResult)}`);
+
+        const msgResult = await this.telegramService.sendAnalysisMessage({
           content: analysisText,
           messageType: 'daily-plan'
         });
+        this.logger.log(`sendAnalysisMessage result for ${symbol}: ${JSON.stringify(msgResult)}`);
 
         this.logger.log(`Daily analysis sent for ${symbol}`);
       } catch (error) {

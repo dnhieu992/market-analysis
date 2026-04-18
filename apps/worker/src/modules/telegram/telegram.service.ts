@@ -70,7 +70,9 @@ export class TelegramService {
         messageId
       };
     } catch (error) {
-      this.logger.warn('Telegram delivery failed');
+      const status = (error as { response?: { status?: number; data?: unknown } }).response?.status;
+      const data = (error as { response?: { status?: number; data?: unknown } }).response?.data;
+      this.logger.warn(`Telegram delivery failed — HTTP ${status ?? 'N/A'}: ${JSON.stringify(data) ?? String(error)}`);
 
       // await this.recordMessageLog({
       //   analysisRunId: input.analysisRunId,
