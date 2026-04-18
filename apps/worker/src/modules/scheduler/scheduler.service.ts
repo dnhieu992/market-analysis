@@ -58,9 +58,11 @@ export class SchedulerService {
 
         this.logger.log(`Daily analysis sent for ${symbol}`);
       } catch (error) {
-        this.logger.error(
-          `Daily analysis failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
-        );
+        const msg = error instanceof Error ? error.message : 'unknown error';
+        const status = (error as { response?: { status?: number; data?: unknown } }).response?.status;
+        const data = (error as { response?: { status?: number; data?: unknown } }).response?.data;
+        this.logger.error(`Daily analysis failed for ${symbol}: ${msg}`);
+        if (status !== undefined) this.logger.error(`HTTP ${status} — response: ${JSON.stringify(data)}`);
       }
     }
   }

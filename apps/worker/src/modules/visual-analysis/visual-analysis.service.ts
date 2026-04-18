@@ -149,6 +149,8 @@ export class VisualAnalysisService {
 
   private async callClaudeVision(symbol: string, imageBuffer: Buffer): Promise<string> {
     const base64Image = imageBuffer.toString('base64');
+    const apiKey = process.env.CLAUDE_API_KEY ?? '';
+    this.logger.log(`Calling Claude Vision for ${symbol} — key: ${apiKey ? apiKey.slice(0, 12) + '...' : 'MISSING'}`);
 
     const response = await this.httpClient.post<ClaudeMessagesResponse>('/v1/messages', {
       model: CLAUDE_MODEL,
