@@ -5,7 +5,7 @@ import { resolve } from 'path';
 // Load env vars before the app context is created.
 // Note: TS imports are hoisted — dotenv must be called before NestFactory.createApplicationContext, not before imports.
 const envPath = resolve(process.cwd(), '.env');
-const envResult = config({ path: envPath });
+const envResult = config({ path: envPath, override: true });
 // eslint-disable-next-line no-console
 console.log('[dotenv] cwd:', process.cwd());
 // eslint-disable-next-line no-console
