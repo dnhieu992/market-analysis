@@ -225,7 +225,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
               <button className="dialog-close" onClick={() => setAddOpen(false)} aria-label="Close">✕</button>
             </div>
             <div className="dialog-body">
-              <CreateTransactionForm portfolioId={portfolioId} onSubmitted={() => setAddOpen(false)} />
+              <CreateTransactionForm portfolioId={portfolioId} defaultCoinId={coinId} onSubmitted={() => setAddOpen(false)} />
             </div>
           </div>
         </div>

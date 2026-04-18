@@ -6,6 +6,7 @@ import { parseCreateTransactionFormData, submitCreateTransaction } from './creat
 
 type CreateTransactionFormProps = Readonly<{
   portfolioId: string;
+  defaultCoinId?: string;
   onSubmitted?: () => void;
 }>;
 
@@ -14,7 +15,7 @@ function toDateInputValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function CreateTransactionForm({ portfolioId, onSubmitted }: CreateTransactionFormProps) {
+export function CreateTransactionForm({ portfolioId, defaultCoinId, onSubmitted }: CreateTransactionFormProps) {
   const [type, setType] = useState<'buy' | 'sell'>('buy');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -43,7 +44,7 @@ export function CreateTransactionForm({ portfolioId, onSubmitted }: CreateTransa
     <form className="trade-form" onSubmit={handleSubmit}>
       <label className="trade-field">
         <span>Coin (e.g. BTC, ETH)</span>
-        <input name="coinId" type="text" placeholder="BTC" required />
+        <input name="coinId" type="text" placeholder="BTC" defaultValue={defaultCoinId} readOnly={!!defaultCoinId} required />
       </label>
 
       <label className="trade-field">
