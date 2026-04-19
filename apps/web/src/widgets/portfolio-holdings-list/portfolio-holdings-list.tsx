@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import type { Holding } from '@web/shared/api/types';
@@ -51,6 +51,112 @@ async function fetchPrices(coinIds: string[]): Promise<Record<string, number>> {
   }
 }
 
+function CoinAvatar({ coinId }: { coinId: string }) {
+  return (
+    <div style={{
+      width: 28, height: 28, borderRadius: '50%',
+      background: 'rgba(247,147,26,0.2)', color: '#f7931a',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
+    }}>
+      {coinId.slice(0, 1)}
+    </div>
+  );
+}
+
+function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
+  holdings: Holding[];
+  prices: Record<string, number>;
+  pricesLoaded: boolean;
+}) {
+  if (holdings.length === 0) return null;
+
+  const stats = holdings.map((h) => {
+    const currentPrice = prices[h.coinId];
+    const unrealizedPnl = currentPrice != null ? (currentPrice - h.avgCost) * h.totalAmount : 0;
+    const totalPnl = unrealizedPnl + h.realizedPnl;
+    const pnlPct = h.totalInvested > 0 ? (totalPnl / h.totalInvested) * 100 : 0;
+    return { coinId: h.coinId, totalPnl, pnlPct, totalInvested: h.totalInvested };
+  });
+
+  const allTimeProfit = stats.reduce((sum, s) => sum + s.totalPnl, 0);
+  const totalCostBasis = stats.reduce((sum, s) => sum + s.totalInvested, 0);
+  const overallPct = totalCostBasis > 0 ? (allTimeProfit / totalCostBasis) * 100 : 0;
+  const isProfitPositive = allTimeProfit >= 0;
+
+  const best = [...stats].sort((a, b) => b.pnlPct - a.pnlPct)[0];
+  const worst = [...stats].sort((a, b) => a.pnlPct - b.pnlPct)[0];
+
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--panel-bg, rgba(255,255,255,0.04))',
+    border: '1px solid var(--border)',
+    borderRadius: '12px',
+    padding: '1.25rem 1.5rem',
+    minWidth: 0,
+  };
+  const labelStyle: React.CSSProperties = { fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem' };
+  const loading = !pricesLoaded;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      {/* All-time profit */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>All-time profit</div>
+        {loading ? (
+          <span className="tt-muted">loading…</span>
+        ) : (
+          <>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: isProfitPositive ? '#22c55e' : '#ef4444' }}>
+              {isProfitPositive ? '+' : ''}{formatUsd(allTimeProfit)}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: isProfitPositive ? '#22c55e' : '#ef4444', marginTop: '0.25rem' }}>
+              {isProfitPositive ? '▲' : '▼'} {Math.abs(overallPct).toFixed(2)}%
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Cost basis */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>Cost Basis</div>
+        <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{formatUsd(totalCostBasis)}</div>
+      </div>
+
+      {/* Best / Worst performer */}
+      <div style={{ ...cardStyle, display: 'flex', gap: '2rem' }}>
+        <div>
+          <div style={labelStyle}>Best Performer</div>
+          {loading ? <span className="tt-muted">loading…</span> : best ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                <CoinAvatar coinId={best.coinId} />
+                <span style={{ fontWeight: 700 }}>{best.coinId}</span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: best.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
+                {best.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(best.pnlPct).toFixed(2)}%
+              </div>
+            </>
+          ) : null}
+        </div>
+        <div>
+          <div style={labelStyle}>Worst Performer</div>
+          {loading ? <span className="tt-muted">loading…</span> : worst ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                <CoinAvatar coinId={worst.coinId} />
+                <span style={{ fontWeight: 700 }}>{worst.coinId}</span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: worst.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
+                {worst.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(worst.pnlPct).toFixed(2)}%
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
@@ -63,6 +169,8 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
   }, [holdings]);
 
   return (
+    <>
+      <PortfolioStatsPanel holdings={holdings} prices={prices} pricesLoaded={pricesLoaded} />
     <article className="panel">
       <div className="table-header">
         <div>
@@ -143,5 +251,6 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
         </div>
       )}
     </article>
+    </>
   );
 }

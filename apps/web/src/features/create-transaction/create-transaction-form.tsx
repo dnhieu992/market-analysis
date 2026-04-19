@@ -7,6 +7,7 @@ import { parseCreateTransactionFormData, submitCreateTransaction } from './creat
 type CreateTransactionFormProps = Readonly<{
   portfolioId: string;
   defaultCoinId?: string;
+  defaultPrice?: number;
   onSubmitted?: () => void;
 }>;
 
@@ -15,7 +16,7 @@ function toDateInputValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function CreateTransactionForm({ portfolioId, defaultCoinId, onSubmitted }: CreateTransactionFormProps) {
+export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice, onSubmitted }: CreateTransactionFormProps) {
   const [type, setType] = useState<'buy' | 'sell'>('buy');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -62,7 +63,7 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, onSubmitted 
 
       <label className="trade-field">
         <span>Price (USD)</span>
-        <input name="price" type="number" min="0" step="any" placeholder="50000" required />
+        <input name="price" type="number" min="0" step="any" placeholder="50000" defaultValue={defaultPrice} required />
       </label>
 
       <label className="trade-field">
