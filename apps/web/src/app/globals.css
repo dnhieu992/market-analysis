@@ -1658,6 +1658,28 @@ a {
     border-radius: 20px 20px 0 0;
     max-height: 92vh;
   }
+
+  /* Daily plan page */
+  .daily-plan-list {
+    grid-template-columns: 1fr;
+    padding: 0 0 24px;
+    gap: 14px;
+  }
+
+  .daily-plan-card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .daily-plan-card-header {
+    gap: 8px;
+  }
+
+  .daily-plan-analysis-text {
+    font-size: 0.83rem;
+    padding: 10px 12px;
+    max-height: 260px;
+  }
 }
 
 /* ── Back-Test ─────────────────────────────────────────────── */
