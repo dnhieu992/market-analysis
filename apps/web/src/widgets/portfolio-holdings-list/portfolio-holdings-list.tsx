@@ -122,36 +122,36 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
         <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{formatUsd(totalCostBasis)}</div>
       </div>
 
-      {/* Best / Worst performer */}
-      <div style={{ ...cardStyle, display: 'flex', gap: '2rem' }}>
-        <div>
-          <div style={labelStyle}>Best Performer</div>
-          {loading ? <span className="tt-muted">loading…</span> : best ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                <CoinAvatar coinId={best.coinId} />
-                <span style={{ fontWeight: 700 }}>{best.coinId}</span>
-              </div>
-              <div style={{ fontSize: '0.8rem', color: best.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
-                {best.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(best.pnlPct).toFixed(2)}%
-              </div>
-            </>
-          ) : null}
-        </div>
-        <div>
-          <div style={labelStyle}>Worst Performer</div>
-          {loading ? <span className="tt-muted">loading…</span> : worst ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                <CoinAvatar coinId={worst.coinId} />
-                <span style={{ fontWeight: 700 }}>{worst.coinId}</span>
-              </div>
-              <div style={{ fontSize: '0.8rem', color: worst.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
-                {worst.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(worst.pnlPct).toFixed(2)}%
-              </div>
-            </>
-          ) : null}
-        </div>
+      {/* Best performer */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>Best Performer</div>
+        {loading ? <span className="tt-muted">loading…</span> : best ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+              <CoinAvatar coinId={best.coinId} />
+              <span style={{ fontWeight: 700 }}>{best.coinId}</span>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: best.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
+              {best.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(best.pnlPct).toFixed(2)}%
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      {/* Worst performer */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>Worst Performer</div>
+        {loading ? <span className="tt-muted">loading…</span> : worst ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+              <CoinAvatar coinId={worst.coinId} />
+              <span style={{ fontWeight: 700 }}>{worst.coinId}</span>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: worst.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
+              {worst.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(worst.pnlPct).toFixed(2)}%
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

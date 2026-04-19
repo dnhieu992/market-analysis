@@ -103,27 +103,29 @@ export function HoldingsAllocationChart({ holdings }: Props) {
       </div>
 
       <div className="alloc-body">
-        <ResponsiveContainer width={220} height={220}>
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={0}
-              outerRadius={100}
-              dataKey="value"
-              strokeWidth={1}
-              stroke="#fff"
-            >
-              {data.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(value) => [formatUsd(Number(value)), '']}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="alloc-chart-wrap">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={0}
+                outerRadius={100}
+                dataKey="value"
+                strokeWidth={1}
+                stroke="#fff"
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value) => [formatUsd(Number(value)), '']}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
 
         {renderLegend()}
       </div>
