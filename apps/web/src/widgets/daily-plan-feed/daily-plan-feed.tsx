@@ -202,16 +202,6 @@ type DailyPlanFeedProps = Readonly<{
 export function DailyPlanFeed({ records }: DailyPlanFeedProps) {
   return (
     <main className="dashboard-shell daily-plan-shell">
-      <section className="hero-card daily-plan-hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Daily Plan</p>
-          <h1>Daily Analysis</h1>
-          <p className="lead">
-            AI-powered H4 chart analysis with trading plan, updated each day at 07:00 ICT.
-          </p>
-        </div>
-      </section>
-
       <section className="daily-plan-list">
         {records.length === 0 ? (
           <p className="daily-plan-empty">No daily plans yet.</p>

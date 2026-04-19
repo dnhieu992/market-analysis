@@ -1879,6 +1879,8 @@ a {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .daily-plan-card-header {
@@ -1975,6 +1977,7 @@ a {
 .daily-plan-analysis-text {
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   font-family: inherit;
   font-size: 0.88rem;
   line-height: 1.65;
@@ -1983,8 +1986,9 @@ a {
   border-radius: 8px;
   padding: 12px 14px;
   margin: 0;
-  max-height: 400px;
+  max-height: 480px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Bias + confidence row */
@@ -2085,6 +2089,8 @@ a {
 .dp-setup-value {
   color: var(--fg);
   word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 /* Final action */
