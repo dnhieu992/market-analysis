@@ -76,7 +76,7 @@ function SetupRow({ label, value }: { label: string; value: string }) {
 }
 
 function PrimarySetupSection({ setup, title }: { setup: DailyAnalysisSetup; title: string }) {
-  if (setup.direction === 'none') return null;
+  if (!setup || setup.direction === 'none') return null;
   return (
     <div className="dp-setup">
       <div className="dp-setup-header">
@@ -104,12 +104,12 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
     timeZone: 'UTC'
   });
 
-  const plan = record.aiOutput;
+  const plan = record.aiOutput ?? null;
   const hasStructural = record.d1Trend != null || record.h4Trend != null;
   const hasLevels =
     record.d1S1 != null || record.d1R1 != null ||
     record.h4S1 != null || record.h4R1 != null;
-  const hasPrimarySetup = plan?.primarySetup?.direction !== 'none';
+  const hasPrimarySetup = plan?.primarySetup != null && plan.primarySetup.direction !== 'none';
 
   return (
     <article className="daily-plan-card">
