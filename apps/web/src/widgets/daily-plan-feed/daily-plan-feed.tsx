@@ -180,11 +180,11 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
         </div>
       )}
 
-      {/* Summary (AI analysis text) */}
-      {plan?.summary && (
+      {/* Summary (AI analysis text) — fall back to record.summary for old records */}
+      {(plan?.summary || record.summary) && (
         <div className="daily-plan-analysis">
           <p className="daily-plan-analysis-label">Summary</p>
-          <pre className="daily-plan-analysis-text">{plan.summary}</pre>
+          <pre className="daily-plan-analysis-text">{plan?.summary || record.summary}</pre>
         </div>
       )}
 
