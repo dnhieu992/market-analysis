@@ -14,6 +14,8 @@ const apiKey = process.env.CLAUDE_API_KEY || '';
 // eslint-disable-next-line no-console
 console.log('[dotenv] CLAUDE_API_KEY:', apiKey || 'MISSING', '| length:', apiKey.length, '| charCodes tail:', [...apiKey.slice(-5)].map(c => c.charCodeAt(0)));
 // eslint-disable-next-line no-console
+console.log('[dotenv] CLAUDE_MODEL:', process.env.CLAUDE_MODEL ?? 'MISSING (will default to sonnet)');
+// eslint-disable-next-line no-console
 console.log('[dotenv] WORKER_SEND_DAILY_ON_BOOT:', process.env.WORKER_SEND_DAILY_ON_BOOT ?? 'MISSING');
 // eslint-disable-next-line no-console
 console.log('[dotenv] TELEGRAM_BOT_TOKEN:', process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.slice(0, 10) + '...' : 'MISSING');
