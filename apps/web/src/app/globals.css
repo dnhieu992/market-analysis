@@ -2080,9 +2080,11 @@ a {
   font-family: inherit;
   font-size: 0.83rem;
   line-height: 1.6;
-  white-space: pre;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   overflow-y: auto;
+  overflow-x: hidden;
   background: rgba(0,0,0,0.06);
   border-radius: 8px;
   padding: 10px 12px;
