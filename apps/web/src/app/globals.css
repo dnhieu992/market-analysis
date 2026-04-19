@@ -1680,6 +1680,10 @@ a {
     padding: 10px 12px;
     max-height: 260px;
   }
+
+  .dp-setup-row {
+    grid-template-columns: 90px 1fr;
+  }
 }
 
 /* ── Back-Test ─────────────────────────────────────────────── */
@@ -1981,6 +1985,160 @@ a {
   margin: 0;
   max-height: 400px;
   overflow-y: auto;
+}
+
+/* Bias + confidence row */
+.dp-bias-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dp-bias-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.dp-bias-badge--bullish { background: rgba(31,111,91,0.12); color: var(--accent); }
+.dp-bias-badge--bearish { background: rgba(192,57,43,0.10); color: #c0392b; }
+.dp-bias-badge--neutral { background: rgba(23,18,13,0.06); color: var(--muted); }
+
+.dp-confidence {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dp-setup-type {
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: rgba(0,0,0,0.05);
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+
+/* Direction badge */
+.dp-dir-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.dp-dir-badge--long  { background: rgba(31,111,91,0.12); color: var(--accent); }
+.dp-dir-badge--short { background: rgba(192,57,43,0.10); color: #c0392b; }
+.dp-dir-badge--none  { background: rgba(23,18,13,0.06); color: var(--muted); }
+
+/* Primary setup */
+.dp-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(0,0,0,0.04);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.dp-setup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dp-setup-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.dp-setup-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-setup-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  font-size: 0.83rem;
+  line-height: 1.5;
+}
+
+.dp-setup-label {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.76rem;
+  padding-top: 1px;
+  flex-shrink: 0;
+}
+
+.dp-setup-value {
+  color: var(--fg);
+  word-break: break-word;
+}
+
+/* Final action */
+.dp-final-action {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dp-final-action-label {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.dp-final-action-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* Reasoning */
+.dp-reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-reasoning-label {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.dp-reasoning-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dp-reasoning-item {
+  font-size: 0.83rem;
+  line-height: 1.55;
+  color: var(--fg);
 }
 
 .daily-plan-card-footer {
