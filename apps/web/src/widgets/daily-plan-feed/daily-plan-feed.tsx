@@ -121,11 +121,13 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
       </header>
 
       {/* Bias + Confidence */}
-      {plan && (
+      {plan?.bias && (
         <div className="dp-bias-row">
           <BiasBadge bias={plan.bias} />
-          <span className="dp-confidence">Confidence: <strong>{plan.confidence}%</strong></span>
-          <span className="dp-setup-type">{plan.setupType}</span>
+          {plan.confidence != null && (
+            <span className="dp-confidence">Confidence: <strong>{plan.confidence}%</strong></span>
+          )}
+          {plan.setupType && <span className="dp-setup-type">{plan.setupType}</span>}
         </div>
       )}
 
@@ -167,7 +169,7 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
       )}
 
       {/* Reasoning */}
-      {plan?.reasoning && plan.reasoning.length > 0 && (
+      {Array.isArray(plan?.reasoning) && plan.reasoning.length > 0 && (
         <div className="dp-reasoning">
           <p className="dp-reasoning-label">Reasoning</p>
           <ul className="dp-reasoning-list">
