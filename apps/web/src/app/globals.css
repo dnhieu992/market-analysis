@@ -1880,7 +1880,8 @@ a {
   flex-direction: column;
   gap: 14px;
   min-width: 0;
-  overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .daily-plan-card-header {
@@ -1975,9 +1976,7 @@ a {
 }
 
 .daily-plan-analysis-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: pre;
   font-family: inherit;
   font-size: 0.88rem;
   line-height: 1.65;
@@ -1988,7 +1987,7 @@ a {
   margin: 0;
   max-height: 480px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 /* Bias + confidence row */
