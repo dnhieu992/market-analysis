@@ -1681,8 +1681,9 @@ a {
     max-height: 260px;
   }
 
-  .dp-setup-row {
-    grid-template-columns: 90px 1fr;
+  .dp-card-grid {
+    column-gap: 10px;
+    row-gap: 10px;
   }
 }
 
@@ -1961,43 +1962,60 @@ a {
 .level--resistance { background: rgba(192,57,43,0.08); color: #c0392b; }
 .level--support { background: rgba(31,111,91,0.08); color: var(--accent); }
 
-.daily-plan-analysis {
+/* ── Daily plan card grid (matches trading-history card style) ── */
+
+.dp-card-header {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.daily-plan-analysis-label {
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-
-.daily-plan-analysis-text {
-  white-space: pre;
-  font-family: inherit;
-  font-size: 0.88rem;
-  line-height: 1.65;
-  color: var(--fg);
-  background: rgba(0,0,0,0.15);
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin: 0;
-  max-height: 480px;
-  overflow-y: auto;
-  overflow-x: auto;
-}
-
-/* Bias + confidence row */
-.dp-bias-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
+.dp-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 2-column grid of labeled fields */
+.dp-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
+  row-gap: 12px;
+}
+
+.dp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dp-field--full {
+  grid-column: 1 / -1;
+}
+
+.dp-field-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+.dp-field-value {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--fg);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* Bias badge */
 .dp-bias-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -2009,22 +2027,6 @@ a {
 .dp-bias-badge--bullish { background: rgba(31,111,91,0.12); color: var(--accent); }
 .dp-bias-badge--bearish { background: rgba(192,57,43,0.10); color: #c0392b; }
 .dp-bias-badge--neutral { background: rgba(23,18,13,0.06); color: var(--muted); }
-
-.dp-confidence {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.dp-setup-type {
-  font-size: 0.74rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  background: rgba(0,0,0,0.05);
-  padding: 2px 8px;
-  border-radius: 5px;
-}
 
 /* Direction badge */
 .dp-dir-badge {
@@ -2039,102 +2041,23 @@ a {
 .dp-dir-badge--short { background: rgba(192,57,43,0.10); color: #c0392b; }
 .dp-dir-badge--none  { background: rgba(23,18,13,0.06); color: var(--muted); }
 
-/* Primary setup */
-.dp-setup {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: rgba(0,0,0,0.04);
-  border-radius: 10px;
-  padding: 14px;
-}
-
-.dp-setup-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.dp-setup-title {
+/* Setup type tag */
+.dp-setup-type {
+  display: inline-block;
   font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
-.dp-setup-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.dp-setup-row {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 8px;
-  font-size: 0.83rem;
-  line-height: 1.5;
-}
-
-.dp-setup-label {
-  color: var(--muted);
   font-weight: 600;
-  font-size: 0.76rem;
-  padding-top: 1px;
-  flex-shrink: 0;
-}
-
-.dp-setup-value {
-  color: var(--fg);
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-
-/* Final action */
-.dp-final-action {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.dp-final-action-label {
-  margin: 0;
-  font-size: 0.74rem;
-  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
+  background: rgba(0,0,0,0.05);
+  padding: 2px 8px;
+  border-radius: 5px;
 }
 
-.dp-final-action-text {
-  margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.6;
-  color: var(--fg);
-  font-weight: 500;
-}
-
-/* Reasoning */
-.dp-reasoning {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.dp-reasoning-label {
-  margin: 0;
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-
+/* Reasoning list */
 .dp-reasoning-list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 16px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2143,12 +2066,44 @@ a {
 .dp-reasoning-item {
   font-size: 0.83rem;
   line-height: 1.55;
-  color: var(--fg);
+  word-break: break-word;
+}
+
+/* Scrollable pre block for summary */
+.dp-scrolltext-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-scrolltext {
+  font-family: inherit;
+  font-size: 0.83rem;
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+}
+
+.dp-scrolltext-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.76rem;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
 }
 
 .daily-plan-card-footer {
   display: flex;
   justify-content: flex-end;
+  padding-top: 4px;
 }
 
 .daily-plan-meta {
