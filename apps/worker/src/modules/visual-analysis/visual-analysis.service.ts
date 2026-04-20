@@ -20,7 +20,7 @@ type ClaudeMessagesResponse = {
   content?: Array<{ type: string; text?: string }>;
 };
 
-const CLAUDE_MODEL = 'claude-sonnet-4-6';
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 const CANDLE_LIMIT = 200; // fetch 200, render last 150
 const CHART_CANDLES = 150;
 
