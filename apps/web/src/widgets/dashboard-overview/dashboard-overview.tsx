@@ -1,4 +1,8 @@
+import type { DashboardAnalysisRun, DashboardOrder, DashboardSignal } from '@web/shared/api/types';
 import { HoldingsAllocationChart } from '@web/widgets/holdings-allocation-chart/holdings-allocation-chart';
+import { QuickActions } from './quick-actions';
+import { RecentAnalysisPanel } from './recent-analysis-panel';
+import { RecentOrdersPanel } from './recent-orders-panel';
 
 type HoldingEntry = {
   coinId: string;
@@ -11,9 +15,12 @@ type DashboardOverviewProps = Readonly<{
   lastUpdatedLabel: string;
   allHoldings: HoldingEntry[];
   portfolioCount: number;
+  orders: DashboardOrder[];
+  signals: DashboardSignal[];
+  analysisRuns: DashboardAnalysisRun[];
 }>;
 
-export function DashboardOverview({ lastUpdatedLabel, allHoldings, portfolioCount }: DashboardOverviewProps) {
+export function DashboardOverview({ lastUpdatedLabel, allHoldings, portfolioCount, orders, signals, analysisRuns }: DashboardOverviewProps) {
   return (
     <main className="dashboard-shell">
       <section className="hero-card">
@@ -32,6 +39,13 @@ export function DashboardOverview({ lastUpdatedLabel, allHoldings, portfolioCoun
       </section>
 
       <HoldingsAllocationChart holdings={allHoldings} portfolioCount={portfolioCount} />
+
+      <section className="content-grid">
+        <RecentAnalysisPanel signals={signals} analysisRuns={analysisRuns} />
+        <RecentOrdersPanel orders={orders} />
+      </section>
+
+      <QuickActions lastUpdatedLabel={lastUpdatedLabel} />
     </main>
   );
 }

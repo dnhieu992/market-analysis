@@ -6,10 +6,11 @@ import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-ove
 async function loadDashboardData() {
   const client = createServerApiClient();
   try {
-    const [orders, analysisRuns, portfolios] = await Promise.all([
+    const [orders, analysisRuns, portfolios, signals] = await Promise.all([
       client.fetchOrders(),
       client.fetchAnalysisRuns(),
       client.fetchPortfolios(),
+      client.fetchSignals(),
     ]);
 
     // fetch holdings for all portfolios in parallel
@@ -37,9 +38,9 @@ async function loadDashboardData() {
       totalCost: v.totalCost,
     }));
 
-    return { orders, analysisRuns, allHoldings, portfolioCount: portfolios.length };
+    return { orders, analysisRuns, signals, allHoldings, portfolioCount: portfolios.length };
   } catch {
-    return { orders: [] as DashboardOrder[], analysisRuns: [], allHoldings: [], portfolioCount: 0 };
+    return { orders: [] as DashboardOrder[], analysisRuns: [], signals: [], allHoldings: [], portfolioCount: 0 };
   }
 }
 
@@ -72,12 +73,22 @@ function buildOverviewCards(orders: DashboardOrder[]) {
 }
 
 export default async function OverviewPage() {
-  const { orders, analysisRuns, allHoldings, portfolioCount } = await loadDashboardData();
+  const { orders, analysisRuns, signals, allHoldings, portfolioCount } = await loadDashboardData();
   const cards = buildOverviewCards(orders);
   const lastUpdated =
     analysisRuns[0]?.createdAt instanceof Date
       ? formatDateTime(analysisRuns[0].createdAt)
       : 'just now';
 
-  return <DashboardOverview cards={cards} lastUpdatedLabel={lastUpdated} allHoldings={allHoldings} portfolioCount={portfolioCount} />;
+  return (
+    <DashboardOverview
+      cards={cards}
+      lastUpdatedLabel={lastUpdated}
+      allHoldings={allHoldings}
+      portfolioCount={portfolioCount}
+      orders={orders}
+      signals={signals}
+      analysisRuns={analysisRuns}
+    />
+  );
 }
