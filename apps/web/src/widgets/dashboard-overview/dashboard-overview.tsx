@@ -1,14 +1,5 @@
 import { HoldingsAllocationChart } from '@web/widgets/holdings-allocation-chart/holdings-allocation-chart';
 
-import { OverviewCards } from './overview-cards';
-
-type OverviewCard = Readonly<{
-  label: string;
-  value: string;
-  detail: string;
-  positive?: boolean;
-}>;
-
 type HoldingEntry = {
   coinId: string;
   totalAmount: number;
@@ -16,12 +7,13 @@ type HoldingEntry = {
 };
 
 type DashboardOverviewProps = Readonly<{
-  cards: readonly OverviewCard[];
+  cards: readonly unknown[];
   lastUpdatedLabel: string;
   allHoldings: HoldingEntry[];
+  portfolioCount: number;
 }>;
 
-export function DashboardOverview({ cards, lastUpdatedLabel, allHoldings }: DashboardOverviewProps) {
+export function DashboardOverview({ lastUpdatedLabel, allHoldings, portfolioCount }: DashboardOverviewProps) {
   return (
     <main className="dashboard-shell">
       <section className="hero-card">
@@ -39,8 +31,7 @@ export function DashboardOverview({ cards, lastUpdatedLabel, allHoldings }: Dash
         </div>
       </section>
 
-      <OverviewCards cards={cards} />
-      <HoldingsAllocationChart holdings={allHoldings} />
+      <HoldingsAllocationChart holdings={allHoldings} portfolioCount={portfolioCount} />
     </main>
   );
 }

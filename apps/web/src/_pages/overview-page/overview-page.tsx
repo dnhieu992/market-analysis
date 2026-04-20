@@ -37,9 +37,9 @@ async function loadDashboardData() {
       totalCost: v.totalCost,
     }));
 
-    return { orders, analysisRuns, allHoldings };
+    return { orders, analysisRuns, allHoldings, portfolioCount: portfolios.length };
   } catch {
-    return { orders: [] as DashboardOrder[], analysisRuns: [], allHoldings: [] };
+    return { orders: [] as DashboardOrder[], analysisRuns: [], allHoldings: [], portfolioCount: 0 };
   }
 }
 
@@ -72,12 +72,12 @@ function buildOverviewCards(orders: DashboardOrder[]) {
 }
 
 export default async function OverviewPage() {
-  const { orders, analysisRuns, allHoldings } = await loadDashboardData();
+  const { orders, analysisRuns, allHoldings, portfolioCount } = await loadDashboardData();
   const cards = buildOverviewCards(orders);
   const lastUpdated =
     analysisRuns[0]?.createdAt instanceof Date
       ? formatDateTime(analysisRuns[0].createdAt)
       : 'just now';
 
-  return <DashboardOverview cards={cards} lastUpdatedLabel={lastUpdated} allHoldings={allHoldings} />;
+  return <DashboardOverview cards={cards} lastUpdatedLabel={lastUpdated} allHoldings={allHoldings} portfolioCount={portfolioCount} />;
 }

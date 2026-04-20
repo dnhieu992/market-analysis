@@ -235,18 +235,34 @@ a {
 }
 
 /* ── Holdings Allocation Chart ───────────────────────────── */
-.alloc-card {
+/* ── Portfolio Summary Card ── */
+.ps-card {
+  display: flex;
+  gap: 0;
   border: 1px solid var(--border);
   background: var(--background-elevated);
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
   border-radius: 24px;
-  padding: 28px 32px;
+  padding: 32px;
   margin-top: 18px;
 }
 
-.alloc-section-title {
-  margin: 0 0 16px;
+.ps-left {
+  flex: 1;
+  min-width: 0;
+  padding-right: 32px;
+  border-right: 1px solid var(--border);
+}
+
+.ps-right {
+  flex: 1;
+  min-width: 0;
+  padding-left: 32px;
+}
+
+.ps-eyebrow {
+  margin: 0;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -254,19 +270,115 @@ a {
   color: var(--muted);
 }
 
-.alloc-donut-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
+.ps-net-worth {
+  margin: 8px 0 12px;
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
-.alloc-chart-wrap {
-  width: 150px;
-  height: 150px;
+.ps-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.ps-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid;
+}
+
+.ps-badge--up {
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.ps-badge--down {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.ps-pnl-section {
+  margin-bottom: 24px;
+}
+
+.ps-pnl-value {
+  margin: 6px 0 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.ps-pnl--up { color: #22c55e; }
+.ps-pnl--down { color: #ef4444; }
+
+.ps-pnl-pct {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-left: 6px;
+  opacity: 0.8;
+}
+
+.ps-stat-row {
+  display: flex;
+  gap: 12px;
+}
+
+.ps-stat-box {
+  flex: 1;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.ps-stat-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.ps-stat-value {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+/* ── Right: section title ── */
+.ps-section-title {
+  margin: 0 0 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* ── Asset Allocation ── */
+.ps-donut-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.ps-chart-wrap {
+  width: 140px;
+  height: 140px;
   flex-shrink: 0;
 }
 
-.alloc-legend {
+.ps-legend {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -274,46 +386,46 @@ a {
   min-width: 0;
 }
 
-.alloc-legend-item {
+.ps-legend-item {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
 }
 
-.alloc-legend-dot {
+.ps-legend-dot {
   width: 10px;
   height: 10px;
   border-radius: 2px;
   flex-shrink: 0;
 }
 
-.alloc-legend-name {
+.ps-legend-name {
   font-weight: 500;
   flex: 1;
   min-width: 0;
 }
 
-.alloc-legend-pct {
+.ps-legend-pct {
   font-weight: 600;
   text-align: right;
-  min-width: 36px;
+  min-width: 32px;
 }
 
-.alloc-divider {
+/* ── Divider ── */
+.ps-divider {
   height: 1px;
   background: var(--border);
   margin: 20px 0;
 }
 
-/* Top Holdings list */
-.alloc-top-list {
+/* ── Top Holdings ── */
+.ps-top-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
 }
 
-.alloc-top-row {
+.ps-top-row {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -322,60 +434,89 @@ a {
   font-size: 0.9rem;
 }
 
-.alloc-top-row:last-child {
+.ps-top-row:last-child {
   border-bottom: none;
 }
 
-.alloc-top-rank {
+.ps-top-rank {
   color: var(--muted);
   font-size: 0.8rem;
   width: 16px;
   flex-shrink: 0;
 }
 
-.alloc-top-coin {
+.ps-top-coin {
   font-weight: 700;
   flex: 1;
   min-width: 0;
 }
 
-.alloc-top-value {
+.ps-top-value {
   font-weight: 600;
   text-align: right;
 }
 
-.alloc-top-change {
+.ps-top-change {
   font-size: 0.8rem;
   font-weight: 500;
   min-width: 48px;
   text-align: right;
 }
 
-.alloc-top-change--up {
-  color: #22c55e;
-}
+.ps-top-change--up { color: #22c55e; }
+.ps-top-change--down { color: #ef4444; }
 
-.alloc-top-change--down {
-  color: #ef4444;
-}
-
+/* ── Mobile ── */
 @media (max-width: 700px) {
-  .alloc-card {
+  .ps-card {
+    flex-direction: column;
     padding: 20px 16px;
+    gap: 24px;
   }
 
-  .alloc-donut-row {
+  .ps-left {
+    padding-right: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+
+  .ps-right {
+    padding-left: 0;
+  }
+
+  .ps-net-worth {
+    font-size: 1.8rem;
+  }
+
+  .ps-pnl-value {
+    font-size: 1.2rem;
+  }
+
+  .ps-stat-row {
+    gap: 8px;
+  }
+
+  .ps-stat-box {
+    padding: 10px 12px;
+  }
+
+  .ps-stat-value {
+    font-size: 1.1rem;
+  }
+
+  .ps-donut-row {
     flex-direction: column;
     align-items: center;
     gap: 16px;
   }
 
-  .alloc-chart-wrap {
-    width: 130px;
-    height: 130px;
+  .ps-chart-wrap {
+    width: 120px;
+    height: 120px;
   }
 
-  .alloc-legend {
+  .ps-legend {
     width: 100%;
     flex-direction: row;
     flex-wrap: wrap;
@@ -383,18 +524,14 @@ a {
     justify-content: center;
   }
 
-  .alloc-legend-item {
+  .ps-legend-item {
     font-size: 0.78rem;
   }
 
-  .alloc-top-row {
+  .ps-top-row {
     font-size: 0.82rem;
     gap: 8px;
     padding: 10px 0;
-  }
-
-  .alloc-top-change {
-    min-width: 40px;
   }
 }
 
