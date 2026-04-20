@@ -241,102 +241,190 @@ a {
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
   border-radius: 24px;
-  padding: 24px;
+  padding: 28px 32px;
   margin-top: 18px;
-}
-
-.alloc-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-}
-
-.alloc-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.alloc-sub {
-  margin: 2px 0 0;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.alloc-total {
-  text-align: right;
-}
-
-.alloc-total-label {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.alloc-total-value {
-  font-size: 1.25rem;
-  font-weight: 700;
 }
 
 .alloc-body {
   display: flex;
-  align-items: center;
-  gap: 32px;
+  gap: 0;
   overflow: hidden;
 }
 
-.alloc-chart-wrap {
-  width: 220px;
-  height: 220px;
-  flex-shrink: 0;
-}
-
-.alloc-legend {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(140px, 1fr));
-  gap: 6px 32px;
+.alloc-section-left {
   flex: 1;
   min-width: 0;
 }
 
-@media (max-width: 560px) {
-  .alloc-body {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
-  }
+.alloc-section-right {
+  flex: 1;
+  min-width: 0;
+}
 
-  .alloc-chart-wrap {
-    width: 100%;
-  }
+.alloc-section-title {
+  margin: 0 0 16px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
 
-  .alloc-legend {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.alloc-donut-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.alloc-chart-wrap {
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+}
+
+.alloc-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
 .alloc-legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
+  gap: 8px;
+  font-size: 0.85rem;
 }
 
 .alloc-legend-dot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: 2px;
   flex-shrink: 0;
 }
 
 .alloc-legend-name {
-  font-weight: 600;
-  min-width: 48px;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
 }
 
 .alloc-legend-pct {
+  font-weight: 600;
+  text-align: right;
+  min-width: 36px;
+}
+
+.alloc-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 32px;
+  flex-shrink: 0;
+}
+
+/* Top Holdings list */
+.alloc-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.alloc-top-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.alloc-top-row:last-child {
+  border-bottom: none;
+}
+
+.alloc-top-rank {
   color: var(--muted);
+  font-size: 0.8rem;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.alloc-top-coin {
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+}
+
+.alloc-top-value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.alloc-top-change {
+  font-size: 0.8rem;
+  font-weight: 500;
+  min-width: 48px;
+  text-align: right;
+}
+
+.alloc-top-change--up {
+  color: #22c55e;
+}
+
+.alloc-top-change--down {
+  color: #ef4444;
+}
+
+@media (max-width: 700px) {
+  .alloc-card {
+    padding: 20px 16px;
+  }
+
+  .alloc-body {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .alloc-divider {
+    width: 100%;
+    height: 1px;
+    margin: 0;
+  }
+
+  .alloc-donut-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .alloc-chart-wrap {
+    width: 130px;
+    height: 130px;
+  }
+
+  .alloc-legend {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    justify-content: center;
+  }
+
+  .alloc-legend-item {
+    font-size: 0.78rem;
+  }
+
+  .alloc-top-row {
+    font-size: 0.82rem;
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+  .alloc-top-change {
+    min-width: 40px;
+  }
 }
 
 .topbar {
