@@ -127,76 +127,70 @@ export function HoldingsAllocationChart({ holdings }: Props) {
 
   return (
     <section className="alloc-card">
-      <div className="alloc-body">
-        {/* Left: Asset Allocation with donut */}
-        <div className="alloc-section-left">
-          <h3 className="alloc-section-title">Asset Allocation</h3>
-          <div className="alloc-donut-row">
-            <div className="alloc-chart-wrap">
-              {loaded && data.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={data}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={72}
-                      dataKey="value"
-                      strokeWidth={2}
-                      stroke="var(--background-elevated, #1a1a2e)"
-                    >
-                      {data.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value) => [
-                        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value)),
-                        '',
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <span className="tt-muted" style={{ fontSize: '0.8rem' }}>loading…</span>
-              )}
-            </div>
-
-            <div className="alloc-legend">
-              {data.map((entry, i) => (
-                <div key={entry.name} className="alloc-legend-item">
-                  <span className="alloc-legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
-                  <span className="alloc-legend-name">{entry.name}</span>
-                  <span className="alloc-legend-pct">{Math.round(entry.pct)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Asset Allocation: donut + legend side by side */}
+      <h3 className="alloc-section-title">Asset Allocation</h3>
+      <div className="alloc-donut-row">
+        <div className="alloc-chart-wrap">
+          {loaded && data.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={72}
+                  dataKey="value"
+                  strokeWidth={2}
+                  stroke="var(--background-elevated, #1a1a2e)"
+                >
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => [
+                    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value)),
+                    '',
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <span className="tt-muted" style={{ fontSize: '0.8rem' }}>loading…</span>
+          )}
         </div>
 
-        {/* Divider */}
-        <div className="alloc-divider" />
-
-        {/* Right: Top Holdings */}
-        <div className="alloc-section-right">
-          <h3 className="alloc-section-title">Top Holdings</h3>
-          <div className="alloc-top-list">
-            {topHoldings.map((h, i) => {
-              const isPositive = h.change24h >= 0;
-              return (
-                <div key={h.coinId} className="alloc-top-row">
-                  <span className="alloc-top-rank">{i + 1}</span>
-                  <span className="alloc-top-coin">{h.coinId}</span>
-                  <span className="alloc-top-value">{formatUsd(h.value)}</span>
-                  <span className={`alloc-top-change ${isPositive ? 'alloc-top-change--up' : 'alloc-top-change--down'}`}>
-                    {isPositive ? '+' : ''}{h.change24h.toFixed(1)}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+        <div className="alloc-legend">
+          {data.map((entry, i) => (
+            <div key={entry.name} className="alloc-legend-item">
+              <span className="alloc-legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
+              <span className="alloc-legend-name">{entry.name}</span>
+              <span className="alloc-legend-pct">{Math.round(entry.pct)}%</span>
+            </div>
+          ))}
         </div>
+      </div>
+
+      {/* Divider */}
+      <div className="alloc-divider" />
+
+      {/* Top Holdings */}
+      <h3 className="alloc-section-title">Top Holdings</h3>
+      <div className="alloc-top-list">
+        {topHoldings.map((h, i) => {
+          const isPositive = h.change24h >= 0;
+          return (
+            <div key={h.coinId} className="alloc-top-row">
+              <span className="alloc-top-rank">{i + 1}</span>
+              <span className="alloc-top-coin">{h.coinId}</span>
+              <span className="alloc-top-value">{formatUsd(h.value)}</span>
+              <span className={`alloc-top-change ${isPositive ? 'alloc-top-change--up' : 'alloc-top-change--down'}`}>
+                {isPositive ? '+' : ''}{h.change24h.toFixed(1)}%
+              </span>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
