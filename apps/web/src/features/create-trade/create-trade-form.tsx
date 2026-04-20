@@ -16,6 +16,14 @@ function toDatetimeLocal(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function formatEntryPrice(value: string): string {
+  const num = Number(value);
+  if (isNaN(num) || value === '') return value;
+  const decimals = num >= 1 ? 3 : 5;
+  // Remove trailing zeros but keep at least the meaningful precision
+  return parseFloat(num.toFixed(decimals)).toString();
+}
+
 export function TradeForm({ onSubmitted }: TradeFormProps) {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [entryPrice, setEntryPrice] = useState('');
@@ -30,7 +38,7 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
     try {
       const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sym.toUpperCase()}`);
       const data = await res.json() as { price?: string };
-      if (data.price) setEntryPrice(data.price);
+      if (data.price) setEntryPrice(formatEntryPrice(data.price));
     } catch {
       // silently ignore — user can type price manually
     } finally {
@@ -98,10 +106,11 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
           name="entryPrice"
           type="number"
           min="0"
-          step="0.01"
+          step="any"
           placeholder="0.00"
           value={entryPrice}
           onChange={(e) => setEntryPrice(e.target.value)}
+          onBlur={() => setEntryPrice(formatEntryPrice(entryPrice))}
           required
         />
       </label>

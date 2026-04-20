@@ -18,6 +18,10 @@ function formatUsd(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 }
 
+function formatPrice(value: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 5, maximumFractionDigits: 5 }).format(value);
+}
+
 function formatCrypto(value: number, coin: string): string {
   return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(value)} ${coin}`;
 }
@@ -118,7 +122,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
         <div>
           <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 600, color: 'var(--muted)' }}>{coinId}</h1>
           <div style={{ fontSize: '2rem', fontWeight: 700 }}>
-            {currentPrice != null ? formatUsd(currentPrice) : <span style={{ color: 'var(--muted)', fontSize: '1.2rem' }}>Fetching price…</span>}
+            {currentPrice != null ? formatPrice(currentPrice) : <span style={{ color: 'var(--muted)', fontSize: '1.2rem' }}>Fetching price…</span>}
           </div>
         </div>
         <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
@@ -130,7 +134,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           {formatCrypto(totalAmount, coinId)}
         </StatCard>
         <StatCard label="Avg. buy price">
-          {formatUsd(avgCost)}
+          {formatPrice(avgCost)}
         </StatCard>
         <StatCard label="Total profit / loss">
           <span className={isPnlPositive ? 'tt-pnl-positive' : 'tt-pnl-negative'}>
@@ -178,7 +182,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                         </div>
                       </td>
                       {/* Price */}
-                      <td data-label="Price">{formatUsd(tx.price)}</td>
+                      <td data-label="Price">{formatPrice(tx.price)}</td>
                       {/* Amount */}
                       <td data-label="Amount">
                         <div style={{ color: amountColor, fontWeight: 500 }}>
