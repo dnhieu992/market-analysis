@@ -7,6 +7,7 @@ type HoldingEntry = {
   coinId: string;
   totalAmount: number;
   totalCost: number;
+  realizedPnl: number;
 };
 
 type ChartEntry = {
@@ -24,6 +25,7 @@ type TopHolding = {
 type ComputedData = {
   totalValue: number;
   totalCost: number;
+  totalRealizedPnl: number;
   change24hUsd: number;
   change24hPct: number;
   chart: ChartEntry[];
@@ -90,7 +92,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
   useEffect(() => {
     if (holdings.length === 0) {
       setComputed({
-        totalValue: 0, totalCost: 0, change24hUsd: 0, change24hPct: 0,
+        totalValue: 0, totalCost: 0, totalRealizedPnl: 0, change24hUsd: 0, change24hPct: 0,
         chart: [], topHoldings: [], holdingCount: 0, cashValue: 0,
       });
       return;
@@ -117,6 +119,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
         const totalValue = entries.reduce((s, e) => s + e.value, 0);
         const totalCost = holdings.reduce((s, h) => s + h.totalCost, 0);
+        const totalRealizedPnl = holdings.reduce((s, h) => s + h.realizedPnl, 0);
         const change24hUsd = entries.reduce((s, e) => s + e.change24hUsd, 0);
         const prevValue = totalValue - change24hUsd;
         const change24hPct = prevValue > 0 ? (change24hUsd / prevValue) * 100 : 0;
@@ -145,6 +148,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
         setComputed({
           totalValue,
           totalCost,
+          totalRealizedPnl,
           change24hUsd,
           change24hPct,
           chart,
@@ -160,7 +164,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
   }, [holdings]);
 
   const d = computed;
-  const allTimePnl = d ? d.totalValue - d.totalCost : 0;
+  const allTimePnl = d ? (d.totalValue - d.totalCost) + d.totalRealizedPnl : 0;
   const allTimePnlPct = d && d.totalCost > 0 ? (allTimePnl / d.totalCost) * 100 : 0;
   const isPnlPositive = allTimePnl >= 0;
   const is24hPositive = d ? d.change24hUsd >= 0 : true;

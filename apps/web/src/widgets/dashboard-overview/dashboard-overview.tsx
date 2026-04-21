@@ -13,6 +13,7 @@ type HoldingEntry = {
   coinId: string;
   totalAmount: number;
   totalCost: number;
+  realizedPnl: number;
 };
 
 type DashboardOverviewProps = Readonly<{
