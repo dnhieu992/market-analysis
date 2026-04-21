@@ -779,6 +779,44 @@ a {
   color: #9b2c2c;
 }
 
+.estimated-pnl {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.estimated-pnl--positive {
+  background: #f0fff4;
+  border: 1px solid #9ae6b4;
+}
+
+.estimated-pnl--negative {
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+}
+
+.estimated-pnl__label {
+  font-weight: 600;
+  color: var(--muted, #666);
+}
+
+.estimated-pnl__value {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.estimated-pnl--positive .estimated-pnl__value {
+  color: #276749;
+}
+
+.estimated-pnl--negative .estimated-pnl__value {
+  color: #9b2c2c;
+}
+
 /* ── Trades summary bar ──────────────────────────────────────── */
 .tt-summary-bar {
   display: flex;

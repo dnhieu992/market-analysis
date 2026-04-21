@@ -91,6 +91,9 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
                 orderId={closeTradeOrder.id}
                 status="open"
                 defaultClosePrice={closeDefaultPrice}
+                entryPrice={closeTradeOrder.entryPrice}
+                quantity={closeTradeOrder.quantity}
+                side={closeTradeOrder.side}
                 onSubmitted={() => setCloseTradeOrder(null)}
               />
             </div>

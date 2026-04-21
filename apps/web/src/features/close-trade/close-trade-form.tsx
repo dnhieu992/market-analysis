@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, type FormEvent } from 'react';
+import { useState, useEffect, useTransition, type FormEvent } from 'react';
 
 import {
   parseCloseOrderFormData,
@@ -11,6 +11,9 @@ type CloseTradeFormProps = Readonly<{
   orderId: string;
   status: string;
   defaultClosePrice?: number;
+  entryPrice?: number;
+  quantity?: number | null;
+  side?: string;
   onSubmitted?: () => void;
 }>;
 
@@ -19,9 +22,21 @@ function toDatetimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-export function CloseTradeForm({ orderId, status, defaultClosePrice, onSubmitted }: CloseTradeFormProps) {
+export function CloseTradeForm({ orderId, status, defaultClosePrice, entryPrice, quantity, side, onSubmitted }: CloseTradeFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [closePrice, setClosePrice] = useState<number | undefined>(defaultClosePrice);
+
+  useEffect(() => {
+    if (defaultClosePrice !== undefined) setClosePrice(defaultClosePrice);
+  }, [defaultClosePrice]);
+
+  const estimatedPnl =
+    closePrice !== undefined && entryPrice !== undefined
+      ? side === 'short'
+        ? (entryPrice - closePrice) * (quantity ?? 1)
+        : (closePrice - entryPrice) * (quantity ?? 1)
+      : null;
 
   if (status.toLowerCase() !== 'open') {
     return null;
@@ -59,10 +74,20 @@ export function CloseTradeForm({ orderId, status, defaultClosePrice, onSubmitted
           min="0"
           step="0.01"
           placeholder="69000"
-          defaultValue={defaultClosePrice ?? ''}
+          value={closePrice ?? ''}
+          onChange={(e) => setClosePrice(e.target.value === '' ? undefined : Number(e.target.value))}
           required
         />
       </label>
+
+      {estimatedPnl !== null && (
+        <div className={`estimated-pnl ${estimatedPnl >= 0 ? 'estimated-pnl--positive' : 'estimated-pnl--negative'}`}>
+          <span className="estimated-pnl__label">Estimated P&amp;L</span>
+          <span className="estimated-pnl__value">
+            {estimatedPnl >= 0 ? '+' : ''}{estimatedPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
 
       <label className="trade-field">
         <span>Close Date &amp; Time</span>
