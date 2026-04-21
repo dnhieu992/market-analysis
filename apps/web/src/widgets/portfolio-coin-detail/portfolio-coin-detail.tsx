@@ -23,6 +23,10 @@ function formatPrice(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
 }
 
+function formatExactPrice(value: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 10 }).format(value);
+}
+
 function formatCrypto(value: number, coin: string): string {
   return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(value)} ${coin}`;
 }
@@ -135,7 +139,10 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           {formatCrypto(totalAmount, coinId)}
         </StatCard>
         <StatCard label="Avg. buy price">
-          {formatPrice(avgCost)}
+          {formatExactPrice(avgCost)}
+        </StatCard>
+        <StatCard label="Basic Cost">
+          {formatUsd(totalInvested)}
         </StatCard>
         <StatCard label="Total profit / loss">
           <span className={isPnlPositive ? 'tt-pnl-positive' : 'tt-pnl-negative'}>
@@ -183,7 +190,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                         </div>
                       </td>
                       {/* Price */}
-                      <td data-label="Price">{formatPrice(tx.price)}</td>
+                      <td data-label="Price">{formatExactPrice(tx.price)}</td>
                       {/* Amount */}
                       <td data-label="Amount">
                         <div style={{ color: amountColor, fontWeight: 500 }}>
