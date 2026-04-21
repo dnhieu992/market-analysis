@@ -21,7 +21,7 @@ function formatPrice(value: number): string {
 }
 
 function formatExactPrice(value: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 10 }).format(value);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 8 }).format(value);
 }
 
 function formatCrypto(value: number): string {
@@ -227,7 +227,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                       {!pricesLoaded
                         ? <span className="tt-muted">loading…</span>
                         : currentPrice != null
-                          ? formatPrice(currentPrice)
+                          ? formatExactPrice(currentPrice)
                           : <span className="tt-muted">—</span>
                       }
                     </td>
