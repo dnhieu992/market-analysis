@@ -200,7 +200,11 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
               </tr>
             </thead>
             <tbody>
-              {holdings.map((h) => {
+              {[...holdings].sort((a, b) => {
+                const pnlA = ((prices[a.coinId] != null ? (prices[a.coinId] - a.avgCost) * a.totalAmount : 0) + a.realizedPnl);
+                const pnlB = ((prices[b.coinId] != null ? (prices[b.coinId] - b.avgCost) * b.totalAmount : 0) + b.realizedPnl);
+                return pnlB - pnlA;
+              }).map((h) => {
                 const currentPrice = prices[h.coinId];
                 const currentValue = currentPrice != null ? currentPrice * h.totalAmount : null;
                 const unrealizedPnl = currentPrice != null ? (currentPrice - h.avgCost) * h.totalAmount : 0;
