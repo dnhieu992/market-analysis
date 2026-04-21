@@ -22,6 +22,10 @@ function formatUsd(value: number): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 }
 
+function formatExactPrice(value: number): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 10 }).format(value);
+}
+
 export function PortfolioTransactions({ portfolioId, transactions }: PortfolioTransactionsProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -71,7 +75,7 @@ export function PortfolioTransactions({ portfolioId, transactions }: PortfolioTr
                     </span>
                   </td>
                   <td>{formatNumber(tx.amount)}</td>
-                  <td>{formatUsd(tx.price)}</td>
+                  <td>{formatExactPrice(tx.price)}</td>
                   <td>{formatUsd(tx.totalValue)}</td>
                   <td>
                     <div className="tt-actions">
