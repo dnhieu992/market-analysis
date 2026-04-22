@@ -162,15 +162,16 @@ model TradingStrategy {
 }
 
 model User {
-  id               String      @id @default(cuid())
-  email            String      @unique
-  passwordHash     String
-  name             String
-  symbolsTracking  Json        @default("[]")
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-  sessions         Session[]
-  portfolios       Portfolio[]
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  passwordHash        String
+  name                String
+  symbolsTracking     Json                 @default("[]")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  sessions            Session[]
+  portfolios          Portfolio[]
+  compoundPortfolios  CompoundPortfolio[]
 
   @@map("users")
 }
@@ -252,4 +253,54 @@ model PnlHistory {
   @@unique([portfolioId, coinId, date])
   @@index([portfolioId, date(sort: Desc)])
   @@map("pnl_history")
+}
+
+model CompoundPortfolio {
+  id           String               @id @default(uuid()) @db.Char(36)
+  userId       String
+  name         String               @db.VarChar(100)
+  description  String?              @db.Text
+  createdAt    DateTime             @default(now())
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions CompoundTransaction[]
+  holdings     CompoundHolding[]
+
+  @@index([userId])
+  @@map("compound_portfolios")
+}
+
+model CompoundTransaction {
+  id                  String            @id @default(uuid()) @db.Char(36)
+  compoundPortfolioId String            @db.Char(36)
+  coinId              String            @db.VarChar(50)
+  type                String            @db.VarChar(10)
+  price               Decimal           @db.Decimal(20, 8)
+  amount              Decimal           @db.Decimal(20, 8)
+  totalValue          Decimal           @db.Decimal(20, 8)
+  fee                 Decimal           @default(0) @db.Decimal(20, 8)
+  note                String?           @db.Text
+  transactedAt        DateTime
+  createdAt           DateTime          @default(now())
+  deletedAt           DateTime?
+  compoundPortfolio   CompoundPortfolio @relation(fields: [compoundPortfolioId], references: [id], onDelete: Cascade)
+
+  @@index([compoundPortfolioId, coinId])
+  @@index([transactedAt(sort: Desc)])
+  @@map("compound_transactions")
+}
+
+model CompoundHolding {
+  id                  String            @id @default(uuid()) @db.Char(36)
+  compoundPortfolioId String            @db.Char(36)
+  coinId              String            @db.VarChar(50)
+  totalAmount         Decimal           @db.Decimal(20, 8)
+  totalCost           Decimal           @db.Decimal(20, 8)
+  avgCost             Decimal           @db.Decimal(20, 8)
+  realizedPnl         Decimal           @default(0) @db.Decimal(20, 8)
+  updatedAt           DateTime          @updatedAt
+  compoundPortfolio   CompoundPortfolio @relation(fields: [compoundPortfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([compoundPortfolioId, coinId])
+  @@index([compoundPortfolioId])
+  @@map("compound_holdings")
 }

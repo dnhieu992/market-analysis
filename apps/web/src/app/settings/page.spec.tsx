@@ -40,7 +40,7 @@ describe('SettingsPage', () => {
       fetchBackTestResults: async () => [],
       fetchBackTestResult: async () => { throw new Error('not used'); },
       deleteBackTestResult: async () => { throw new Error('not used'); }
-    } as ReturnType<typeof createApiClient>);
+    } as unknown as ReturnType<typeof createApiClient>);
   });
 
   it('renders the settings page with heading', async () => {
@@ -74,7 +74,7 @@ describe('SettingsPage', () => {
       fetchBackTestResults: async () => [],
       fetchBackTestResult: async () => { throw new Error('not used'); },
       deleteBackTestResult: async () => { throw new Error('not used'); }
-    } as ReturnType<typeof createApiClient>);
+    } as unknown as ReturnType<typeof createApiClient>);
 
     const markup = renderToStaticMarkup(await SettingsPage());
     expect(markup).toContain('Tracking Settings');
