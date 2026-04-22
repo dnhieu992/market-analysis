@@ -49,14 +49,14 @@ export class CompoundTradeService {
   }
 
   async updateTrade(id: string, userId: string, input: UpdateCompoundTradeDto) {
-    const existing = await this.getTrade(id, userId) as { amount: unknown; price: unknown };
+    const existing = await this.getTrade(id, userId);
     const amount = input.amount != null ? Number(input.amount) : Number(existing.amount);
     const price = input.price != null ? Number(input.price) : Number(existing.price);
     return this.repository.update(id, {
       ...(input.coinId ? { coinId: input.coinId.toUpperCase() } : {}),
       ...(input.type ? { type: input.type } : {}),
-      ...(input.amount != null ? { amount: input.amount } : {}),
-      ...(input.price != null ? { price: input.price } : {}),
+      ...(input.amount != null ? { amount } : {}),
+      ...(input.price != null ? { price } : {}),
       totalValue: amount * price,
       ...(input.fee != null ? { fee: input.fee } : {}),
       ...(input.note !== undefined ? { note: input.note } : {}),

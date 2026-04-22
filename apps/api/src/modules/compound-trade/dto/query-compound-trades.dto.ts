@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class QueryCompoundTradesDto {
   @ApiPropertyOptional({ example: 'BTC' })
@@ -15,11 +15,11 @@ export class QueryCompoundTradesDto {
 
   @ApiPropertyOptional({ example: '2024-01-01' })
   @IsOptional()
-  @IsString()
+  @IsDateString()
   from?: string;
 
   @ApiPropertyOptional({ example: '2024-12-31' })
   @IsOptional()
-  @IsString()
+  @IsDateString()
   to?: string;
 }

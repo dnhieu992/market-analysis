@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Min } from 'class-validator';
 
 export class UpdateCompoundTradeDto {
   @ApiPropertyOptional({ example: 'BTC' })
@@ -16,16 +16,19 @@ export class UpdateCompoundTradeDto {
   @ApiPropertyOptional({ example: 0.5 })
   @IsOptional()
   @IsNumber()
+  @IsPositive()
   amount?: number;
 
   @ApiPropertyOptional({ example: 50000 })
   @IsOptional()
   @IsNumber()
+  @IsPositive()
   price?: number;
 
   @ApiPropertyOptional({ example: 10 })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   fee?: number;
 
   @ApiPropertyOptional()
@@ -35,6 +38,6 @@ export class UpdateCompoundTradeDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString()
   tradedAt?: string;
 }
