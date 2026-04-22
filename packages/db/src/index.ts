@@ -13,6 +13,4 @@ export { createPortfolioRepository } from './repositories/portfolio.repository';
 export { createCoinTransactionRepository } from './repositories/coin-transaction.repository';
 export { createHoldingRepository } from './repositories/holding.repository';
 export { createPnlHistoryRepository } from './repositories/pnl-history.repository';
-export { createCompoundPortfolioRepository } from './repositories/compound-portfolio.repository';
-export { createCompoundTransactionRepository } from './repositories/compound-transaction.repository';
-export { createCompoundHoldingRepository } from './repositories/compound-holding.repository';
+export { createCompoundTradeRepository } from './repositories/compound-trade.repository';
