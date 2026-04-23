@@ -67,6 +67,8 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
     event.preventDefault();
     setError(null);
 
+    const form = event.currentTarget;
+
     try {
       let imageUrls: string[] = [];
 
@@ -79,7 +81,6 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
         }
       }
 
-      const form = event.currentTarget;
       const formData = new FormData(form);
       const parsed = parseCreateOrderFormData(formData);
       await submitManualOrder(parsed, imageUrls);
