@@ -67,7 +67,7 @@ export function parseCreateOrderFormData(formData: FormData): ManualOrderFormInp
   };
 }
 
-export async function submitManualOrder(input: ManualOrderFormInput): Promise<DashboardOrder> {
+export async function submitManualOrder(input: ManualOrderFormInput, images: string[] = []): Promise<DashboardOrder> {
   const client = createApiClient();
 
   const entryPrice = toNumber(input.entryPrice) ?? 0;
@@ -85,7 +85,8 @@ export async function submitManualOrder(input: ManualOrderFormInput): Promise<Da
     broker: input.broker?.trim() || undefined,
     orderType: (input.orderType?.trim() as 'market' | 'limit' | undefined) || undefined,
     openedAt: input.openedAt?.trim() || undefined,
-    note: input.note?.trim() || undefined
+    note: input.note?.trim() || undefined,
+    images: images.length > 0 ? images : undefined
   };
 
   return client.createOrder(payload);

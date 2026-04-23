@@ -121,6 +121,7 @@ function mapOrder(row: JsonRecord): DashboardOrder {
     quantity: row.quantity == null ? null : Number(row.quantity),
     leverage: row.leverage == null ? null : Number(row.leverage),
     note: row.note == null ? null : String(row.note),
+    images: Array.isArray(row.images) ? (row.images as unknown[]).map(String) : [],
     source: row.source == null ? undefined : String(row.source),
     exchange: row.exchange == null ? null : String(row.exchange),
     broker: row.broker == null ? null : String(row.broker),
@@ -307,6 +308,19 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
   return {
     baseUrl,
+    async uploadImages(files: File[]): Promise<string[]> {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      const response = await fetchImpl(`${baseUrl}/upload/images`, {
+        ...withDefaults({ method: 'POST' }),
+        body: formData
+      });
+      if (!response.ok) {
+        throw new Error(`Image upload failed: ${response.status}`);
+      }
+      const data = (await response.json()) as { urls: string[] };
+      return data.urls;
+    },
     async fetchOrders(): Promise<DashboardOrder[]> {
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/orders`, withDefaults());
       return rows.map(mapOrder);

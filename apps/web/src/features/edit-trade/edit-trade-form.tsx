@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition, type FormEvent } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { BackTestStrategy, DashboardOrder } from '@web/shared/api/types';
+import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
 import { parseEditOrderFormData, submitEditOrder } from './edit-trade.model';
 
@@ -21,6 +22,9 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
+  const [existingUrls, setExistingUrls] = useState<string[]>(order.images ?? []);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     createApiClient().fetchBackTestStrategies()
@@ -32,15 +36,33 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
     ? (order.quantity * order.entryPrice).toFixed(2)
     : '';
 
+  function handleImageChange({ existingUrls: urls, newFiles }: ImageUploadValue) {
+    setExistingUrls(urls);
+    setPendingFiles(newFiles);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
     try {
+      let newUrls: string[] = [];
+
+      if (pendingFiles.length > 0) {
+        setIsUploading(true);
+        try {
+          newUrls = await createApiClient().uploadImages(pendingFiles);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      const allImages = [...existingUrls, ...newUrls];
+
       const form = event.currentTarget;
       const formData = new FormData(form);
       const parsed = parseEditOrderFormData(formData);
-      await submitEditOrder(order.id, parsed);
+      await submitEditOrder(order.id, { ...parsed, images: allImages });
 
       startTransition(() => {
         onSubmitted?.();
@@ -122,10 +144,19 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
         <textarea name="note" rows={3} defaultValue={order.note ?? ''} />
       </label>
 
+      <div className="trade-field trade-field-wide">
+        <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Screenshots</span>
+        <ImageUpload
+          existingUrls={existingUrls}
+          onChange={handleImageChange}
+          uploading={isUploading}
+        />
+      </div>
+
       {error ? <p className="trade-form-error">{error}</p> : null}
 
-      <button type="submit" className="trade-submit" disabled={isPending}>
-        {isPending ? 'Saving...' : 'Save Changes'}
+      <button type="submit" className="trade-submit" disabled={isPending || isUploading}>
+        {isUploading ? 'Uploading images...' : isPending ? 'Saving...' : 'Save Changes'}
       </button>
     </form>
   );

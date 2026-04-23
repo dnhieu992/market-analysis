@@ -21,7 +21,7 @@ export function parseEditOrderFormData(formData: FormData): UpdateDashboardOrder
     ? volume / entryPrice
     : undefined;
 
-  return { symbol, side, entryPrice, closePrice, quantity, openedAt, note, exchange, broker, orderType };
+  return { symbol, side, entryPrice, closePrice, quantity, openedAt, note, exchange, broker, orderType, images: undefined };
 }
 
 export async function submitEditOrder(orderId: string, input: UpdateDashboardOrderInput): Promise<DashboardOrder> {

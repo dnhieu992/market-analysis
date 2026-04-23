@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition, type FormEvent } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { BackTestStrategy } from '@web/shared/api/types';
+import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
 import { parseCreateOrderFormData, submitManualOrder } from './create-trade.model';
 
@@ -20,7 +21,6 @@ function formatEntryPrice(value: string): string {
   const num = Number(value);
   if (isNaN(num) || value === '') return value;
   const decimals = num >= 1 ? 3 : 5;
-  // Remove trailing zeros but keep at least the meaningful precision
   return parseFloat(num.toFixed(decimals)).toString();
 }
 
@@ -29,6 +29,8 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
   const [entryPrice, setEntryPrice] = useState('');
   const [priceLoading, setPriceLoading] = useState(false);
   const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -57,16 +59,32 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
     void fetchPrice(symbol);
   }
 
+  function handleImageChange({ newFiles }: ImageUploadValue) {
+    setPendingFiles(newFiles);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
     try {
+      let imageUrls: string[] = [];
+
+      if (pendingFiles.length > 0) {
+        setIsUploading(true);
+        try {
+          imageUrls = await createApiClient().uploadImages(pendingFiles);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
       const form = event.currentTarget;
       const formData = new FormData(form);
       const parsed = parseCreateOrderFormData(formData);
-      await submitManualOrder(parsed);
+      await submitManualOrder(parsed, imageUrls);
       form.reset();
+      setPendingFiles([]);
 
       startTransition(() => {
         onSubmitted?.();
@@ -159,10 +177,18 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
         <textarea name="note" rows={3} placeholder="Trade idea, thesis, or context" />
       </label>
 
+      <div className="trade-field trade-field-wide">
+        <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Screenshots</span>
+        <ImageUpload
+          onChange={handleImageChange}
+          uploading={isUploading}
+        />
+      </div>
+
       {error ? <p className="trade-form-error">{error}</p> : null}
 
-      <button type="submit" className="trade-submit" disabled={isPending}>
-        {isPending ? 'Submitting...' : 'Submit Trade'}
+      <button type="submit" className="trade-submit" disabled={isPending || isUploading}>
+        {isUploading ? 'Uploading images...' : isPending ? 'Submitting...' : 'Submit Trade'}
       </button>
     </form>
   );

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateOrderDto {
   @ApiProperty({ example: 'BTCUSDT' })
@@ -65,4 +65,10 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   signalId?: string;
+
+  @ApiPropertyOptional({ type: [String], example: ['https://res.cloudinary.com/...'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
 }
