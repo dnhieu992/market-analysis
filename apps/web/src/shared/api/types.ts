@@ -306,6 +306,63 @@ export type UpdateProfileInput = {
   symbolsTracking?: string[];
 };
 
+export type CompoundPortfolio = {
+  id: string;
+  name: string;
+  description: string | null;
+  userId: string;
+  createdAt: string;
+};
+
+export type CompoundTransaction = {
+  id: string;
+  compoundPortfolioId: string;
+  coinId: string;
+  type: 'buy' | 'sell';
+  amount: number;
+  price: number;
+  totalValue: number;
+  fee: number;
+  note: string | null;
+  transactedAt: string;
+  deletedAt: string | null;
+  createdAt: string;
+};
+
+export type CompoundHolding = {
+  compoundPortfolioId: string;
+  coinId: string;
+  totalAmount: number;
+  avgCost: number;
+  totalInvested: number;
+  realizedPnl: number;
+};
+
+export type CreateCompoundPortfolioInput = {
+  name: string;
+  description?: string;
+};
+
+export type UpdateCompoundPortfolioInput = {
+  name?: string;
+  description?: string;
+};
+
+export type CreateCompoundTransactionInput = {
+  coinId: string;
+  type: 'buy' | 'sell';
+  amount: number;
+  price: number;
+  transactedAt?: string;
+};
+
+export type QueryCompoundTransactionsInput = {
+  coinId?: string;
+  type?: 'buy' | 'sell';
+  from?: string;
+  to?: string;
+};
+
 export type CompoundTrade = {
   id: string;
   userId: string;
