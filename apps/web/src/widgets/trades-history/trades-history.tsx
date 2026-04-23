@@ -9,7 +9,7 @@ import { EditTradeForm } from '@web/features/edit-trade/edit-trade-form';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
-import { TradesTable } from './trades-table';
+import { TradesTable, NotesDialog } from './trades-table';
 
 type TradesHistoryProps = Readonly<{
   orders: DashboardOrder[];
@@ -22,6 +22,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
   const [closeDefaultPrice, setCloseDefaultPrice] = useState<number | undefined>(undefined);
   const [editOrder, setEditOrder] = useState<DashboardOrder | null>(null);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
+  const [notesOrder, setNotesOrder] = useState<DashboardOrder | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
         onCloseTrade={(order) => setCloseTradeOrder(order)}
         onEditTrade={(order) => setEditOrder(order)}
         onRemoveTrade={(orderId) => setDeleteOrderId(orderId)}
+        onViewNotes={(order) => setNotesOrder(order)}
       />
 
       {/* Single trade dialog */}
@@ -135,6 +137,19 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Notes & screenshots dialog */}
+      {notesOrder && (
+        <NotesDialog
+          order={notesOrder}
+          onClose={() => setNotesOrder(null)}
+          onImageDeleted={(url) =>
+            setNotesOrder((prev) =>
+              prev ? { ...prev, images: (prev.images ?? []).filter((u) => u !== url) } : null
+            )
+          }
+        />
       )}
 
       {/* Multiple trades dialog */}

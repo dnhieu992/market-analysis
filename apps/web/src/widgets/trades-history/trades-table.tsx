@@ -39,6 +39,7 @@ type TradesTableProps = Readonly<{
   onCloseTrade: (order: DashboardOrder) => void;
   onEditTrade: (order: DashboardOrder) => void;
   onRemoveTrade: (orderId: string) => void;
+  onViewNotes: (order: DashboardOrder) => void;
 }>;
 
 function formatPrice(value: number): string {
@@ -100,7 +101,7 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
   );
 }
 
-function NotesDialog({
+export function NotesDialog({
   order,
   onClose,
   onImageDeleted,
@@ -223,8 +224,7 @@ function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
   );
 }
 
-export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade }: TradesTableProps) {
-  const [notesOrder, setNotesOrder] = useState<DashboardOrder | null>(null);
+export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes }: TradesTableProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter | null>(null);
   const [customFrom, setCustomFrom] = useState('');
@@ -474,7 +474,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                           className="tt-btn tt-btn--notes"
                           data-tooltip="View Notes"
                           aria-label="View Notes"
-                          onClick={() => setNotesOrder(order)}
+                          onClick={() => onViewNotes(order)}
                         >
                           <IconNotes />
                         </button>
@@ -496,17 +496,6 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
         </div>
       )}
 
-      {notesOrder && (
-        <NotesDialog
-          order={notesOrder}
-          onClose={() => setNotesOrder(null)}
-          onImageDeleted={(url) => {
-            setNotesOrder((prev) =>
-              prev ? { ...prev, images: (prev.images ?? []).filter((u) => u !== url) } : null
-            );
-          }}
-        />
-      )}
     </article>
   );
 }
