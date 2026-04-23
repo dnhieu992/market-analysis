@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
 type StatusFilter = 'all' | 'open' | 'closed';
@@ -72,6 +73,110 @@ function IconTrash() {
   );
 }
 
+function IconNotes() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
+    </svg>
+  );
+}
+
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div className="lightbox-backdrop" onClick={onClose}>
+      <button className="lightbox-close" onClick={onClose} aria-label="Close">✕</button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt="screenshot"
+        className="lightbox-img"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+function NotesDialog({
+  order,
+  onClose,
+  onImageDeleted,
+}: {
+  order: DashboardOrder;
+  onClose: () => void;
+  onImageDeleted: (url: string) => void;
+}) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
+  const images = order.images ?? [];
+  const hasNote = !!order.note?.trim();
+  const hasImages = images.length > 0;
+
+  async function handleDeleteImage(url: string) {
+    setDeletingUrl(url);
+    try {
+      const newImages = images.filter((u) => u !== url);
+      await createApiClient().updateOrder(order.id, { images: newImages });
+      onImageDeleted(url);
+    } finally {
+      setDeletingUrl(null);
+    }
+  }
+
+  return (
+    <>
+      <div className="dialog-backdrop" onClick={onClose}>
+        <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
+          <div className="dialog-header">
+            <span className="dialog-title">Notes &amp; Screenshots — {order.symbol}</span>
+            <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+          </div>
+          <div className="dialog-body notes-dialog-body">
+            {hasNote && (
+              <div className="notes-section">
+                <p className="notes-section-label">Note</p>
+                <p className="notes-text">{order.note}</p>
+              </div>
+            )}
+            {hasImages && (
+              <div className="notes-section">
+                <p className="notes-section-label">Screenshots ({images.length})</p>
+                <div className="notes-images-grid">
+                  {images.map((url) => (
+                    <div key={url} className="notes-img-thumb">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt="trade screenshot"
+                        onClick={() => setLightboxUrl(url)}
+                      />
+                      <button
+                        className="notes-img-del"
+                        aria-label="Delete image"
+                        disabled={deletingUrl === url}
+                        onClick={() => { void handleDeleteImage(url); }}
+                      >
+                        {deletingUrl === url ? '…' : '✕'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!hasNote && !hasImages && (
+              <p className="tt-muted" style={{ padding: '8px 0' }}>No notes or screenshots for this trade.</p>
+            )}
+          </div>
+        </div>
+      </div>
+      {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+    </>
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
   const normalized = status.toLowerCase();
   if (normalized === 'open') {
@@ -119,6 +224,7 @@ function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
 }
 
 export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade }: TradesTableProps) {
+  const [notesOrder, setNotesOrder] = useState<DashboardOrder | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter | null>(null);
   const [customFrom, setCustomFrom] = useState('');
@@ -365,6 +471,14 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                           </button>
                         )}
                         <button
+                          className="tt-btn tt-btn--notes"
+                          data-tooltip="View Notes"
+                          aria-label="View Notes"
+                          onClick={() => setNotesOrder(order)}
+                        >
+                          <IconNotes />
+                        </button>
+                        <button
                           className="tt-btn tt-btn--danger"
                           data-tooltip="Delete"
                           aria-label="Delete Trade"
@@ -380,6 +494,18 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
             </tbody>
           </table>
         </div>
+      )}
+
+      {notesOrder && (
+        <NotesDialog
+          order={notesOrder}
+          onClose={() => setNotesOrder(null)}
+          onImageDeleted={(url) => {
+            setNotesOrder((prev) =>
+              prev ? { ...prev, images: (prev.images ?? []).filter((u) => u !== url) } : null
+            );
+          }}
+        />
       )}
     </article>
   );
