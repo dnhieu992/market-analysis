@@ -203,7 +203,7 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
               className="settings-input"
               type="number"
               min="0"
-              step="0.01"
+              step="any"
               placeholder="0.00"
               value={row.entryPrice}
               onChange={(e) => updateRow(row.id, 'entryPrice', e.target.value)}
@@ -213,7 +213,7 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
               className="settings-input"
               type="number"
               min="0"
-              step="0.01"
+              step="any"
               placeholder="1000"
               value={row.volume}
               onChange={(e) => updateRow(row.id, 'volume', e.target.value)}
