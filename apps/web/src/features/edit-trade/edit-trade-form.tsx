@@ -51,7 +51,7 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
       if (pendingFiles.length > 0) {
         setIsUploading(true);
         try {
-          newUrls = await createApiClient().uploadImages(pendingFiles);
+          newUrls = await createApiClient().uploadImages(pendingFiles, order.symbol, order.side);
         } finally {
           setIsUploading(false);
         }

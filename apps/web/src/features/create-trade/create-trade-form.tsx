@@ -26,6 +26,7 @@ function formatEntryPrice(value: string): string {
 
 export function TradeForm({ onSubmitted }: TradeFormProps) {
   const [symbol, setSymbol] = useState('BTCUSDT');
+  const [side, setSide] = useState<'long' | 'short'>('short');
   const [entryPrice, setEntryPrice] = useState('');
   const [priceLoading, setPriceLoading] = useState(false);
   const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
@@ -75,7 +76,7 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
       if (pendingFiles.length > 0) {
         setIsUploading(true);
         try {
-          imageUrls = await createApiClient().uploadImages(pendingFiles);
+          imageUrls = await createApiClient().uploadImages(pendingFiles, symbol, side);
         } finally {
           setIsUploading(false);
         }
@@ -113,7 +114,7 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
 
       <label className="trade-field">
         <span>Side</span>
-        <select name="side" defaultValue="short" required>
+        <select name="side" value={side} onChange={(e) => setSide(e.target.value as 'long' | 'short')} required>
           <option value="long">long</option>
           <option value="short">short</option>
         </select>

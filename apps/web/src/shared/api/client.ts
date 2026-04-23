@@ -308,10 +308,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
   return {
     baseUrl,
-    async uploadImages(files: File[]): Promise<string[]> {
+    async uploadImages(files: File[], symbol?: string, side?: string): Promise<string[]> {
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
-      const response = await fetchImpl(`${baseUrl}/upload/images`, {
+      const params = new URLSearchParams();
+      if (symbol) params.set('symbol', symbol);
+      if (side) params.set('side', side);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetchImpl(`${baseUrl}/upload/images${qs}`, {
         ...withDefaults({ method: 'POST' }),
         body: formData
       });
