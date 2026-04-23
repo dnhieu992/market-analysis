@@ -171,8 +171,6 @@ model User {
   updatedAt           DateTime             @updatedAt
   sessions            Session[]
   portfolios          Portfolio[]
-  compoundTrades      CompoundTrade[]
-
   @@map("users")
 }
 
@@ -255,21 +253,3 @@ model PnlHistory {
   @@map("pnl_history")
 }
 
-model CompoundTrade {
-  id          String   @id @default(uuid()) @db.Char(36)
-  userId      String
-  coinId      String   @db.VarChar(50)
-  type        String   @db.VarChar(10)
-  amount      Decimal  @db.Decimal(20, 8)
-  price       Decimal  @db.Decimal(20, 8)
-  totalValue  Decimal  @db.Decimal(20, 8)
-  fee         Decimal  @default(0) @db.Decimal(20, 8)
-  note        String?  @db.Text
-  tradedAt    DateTime
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, coinId])
-  @@index([tradedAt(sort: Desc)])
-  @@map("compound_trades")
-}

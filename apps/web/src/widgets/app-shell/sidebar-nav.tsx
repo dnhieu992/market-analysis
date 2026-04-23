@@ -28,11 +28,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Coin holdings & PnL tracker'
   },
   {
-    href: '/compound-interest',
-    label: 'Compound Interest',
-    description: 'Separate compound interest portfolios'
-  },
-  {
     href: '/trades',
     label: 'Trading History',
     description: 'Manual orders'

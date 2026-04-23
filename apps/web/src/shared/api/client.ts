@@ -4,11 +4,6 @@ import type {
   BackTestStrategy,
   CloseDashboardOrderInput,
   CoinTransaction,
-  CompoundHolding,
-  CompoundPortfolio,
-  CompoundTransaction,
-  CreateCompoundPortfolioInput,
-  CreateCompoundTransactionInput,
   CreateDashboardOrderInput,
   CreatePortfolioInput,
   CreateTransactionInput,
@@ -21,13 +16,11 @@ import type {
   Holding,
   PnlSnapshot,
   Portfolio,
-  QueryCompoundTransactionsInput,
   QueryPnlInput,
   QueryTransactionsInput,
   RunBackTestInput,
   TrackingSettings,
   TradingStrategy,
-  UpdateCompoundPortfolioInput,
   UpdateDashboardOrderInput,
   UpdatePortfolioInput,
   UpdateProfileInput,
@@ -287,44 +280,6 @@ function mapPnlSnapshot(row: JsonRecord): PnlSnapshot {
   };
 }
 
-function mapCompoundPortfolio(row: JsonRecord): CompoundPortfolio {
-  return {
-    id: String(row.id),
-    name: String(row.name),
-    description: row.description == null ? null : String(row.description),
-    userId: String(row.userId),
-    createdAt: String(row.createdAt)
-  };
-}
-
-function mapCompoundTransaction(row: JsonRecord): CompoundTransaction {
-  return {
-    id: String(row.id),
-    compoundPortfolioId: String(row.compoundPortfolioId),
-    coinId: String(row.coinId),
-    type: String(row.type) as 'buy' | 'sell',
-    amount: Number(row.amount),
-    price: Number(row.price),
-    totalValue: Number(row.totalValue),
-    fee: row.fee == null ? 0 : Number(row.fee),
-    note: row.note == null ? null : String(row.note),
-    transactedAt: String(row.transactedAt),
-    deletedAt: row.deletedAt == null ? null : String(row.deletedAt),
-    createdAt: String(row.createdAt)
-  };
-}
-
-function mapCompoundHolding(row: JsonRecord): CompoundHolding {
-  return {
-    compoundPortfolioId: String(row.compoundPortfolioId),
-    coinId: String(row.coinId),
-    totalAmount: Number(row.totalAmount),
-    avgCost: Number(row.avgCost),
-    totalInvested: Number(row.totalCost ?? row.totalInvested),
-    realizedPnl: Number(row.realizedPnl)
-  };
-}
-
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = (options.baseUrl ?? readConfiguredBaseUrl()).replace(/\/+$/, '');
   const fetchImpl = options.fetchImpl ?? globalThis.fetch?.bind(globalThis);
@@ -573,70 +528,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const qs = params.toString() ? `?${params.toString()}` : '';
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/pnl${qs}`, withDefaults());
       return rows.map(mapPnlSnapshot);
-    },
-    async fetchCompoundPortfolios(): Promise<CompoundPortfolio[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/compound-portfolios`, withDefaults());
-      return rows.map(mapCompoundPortfolio);
-    },
-    async fetchCompoundPortfolio(id: string): Promise<CompoundPortfolio> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/compound-portfolios/${id}`, withDefaults());
-      return mapCompoundPortfolio(row);
-    },
-    async createCompoundPortfolio(input: CreateCompoundPortfolioInput): Promise<CompoundPortfolio> {
-      const response = await fetchImpl(`${baseUrl}/compound-portfolios`, withDefaults({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/compound-portfolios: ${response.status}`);
-      return mapCompoundPortfolio((await response.json()) as JsonRecord);
-    },
-    async updateCompoundPortfolio(id: string, input: UpdateCompoundPortfolioInput): Promise<CompoundPortfolio> {
-      const response = await fetchImpl(`${baseUrl}/compound-portfolios/${id}`, withDefaults({
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/compound-portfolios/${id}: ${response.status}`);
-      return mapCompoundPortfolio((await response.json()) as JsonRecord);
-    },
-    async deleteCompoundPortfolio(id: string): Promise<void> {
-      const response = await fetchImpl(`${baseUrl}/compound-portfolios/${id}`, withDefaults({ method: 'DELETE' }));
-      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/compound-portfolios/${id}: ${response.status}`);
-    },
-    async fetchCompoundTransactions(portfolioId: string, query?: QueryCompoundTransactionsInput): Promise<CompoundTransaction[]> {
-      const params = new URLSearchParams();
-      if (query?.coinId) params.set('coinId', query.coinId);
-      if (query?.type) params.set('type', query.type);
-      if (query?.from) params.set('from', query.from);
-      if (query?.to) params.set('to', query.to);
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/compound-portfolios/${portfolioId}/transactions${qs}`, withDefaults());
-      return rows.map(mapCompoundTransaction);
-    },
-    async createCompoundTransaction(portfolioId: string, input: CreateCompoundTransactionInput): Promise<CompoundTransaction> {
-      const response = await fetchImpl(`${baseUrl}/compound-portfolios/${portfolioId}/transactions`, withDefaults({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/compound-portfolios/${portfolioId}/transactions: ${response.status}`);
-      return mapCompoundTransaction((await response.json()) as JsonRecord);
-    },
-    async deleteCompoundTransaction(portfolioId: string, id: string): Promise<void> {
-      const response = await fetchImpl(`${baseUrl}/compound-portfolios/${portfolioId}/transactions/${id}`, withDefaults({ method: 'DELETE' }));
-      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/compound-portfolios/${portfolioId}/transactions/${id}: ${response.status}`);
-    },
-    async fetchCompoundHoldings(portfolioId: string, prices?: Record<string, number>): Promise<CompoundHolding[]> {
-      const params = new URLSearchParams();
-      if (prices) params.set('prices', JSON.stringify(prices));
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/compound-portfolios/${portfolioId}/holdings${qs}`, withDefaults());
-      return rows.map(mapCompoundHolding);
-    },
-    async recalculateCompoundHoldings(portfolioId: string): Promise<void> {
-      const response = await fetchImpl(`${baseUrl}/compound-portfolios/${portfolioId}/holdings/recalculate`, withDefaults({ method: 'POST' }));
-      if (!response.ok) throw new Error(`Request failed for ${baseUrl}/compound-portfolios/${portfolioId}/holdings/recalculate: ${response.status}`);
     },
     async login(input: { email: string; password: string }) {
       const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({

@@ -2,7 +2,6 @@ import type { Provider } from '@nestjs/common';
 import {
   createAnalysisRunRepository,
   createCoinTransactionRepository,
-  createCompoundTradeRepository,
   createDailyAnalysisRepository,
   createHoldingRepository,
   createOrderRepository,
@@ -30,8 +29,6 @@ export const PORTFOLIO_REPOSITORY = Symbol('PORTFOLIO_REPOSITORY');
 export const COIN_TRANSACTION_REPOSITORY = Symbol('COIN_TRANSACTION_REPOSITORY');
 export const HOLDING_REPOSITORY = Symbol('HOLDING_REPOSITORY');
 export const PNL_HISTORY_REPOSITORY = Symbol('PNL_HISTORY_REPOSITORY');
-export const COMPOUND_TRADE_REPOSITORY = Symbol('COMPOUND_TRADE_REPOSITORY');
-
 export const DatabaseProviders: Provider[] = [
   {
     provide: 'PRISMA_CLIENT',
@@ -89,8 +86,4 @@ export const DatabaseProviders: Provider[] = [
     provide: PNL_HISTORY_REPOSITORY,
     useFactory: () => createPnlHistoryRepository()
   },
-  {
-    provide: COMPOUND_TRADE_REPOSITORY,
-    useFactory: () => createCompoundTradeRepository()
-  }
 ];

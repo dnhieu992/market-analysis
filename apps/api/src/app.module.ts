@@ -7,7 +7,6 @@ import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { ChatModule } from './modules/chat/chat.module';
-import { CompoundTradeModule } from './modules/compound-trade/compound-trade.module';
 import { DailyAnalysisModule } from './modules/daily-analysis/daily-analysis.module';
 import { HealthModule } from './modules/health/health.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
@@ -41,7 +40,6 @@ import { WorkerModule } from './modules/worker/worker.module';
     TransactionModule,
     HoldingsModule,
     PnlModule,
-    CompoundTradeModule,
     UserModule
   ],
   providers: [
