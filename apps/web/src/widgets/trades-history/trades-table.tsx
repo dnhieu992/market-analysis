@@ -124,6 +124,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [showCustomPopover, setShowCustomPopover] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
 
   const dateRange = dateFilter ? getDateRange(dateFilter, customFrom, customTo) : null;
 
@@ -136,10 +137,15 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
   const openCount = dateFilteredOrders.filter(o => o.status.toLowerCase() === 'open').length;
   const closedCount = dateFilteredOrders.filter(o => o.status.toLowerCase() === 'closed').length;
 
+  const uniqueSources = Array.from(new Set(orders.map(o => o.broker).filter((b): b is string => !!b))).sort();
+
   const filteredOrders = dateFilteredOrders.filter(o => {
     if (statusFilter === 'open') return o.status.toLowerCase() === 'open';
     if (statusFilter === 'closed') return o.status.toLowerCase() === 'closed';
     return true;
+  }).filter(o => {
+    if (!sourceFilter) return true;
+    return o.broker === sourceFilter;
   });
 
   function handleDateFilter(f: DateFilter) {
@@ -254,6 +260,29 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
             >
               ✕ Clear date
             </button>
+          )}
+
+          {uniqueSources.length > 0 && (
+            <>
+              <span className="trades-filter-divider" />
+              {uniqueSources.map(source => (
+                <button
+                  key={source}
+                  className={`trades-filter-badge trades-filter-badge--date${sourceFilter === source ? ' trades-filter-badge--active' : ''}`}
+                  onClick={() => setSourceFilter(prev => prev === source ? null : source)}
+                >
+                  {source}
+                </button>
+              ))}
+              {sourceFilter && (
+                <button
+                  className="trades-filter-badge trades-filter-badge--clear"
+                  onClick={() => setSourceFilter(null)}
+                >
+                  ✕ Clear source
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

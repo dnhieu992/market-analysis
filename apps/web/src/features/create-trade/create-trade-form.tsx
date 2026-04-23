@@ -149,6 +149,7 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
         <select name="broker" defaultValue="BINGX">
           <option value="BINANCE">BINANCE</option>
           <option value="BINGX">BINGX</option>
+          <option value="BITGET">BITGET</option>
           <option value="OKX">OKX</option>
         </select>
       </label>
