@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { BackTestStrategy } from '@web/shared/api/types';
@@ -30,6 +30,7 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
   const [entryPrice, setEntryPrice] = useState('');
   const [priceLoading, setPriceLoading] = useState(false);
   const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +69,6 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
     event.preventDefault();
     setError(null);
 
-    const form = event.currentTarget;
-
     try {
       let imageUrls: string[] = [];
 
@@ -82,10 +81,10 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
         }
       }
 
-      const formData = new FormData(form);
+      const formData = new FormData(formRef.current!);
       const parsed = parseCreateOrderFormData(formData);
       await submitManualOrder(parsed, imageUrls);
-      form.reset();
+      formRef.current?.reset();
       setPendingFiles([]);
 
       startTransition(() => {
@@ -98,7 +97,7 @@ export function TradeForm({ onSubmitted }: TradeFormProps) {
   }
 
   return (
-    <form className="trade-form" onSubmit={handleSubmit}>
+    <form ref={formRef} className="trade-form" onSubmit={handleSubmit}>
       <label className="trade-field">
         <span>Symbol</span>
         <input

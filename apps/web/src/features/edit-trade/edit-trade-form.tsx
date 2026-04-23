@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { BackTestStrategy, DashboardOrder } from '@web/shared/api/types';
@@ -22,6 +22,7 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [strategies, setStrategies] = useState<BackTestStrategy[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
   const [existingUrls, setExistingUrls] = useState<string[]>(order.images ?? []);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -59,8 +60,7 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
 
       const allImages = [...existingUrls, ...newUrls];
 
-      const form = event.currentTarget;
-      const formData = new FormData(form);
+      const formData = new FormData(formRef.current!);
       const parsed = parseEditOrderFormData(formData);
       await submitEditOrder(order.id, { ...parsed, images: allImages });
 
@@ -74,7 +74,7 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
   }
 
   return (
-    <form className="trade-form" onSubmit={handleSubmit}>
+    <form ref={formRef} className="trade-form" onSubmit={handleSubmit}>
       <label className="trade-field">
         <span>Symbol</span>
         <input name="symbol" type="text" defaultValue={order.symbol} required />
