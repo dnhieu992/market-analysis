@@ -90,18 +90,18 @@ export function EditTradeForm({ order, onSubmitted }: EditTradeFormProps) {
 
       <label className="trade-field">
         <span>Entry Price</span>
-        <input name="entryPrice" type="number" min="0" step="0.01" defaultValue={order.entryPrice} required />
+        <input name="entryPrice" type="number" min="0" step="any" defaultValue={order.entryPrice} required />
       </label>
 
       <label className="trade-field">
         <span>Volume (USD)</span>
-        <input name="volume" type="number" min="0" step="0.01" defaultValue={volume || undefined} />
+        <input name="volume" type="number" min="0" step="any" defaultValue={volume || undefined} />
       </label>
 
       {order.status.toLowerCase() === 'closed' && (
         <label className="trade-field">
           <span>Close Price</span>
-          <input name="closePrice" type="number" min="0" step="0.01" defaultValue={order.closePrice ?? ''} />
+          <input name="closePrice" type="number" min="0" step="any" defaultValue={order.closePrice ?? ''} />
         </label>
       )}
 
