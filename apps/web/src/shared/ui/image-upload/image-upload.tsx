@@ -2,6 +2,21 @@
 
 import { useRef, useState } from 'react';
 
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div className="lightbox-backdrop" onClick={onClose}>
+      <button className="lightbox-close" onClick={onClose} aria-label="Close">✕</button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt="preview"
+        className="lightbox-img"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
 export type ImageUploadValue = {
   existingUrls: string[];
   newFiles: File[];
@@ -16,6 +31,7 @@ type ImageUploadProps = Readonly<{
 export function ImageUpload({ existingUrls: initialUrls = [], onChange, uploading }: ImageUploadProps) {
   const [existingUrls, setExistingUrls] = useState<string[]>(initialUrls);
   const [previews, setPreviews] = useState<{ file: File; objectUrl: string }[]>([]);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function emit(urls: string[], files: { file: File; objectUrl: string }[]) {
@@ -60,7 +76,7 @@ export function ImageUpload({ existingUrls: initialUrls = [], onChange, uploadin
           {existingUrls.map((url) => (
             <div key={url} className="image-upload-thumb">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="trade screenshot" />
+              <img src={url} alt="trade screenshot" onClick={() => setLightboxUrl(url)} style={{ cursor: 'zoom-in' }} />
               <button
                 type="button"
                 className="image-upload-remove"
@@ -74,7 +90,7 @@ export function ImageUpload({ existingUrls: initialUrls = [], onChange, uploadin
           {previews.map((p, i) => (
             <div key={p.objectUrl} className="image-upload-thumb image-upload-thumb--pending">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.objectUrl} alt="pending upload" />
+              <img src={p.objectUrl} alt="pending upload" onClick={() => setLightboxUrl(p.objectUrl)} style={{ cursor: 'zoom-in' }} />
               <button
                 type="button"
                 className="image-upload-remove"
@@ -99,6 +115,7 @@ export function ImageUpload({ existingUrls: initialUrls = [], onChange, uploadin
         />
         + Add Images
       </label>
+      {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   );
 }

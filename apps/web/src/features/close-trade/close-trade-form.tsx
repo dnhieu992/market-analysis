@@ -72,7 +72,7 @@ export function CloseTradeForm({ orderId, status, defaultClosePrice, entryPrice,
           name="closePrice"
           type="number"
           min="0"
-          step="0.01"
+          step="any"
           placeholder="69000"
           value={closePrice ?? ''}
           onChange={(e) => setClosePrice(e.target.value === '' ? undefined : Number(e.target.value))}

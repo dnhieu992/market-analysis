@@ -68,7 +68,8 @@ function buildOverviewCards(orders: DashboardOrder[]) {
       label: 'Total Profit / Loss',
       value: closedOrders.length === 0 ? '--' : totalPnlStr,
       detail: 'All-time realized P/L across closed trades.',
-      positive: closedOrders.length === 0 ? undefined : totalPnl >= 0
+      positive: closedOrders.length === 0 ? undefined : totalPnl >= 0,
+      href: '/pnl-calendar'
     }
   ];
 }

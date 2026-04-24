@@ -2759,4 +2759,230 @@ a {
 }
 
 .multi-trade-result--ok  { color: var(--accent); }
+
+/* ── metric-card link variant ── */
+a.metric-card--link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.18s, transform 0.18s;
+}
+a.metric-card--link:hover {
+  box-shadow: 0 8px 32px rgba(31, 111, 91, 0.18);
+  transform: translateY(-2px);
+}
+
+/* ══════════════════════════════════
+   PNL Calendar Page
+══════════════════════════════════ */
+.pnl-cal-shell {
+  padding: 32px 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: 100%;
+}
+
+/* Top bar */
+.pnl-cal-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pnl-cal-topbar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.pnl-cal-back {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.pnl-cal-back:hover { color: var(--accent); }
+
+.pnl-cal-heading {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--muted);
+}
+
+/* Month navigation */
+.pnl-cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pnl-cal-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.pnl-cal-nav-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.pnl-cal-nav-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  min-width: 80px;
+  text-align: center;
+  color: var(--foreground);
+}
+
+.pnl-cal-nav-year {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Body layout */
+.pnl-cal-body {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Calendar */
+.pnl-cal-main {
+  background: var(--background-elevated);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.pnl-cal-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+
+.pnl-cal-dow {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+}
+.pnl-cal-dow:last-child { border-right: none; }
+
+.pnl-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.pnl-cal-cell {
+  min-height: 90px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: white;
+}
+.pnl-cal-cell:nth-child(7n) { border-right: none; }
+.pnl-cal-cell:nth-last-child(-n+7) { border-bottom: none; }
+
+.pnl-cal-cell--blank {
+  background: #f5f5f5;
+}
+
+.pnl-cal-cell--today .pnl-cal-day-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #17120d;
+  color: white;
+  font-weight: 700;
+}
+
+.pnl-cal-day-num {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1;
+}
+
+.pnl-cal-day-pnl {
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: auto;
+}
+
+/* Sidebar */
+.pnl-cal-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--background-elevated);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.pnl-cal-stat-block {
+  padding: 20px 24px;
+}
+
+.pnl-cal-stat-sep {
+  margin: 0 -24px;
+  margin-top: 16px;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.pnl-cal-stat-label {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--foreground);
+  text-decoration: underline dotted var(--muted);
+  text-underline-offset: 3px;
+}
+
+.pnl-cal-stat-main {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pnl-cal-stat-value {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.pnl-cal-stat-pair {
+  display: flex;
+  gap: 32px;
+}
+
+/* Shared PnL colours */
+.pnl-positive { color: #22c55e; }
+.pnl-negative { color: #ef4444; }
 .multi-trade-result--err { color: #c0392b; }
