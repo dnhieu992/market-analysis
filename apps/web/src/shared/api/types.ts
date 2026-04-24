@@ -310,4 +310,19 @@ export type UpdateProfileInput = {
 };
 
 
+export type Conversation = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+};
+
 import type { DailyAnalysisPlan } from '@app/core';

@@ -10,6 +10,7 @@ import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
 import { TradesTable, NotesDialog } from './trades-table';
+import { ChatbotWidget } from '@web/widgets/chatbot/chatbot-widget';
 
 type TradesHistoryProps = Readonly<{
   orders: DashboardOrder[];
@@ -166,6 +167,8 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
           </div>
         </div>
       )}
+
+      <ChatbotWidget />
     </main>
   );
 }

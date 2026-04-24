@@ -1,25 +1,30 @@
 import { Module } from '@nestjs/common';
 
+import { DatabaseModule } from '../database/database.module';
 import { ChatController } from './chat.controller';
 import { ChatProvider } from './contracts/chat-provider';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
 import { ChatService } from './chat.service';
-import { NoopChatToolRegistry } from './providers/noop-chat-tool-registry';
-import { OpenAiChatProvider } from './providers/openai-chat.provider';
+import { ConversationService } from './conversation.service';
+import { ClaudeChatProvider } from './providers/claude-chat.provider';
+import { TradingChatToolRegistry } from './tools/trading-chat-tool-registry';
 
 @Module({
+  imports: [DatabaseModule],
   controllers: [ChatController],
   providers: [
     ChatService,
+    ConversationService,
+    ClaudeChatProvider,
     {
       provide: ChatProvider,
-      useClass: OpenAiChatProvider
+      useClass: ClaudeChatProvider
     },
     {
       provide: ChatToolRegistry,
-      useClass: NoopChatToolRegistry
+      useClass: TradingChatToolRegistry
     }
   ],
-  exports: [ChatService, ChatProvider, ChatToolRegistry]
+  exports: [ChatService, ConversationService]
 })
 export class ChatModule {}

@@ -26,7 +26,9 @@ import type {
   UpdateProfileInput,
   UpdateTradingStrategyInput,
   UpsertSettingsInput,
-  UserProfile
+  UserProfile,
+  Conversation,
+  ChatMessage
 } from './types';
 
 
@@ -585,6 +587,44 @@ export function createApiClient(options: ApiClientOptions = {}) {
         name: String(row.name),
         symbolsTracking: Array.isArray(row.symbolsTracking) ? (row.symbolsTracking as unknown[]).map(String) : [],
       };
+    },
+
+    // ── Chat / Conversations ──────────────────────────────────────────
+    listConversations(): Promise<Conversation[]> {
+      return fetchJson<Conversation[]>(fetchImpl, `${baseUrl}/chat/conversations`, withDefaults());
+    },
+    async createConversation(title?: string): Promise<Conversation> {
+      const res = await fetchImpl(`${baseUrl}/chat/conversations`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+      }));
+      if (!res.ok) throw new Error(`createConversation failed: ${res.status}`);
+      return res.json() as Promise<Conversation>;
+    },
+    async deleteConversation(id: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/chat/conversations/${id}`, withDefaults({ method: 'DELETE' }));
+    },
+    async updateConversationTitle(id: string, title: string): Promise<Conversation> {
+      const res = await fetchImpl(`${baseUrl}/chat/conversations/${id}/title`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+      }));
+      if (!res.ok) throw new Error(`updateConversationTitle failed: ${res.status}`);
+      return res.json() as Promise<Conversation>;
+    },
+    getMessages(conversationId: string): Promise<ChatMessage[]> {
+      return fetchJson<ChatMessage[]>(fetchImpl, `${baseUrl}/chat/conversations/${conversationId}/messages`, withDefaults());
+    },
+    async sendMessage(conversationId: string, content: string): Promise<ChatMessage> {
+      const res = await fetchImpl(`${baseUrl}/chat/conversations/${conversationId}/messages`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      }));
+      if (!res.ok) throw new Error(`sendMessage failed: ${res.status}`);
+      return res.json() as Promise<ChatMessage>;
     },
   };
 }
