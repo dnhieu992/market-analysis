@@ -337,23 +337,33 @@ function PnlBySymbol({ orders }: { orders: DashboardOrder[] }) {
 
 /* ── main page ─────────────────────────────────── */
 
+type ViewMode = 'day' | 'month';
 type Props = { orders: DashboardOrder[] };
 
 export function PnlCalendarPage({ orders }: Props) {
   const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
+  const [viewMode, setViewMode] = useState<ViewMode>('day');
+  const [year, setYear]   = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+
+  // ── navigation guards (no future) ──
+  const atFutureMonth = year > today.getFullYear() ||
+    (year === today.getFullYear() && month >= today.getMonth());
+  const atFutureYear  = year >= today.getFullYear();
 
   function prevMonth() {
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
     else setMonth((m) => m - 1);
   }
   function nextMonth() {
+    if (atFutureMonth) return;
     if (month === 11) { setYear((y) => y + 1); setMonth(0); }
     else setMonth((m) => m + 1);
   }
+  function prevYear() { setYear((y) => y - 1); }
+  function nextYear() { if (!atFutureYear) setYear((y) => y + 1); }
 
-  // Group PnL by day for the displayed month
+  // ── day view: group PnL by day ──
   const pnlByDay = new Map<number, number>();
   for (const o of orders) {
     if (!o.closedAt || o.pnl == null) continue;
@@ -364,25 +374,37 @@ export function PnlCalendarPage({ orders }: Props) {
     }
   }
 
-  // Sidebar stats (current month)
-  const monthOrders = orders.filter((o) => {
+  // ── month view: group PnL by month ──
+  const pnlByMonth = new Map<number, number>();
+  for (const o of orders) {
+    if (!o.closedAt || o.pnl == null) continue;
+    const d = new Date(o.closedAt);
+    if (d.getFullYear() === year) {
+      const m = d.getMonth();
+      pnlByMonth.set(m, (pnlByMonth.get(m) ?? 0) + o.pnl);
+    }
+  }
+
+  // ── sidebar stats (current calendar scope) ──
+  const scopeOrders = orders.filter((o) => {
     if (!o.closedAt || o.pnl == null) return false;
     const d = new Date(o.closedAt);
+    if (viewMode === 'month') return d.getFullYear() === year;
     return d.getFullYear() === year && d.getMonth() === month;
   });
-  const totalPnl  = monthOrders.reduce((s, o) => s + (o.pnl ?? 0), 0);
-  const wins      = monthOrders.filter((o) => (o.pnl ?? 0) > 0);
-  const losses    = monthOrders.filter((o) => (o.pnl ?? 0) < 0);
+  const totalPnl  = scopeOrders.reduce((s, o) => s + (o.pnl ?? 0), 0);
+  const wins      = scopeOrders.filter((o) => (o.pnl ?? 0) > 0);
+  const losses    = scopeOrders.filter((o) => (o.pnl ?? 0) < 0);
   const totalWin  = wins.reduce((s, o) => s + (o.pnl ?? 0), 0);
   const totalLoss = losses.reduce((s, o) => s + Math.abs(o.pnl ?? 0), 0);
   const profitFactor = totalLoss > 0 ? totalWin / totalLoss : null;
-  const winRate   = monthOrders.length > 0 ? (wins.length / monthOrders.length) * 100 : null;
-  const lossRate  = monthOrders.length > 0 ? (losses.length / monthOrders.length) * 100 : null;
-  const avgWin    = wins.length > 0 ? totalWin / wins.length : null;
-  const avgLoss   = losses.length > 0 ? totalLoss / losses.length : null;
-  const riskReward = avgWin != null && avgLoss != null && avgLoss > 0 ? avgWin / avgLoss : null;
+  const winRate      = scopeOrders.length > 0 ? (wins.length / scopeOrders.length) * 100 : null;
+  const lossRate     = scopeOrders.length > 0 ? (losses.length / scopeOrders.length) * 100 : null;
+  const avgWin       = wins.length > 0 ? totalWin / wins.length : null;
+  const avgLoss      = losses.length > 0 ? totalLoss / losses.length : null;
+  const riskReward   = avgWin != null && avgLoss != null && avgLoss > 0 ? avgWin / avgLoss : null;
 
-  // Build calendar cells
+  // ── day calendar cells ──
   const daysInMonth = getDaysInMonth(year, month);
   const firstDow    = getFirstDow(year, month);
   const cells: (number | null)[] = [
@@ -392,6 +414,7 @@ export function PnlCalendarPage({ orders }: Props) {
   while (cells.length % 7 !== 0) cells.push(null);
 
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  const isCurrentYear  = year === today.getFullYear();
 
   return (
     <main className="pnl-cal-shell">
@@ -401,49 +424,118 @@ export function PnlCalendarPage({ orders }: Props) {
           <Link href="/" className="pnl-cal-back">← Tổng quan</Link>
           <h1 className="pnl-cal-heading">Lịch giao dịch</h1>
         </div>
-        <div className="pnl-cal-nav">
-          <button className="pnl-cal-nav-btn" onClick={prevMonth} aria-label="Tháng trước">◄</button>
-          <span className="pnl-cal-nav-label">{MONTHS_VI[month]}</span>
-          <button className="pnl-cal-nav-btn" onClick={nextMonth} aria-label="Tháng sau">►</button>
-          <span className="pnl-cal-nav-year">{year}</span>
+
+        <div className="pnl-cal-topbar-right">
+          {/* View mode toggle */}
+          <div className="pnl-cal-view-toggle">
+            <button
+              className={`pnl-cal-view-btn${viewMode === 'day' ? ' pnl-cal-view-btn--active' : ''}`}
+              onClick={() => setViewMode('day')}
+            >
+              Theo ngày
+            </button>
+            <button
+              className={`pnl-cal-view-btn${viewMode === 'month' ? ' pnl-cal-view-btn--active' : ''}`}
+              onClick={() => setViewMode('month')}
+            >
+              Theo tháng
+            </button>
+          </div>
+
+          {/* Navigation */}
+          {viewMode === 'day' ? (
+            <div className="pnl-cal-nav">
+              <button className="pnl-cal-nav-btn" onClick={prevMonth} aria-label="Tháng trước">◄</button>
+              <span className="pnl-cal-nav-label">{MONTHS_VI[month]}</span>
+              <button
+                className="pnl-cal-nav-btn"
+                onClick={nextMonth}
+                disabled={atFutureMonth}
+                aria-label="Tháng sau"
+              >►</button>
+              <span className="pnl-cal-nav-year">{year}</span>
+            </div>
+          ) : (
+            <div className="pnl-cal-nav">
+              <button className="pnl-cal-nav-btn" onClick={prevYear} aria-label="Năm trước">◄</button>
+              <span className="pnl-cal-nav-label" style={{ minWidth: 60 }}>{year}</span>
+              <button
+                className="pnl-cal-nav-btn"
+                onClick={nextYear}
+                disabled={atFutureYear}
+                aria-label="Năm sau"
+              >►</button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Calendar + sidebar */}
       <div className="pnl-cal-body">
-        <div className="pnl-cal-main">
-          <div className="pnl-cal-dow-row">
-            {DAYS_VI.map((d) => (
-              <div key={d} className="pnl-cal-dow">{d}</div>
-            ))}
+        {viewMode === 'day' ? (
+          /* ── Day view ── */
+          <div className="pnl-cal-main">
+            <div className="pnl-cal-dow-row">
+              {DAYS_VI.map((d) => (
+                <div key={d} className="pnl-cal-dow">{d}</div>
+              ))}
+            </div>
+            <div className="pnl-cal-grid">
+              {cells.map((day, i) => {
+                if (day === null) {
+                  return <div key={`blank-${i}`} className="pnl-cal-cell pnl-cal-cell--blank" />;
+                }
+                const isToday = isCurrentMonth && day === today.getDate();
+                const dayPnl  = pnlByDay.get(day);
+                return (
+                  <div key={day} className={`pnl-cal-cell${isToday ? ' pnl-cal-cell--today' : ''}`}>
+                    <span className="pnl-cal-day-num">{day}</span>
+                    {dayPnl !== undefined && (
+                      <span className={`pnl-cal-day-pnl ${dayPnl >= 0 ? 'pnl-positive' : 'pnl-negative'}`}>
+                        {fmtPnl(dayPnl)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="pnl-cal-grid">
-            {cells.map((day, i) => {
-              if (day === null) {
-                return <div key={`blank-${i}`} className="pnl-cal-cell pnl-cal-cell--blank" />;
-              }
-              const isToday = isCurrentMonth && day === today.getDate();
-              const dayPnl  = pnlByDay.get(day);
-              return (
-                <div key={day} className={`pnl-cal-cell${isToday ? ' pnl-cal-cell--today' : ''}`}>
-                  <span className="pnl-cal-day-num">{day}</span>
-                  {dayPnl !== undefined && (
-                    <span className={`pnl-cal-day-pnl ${dayPnl >= 0 ? 'pnl-positive' : 'pnl-negative'}`}>
-                      {fmtPnl(dayPnl)}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+        ) : (
+          /* ── Month view ── */
+          <div className="pnl-cal-main">
+            <div className="pnl-cal-month-grid">
+              {Array.from({ length: 12 }, (_, m) => {
+                const isFuture = isCurrentYear && m > today.getMonth();
+                const isCurrent = isCurrentYear && m === today.getMonth();
+                const mPnl = pnlByMonth.get(m);
+                return (
+                  <div
+                    key={m}
+                    className={[
+                      'pnl-cal-month-cell',
+                      isFuture  ? 'pnl-cal-month-cell--future'  : '',
+                      isCurrent ? 'pnl-cal-month-cell--current' : '',
+                    ].join(' ').trim()}
+                  >
+                    <span className="pnl-cal-month-name">{MONTHS_VI[m]}</span>
+                    {!isFuture && mPnl !== undefined && (
+                      <span className={`pnl-cal-month-pnl ${mPnl >= 0 ? 'pnl-positive' : 'pnl-negative'}`}>
+                        {fmtPnl(mPnl)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Sidebar */}
         <aside className="pnl-cal-sidebar">
           <div className="pnl-cal-stat-block">
             <p className="pnl-cal-stat-label">Tổng PNL</p>
             <p className={`pnl-cal-stat-main ${totalPnl >= 0 ? 'pnl-positive' : 'pnl-negative'}`}>
-              {monthOrders.length === 0 ? '+0,00 USDT' : `${fmtPnl(totalPnl)} USDT`}
+              {scopeOrders.length === 0 ? '+0,00 USDT' : `${fmtPnl(totalPnl)} USDT`}
             </p>
             <hr className="pnl-cal-stat-sep" />
           </div>
