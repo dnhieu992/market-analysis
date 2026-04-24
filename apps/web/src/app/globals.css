@@ -3276,7 +3276,7 @@ a.metric-card--link:hover {
   z-index: 999;
   width: 380px;
   height: 580px;
-  background: var(--background-elevated);
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 16px 56px rgba(23, 18, 13, 0.18);
