@@ -2,6 +2,7 @@
   color-scheme: light;
   --background: #f5efe7;
   --background-elevated: rgba(255, 255, 255, 0.78);
+  --surface: #ffffff;
   --foreground: #17120d;
   --muted: #6f6458;
   --border: rgba(23, 18, 13, 0.12);
@@ -3276,7 +3277,7 @@ a.metric-card--link:hover {
   z-index: 999;
   width: 380px;
   height: 580px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: 0 16px 56px rgba(23, 18, 13, 0.18);
