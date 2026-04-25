@@ -131,6 +131,31 @@ export class TelegramService {
   }
 
   async sendToChat(chatId: string, text: string): Promise<{ success: boolean; messageId?: number }> {
+    const chunks = this.chunkMessage(text);
+    let last: { success: boolean; messageId?: number } = { success: true };
+    for (const chunk of chunks) {
+      last = await this.sendChunk(chatId, chunk);
+      if (!last.success) return last;
+    }
+    return last;
+  }
+
+  private chunkMessage(text: string, maxLen = 4000): string[] {
+    if (text.length <= maxLen) return [text];
+    const chunks: string[] = [];
+    let remaining = text;
+    while (remaining.length > maxLen) {
+      const slice = remaining.slice(0, maxLen);
+      const cut = slice.lastIndexOf('\n');
+      const splitAt = cut > 0 ? cut : maxLen;
+      chunks.push(remaining.slice(0, splitAt));
+      remaining = remaining.slice(splitAt + 1);
+    }
+    if (remaining.length > 0) chunks.push(remaining);
+    return chunks;
+  }
+
+  private async sendChunk(chatId: string, text: string): Promise<{ success: boolean; messageId?: number }> {
     try {
       const response = await this.httpClient.post<TelegramSendResponse>(
         `/bot${this.config.botToken}/sendMessage`,
