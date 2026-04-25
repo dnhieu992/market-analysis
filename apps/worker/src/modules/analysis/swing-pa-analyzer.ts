@@ -13,9 +13,11 @@ export type SRZone = {
 };
 
 export type SwingSetup = {
-  type: 'break-retest' | 'pullback-hl' | 'liquidity-sweep' | null;
+  type: 'break-retest' | 'pullback-hl' | 'liquidity-sweep' | 'limit-support' | 'limit-resistance' | null;
+  entryType: 'market' | 'limit';
   direction: 'long' | 'short' | null;
   confidence: 'high' | 'medium' | 'low';
+  limitPrice: number | null;
   entryZone: [number, number] | null;
   stopLoss: number | null;
   tp1: number | null;
@@ -41,6 +43,7 @@ export type SwingPaAnalysis = {
   srZones: SRZone[];
   choch: ChochSignal;
   setup: SwingSetup;
+  pendingLimitSetups: SwingSetup[];
   avgVolume20: number;
 };
 
@@ -278,8 +281,10 @@ function detectBreakRetest(
 
       return {
         type: 'break-retest',
+        entryType: 'market',
         direction,
         confidence,
+        limitPrice: null,
         entryZone: [zone.low, zone.high],
         stopLoss:  direction === 'long' ? zone.low * 0.995 : zone.high * 1.005,
         tp1:       direction === 'long' ? zone.midpoint * 1.03 : zone.midpoint * 0.97,
@@ -325,8 +330,10 @@ function detectPullbackHl(
 
     return {
       type: 'pullback-hl',
+      entryType: 'market',
       direction: 'long',
       confidence: volDeclining && confluence ? 'high' : volDeclining || confluence ? 'medium' : 'low',
+      limitPrice: null,
       entryZone: [lastHl * 0.99, lastHl * 1.01],
       stopLoss:  lastHl * 0.985,
       tp1:       swingHighs[swingHighs.length - 1] ?? current.close * 1.05,
@@ -347,8 +354,10 @@ function detectPullbackHl(
 
     return {
       type: 'pullback-hl',
+      entryType: 'market',
       direction: 'short',
       confidence: volDeclining && confluence ? 'high' : volDeclining || confluence ? 'medium' : 'low',
+      limitPrice: null,
       entryZone: [lastLh * 0.99, lastLh * 1.01],
       stopLoss:  lastLh * 1.015,
       tp1:       swingLows[swingLows.length - 1] ?? current.close * 0.95,
@@ -391,8 +400,10 @@ function detectLiquiditySweep(
     ) {
       return {
         type: 'liquidity-sweep',
+        entryType: 'market',
         direction: 'long',
         confidence: volSpike ? 'high' : 'medium',
+        limitPrice: null,
         entryZone: [current.close * 0.998, current.close * 1.002],
         stopLoss:  current.low * 0.997,
         tp1:       swingHighs[swingHighs.length - 1] ?? current.close * 1.04,
@@ -418,8 +429,10 @@ function detectLiquiditySweep(
     ) {
       return {
         type: 'liquidity-sweep',
+        entryType: 'market',
         direction: 'short',
         confidence: volSpike ? 'high' : 'medium',
+        limitPrice: null,
         entryZone: [current.close * 0.998, current.close * 1.002],
         stopLoss:  current.high * 1.003,
         tp1:       swingLows[swingLows.length - 1] ?? current.close * 0.96,
@@ -435,6 +448,148 @@ function detectLiquiditySweep(
   }
 
   return null;
+}
+
+// ── Pending Limit Setups ──────────────────────────────────────────────────────
+//
+// When no active market setup exists, generate limit order plans at key S/R
+// zones and swing levels that price hasn't reached yet.
+
+function detectPendingLimitSetups(
+  currentPrice: number,
+  trend: SwingTrend,
+  swingHighs: number[],
+  swingLows: number[],
+  srZones: SRZone[]
+): SwingSetup[] {
+  const results: SwingSetup[] = [];
+
+  // ── Limit Buy setups (support zones below price) ───────────────────────────
+  const supportZones = srZones
+    .filter((z) => z.role === 'support' && z.midpoint < currentPrice)
+    .sort((a, b) => b.midpoint - a.midpoint); // closest first
+
+  for (const zone of supportZones.slice(0, 2)) {
+    const distPct = ((currentPrice - zone.midpoint) / currentPrice) * 100;
+    const lastHl  = swingLows.length > 0 ? swingLows[swingLows.length - 1]! : null;
+    const hlConfluence = lastHl !== null && Math.abs(lastHl - zone.midpoint) / zone.midpoint < 0.02;
+    const confidence: 'high' | 'medium' | 'low' =
+      zone.touches >= 3 && hlConfluence ? 'high' :
+      zone.touches >= 2 || hlConfluence ? 'medium' : 'low';
+
+    results.push({
+      type: 'limit-support',
+      entryType: 'limit',
+      direction: 'long',
+      confidence,
+      limitPrice: zone.midpoint,
+      entryZone: [zone.low, zone.high],
+      stopLoss:  zone.low * 0.995,
+      tp1:       swingHighs.length > 0
+        ? (swingHighs.find((h) => h > currentPrice) ?? currentPrice * 1.05)
+        : currentPrice * 1.05,
+      tp2:       null,
+      notes: [
+        `Support zone: $${fmtPrice(zone.low)} – $${fmtPrice(zone.high)}`,
+        `${distPct.toFixed(1)}% below current price`,
+        `Tested ${zone.touches}x on weekly chart`,
+        hlConfluence ? 'Confluence with last HL ✅' : 'No HL confluence at this zone',
+        trend === 'uptrend' ? 'Trend aligned: UPTREND ✅' : trend === 'sideway' ? 'Sideway — watch for bounce' : 'Counter-trend ⚠️',
+      ],
+    });
+  }
+
+  // ── Limit Sell setups (resistance zones above price) ──────────────────────
+  const resistanceZones = srZones
+    .filter((z) => z.role === 'resistance' && z.midpoint > currentPrice)
+    .sort((a, b) => a.midpoint - b.midpoint); // closest first
+
+  for (const zone of resistanceZones.slice(0, 2)) {
+    const distPct = ((zone.midpoint - currentPrice) / currentPrice) * 100;
+    const lastLh  = swingHighs.length > 0 ? swingHighs[swingHighs.length - 1]! : null;
+    const lhConfluence = lastLh !== null && Math.abs(lastLh - zone.midpoint) / zone.midpoint < 0.02;
+    const confidence: 'high' | 'medium' | 'low' =
+      zone.touches >= 3 && lhConfluence ? 'high' :
+      zone.touches >= 2 || lhConfluence ? 'medium' : 'low';
+
+    results.push({
+      type: 'limit-resistance',
+      entryType: 'limit',
+      direction: 'short',
+      confidence,
+      limitPrice: zone.midpoint,
+      entryZone: [zone.low, zone.high],
+      stopLoss:  zone.high * 1.005,
+      tp1:       swingLows.length > 0
+        ? (swingLows.slice().reverse().find((l) => l < currentPrice) ?? currentPrice * 0.95)
+        : currentPrice * 0.95,
+      tp2:       null,
+      notes: [
+        `Resistance zone: $${fmtPrice(zone.low)} – $${fmtPrice(zone.high)}`,
+        `${distPct.toFixed(1)}% above current price`,
+        `Tested ${zone.touches}x on weekly chart`,
+        lhConfluence ? 'Confluence with last LH ✅' : 'No LH confluence at this zone',
+        trend === 'downtrend' ? 'Trend aligned: DOWNTREND ✅' : trend === 'sideway' ? 'Sideway — watch for rejection' : 'Counter-trend ⚠️',
+      ],
+    });
+  }
+
+  // ── HL/LH swing levels (if not already covered by S/R zones) ─────────────
+  if (trend === 'uptrend' && swingLows.length >= 1) {
+    const lastHl   = swingLows[swingLows.length - 1]!;
+    const alreadyCovered = results.some(
+      (s) => s.entryZone && Math.abs(s.entryZone[0] - lastHl) / lastHl < 0.01
+    );
+    if (!alreadyCovered && lastHl < currentPrice) {
+      const distPct = ((currentPrice - lastHl) / currentPrice) * 100;
+      results.unshift({
+        type: 'limit-support',
+        entryType: 'limit',
+        direction: 'long',
+        confidence: 'medium',
+        limitPrice: lastHl,
+        entryZone: [lastHl * 0.99, lastHl * 1.01],
+        stopLoss:  lastHl * 0.985,
+        tp1:       swingHighs[swingHighs.length - 1] ?? currentPrice * 1.05,
+        tp2:       null,
+        notes: [
+          `Last Higher Low: $${fmtPrice(lastHl)}`,
+          `${distPct.toFixed(1)}% below current price`,
+          'Entry on pullback to HL structure',
+          'Uptrend aligned ✅',
+        ],
+      });
+    }
+  }
+
+  if (trend === 'downtrend' && swingHighs.length >= 1) {
+    const lastLh   = swingHighs[swingHighs.length - 1]!;
+    const alreadyCovered = results.some(
+      (s) => s.entryZone && Math.abs(s.entryZone[0] - lastLh) / lastLh < 0.01
+    );
+    if (!alreadyCovered && lastLh > currentPrice) {
+      const distPct = ((lastLh - currentPrice) / currentPrice) * 100;
+      results.unshift({
+        type: 'limit-resistance',
+        entryType: 'limit',
+        direction: 'short',
+        confidence: 'medium',
+        limitPrice: lastLh,
+        entryZone: [lastLh * 0.99, lastLh * 1.01],
+        stopLoss:  lastLh * 1.015,
+        tp1:       swingLows[swingLows.length - 1] ?? currentPrice * 0.95,
+        tp2:       null,
+        notes: [
+          `Last Lower High: $${fmtPrice(lastLh)}`,
+          `${distPct.toFixed(1)}% above current price`,
+          'Entry on retest of LH structure',
+          'Downtrend aligned ✅',
+        ],
+      });
+    }
+  }
+
+  return results;
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
@@ -459,11 +614,26 @@ export function analyzeSwingPa(
   const srZones = extractSRZones(weeklyCandles, currentPrice);
 
   // Priority: liquidity sweep → break & retest → pullback to HL
-  const setup: SwingSetup =
+  const activeSetup: SwingSetup | null =
     detectLiquiditySweep(dailyCandles, trend, swingHighs, swingLows, avgVol) ??
     detectBreakRetest(dailyCandles, h4Candles, srZones, trend, avgVol) ??
     detectPullbackHl(dailyCandles, trend, swingHighs, swingLows, srZones, consecutiveHhCount, consecutiveHlCount) ??
-    { type: null, direction: null, confidence: 'low', entryZone: null, stopLoss: null, tp1: null, tp2: null, notes: ['No active setup detected on current candle'] };
+    null;
+
+  const pendingLimitSetups = detectPendingLimitSetups(currentPrice, trend, swingHighs, swingLows, srZones);
+
+  const setup: SwingSetup = activeSetup ?? {
+    type: null,
+    entryType: 'market',
+    direction: null,
+    confidence: 'low',
+    limitPrice: null,
+    entryZone: null,
+    stopLoss: null,
+    tp1: null,
+    tp2: null,
+    notes: ['No active market setup on current candle — see limit setups below'],
+  };
 
   // Fill TP2 from the next S/R zone beyond TP1
   if (setup.tp1 !== null && setup.tp2 === null && setup.direction !== null) {
@@ -472,6 +642,17 @@ export function analyzeSwingPa(
       ? srZones.find((z) => z.midpoint > setup.tp1! && z.role === 'resistance')
       : srZones.find((z) => z.midpoint < setup.tp1! && z.role === 'support');
     if (nextZone) setup.tp2 = nextZone.midpoint;
+  }
+
+  // Fill TP2 for limit setups too
+  for (const ls of pendingLimitSetups) {
+    if (ls.tp1 !== null && ls.tp2 === null && ls.direction !== null) {
+      const isLong   = ls.direction === 'long';
+      const nextZone = isLong
+        ? srZones.find((z) => z.midpoint > ls.tp1! && z.role === 'resistance')
+        : srZones.find((z) => z.midpoint < ls.tp1! && z.role === 'support');
+      if (nextZone) ls.tp2 = nextZone.midpoint;
+    }
   }
 
   return {
@@ -485,6 +666,7 @@ export function analyzeSwingPa(
     srZones,
     choch,
     setup,
+    pendingLimitSetups,
     avgVolume20: avgVol,
   };
 }

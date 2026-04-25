@@ -13,9 +13,11 @@ function trendIcon(trend: SwingTrend): string {
 }
 
 function setupLabel(type: SwingSetup['type']): string {
-  if (type === 'break-retest')     return 'Break &amp; Retest';
-  if (type === 'pullback-hl')      return 'Pullback to HL/LH';
-  if (type === 'liquidity-sweep')  return 'Liquidity Sweep';
+  if (type === 'break-retest')      return 'Break &amp; Retest';
+  if (type === 'pullback-hl')       return 'Pullback to HL/LH';
+  if (type === 'liquidity-sweep')   return 'Liquidity Sweep';
+  if (type === 'limit-support')     return 'Limit Buy @ Support';
+  if (type === 'limit-resistance')  return 'Limit Sell @ Resistance';
   return 'None';
 }
 
@@ -67,37 +69,47 @@ export function formatSwingPaMessage(a: SwingPaAnalysis): string {
     }
   }
 
-  // ── Setup ────────────────────────────────────────────────────────────────
+  // ── Active Setup ─────────────────────────────────────────────────────────
   lines.push('');
   lines.push(sep);
   if (a.setup.type === null) {
-    lines.push('⚪ <b>NO ACTIVE SETUP</b>');
+    lines.push('⚪ <b>NO ACTIVE MARKET SETUP</b>');
     for (const note of a.setup.notes) lines.push(`  ${note}`);
   } else {
     const dirIcon = a.setup.direction === 'long' ? '🟢 LONG' : '🔴 SHORT';
-    lines.push(`⚡ <b>SETUP: ${setupLabel(a.setup.type)}</b>`);
+    lines.push(`⚡ <b>SETUP: ${setupLabel(a.setup.type)}</b>  [MARKET]`);
     lines.push(`  Direction: ${dirIcon}   Confidence: ${confidenceBadge(a.setup.confidence)}`);
     lines.push('');
     for (const note of a.setup.notes) {
       lines.push(`  • ${note}`);
     }
 
-    // Trade plan
     if (a.setup.entryZone ?? a.setup.stopLoss ?? a.setup.tp1) {
       lines.push('');
       lines.push('<b>TRADE PLAN:</b>');
       if (a.setup.entryZone) {
-        lines.push(`  Entry:  ${fmtPrice(a.setup.entryZone[0])} – ${fmtPrice(a.setup.entryZone[1])}`);
+        lines.push(`  Entry:  $${fmtPrice(a.setup.entryZone[0])} – $${fmtPrice(a.setup.entryZone[1])}`);
       }
-      if (a.setup.stopLoss !== null) {
-        lines.push(`  SL:     ${fmtPrice(a.setup.stopLoss)}`);
-      }
-      if (a.setup.tp1 !== null) {
-        lines.push(`  TP1:    ${fmtPrice(a.setup.tp1)}`);
-      }
-      if (a.setup.tp2 !== null) {
-        lines.push(`  TP2:    ${fmtPrice(a.setup.tp2)}`);
-      }
+      if (a.setup.stopLoss !== null) lines.push(`  SL:     $${fmtPrice(a.setup.stopLoss)}`);
+      if (a.setup.tp1 !== null)      lines.push(`  TP1:    $${fmtPrice(a.setup.tp1)}`);
+      if (a.setup.tp2 !== null)      lines.push(`  TP2:    $${fmtPrice(a.setup.tp2)}`);
+    }
+  }
+
+  // ── Pending Limit Setups ─────────────────────────────────────────────────
+  if (a.pendingLimitSetups.length > 0) {
+    lines.push('');
+    lines.push(sep);
+    lines.push(`📋 <b>PENDING LIMIT ORDERS (${a.pendingLimitSetups.length})</b>`);
+    for (const ls of a.pendingLimitSetups) {
+      lines.push('');
+      const dirIcon = ls.direction === 'long' ? '🟢 LIMIT BUY' : '🔴 LIMIT SELL';
+      lines.push(`  ${dirIcon}  <b>${setupLabel(ls.type)}</b>  ${confidenceBadge(ls.confidence)}`);
+      for (const note of ls.notes) lines.push(`    • ${note}`);
+      lines.push(`    📌 Limit: <b>$${fmtPrice(ls.limitPrice ?? 0)}</b>  (Zone: $${fmtPrice(ls.entryZone?.[0] ?? 0)} – $${fmtPrice(ls.entryZone?.[1] ?? 0)})`);
+      if (ls.stopLoss !== null) lines.push(`    SL:  $${fmtPrice(ls.stopLoss)}`);
+      if (ls.tp1 !== null)      lines.push(`    TP1: $${fmtPrice(ls.tp1)}`);
+      if (ls.tp2 !== null)      lines.push(`    TP2: $${fmtPrice(ls.tp2)}`);
     }
   }
 
