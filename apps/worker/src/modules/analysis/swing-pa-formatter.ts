@@ -1,6 +1,10 @@
 import type { SwingPaAnalysis, SwingTrend, SwingSetup } from './swing-pa-analyzer';
 import type { SwingPaReview, SwingPaSetupReview } from './swing-pa-review.service';
 
+function esc(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function fmtPrice(n: number): string {
   return n >= 1000
     ? n.toLocaleString('en-US', { maximumFractionDigits: 2 })
@@ -41,7 +45,7 @@ function setupVerdictBadge(verdict: SwingPaSetupReview['verdict']): string {
 }
 
 function formatSetupReview(r: SwingPaSetupReview, lines: string[]): void {
-  const typeLabel = r.direction === 'long' ? `Limit Buy @ ${r.setupType}` : `Limit Sell @ ${r.setupType}`;
+  const typeLabel = r.direction === 'long' ? `Limit Buy @ ${esc(r.setupType)}` : `Limit Sell @ ${esc(r.setupType)}`;
   lines.push(`📋 <b>${typeLabel}</b>  →  ${setupVerdictBadge(r.verdict)}`);
   if (r.adjustedConfidence) {
     lines.push(`  Confidence: → ${r.adjustedConfidence.toUpperCase()}`);
@@ -58,18 +62,18 @@ function formatSetupReview(r: SwingPaSetupReview, lines: string[]): void {
   if (r.adjustedTp2 != null) {
     lines.push(`  TP2 điều chỉnh:    $${fmtPrice(r.adjustedTp2)}`);
   }
-  lines.push(`  Lý do: ${r.reason}`);
+  lines.push(`  Lý do: ${esc(r.reason)}`);
 }
 
 function formatClaudeReview(review: SwingPaReview, lines: string[]): void {
   const sepWide = '════════════════════════';
   lines.push('');
   lines.push(sepWide);
-  lines.push(`🤖 <b>CLAUDE REVIEW</b>  [${review.model}]`);
+  lines.push(`🤖 <b>CLAUDE REVIEW</b>  [${esc(review.model)}]`);
   lines.push(sepWide);
   lines.push(`Verdict: <b>${verdictBadge(review.verdict)}</b>`);
   lines.push('');
-  lines.push(`Trend: ${review.trendComment}`);
+  lines.push(`Trend: ${esc(review.trendComment)}`);
 
   if (review.activeSetupReview) {
     lines.push('');
@@ -87,12 +91,12 @@ function formatClaudeReview(review: SwingPaReview, lines: string[]): void {
     lines.push('');
     lines.push('⚠️ <b>Warnings:</b>');
     for (const w of review.warnings) {
-      lines.push(`  • ${w}`);
+      lines.push(`  • ${esc(w)}`);
     }
   }
 
   lines.push('');
-  lines.push(`Tóm tắt: ${review.summary}`);
+  lines.push(`Tóm tắt: ${esc(review.summary)}`);
 }
 
 export function formatSwingPaMessage(a: SwingPaAnalysis, review?: SwingPaReview | null): string {
