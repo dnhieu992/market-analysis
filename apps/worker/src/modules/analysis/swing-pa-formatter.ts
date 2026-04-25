@@ -99,7 +99,15 @@ function formatClaudeReview(review: SwingPaReview, lines: string[]): void {
   lines.push(`Tóm tắt: ${esc(review.summary)}`);
 }
 
-export function formatSwingPaMessage(a: SwingPaAnalysis, review?: SwingPaReview | null): string {
+export function formatClaudeReviewMessage(review: SwingPaReview): string {
+  const lines: string[] = [];
+  formatClaudeReview(review, lines);
+  lines.push('');
+  lines.push(`⚠️ Tín hiệu tự động — xác nhận trước khi vào lệnh`);
+  return lines.join('\n');
+}
+
+export function formatSwingPaMessage(a: SwingPaAnalysis): string {
   const sep     = '━━━━━━━━━━━━━━━━━━━━';
   const sepWide = '════════════════════════';
   const lines: string[] = [];
@@ -193,10 +201,6 @@ export function formatSwingPaMessage(a: SwingPaAnalysis, review?: SwingPaReview 
   lines.push('');
   lines.push(sep);
   lines.push(`💰 Price: <b>$${fmtPrice(a.currentPrice)}</b>`);
-
-  if (review) {
-    formatClaudeReview(review, lines);
-  }
 
   lines.push('');
   lines.push(`⚠️ Tín hiệu tự động — xác nhận trước khi vào lệnh`);

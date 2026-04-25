@@ -5,12 +5,13 @@ import type { Candle } from '@app/core';
 import { MarketDataService } from '../market/market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { analyzeSwingPa } from './swing-pa-analyzer';
-import { formatSwingPaMessage } from './swing-pa-formatter';
+import { formatSwingPaMessage, formatClaudeReviewMessage } from './swing-pa-formatter';
 import { renderSwingPaChart } from './swing-pa-chart';
 import { SwingPaReviewService } from './swing-pa-review.service';
 
 export type SwingPaResult = {
   text: string;
+  reviewText: string | null;
   chartBuffer: Buffer;
 };
 
@@ -40,16 +41,19 @@ export class SwingPaService {
       this.reviewService.review(analysis, dailyCandles as Candle[])
     ]);
 
-    const text = formatSwingPaMessage(analysis, review);
+    const text       = formatSwingPaMessage(analysis);
+    const reviewText = review ? formatClaudeReviewMessage(review) : null;
 
-    return { text, chartBuffer };
+    return { text, reviewText, chartBuffer };
   }
 
   async analyzeAndSend(symbol: string, chatId: string): Promise<void> {
-    const { text, chartBuffer } = await this.analyze(symbol);
+    const { text, reviewText, chartBuffer } = await this.analyze(symbol);
 
-    // Send text analysis first, then chart image to the same chat
     await this.telegramService.sendToChat(chatId, text);
     await this.telegramService.sendPhotoToChat(chatId, chartBuffer, `${symbol} Daily — Pure PA Swing`);
+    if (reviewText) {
+      await this.telegramService.sendToChat(chatId, reviewText);
+    }
   }
 }
