@@ -59,7 +59,7 @@ const REVIEW_TOOL_SCHEMA = {
   }
 } as const;
 
-const REVIEW_TIMEOUT_MS = 30_000;
+const REVIEW_TIMEOUT_MS = 60_000;
 
 function resolveModel(): string {
   const variant = process.env.CLAUDE_MODEL;
