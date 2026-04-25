@@ -197,7 +197,7 @@ export function extractSRZones(weeklyCandles: Candle[], currentPrice: number): S
 export function calcAvgVolume(candles: Candle[], period = 20): number {
   const slice = candles.slice(-period);
   if (slice.length === 0) return 0;
-  return slice.reduce((s, c) => s + c.volume, 0) / slice.length;
+  return slice.reduce((s, c) => s + (c.volume ?? 0), 0) / slice.length;
 }
 
 // ── 4H confirmation pattern ───────────────────────────────────────────────────
@@ -268,7 +268,7 @@ function detectBreakRetest(
       const retesting = current.low <= zone.high && current.high >= zone.low;
       if (!retesting) continue;
 
-      const highVolBreak = c.volume > avgVol;
+      const highVolBreak = (c.volume ?? 0) > avgVol;
       const h4Pattern    = detect4HPattern(h4Candles, trend);
       const direction: 'long' | 'short' = brokeBullish ? 'long' : 'short';
 
@@ -314,8 +314,8 @@ function detectPullbackHl(
   const current = dailyCandles[dailyCandles.length - 1]!;
   const last3   = dailyCandles.slice(-3);
   const volDeclining = last3.length === 3
-    && last3[2]!.volume < last3[1]!.volume
-    && last3[1]!.volume < last3[0]!.volume;
+    && (last3[2]!.volume ?? 0) < (last3[1]!.volume ?? 0)
+    && (last3[1]!.volume ?? 0) < (last3[0]!.volume ?? 0);
 
   if (trend === 'uptrend' && swingLows.length >= 1) {
     const lastHl = swingLows[swingLows.length - 1]!;
@@ -378,7 +378,7 @@ function detectLiquiditySweep(
   const body      = Math.abs(current.close - current.open);
   const lowerWick = Math.min(current.open, current.close) - current.low;
   const upperWick = current.high - Math.max(current.open, current.close);
-  const volSpike  = current.volume > avgVol * 1.5;
+  const volSpike  = (current.volume ?? 0) > avgVol * 1.5;
 
   // Bullish sweep: wick pierced a swing low but close recovered above it
   if (swingLows.length >= 1 && trend !== 'downtrend') {
