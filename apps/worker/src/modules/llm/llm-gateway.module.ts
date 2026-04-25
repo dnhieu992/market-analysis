@@ -26,8 +26,9 @@ export function resolveLlmGatewayConfig(): {
 
 export function createLlmProviderAdapter(): ClaudeDailyAnalysisProvider {
   const { claudeModelVariant } = resolveLlmGatewayConfig();
+  const apiKey = process.env.CLAUDE_API_KEY ?? '';
 
-  return new ClaudeDailyAnalysisProvider(undefined, claudeModelVariant);
+  return new ClaudeDailyAnalysisProvider(undefined, claudeModelVariant, apiKey);
 }
 
 @Module({
