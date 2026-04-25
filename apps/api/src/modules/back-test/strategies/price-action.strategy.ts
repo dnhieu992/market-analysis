@@ -128,7 +128,7 @@ function extractSRZones(candles: Candle[], currentPrice: number): SRZone[] {
 
 function avgVol(candles: Candle[], period = 20): number {
   const slice = candles.slice(-period);
-  return slice.length ? slice.reduce((s, c) => s + c.volume, 0) / slice.length : 0;
+  return slice.length ? slice.reduce((s, c) => s + (c.volume ?? 0), 0) / slice.length : 0;
 }
 
 // ── 4H confirmation pattern ───────────────────────────────────────────────────
@@ -188,7 +188,7 @@ function checkLiquiditySweep(
   const body      = Math.abs(current.close - current.open);
   const lowerWick = Math.min(current.open, current.close) - current.low;
   const upperWick = current.high - Math.max(current.open, current.close);
-  const volSpike  = current.volume > av * VOL_SPIKE_MULT;
+  const volSpike  = (current.volume ?? 0) > av * VOL_SPIKE_MULT;
 
   // Bullish: wick swept below a swing low, closed back above it
   if (swingLows.length >= 1 && trend !== 'downtrend') {
@@ -252,7 +252,7 @@ function checkBreakRetest(
       if (!brokeLong && !brokeShort) continue;
 
       // Breakout candle must have above-average volume
-      if (c.volume <= av) continue;
+      if ((c.volume ?? 0) <= av) continue;
 
       // Current candle must be retesting the zone
       const retesting = current.low <= zone.high && current.high >= zone.low;
@@ -261,7 +261,7 @@ function checkBreakRetest(
       // At least medium confidence: high-volume break is already confirmed;
       // 4H pattern is bonus but not required
       const confirmed = has4HConfirmation(h4Candles, trend);
-      if (!confirmed && c.volume < av * 1.2) continue; // skip low-quality breaks without 4H confirm
+      if (!confirmed && (c.volume ?? 0) < av * 1.2) continue; // skip low-quality breaks without 4H confirm
 
       if (brokeLong) {
         const entry = current.close;
@@ -296,8 +296,8 @@ function checkPullbackHl(
 
   const last3 = candles.slice(-3);
   const volDeclining = last3.length === 3
-    && last3[2]!.volume < last3[1]!.volume
-    && last3[1]!.volume < last3[0]!.volume;
+    && (last3[2]!.volume ?? 0) < (last3[1]!.volume ?? 0)
+    && (last3[1]!.volume ?? 0) < (last3[0]!.volume ?? 0);
 
   if (trend === 'uptrend' && swingLows.length >= 1) {
     const lastHl = swingLows[swingLows.length - 1]!;
