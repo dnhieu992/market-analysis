@@ -138,7 +138,8 @@ export class TelegramService {
       );
       return { success: true, messageId: response.data.result?.message_id };
     } catch (error) {
-      this.logger.warn(`sendToChat failed: ${error instanceof Error ? error.message : 'unknown'}`);
+      const errData = (error as { response?: { data?: unknown } }).response?.data;
+      this.logger.warn(`sendToChat failed: ${error instanceof Error ? error.message : 'unknown'} — ${JSON.stringify(errData ?? {})}`);
       return { success: false };
     }
   }

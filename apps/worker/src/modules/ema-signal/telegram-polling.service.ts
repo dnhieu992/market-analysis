@@ -39,9 +39,19 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
+    void this.deleteWebhook();
     this.pollHandle = setInterval(() => { void this.poll(); }, 2_000);
     this.candleHandle = setInterval(() => { void this.checkCandles(); }, 30_000);
     this.logger.log('Telegram polling and candle watcher started');
+  }
+
+  private async deleteWebhook(): Promise<void> {
+    try {
+      await this.http.get(`/bot${this.botToken}/deleteWebhook`);
+      this.logger.log('Webhook deleted — polling mode active');
+    } catch (error) {
+      this.logger.warn(`deleteWebhook failed: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
   }
 
   onModuleDestroy() {

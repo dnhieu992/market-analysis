@@ -157,7 +157,7 @@ export function formatSwingPaMessage(a: SwingPaAnalysis, review?: SwingPaReview 
     lines.push(`  Direction: ${dirIcon}   Confidence: ${confidenceBadge(a.setup.confidence)}`);
     lines.push('');
     for (const note of a.setup.notes) {
-      lines.push(`  • ${note}`);
+      lines.push(`  • ${esc(note)}`);
     }
 
     if (a.setup.entryZone ?? a.setup.stopLoss ?? a.setup.tp1) {
@@ -181,7 +181,7 @@ export function formatSwingPaMessage(a: SwingPaAnalysis, review?: SwingPaReview 
       lines.push('');
       const dirIcon = ls.direction === 'long' ? '🟢 LIMIT BUY' : '🔴 LIMIT SELL';
       lines.push(`  ${dirIcon}  <b>${setupLabel(ls.type)}</b>  ${confidenceBadge(ls.confidence)}`);
-      for (const note of ls.notes) lines.push(`    • ${note}`);
+      for (const note of ls.notes) lines.push(`    • ${esc(note)}`);
       lines.push(`    📌 Limit: <b>$${fmtPrice(ls.limitPrice ?? 0)}</b>  (Zone: $${fmtPrice(ls.entryZone?.[0] ?? 0)} – $${fmtPrice(ls.entryZone?.[1] ?? 0)})`);
       if (ls.stopLoss !== null) lines.push(`    SL:  $${fmtPrice(ls.stopLoss)}`);
       if (ls.tp1 !== null)      lines.push(`    TP1: $${fmtPrice(ls.tp1)}`);
