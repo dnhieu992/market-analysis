@@ -110,6 +110,26 @@ export class TelegramService {
     }
   }
 
+  async sendPhotoToChat(chatId: string, imageBuffer: Buffer, caption?: string): Promise<{ success: boolean; messageId?: number }> {
+    try {
+      const form = new FormData();
+      form.append('chat_id', chatId);
+      form.append('photo', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'chart.png');
+      if (caption) form.append('caption', caption);
+
+      const response = await this.httpClient.post<TelegramSendResponse>(
+        `/bot${this.config.botToken}/sendPhoto`,
+        form,
+        { timeout: 30_000 }
+      );
+
+      return { success: true, messageId: response.data.result?.message_id };
+    } catch (error) {
+      this.logger.warn(`sendPhotoToChat failed: ${error instanceof Error ? error.message : 'unknown'}`);
+      return { success: false };
+    }
+  }
+
   async sendToChat(chatId: string, text: string): Promise<{ success: boolean; messageId?: number }> {
     try {
       const response = await this.httpClient.post<TelegramSendResponse>(

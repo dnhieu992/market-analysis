@@ -9,7 +9,8 @@ const BINANCE_INTERVAL: Record<string, string> = {
   'M30': '30m',
   '1d': '1d',
   '1h': '1h',
-  '15m': '15m'
+  '15m': '15m',
+  '1w': '1w',
 };
 
 type BinanceKlineParams = {

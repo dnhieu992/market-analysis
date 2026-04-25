@@ -7,10 +7,11 @@ import { AnalysisOrchestratorService } from './analysis-orchestrator.service';
 import { DailyAnalysisService } from './daily-analysis.service';
 import { PriceActionSignalService } from './price-action-signal.service';
 import { SonicRSignalService } from './sonic-r-signal.service';
+import { SwingPaService } from './swing-pa.service';
 
 @Module({
   imports: [MarketModule, TelegramModule, LlmModule],
-  providers: [AnalysisOrchestratorService, SonicRSignalService, PriceActionSignalService, DailyAnalysisService],
-  exports: [AnalysisOrchestratorService, SonicRSignalService, PriceActionSignalService, DailyAnalysisService]
+  providers: [AnalysisOrchestratorService, SonicRSignalService, PriceActionSignalService, DailyAnalysisService, SwingPaService],
+  exports: [AnalysisOrchestratorService, SonicRSignalService, PriceActionSignalService, DailyAnalysisService, SwingPaService]
 })
 export class AnalysisModule {}

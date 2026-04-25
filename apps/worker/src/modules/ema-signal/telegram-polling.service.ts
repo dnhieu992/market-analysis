@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import axios, { type AxiosInstance } from 'axios';
 
 import { TelegramService } from '../telegram/telegram.service';
+import { SwingPaService } from '../analysis/swing-pa.service';
 import { EmaSignalService } from './ema-signal.service';
 import { WatchlistService } from './watchlist.service';
 
@@ -27,7 +28,8 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly emaSignalService: EmaSignalService,
     private readonly telegramService: TelegramService,
-    private readonly watchlistService: WatchlistService
+    private readonly watchlistService: WatchlistService,
+    private readonly swingPaService: SwingPaService
   ) {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
     this.http = axios.create({
@@ -71,6 +73,22 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
     const rawChatId = update.message?.chat.id;
     if (!text || rawChatId == null) return;
     const chatId = String(rawChatId);
+
+    // /btcusdt swing → pure price action swing analysis + chart image
+    const swingMatch = /^\/([A-Z0-9]+)\s+swing$/i.exec(text);
+    if (swingMatch) {
+      const symbol = swingMatch[1]!.toUpperCase();
+      await this.telegramService.sendToChat(chatId, `⏳ Analyzing ${symbol} (swing PA)...`);
+      try {
+        await this.swingPaService.analyzeAndSend(symbol, chatId);
+      } catch (err) {
+        await this.telegramService.sendToChat(
+          chatId,
+          `❌ Analysis failed for ${symbol}: ${err instanceof Error ? err.message : 'unknown error'}`
+        );
+      }
+      return;
+    }
 
     const watchMatch = /^\/watch\s+([A-Z0-9]+)$/i.exec(text);
     if (watchMatch) {
