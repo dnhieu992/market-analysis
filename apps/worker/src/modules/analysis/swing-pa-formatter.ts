@@ -1,8 +1,8 @@
 import type { SwingPaAnalysis, SwingTrend, SwingSetup } from './swing-pa-analyzer';
 import type { SwingPaReview, SwingPaSetupReview } from './swing-pa-review.service';
 
-function esc(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function esc(text: string | null | undefined): string {
+  return (text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function fmtPrice(n: number): string {
