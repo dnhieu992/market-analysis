@@ -7,6 +7,7 @@ import { TelegramService } from '../telegram/telegram.service';
 import { analyzeSwingPa } from './swing-pa-analyzer';
 import { formatSwingPaMessage } from './swing-pa-formatter';
 import { renderSwingPaChart } from './swing-pa-chart';
+import { SwingPaReviewService } from './swing-pa-review.service';
 
 export type SwingPaResult = {
   text: string;
@@ -19,7 +20,8 @@ export class SwingPaService {
 
   constructor(
     private readonly marketData: MarketDataService,
-    private readonly telegramService: TelegramService
+    private readonly telegramService: TelegramService,
+    private readonly reviewService: SwingPaReviewService
   ) {}
 
   async analyze(symbol: string): Promise<SwingPaResult> {
@@ -31,9 +33,14 @@ export class SwingPaService {
       this.marketData.getCandles(symbol, '4h' as AnalysisTimeframe, 100),
     ]);
 
-    const analysis    = analyzeSwingPa(symbol, dailyCandles, weeklyCandles, h4Candles);
-    const text        = formatSwingPaMessage(analysis);
-    const chartBuffer = await renderSwingPaChart(analysis, dailyCandles as Candle[]);
+    const analysis = analyzeSwingPa(symbol, dailyCandles, weeklyCandles, h4Candles);
+
+    const [chartBuffer, review] = await Promise.all([
+      renderSwingPaChart(analysis, dailyCandles as Candle[]),
+      this.reviewService.review(analysis, dailyCandles as Candle[])
+    ]);
+
+    const text = formatSwingPaMessage(analysis, review);
 
     return { text, chartBuffer };
   }

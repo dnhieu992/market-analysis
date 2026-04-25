@@ -1,4 +1,5 @@
 import type { SwingPaAnalysis, SwingTrend, SwingSetup } from './swing-pa-analyzer';
+import type { SwingPaReview, SwingPaSetupReview } from './swing-pa-review.service';
 
 function fmtPrice(n: number): string {
   return n >= 1000
@@ -27,12 +28,83 @@ function confidenceBadge(c: 'high' | 'medium' | 'low'): string {
   return '⚪ LOW';
 }
 
-export function formatSwingPaMessage(a: SwingPaAnalysis): string {
-  const sep = '━━━━━━━━━━━━━━━━━━━━';
+function verdictBadge(verdict: SwingPaReview['verdict']): string {
+  if (verdict === 'confirmed') return '✅ CONFIRMED';
+  if (verdict === 'adjusted')  return '🔧 ADJUSTED';
+  return '🚫 NO-TRADE';
+}
+
+function setupVerdictBadge(verdict: SwingPaSetupReview['verdict']): string {
+  if (verdict === 'valid')    return '✅ VALID';
+  if (verdict === 'adjusted') return '🟡 ADJUSTED';
+  return '⏭ SKIP';
+}
+
+function formatSetupReview(r: SwingPaSetupReview, lines: string[]): void {
+  const typeLabel = r.direction === 'long' ? `Limit Buy @ ${r.setupType}` : `Limit Sell @ ${r.setupType}`;
+  lines.push(`📋 <b>${typeLabel}</b>  →  ${setupVerdictBadge(r.verdict)}`);
+  if (r.adjustedConfidence) {
+    lines.push(`  Confidence: → ${r.adjustedConfidence.toUpperCase()}`);
+  }
+  if (r.adjustedEntry) {
+    lines.push(`  Entry điều chỉnh:  $${fmtPrice(r.adjustedEntry[0])} – $${fmtPrice(r.adjustedEntry[1])}`);
+  }
+  if (r.adjustedSl != null) {
+    lines.push(`  SL điều chỉnh:     $${fmtPrice(r.adjustedSl)}`);
+  }
+  if (r.adjustedTp1 != null) {
+    lines.push(`  TP1 điều chỉnh:    $${fmtPrice(r.adjustedTp1)}`);
+  }
+  if (r.adjustedTp2 != null) {
+    lines.push(`  TP2 điều chỉnh:    $${fmtPrice(r.adjustedTp2)}`);
+  }
+  lines.push(`  Lý do: ${r.reason}`);
+}
+
+function formatClaudeReview(review: SwingPaReview, lines: string[]): void {
+  const sepWide = '════════════════════════';
+  lines.push('');
+  lines.push(sepWide);
+  lines.push(`🤖 <b>CLAUDE REVIEW</b>  [${review.model}]`);
+  lines.push(sepWide);
+  lines.push(`Verdict: <b>${verdictBadge(review.verdict)}</b>`);
+  lines.push('');
+  lines.push(`Trend: ${review.trendComment}`);
+
+  if (review.activeSetupReview) {
+    lines.push('');
+    formatSetupReview(review.activeSetupReview, lines);
+  }
+
+  if (review.limitSetupReviews.length > 0) {
+    for (const r of review.limitSetupReviews) {
+      lines.push('');
+      formatSetupReview(r, lines);
+    }
+  }
+
+  if (review.warnings.length > 0) {
+    lines.push('');
+    lines.push('⚠️ <b>Warnings:</b>');
+    for (const w of review.warnings) {
+      lines.push(`  • ${w}`);
+    }
+  }
+
+  lines.push('');
+  lines.push(`Tóm tắt: ${review.summary}`);
+}
+
+export function formatSwingPaMessage(a: SwingPaAnalysis, review?: SwingPaReview | null): string {
+  const sep     = '━━━━━━━━━━━━━━━━━━━━';
+  const sepWide = '════════════════════════';
   const lines: string[] = [];
 
-  // ── Header ──────────────────────────────────────────────────────────────
-  lines.push(`<b>📊 SWING PA — ${a.symbol}</b>  |  Daily  |  Pure Price Action`);
+  // ── PA Section Header ────────────────────────────────────────────────────
+  lines.push(sepWide);
+  lines.push(`📊 <b>PA ANALYSIS</b>  [Pure Rules]`);
+  lines.push(sepWide);
+  lines.push(`<b>SWING PA — ${a.symbol}</b>  |  Daily  |  Pure Price Action`);
   lines.push(sep);
 
   // ── Trend ───────────────────────────────────────────────────────────────
@@ -117,6 +189,12 @@ export function formatSwingPaMessage(a: SwingPaAnalysis): string {
   lines.push('');
   lines.push(sep);
   lines.push(`💰 Price: <b>$${fmtPrice(a.currentPrice)}</b>`);
+
+  if (review) {
+    formatClaudeReview(review, lines);
+  }
+
+  lines.push('');
   lines.push(`⚠️ Tín hiệu tự động — xác nhận trước khi vào lệnh`);
 
   return lines.join('\n');
