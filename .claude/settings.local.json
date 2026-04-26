@@ -78,7 +78,8 @@
       "Bash(DATABASE_URL=\"mysql://root:root@127.0.0.1:3306/market_analysis\" npx prisma migrate dev --name add_images_to_order)",
       "Bash(pm2 list:*)",
       "Bash(yarn workspace:*)",
-      "Bash(bash /Users/dnhieu92/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh --project-dir /Users/dnhieu92/Documents/personal/new-account/market-analysis)"
+      "Bash(bash /Users/dnhieu92/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh --project-dir /Users/dnhieu92/Documents/personal/new-account/market-analysis)",
+      "Bash(pnpm test:*)"
     ]
   }
 }
