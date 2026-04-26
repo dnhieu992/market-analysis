@@ -38,7 +38,7 @@ const mockCandles: Candle[] = Array.from({ length: 30 }, (_, i) => ({
 
 describe('SwingPaReviewService', () => {
   let service: SwingPaReviewService;
-  let capturedPostBody: Record<string, unknown>;
+  let capturedPostBody: Record<string, unknown> = {};
 
   beforeEach(() => {
     service = new SwingPaReviewService();
