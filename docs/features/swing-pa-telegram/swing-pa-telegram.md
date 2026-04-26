@@ -390,7 +390,8 @@ Không cần Binance API key vì chỉ dùng public endpoints.
 
 Sau khi `analyzeSwingPa()` ra kết quả, gửi analysis JSON + 30 daily candles gần nhất lên Claude API. Claude đóng vai **senior PA trader** để:
 - Validate xu hướng và cấu trúc swing (có đúng HH/HL không)
-- Review từng setup: entry zone có hợp lý không, SL/TP có đủ R:R không
+- **Explicitly review each item in pendingLimitSetups** — tạo entry tương ứng trong `limitSetupReviews` với các tiêu chí R:R ≥ 2 và zone quality (≥2 touches)
+- **Guarantee a valid setup:** Nếu tất cả limit setups được đánh giá là "skip" hoặc `pendingLimitSetups` rỗng, Claude **PHẢI** thêm ít nhất một replacement limit order vào `limitSetupReviews` với verdict "adjusted". Chọn support/resistance zone mạnh nhất từ `srZones` và cung cấp `adjustedEntry [low, high]`, `adjustedSl`, `adjustedTp1`, cùng lý do bằng Tiếng Việt.
 - Điều chỉnh confidence, entry, SL, TP nếu thấy cần thiết
 - Thêm warnings khi phát hiện vấn đề
 - Đưa ra verdict cuối: **Confirmed / Adjusted / No-Trade**
@@ -405,7 +406,17 @@ Model: claude-sonnet-4-6  (hỗ trợ tool_use, đủ nhanh)
 System prompt:
   "You are a senior pure price action swing trader reviewing an automated analysis.
    Review the setups strictly — prioritize R:R ≥ 2, zone quality (≥2 touches),
-   and trend alignment. Adjust or skip setups that don't meet the bar."
+   and trend alignment. Adjust or skip setups that don't meet the bar.
+
+   For each item in pendingLimitSetups, add a corresponding entry to limitSetupReviews —
+   apply the same R:R ≥ 2 and zone quality criteria.
+
+   If all limit setups are judged skip, or pendingLimitSetups is empty, you MUST add
+   at least one replacement limit order to limitSetupReviews with verdict "adjusted".
+   Choose the strongest support or resistance zone from srZones in the analysis data.
+   Provide adjustedEntry [low, high], adjustedSl, adjustedTp1, and a reason in Vietnamese.
+
+   Always respond in Vietnamese."
 
 User message (text only):
   1. SwingPaAnalysis JSON — trend, swing levels, S/R zones, active setup, pending limits
