@@ -448,6 +448,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/strategies`, withDefaults());
       return rows.map(mapTradingStrategy);
     },
+    async fetchTradingStrategyById(id: string): Promise<TradingStrategy> {
+      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/strategies/${id}`, withDefaults());
+      return mapTradingStrategy(row);
+    },
     async createTradingStrategy(input: CreateTradingStrategyInput): Promise<TradingStrategy> {
       const response = await fetchImpl(`${baseUrl}/strategies`, withDefaults({
         method: 'POST',
