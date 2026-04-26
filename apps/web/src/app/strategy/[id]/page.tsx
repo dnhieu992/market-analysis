@@ -11,12 +11,11 @@ type Props = {
 export default async function StrategyDetailRoute({ params }: Props) {
   const client = createServerApiClient();
 
-  let strategy;
-  try {
-    strategy = await client.fetchTradingStrategyById(params.id);
-  } catch {
-    notFound();
-  }
+  const strategy = await client
+    .fetchTradingStrategyById(params.id)
+    .catch(() => null);
+
+  if (!strategy) notFound();
 
   return (
     <main className="dashboard-shell">

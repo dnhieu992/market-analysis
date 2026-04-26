@@ -4016,3 +4016,23 @@ a.metric-card--link:hover {
 .strat-back-btn:hover {
   text-decoration: underline;
 }
+
+/* ── Strategy layout visibility wrappers ────────────────────────────────────── */
+
+.strat-split-wrapper {
+  display: none;
+}
+
+.sgrid-wrapper {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .strat-split-wrapper {
+    display: block;
+  }
+
+  .sgrid-wrapper {
+    display: none;
+  }
+}

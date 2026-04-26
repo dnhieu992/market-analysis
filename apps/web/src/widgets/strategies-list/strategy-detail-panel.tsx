@@ -15,9 +15,11 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   async function handleConfirmDelete() {
+    setDeleteError(null);
     try {
       await createApiClient().deleteTradingStrategy(strategy.id);
       setDeleteOpen(false);
@@ -26,7 +28,7 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
         router.refresh();
       });
     } catch {
-      // stay open so user can retry
+      setDeleteError('Delete failed. Please try again.');
     }
   }
 
@@ -85,6 +87,7 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
               <p className="dialog-confirm-text">
                 Are you sure you want to delete <strong>{strategy.name}</strong>? This action cannot be undone.
               </p>
+              {deleteError ? <p className="trade-form-error">{deleteError}</p> : null}
               <div className="dialog-confirm-actions">
                 <button className="btn btn--secondary" onClick={() => setDeleteOpen(false)}>Cancel</button>
                 <button className="btn btn--danger" onClick={handleConfirmDelete} disabled={isPending}>

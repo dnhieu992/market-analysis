@@ -19,17 +19,21 @@ export function StrategiesList({ strategies, selectedId }: StrategiesListProps) 
   return (
     <main className="dashboard-shell">
       {/* Desktop: split layout (hidden on mobile via CSS) */}
-      <StrategiesSplit
-        strategies={strategies}
-        selectedId={selectedId}
-        onCreateClick={() => setCreateOpen(true)}
-      />
+      <div className="strat-split-wrapper">
+        <StrategiesSplit
+          strategies={strategies}
+          selectedId={selectedId}
+          onCreateClick={() => setCreateOpen(true)}
+        />
+      </div>
 
       {/* Mobile: card grid (hidden on desktop via CSS) */}
-      <StrategiesCardGrid
-        strategies={strategies}
-        onCreateClick={() => setCreateOpen(true)}
-      />
+      <div className="sgrid-wrapper">
+        <StrategiesCardGrid
+          strategies={strategies}
+          onCreateClick={() => setCreateOpen(true)}
+        />
+      </div>
 
       {createOpen && (
         <div className="dialog-backdrop" onClick={() => setCreateOpen(false)}>
