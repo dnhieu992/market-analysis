@@ -112,6 +112,12 @@ export class SwingPaReviewService {
           'You are a senior pure price action swing trader reviewing an automated analysis. ' +
           "Review the setups strictly — prioritize R:R ≥ 2, zone quality (≥2 touches), " +
           "and trend alignment. Adjust or skip setups that don't meet the bar. " +
+          'For each item in pendingLimitSetups, add a corresponding entry to limitSetupReviews — ' +
+          'apply the same R:R ≥ 2 and zone quality criteria. ' +
+          'If all limit setups are judged skip, or pendingLimitSetups is empty, you MUST add ' +
+          'at least one replacement limit order to limitSetupReviews with verdict "adjusted". ' +
+          'Choose the strongest support or resistance zone from srZones in the analysis data. ' +
+          'Provide adjustedEntry [low, high], adjustedSl, adjustedTp1, and a reason in Vietnamese. ' +
           'Always respond in Vietnamese.',
         messages: [{ role: 'user', content: buildUserMessage(analysis, dailyCandles) }],
         tools: [
