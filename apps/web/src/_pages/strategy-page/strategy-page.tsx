@@ -12,8 +12,13 @@ async function loadStrategies() {
   }
 }
 
-export default async function StrategyPage() {
-  const strategies = await loadStrategies();
+type StrategyPageProps = {
+  searchParams?: { id?: string };
+};
 
-  return <StrategiesList strategies={strategies} />;
+export default async function StrategyPage({ searchParams }: StrategyPageProps) {
+  const strategies = await loadStrategies();
+  const selectedId = searchParams?.id ?? null;
+
+  return <StrategiesList strategies={strategies} selectedId={selectedId} />;
 }
