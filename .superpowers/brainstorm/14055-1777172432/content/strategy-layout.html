@@ -1,0 +1,198 @@
+<style>
+  :root {
+    --bg: #f5efe7;
+    --surface: #ffffff;
+    --accent: #1f6f5b;
+    --accent-soft: rgba(31,111,91,0.12);
+    --muted: #6f6458;
+    --border: rgba(23,18,13,0.12);
+    --fg: #17120d;
+  }
+  .mock-wrap { font-family: Inter, system-ui, sans-serif; font-size: 13px; color: var(--fg); }
+  .mock-page { background: var(--bg); border-radius: 12px; padding: 20px; min-height: 280px; }
+
+  /* ─── Option A: Card Grid ─── */
+  .strat-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .strat-title { font-size:18px; font-weight:700; margin:0; }
+  .strat-add { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; }
+  .card-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .s-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:8px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .s-card-top { display:flex; align-items:flex-start; justify-content:space-between; }
+  .s-card-name { font-weight:700; font-size:13px; }
+  .s-ver { background:var(--accent-soft); color:var(--accent); font-size:10px; font-weight:700; border-radius:5px; padding:2px 7px; }
+  .s-card-content { font-size:11.5px; color:var(--muted); line-height:1.5; flex:1; }
+  .s-card-footer { display:flex; align-items:center; justify-content:space-between; padding-top:8px; border-top:1px solid var(--border); }
+  .s-date { font-size:10.5px; color:var(--muted); }
+  .s-actions { display:flex; gap:4px; }
+  .s-btn-edit { background:var(--accent-soft); color:var(--accent); border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer; }
+  .s-btn-del { background:rgba(192,57,43,0.10); color:#c0392b; border:none; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; }
+
+  /* ─── Option B: Enhanced Table ─── */
+  .etable { width:100%; border-collapse:collapse; }
+  .etable thead th { text-align:left; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); padding:0 12px 10px; border-bottom:1px solid var(--border); }
+  .etable tbody tr { border-bottom:1px solid var(--border); transition:background 0.12s; }
+  .etable tbody tr:hover { background:rgba(31,111,91,0.04); }
+  .etable tbody td { padding:12px; vertical-align:middle; }
+  .et-name { font-weight:700; font-size:13px; color:var(--accent); cursor:pointer; }
+  .et-name:hover { text-decoration:underline; }
+  .et-ver { background:var(--accent-soft); color:var(--accent); font-size:10px; font-weight:700; border-radius:5px; padding:2px 7px; white-space:nowrap; }
+  .et-content { font-size:12px; color:var(--muted); max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .et-date { font-size:11.5px; color:var(--muted); white-space:nowrap; }
+  .et-img-badge { background:rgba(23,18,13,0.07); color:var(--muted); font-size:10px; font-weight:700; border-radius:20px; padding:2px 8px; }
+  .et-del { background:none; border:1px solid rgba(192,57,43,0.25); color:#c0392b; border-radius:6px; width:26px; height:26px; cursor:pointer; font-size:12px; }
+  .et-del:hover { background:rgba(192,57,43,0.08); }
+
+  /* ─── Option C: List + Side Panel ─── */
+  .split-layout { display:grid; grid-template-columns:220px 1fr; gap:12px; min-height:260px; }
+  .strat-list { display:flex; flex-direction:column; gap:4px; }
+  .strat-item { padding:10px 12px; border-radius:9px; cursor:pointer; border:1px solid transparent; }
+  .strat-item:hover { background:rgba(31,111,91,0.06); }
+  .strat-item.active { background:var(--accent-soft); border-color:rgba(31,111,91,0.25); }
+  .strat-item-name { font-weight:700; font-size:12.5px; }
+  .strat-item-ver { font-size:10.5px; color:var(--muted); margin-top:1px; }
+  .strat-panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; display:flex; flex-direction:column; gap:12px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .strat-panel-name { font-size:16px; font-weight:800; margin:0; }
+  .strat-panel-meta { display:flex; gap:8px; align-items:center; }
+  .strat-panel-content { font-size:12.5px; color:var(--muted); line-height:1.7; white-space:pre-wrap; flex:1; }
+  .strat-panel-actions { display:flex; gap:8px; padding-top:10px; border-top:1px solid var(--border); }
+  .btn-edit-full { background:var(--accent); color:#fff; border:none; border-radius:7px; padding:7px 16px; font-size:12px; font-weight:600; cursor:pointer; }
+  .btn-del-full { background:none; border:1px solid rgba(192,57,43,0.3); color:#c0392b; border-radius:7px; padding:7px 14px; font-size:12px; cursor:pointer; }
+</style>
+
+<h2>Strategy Page — Layout Options</h2>
+<p class="subtitle">3 approaches for redesigning the /strategy page. Click to select the one you prefer.</p>
+
+<div class="cards" style="flex-direction:column;gap:28px;">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="padding:0;overflow:hidden;">
+    <div class="card-body" style="padding:16px 20px 10px;">
+      <h3 style="margin:0 0 4px;">A — Card Grid</h3>
+      <p style="margin:0;font-size:13px;color:#6f6458;">Mỗi strategy là một card riêng. Scannable, visual, dễ nhìn thấy tất cả cùng lúc.</p>
+    </div>
+    <div class="card-image" style="padding:0 16px 16px;">
+      <div class="mock-wrap">
+        <div class="mock-page">
+          <div class="strat-header">
+            <h2 class="strat-title">Strategies</h2>
+            <button class="strat-add">+ Add Strategy</button>
+          </div>
+          <div class="card-grid">
+            <div class="s-card">
+              <div class="s-card-top"><span class="s-card-name">rsi-reversal</span><span class="s-ver">1.0.0</span></div>
+              <div class="s-card-content">RSI Reversal Strategy · Timeframe: 4h · Indicators: RSI(14), ATR(14) · Entry on oversold bounce above 30...</div>
+              <div class="s-card-footer"><span class="s-date">16/04/2026</span><div class="s-actions"><button class="s-btn-edit">Edit</button><button class="s-btn-del">✕</button></div></div>
+            </div>
+            <div class="s-card">
+              <div class="s-card-top"><span class="s-card-name">price-action</span><span class="s-ver">1.0.0</span></div>
+              <div class="s-card-content">Multi-Timeframe Price Action Strategy · Timeframe: 15m · Indicators: ATR(14), EMA-200 · Structure-based entries...</div>
+              <div class="s-card-footer"><span class="s-date">16/04/2026</span><div class="s-actions"><button class="s-btn-edit">Edit</button><button class="s-btn-del">✕</button></div></div>
+            </div>
+            <div class="s-card">
+              <div class="s-card-top"><span class="s-card-name">ema-crossover</span><span class="s-ver">1.0.0</span></div>
+              <div class="s-card-content">Triple EMA Crossover Strategy · Timeframe: 5m · EMA(8), EMA(21), EMA(55) · Entry on crossover with volume...</div>
+              <div class="s-card-footer"><span class="s-date">16/04/2026</span><div class="s-actions"><button class="s-btn-edit">Edit</button><button class="s-btn-del">✕</button></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="padding:0;overflow:hidden;">
+    <div class="card-body" style="padding:16px 20px 10px;">
+      <h3 style="margin:0 0 4px;">B — Enhanced Table</h3>
+      <p style="margin:0;font-size:13px;color:#6f6458;">Giữ layout table nhưng cải thiện typography, hover, badges và actions — compact và dễ so sánh.</p>
+    </div>
+    <div class="card-image" style="padding:0 16px 16px;">
+      <div class="mock-wrap">
+        <div class="mock-page">
+          <div class="strat-header">
+            <h2 class="strat-title">Strategies <span style="font-size:13px;font-weight:400;color:#6f6458;margin-left:6px;">7 strategies</span></h2>
+            <button class="strat-add">+ Add Strategy</button>
+          </div>
+          <table class="etable">
+            <thead><tr>
+              <th>Name</th><th>Version</th><th>Content preview</th><th>Images</th><th>Created</th><th></th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="et-name">rsi-reversal</span></td>
+                <td><span class="et-ver">1.0.0</span></td>
+                <td><span class="et-content">RSI Reversal Strategy · Timeframe: 4h · Indicators: RSI(14), ATR(14)...</span></td>
+                <td><span class="et-img-badge">0 imgs</span></td>
+                <td><span class="et-date">16/04/2026</span></td>
+                <td><button class="et-del">✕</button></td>
+              </tr>
+              <tr>
+                <td><span class="et-name">price-action</span></td>
+                <td><span class="et-ver">1.0.0</span></td>
+                <td><span class="et-content">Multi-Timeframe Price Action · Timeframe: 15m · ATR(14), EMA-200...</span></td>
+                <td><span class="et-img-badge">0 imgs</span></td>
+                <td><span class="et-date">16/04/2026</span></td>
+                <td><button class="et-del">✕</button></td>
+              </tr>
+              <tr>
+                <td><span class="et-name">FOMO mind cap</span></td>
+                <td><span class="et-ver">1.0.0</span></td>
+                <td><span class="et-content">Chiến Lược Đầu Tư Altcoin $1,000 · Mức rủi ro: Cao...</span></td>
+                <td><span class="et-img-badge">0 imgs</span></td>
+                <td><span class="et-date">16/04/2026</span></td>
+                <td><button class="et-del">✕</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="padding:0;overflow:hidden;">
+    <div class="card-body" style="padding:16px 20px 10px;">
+      <h3 style="margin:0 0 4px;">C — List + Side Panel</h3>
+      <p style="margin:0;font-size:13px;color:#6f6458;">Danh sách bên trái, click vào strategy thì xem full content bên phải — tốt cho content dài.</p>
+    </div>
+    <div class="card-image" style="padding:0 16px 16px;">
+      <div class="mock-wrap">
+        <div class="mock-page">
+          <div class="strat-header">
+            <h2 class="strat-title">Strategies</h2>
+            <button class="strat-add">+ Add Strategy</button>
+          </div>
+          <div class="split-layout">
+            <div class="strat-list">
+              <div class="strat-item active"><div class="strat-item-name">rsi-reversal</div><div class="strat-item-ver">v1.0.0 · 16/04</div></div>
+              <div class="strat-item"><div class="strat-item-name">rsi-signal-crossover</div><div class="strat-item-ver">v1.0.0 · 16/04</div></div>
+              <div class="strat-item"><div class="strat-item-name">price-action</div><div class="strat-item-ver">v1.0.0 · 16/04</div></div>
+              <div class="strat-item"><div class="strat-item-name">ema-crossover</div><div class="strat-item-ver">v1.0.0 · 16/04</div></div>
+              <div class="strat-item"><div class="strat-item-name">FOMO mind cap</div><div class="strat-item-ver">v1.0.0 · 16/04</div></div>
+            </div>
+            <div class="strat-panel">
+              <h3 class="strat-panel-name">rsi-reversal</h3>
+              <div class="strat-panel-meta"><span class="s-ver">1.0.0</span><span class="s-date" style="color:#6f6458;">Created 16/04/2026</span></div>
+              <div class="strat-panel-content">RSI Reversal Strategy
+Timeframe: 4h
+Indicators: RSI(14), ATR(14)
+
+Entry Rules:
+- RSI crosses above 30 (oversold bounce)
+- Candle closes bullish
+- Volume above 20-period average
+
+Exit Rules:
+- TP: RSI hits 65
+- SL: 1.5× ATR below entry</div>
+              <div class="strat-panel-actions">
+                <button class="btn-edit-full">Edit Strategy</button>
+                <button class="btn-del-full">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

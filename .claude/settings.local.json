@@ -68,7 +68,17 @@
       "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis/packages/db/node_modules -name *.d.ts -path *prisma*)",
       "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis -name default.d.ts -path *prisma*)",
       "Bash(grep:*)",
-      "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis/docs -name *.md)"
+      "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis/docs -name *.md)",
+      "Bash(xargs -I {} find {} -type f)",
+      "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.sql -o -name *.prisma -o -name *.md \\\\\\))",
+      "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis/packages/db -name *.prisma -o -name *order* -type f)",
+      "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis/apps/web/src/shared -type f -name *.ts)",
+      "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis -name *image* -o -name *upload* -o -name *file*)",
+      "Bash(find /Users/dnhieu92/Documents/personal/new-account/market-analysis/apps/api/src -name *upload* -o -name *file* -o -name *image*)",
+      "Bash(DATABASE_URL=\"mysql://root:root@127.0.0.1:3306/market_analysis\" npx prisma migrate dev --name add_images_to_order)",
+      "Bash(pm2 list:*)",
+      "Bash(yarn workspace:*)",
+      "Bash(bash /Users/dnhieu92/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh --project-dir /Users/dnhieu92/Documents/personal/new-account/market-analysis)"
     ]
   }
 }
