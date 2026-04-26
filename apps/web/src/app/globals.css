@@ -3772,3 +3772,247 @@ a.metric-card--link:hover {
 }
 .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .chat-send-btn:not(:disabled):hover { background: #1a5e4d; }
+
+/* ── Strategy page — split layout (desktop) ─────────────────────────────────── */
+
+.strat-page {
+  padding: 24px 28px;
+}
+
+.strat-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.strat-page-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.strat-split {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .strat-split {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 16px;
+    min-height: 480px;
+  }
+}
+
+.strat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.strat-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: none;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.strat-list-item:hover {
+  background: rgba(31, 111, 91, 0.06);
+}
+
+.strat-list-item--active {
+  background: var(--accent-soft);
+  border-color: rgba(31, 111, 91, 0.25);
+}
+
+.strat-list-item-name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.strat-list-item-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.strat-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 220px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+/* ── Strategy detail panel ───────────────────────────────────────────────────── */
+
+.strat-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+}
+
+.strat-detail-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.strat-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.strat-ver-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 2px 8px;
+}
+
+.strat-detail-date {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.strat-detail-content {
+  font-size: 0.88rem;
+  color: var(--foreground);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+}
+
+.strat-detail-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.strat-detail-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 220px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+/* ── Strategy page — card grid (mobile) ─────────────────────────────────────── */
+
+.sgrid-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .sgrid-grid {
+    display: none;
+  }
+}
+
+.sgrid-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.14s, border-color 0.14s;
+}
+
+.sgrid-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  border-color: rgba(31, 111, 91, 0.3);
+}
+
+.sgrid-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sgrid-card-name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.sgrid-card-preview {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.sgrid-card-date {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: auto;
+}
+
+/* ── Strategy detail page (mobile /strategy/[id]) ───────────────────────────── */
+
+.strat-detail-page {
+  padding: 16px 18px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.strat-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.strat-back-btn:hover {
+  text-decoration: underline;
+}
