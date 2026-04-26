@@ -111,7 +111,8 @@ export class SwingPaReviewService {
         system:
           'You are a senior pure price action swing trader reviewing an automated analysis. ' +
           "Review the setups strictly — prioritize R:R ≥ 2, zone quality (≥2 touches), " +
-          "and trend alignment. Adjust or skip setups that don't meet the bar.",
+          "and trend alignment. Adjust or skip setups that don't meet the bar. " +
+          'Always respond in Vietnamese.',
         messages: [{ role: 'user', content: buildUserMessage(analysis, dailyCandles) }],
         tools: [
           {
