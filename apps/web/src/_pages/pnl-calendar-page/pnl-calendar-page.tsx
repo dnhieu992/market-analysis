@@ -7,6 +7,7 @@ import type { DashboardOrder } from '@web/shared/api/types';
 /* ── constants ─────────────────────────────────── */
 
 const DAYS_VI = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+const DAYS_VI_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const MONTHS_VI = [
   'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4',
   'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8',
@@ -292,7 +293,7 @@ function PnlBySymbol({ orders }: { orders: DashboardOrder[] }) {
                 <span className="sym-name">{row.symbol}</span>
               </div>
 
-              <div className="sym-col sym-col--pnl">
+              <div className="sym-col sym-col--pnl" data-label="Tổng PNL">
                 <div className="sym-bar-wrap">
                   <div
                     className={`sym-bar ${row.total >= 0 ? 'sym-bar--pos' : 'sym-bar--neg'}`}
@@ -304,7 +305,7 @@ function PnlBySymbol({ orders }: { orders: DashboardOrder[] }) {
                 </span>
               </div>
 
-              <div className="sym-col sym-col--pnl">
+              <div className="sym-col sym-col--pnl" data-label="Mua">
                 <div className="sym-bar-wrap">
                   <div
                     className={`sym-bar ${row.long >= 0 ? 'sym-bar--pos' : 'sym-bar--neg'}`}
@@ -316,7 +317,7 @@ function PnlBySymbol({ orders }: { orders: DashboardOrder[] }) {
                 </span>
               </div>
 
-              <div className="sym-col sym-col--pnl">
+              <div className="sym-col sym-col--pnl" data-label="Bán">
                 <div className="sym-bar-wrap">
                   <div
                     className={`sym-bar ${row.short >= 0 ? 'sym-bar--pos' : 'sym-bar--neg'}`}
@@ -476,8 +477,11 @@ export function PnlCalendarPage({ orders }: Props) {
           /* ── Day view ── */
           <div className="pnl-cal-main">
             <div className="pnl-cal-dow-row">
-              {DAYS_VI.map((d) => (
-                <div key={d} className="pnl-cal-dow">{d}</div>
+              {DAYS_VI.map((d, i) => (
+                <div key={d} className="pnl-cal-dow">
+                  <span className="pnl-cal-dow-full">{d}</span>
+                  <span className="pnl-cal-dow-short">{DAYS_VI_SHORT[i]}</span>
+                </div>
               ))}
             </div>
             <div className="pnl-cal-grid">
