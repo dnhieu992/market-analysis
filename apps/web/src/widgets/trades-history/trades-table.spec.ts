@@ -1,4 +1,4 @@
-import { matchesSymbolFilter, matchesSourceFilter } from './trades-table';
+import { matchesSymbolFilter, matchesSourceFilter, calcUnrealizedPnl } from './trades-table';
 
 describe('matchesSymbolFilter', () => {
   it('returns true when filter is empty', () => {
@@ -41,5 +41,27 @@ describe('matchesSourceFilter', () => {
 
   it('returns false for null broker when sources are selected', () => {
     expect(matchesSourceFilter(null, new Set(['Binance']))).toBe(false);
+  });
+});
+
+describe('calcUnrealizedPnl', () => {
+  it('returns null when quantity is missing', () => {
+    expect(calcUnrealizedPnl(100, 110, null, 'long')).toBeNull();
+  });
+
+  it('calculates profit for long position when price rises', () => {
+    expect(calcUnrealizedPnl(100, 110, 2, 'long')).toBe(20);
+  });
+
+  it('calculates loss for long position when price falls', () => {
+    expect(calcUnrealizedPnl(100, 90, 2, 'long')).toBe(-20);
+  });
+
+  it('calculates profit for short position when price falls', () => {
+    expect(calcUnrealizedPnl(100, 90, 2, 'short')).toBe(20);
+  });
+
+  it('calculates loss for short position when price rises', () => {
+    expect(calcUnrealizedPnl(100, 110, 2, 'short')).toBe(-20);
   });
 });

@@ -1247,6 +1247,15 @@ a {
   color: var(--muted);
 }
 
+.tt-live-loading {
+  animation: tt-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes tt-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 /* Status pill */
 .tt-status-pill {
   display: inline-flex;

@@ -14,6 +14,19 @@ export function matchesSourceFilter(broker: string | null | undefined, selected:
   return broker != null && selected.has(broker);
 }
 
+export function calcUnrealizedPnl(
+  entryPrice: number,
+  currentPrice: number,
+  quantity: number | null | undefined,
+  side: string,
+): number | null {
+  if (quantity == null) return null;
+  const diff = side.toLowerCase() === 'short'
+    ? entryPrice - currentPrice
+    : currentPrice - entryPrice;
+  return diff * quantity;
+}
+
 type StatusFilter = 'all' | 'open' | 'closed';
 type DateFilter = 'today' | '7D' | '30D' | 'custom';
 
@@ -255,6 +268,24 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const openSymbols = Array.from(new Set(
+      orders.filter(o => o.status.toLowerCase() === 'open').map(o => o.symbol.toUpperCase())
+    ));
+    if (openSymbols.length === 0) return;
+    const symbolsParam = encodeURIComponent(JSON.stringify(openSymbols));
+    fetch(`https://api.binance.com/api/v3/ticker/price?symbols=${symbolsParam}`)
+      .then(r => r.json())
+      .then((data: { symbol: string; price: string }[]) => {
+        const map: Record<string, number> = {};
+        for (const item of data) map[item.symbol] = Number(item.price);
+        setLivePrices(map);
+      })
+      .catch(() => { /* silent — column shows '-' on failure */ });
+  }, [orders]);
+
   const dateRange = dateFilter ? getDateRange(dateFilter, customFrom, customTo) : null;
 
   const dateFilteredOrders = orders.filter(o => {
@@ -435,6 +466,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                 <th>Volume</th>
                 <th>Source</th>
                 <th>Strategy</th>
+                <th>Unreal P/L</th>
                 <th>Profit/Loss</th>
                 <th>Order Type</th>
                 <th>Status</th>
@@ -478,6 +510,19 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
 
                     {/* STRATEGY */}
                     <td data-label="Strategy">{order.exchange ?? '-'}</td>
+
+                    {/* UNREALIZED P/L */}
+                    <td data-label="Unreal P/L">
+                      {isOpen
+                        ? (() => {
+                            const livePrice = livePrices[order.symbol.toUpperCase()];
+                            if (livePrice == null) return <span className="tt-muted tt-live-loading">…</span>;
+                            const upnl = calcUnrealizedPnl(order.entryPrice, livePrice, order.quantity, order.side);
+                            return <PnlCell pnl={upnl} />;
+                          })()
+                        : <PnlCell pnl={order.pnl} />
+                      }
+                    </td>
 
                     {/* PROFIT/LOSS */}
                     <td data-label="P/L"><PnlCell pnl={order.pnl} /></td>
