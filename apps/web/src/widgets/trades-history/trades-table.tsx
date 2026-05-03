@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
@@ -239,9 +239,21 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
   const [dateFilter, setDateFilter] = useState<DateFilter | null>(null);
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [showCustomPopover, setShowCustomPopover] = useState(false);
+
   const [sourceFilter, setSourceFilter] = useState<Set<string>>(new Set());
   const [nameFilter, setNameFilter] = useState('');
+  const [showSourceDropdown, setShowSourceDropdown] = useState(false);
+  const sourceDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(e.target as Node)) {
+        setShowSourceDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const dateRange = dateFilter ? getDateRange(dateFilter, customFrom, customTo) : null;
 
@@ -263,20 +275,9 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
   }).filter(o => matchesSourceFilter(o.broker, sourceFilter))
     .filter(o => matchesSymbolFilter(o.symbol, nameFilter));
 
-  function handleDateFilter(f: DateFilter) {
-    if (f === 'custom') {
-      setShowCustomPopover(v => !v);
-      setDateFilter('custom');
-    } else {
-      setShowCustomPopover(false);
-      setDateFilter(prev => prev === f ? null : f);
-    }
-  }
-
   function applyCustom() {
     if (customFrom && customTo) {
       setDateFilter('custom');
-      setShowCustomPopover(false);
     }
   }
 
@@ -298,123 +299,127 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
 
       {orders.length > 0 && (
         <div className="trades-filter-bar">
-          {/* Status filter */}
-          <select
-            className="trades-filter-select"
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-          >
-            <option value="all">All ({dateFilteredOrders.length})</option>
-            <option value="open">Open ({openCount})</option>
-            <option value="closed">Closed ({closedCount})</option>
-          </select>
-
-          {/* Divider */}
-          <span className="trades-filter-divider" />
-
-          {/* Date filter */}
-          {(['today', '7D', '30D'] as DateFilter[]).map(f => (
-            <button
-              key={f}
-              className={`trades-filter-badge trades-filter-badge--date${dateFilter === f ? ' trades-filter-badge--active' : ''}`}
-              onClick={() => handleDateFilter(f)}
-            >
-              {f}
-            </button>
-          ))}
-
-          <div className="trades-date-custom-wrap">
-            <button
-              className={`trades-filter-badge trades-filter-badge--date${dateFilter === 'custom' ? ' trades-filter-badge--active' : ''}`}
-              onClick={() => handleDateFilter('custom')}
-            >
-              {dateFilter === 'custom' && customFrom && customTo
-                ? `${customFrom} – ${customTo}`
-                : 'Custom'}
-            </button>
-            {showCustomPopover && (
-              <div className="trades-date-popover">
-                <label className="trades-date-popover__label">From</label>
-                <input
-                  type="date"
-                  className="trades-date-popover__input"
-                  value={customFrom}
-                  onChange={e => setCustomFrom(e.target.value)}
-                />
-                <label className="trades-date-popover__label">To</label>
-                <input
-                  type="date"
-                  className="trades-date-popover__input"
-                  value={customTo}
-                  onChange={e => setCustomTo(e.target.value)}
-                />
-                <button
-                  className="btn btn--primary trades-date-popover__apply"
-                  onClick={applyCustom}
-                  disabled={!customFrom || !customTo}
-                >
-                  Apply
-                </button>
-              </div>
-            )}
+          {/* 1. Symbol search */}
+          <div className="trades-filter-field">
+            <label className="trades-filter-label">Symbol</label>
+            <div className="trades-name-search">
+              <input
+                type="text"
+                className="trades-filter-input"
+                placeholder="Search…"
+                value={nameFilter}
+                onChange={e => setNameFilter(e.target.value)}
+              />
+              {nameFilter && (
+                <button className="trades-input-clear" onClick={() => setNameFilter('')} aria-label="Clear">✕</button>
+              )}
+            </div>
           </div>
 
-          {dateFilter && (
-            <button
-              className="trades-filter-badge trades-filter-badge--clear"
-              onClick={() => { setDateFilter(null); setShowCustomPopover(false); setCustomFrom(''); setCustomTo(''); }}
+          {/* 2. Status select */}
+          <div className="trades-filter-field">
+            <label className="trades-filter-label">Status</label>
+            <select
+              className="trades-filter-select"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as StatusFilter)}
             >
-              ✕ Clear date
-            </button>
+              <option value="all">All ({dateFilteredOrders.length})</option>
+              <option value="open">Open ({openCount})</option>
+              <option value="closed">Closed ({closedCount})</option>
+            </select>
+          </div>
+
+          {/* 3. Source multi-select dropdown */}
+          {uniqueSources.length > 0 && (
+            <div className="trades-filter-field">
+              <label className="trades-filter-label">Source</label>
+              <div className="trades-source-dropdown" ref={sourceDropdownRef}>
+                <button
+                  className={`trades-filter-select trades-filter-select--btn${sourceFilter.size > 0 ? ' trades-filter-select--active' : ''}`}
+                  onClick={() => setShowSourceDropdown(v => !v)}
+                  type="button"
+                >
+                  <span>{sourceFilter.size === 0 ? 'All' : Array.from(sourceFilter).join(', ')}</span>
+                  <span className="trades-select-caret">▾</span>
+                </button>
+                {showSourceDropdown && (
+                  <div className="trades-source-menu">
+                    {uniqueSources.map(source => (
+                      <label key={source} className="trades-source-option">
+                        <input
+                          type="checkbox"
+                          checked={sourceFilter.has(source)}
+                          onChange={() => {
+                            setSourceFilter(prev => {
+                              const next = new Set(prev);
+                              next.has(source) ? next.delete(source) : next.add(source);
+                              return next;
+                            });
+                          }}
+                        />
+                        {source}
+                      </label>
+                    ))}
+                    {sourceFilter.size > 0 && (
+                      <button
+                        className="trades-source-clear"
+                        onClick={() => { setSourceFilter(new Set()); setShowSourceDropdown(false); }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
-          {uniqueSources.length > 0 && (
-            <>
-              <span className="trades-filter-divider" />
+          {/* 4. Date select */}
+          <div className="trades-filter-field">
+            <label className="trades-filter-label">Date</label>
+            <div className="trades-date-custom-wrap">
               <select
-                className="trades-filter-select trades-filter-select--multi"
-                multiple
-                value={Array.from(sourceFilter)}
+                className="trades-filter-select"
+                value={dateFilter ?? ''}
                 onChange={e => {
-                  const selected = new Set(
-                    Array.from(e.target.selectedOptions).map(o => o.value)
-                  );
-                  setSourceFilter(selected);
+                  const val = e.target.value as DateFilter | '';
+                  if (val === '') { setDateFilter(null); setCustomFrom(''); setCustomTo(''); }
+                  else { setDateFilter(val as DateFilter); }
                 }}
               >
-                {uniqueSources.map(source => (
-                  <option key={source} value={source}>{source}</option>
-                ))}
+                <option value="">All time</option>
+                <option value="today">Today</option>
+                <option value="7D">Last 7 days</option>
+                <option value="30D">Last 30 days</option>
+                <option value="custom">{dateFilter === 'custom' && customFrom && customTo ? `${customFrom} – ${customTo}` : 'Custom…'}</option>
               </select>
-              {sourceFilter.size > 0 && (
-                <button
-                  className="trades-filter-badge trades-filter-badge--clear"
-                  onClick={() => setSourceFilter(new Set())}
-                >
-                  ✕ Clear source
-                </button>
+              {dateFilter === 'custom' && (
+                <div className="trades-date-popover">
+                  <label className="trades-date-popover__label">From</label>
+                  <input
+                    type="date"
+                    className="trades-date-popover__input"
+                    value={customFrom}
+                    onChange={e => setCustomFrom(e.target.value)}
+                  />
+                  <label className="trades-date-popover__label">To</label>
+                  <input
+                    type="date"
+                    className="trades-date-popover__input"
+                    value={customTo}
+                    onChange={e => setCustomTo(e.target.value)}
+                  />
+                  <button
+                    className="btn btn--primary trades-date-popover__apply"
+                    onClick={applyCustom}
+                    disabled={!customFrom || !customTo}
+                  >
+                    Apply
+                  </button>
+                </div>
               )}
-            </>
-          )}
-
-          {/* Symbol search */}
-          <span className="trades-filter-divider" />
-          <div className="trades-name-search">
-            <input
-              type="text"
-              className="trades-name-search__input"
-              placeholder="Search symbol…"
-              value={nameFilter}
-              onChange={e => setNameFilter(e.target.value)}
-            />
-            {nameFilter && (
-              <button
-                className="trades-filter-badge trades-filter-badge--clear"
-                onClick={() => setNameFilter('')}
-              >
-                ✕
-              </button>
-            )}
+            </div>
           </div>
         </div>
       )}
