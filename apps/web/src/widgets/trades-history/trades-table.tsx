@@ -4,6 +4,16 @@ import { useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
+export function matchesSymbolFilter(symbol: string, filter: string): boolean {
+  if (!filter) return true;
+  return symbol.toLowerCase().includes(filter.toLowerCase());
+}
+
+export function matchesSourceFilter(broker: string | null | undefined, selected: Set<string>): boolean {
+  if (selected.size === 0) return true;
+  return broker != null && selected.has(broker);
+}
+
 type StatusFilter = 'all' | 'open' | 'closed';
 type DateFilter = 'today' | '7D' | '30D' | 'custom';
 
@@ -230,7 +240,8 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [showCustomPopover, setShowCustomPopover] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<Set<string>>(new Set());
+  const [nameFilter, setNameFilter] = useState('');
 
   const dateRange = dateFilter ? getDateRange(dateFilter, customFrom, customTo) : null;
 
@@ -249,10 +260,8 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
     if (statusFilter === 'open') return o.status.toLowerCase() === 'open';
     if (statusFilter === 'closed') return o.status.toLowerCase() === 'closed';
     return true;
-  }).filter(o => {
-    if (!sourceFilter) return true;
-    return o.broker === sourceFilter;
-  });
+  }).filter(o => matchesSourceFilter(o.broker, sourceFilter))
+    .filter(o => matchesSymbolFilter(o.symbol, nameFilter));
 
   function handleDateFilter(f: DateFilter) {
     if (f === 'custom') {
@@ -290,24 +299,15 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
       {orders.length > 0 && (
         <div className="trades-filter-bar">
           {/* Status filter */}
-          <button
-            className={`trades-filter-badge${statusFilter === 'all' ? ' trades-filter-badge--active' : ''}`}
-            onClick={() => setStatusFilter('all')}
+          <select
+            className="trades-filter-select"
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as StatusFilter)}
           >
-            All <span className="trades-filter-count">{dateFilteredOrders.length}</span>
-          </button>
-          <button
-            className={`trades-filter-badge trades-filter-badge--open${statusFilter === 'open' ? ' trades-filter-badge--active' : ''}`}
-            onClick={() => setStatusFilter('open')}
-          >
-            Open <span className="trades-filter-count">{openCount}</span>
-          </button>
-          <button
-            className={`trades-filter-badge trades-filter-badge--closed${statusFilter === 'closed' ? ' trades-filter-badge--active' : ''}`}
-            onClick={() => setStatusFilter('closed')}
-          >
-            Closed <span className="trades-filter-count">{closedCount}</span>
-          </button>
+            <option value="all">All ({dateFilteredOrders.length})</option>
+            <option value="open">Open ({openCount})</option>
+            <option value="closed">Closed ({closedCount})</option>
+          </select>
 
           {/* Divider */}
           <span className="trades-filter-divider" />
@@ -371,25 +371,51 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
           {uniqueSources.length > 0 && (
             <>
               <span className="trades-filter-divider" />
-              {uniqueSources.map(source => (
-                <button
-                  key={source}
-                  className={`trades-filter-badge trades-filter-badge--date${sourceFilter === source ? ' trades-filter-badge--active' : ''}`}
-                  onClick={() => setSourceFilter(prev => prev === source ? null : source)}
-                >
-                  {source}
-                </button>
-              ))}
-              {sourceFilter && (
+              <select
+                className="trades-filter-select trades-filter-select--multi"
+                multiple
+                value={Array.from(sourceFilter)}
+                onChange={e => {
+                  const selected = new Set(
+                    Array.from(e.target.selectedOptions).map(o => o.value)
+                  );
+                  setSourceFilter(selected);
+                }}
+              >
+                {uniqueSources.map(source => (
+                  <option key={source} value={source}>{source}</option>
+                ))}
+              </select>
+              {sourceFilter.size > 0 && (
                 <button
                   className="trades-filter-badge trades-filter-badge--clear"
-                  onClick={() => setSourceFilter(null)}
+                  onClick={() => setSourceFilter(new Set())}
                 >
                   ✕ Clear source
                 </button>
               )}
             </>
           )}
+
+          {/* Symbol search */}
+          <span className="trades-filter-divider" />
+          <div className="trades-name-search">
+            <input
+              type="text"
+              className="trades-name-search__input"
+              placeholder="Search symbol…"
+              value={nameFilter}
+              onChange={e => setNameFilter(e.target.value)}
+            />
+            {nameFilter && (
+              <button
+                className="trades-filter-badge trades-filter-badge--clear"
+                onClick={() => setNameFilter('')}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       )}
 
