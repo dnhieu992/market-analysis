@@ -169,6 +169,7 @@ model User {
   passwordHash        String
   name                String
   symbolsTracking     Json                 @default("[]")
+  dailySignalWatchlist Json                @default("[]")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   sessions            Session[]
