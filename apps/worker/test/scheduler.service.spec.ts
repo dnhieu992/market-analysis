@@ -23,6 +23,9 @@ describe('SchedulerService', () => {
     const swingSignalService = {
       checkAll: jest.fn().mockResolvedValue(undefined)
     };
+    const dailySignalService = {
+      checkAndSend: jest.fn().mockResolvedValue(undefined)
+    };
 
     return {
       service: new SchedulerService(
@@ -30,6 +33,7 @@ describe('SchedulerService', () => {
         dailyAnalysisService as never,
         telegramService as never,
         swingSignalService as never,
+        dailySignalService as never,
         { trackedSymbols: ['BTCUSDT', 'ETHUSDT'] }
       ),
       sonicRSignalService,
