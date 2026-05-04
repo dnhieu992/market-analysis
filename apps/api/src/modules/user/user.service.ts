@@ -21,6 +21,7 @@ export class UserService {
       email: user.email,
       name: user.name,
       symbolsTracking: Array.isArray(user.symbolsTracking) ? (user.symbolsTracking as string[]) : [],
+      dailySignalWatchlist: Array.isArray(user.dailySignalWatchlist) ? (user.dailySignalWatchlist as string[]) : [],
     };
   }
 
@@ -31,6 +32,7 @@ export class UserService {
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data['name'] = dto.name.trim();
     if (dto.symbolsTracking !== undefined) data['symbolsTracking'] = dto.symbolsTracking;
+    if (dto.dailySignalWatchlist !== undefined) data['dailySignalWatchlist'] = dto.dailySignalWatchlist;
 
     if (Object.keys(data).length > 0) {
       await this.userRepository.updateProfile(userId, data);

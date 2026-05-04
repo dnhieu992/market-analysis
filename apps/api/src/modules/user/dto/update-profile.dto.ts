@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsOptional, IsString } from 'class-validator';
 
 export class UpdateProfileDto {
@@ -9,4 +10,10 @@ export class UpdateProfileDto {
   @IsArray()
   @IsString({ each: true })
   symbolsTracking?: string[];
+
+  @ApiPropertyOptional({ example: ['BTCUSDT', 'SUIUSDT'], type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  dailySignalWatchlist?: string[];
 }
