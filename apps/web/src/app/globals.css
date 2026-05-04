@@ -4191,6 +4191,53 @@ a.metric-card--link:hover {
 .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .chat-send-btn:not(:disabled):hover { background: #1a5e4d; }
 
+.chat-input-wrap {
+  position: relative;
+  flex: 1;
+}
+.chat-input-wrap .chat-input { width: 100%; }
+
+.chat-mention-list {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  overflow: hidden;
+  z-index: 10;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.chat-mention-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  gap: 8px;
+  transition: background 0.1s;
+}
+.chat-mention-item:hover,
+.chat-mention-item--active { background: var(--accent-subtle, #f0faf6); }
+
+.chat-mention-name {
+  font-weight: 500;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-mention-version {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 /* ── Strategy page — split layout (desktop) ─────────────────────────────────── */
 
 .strat-page {

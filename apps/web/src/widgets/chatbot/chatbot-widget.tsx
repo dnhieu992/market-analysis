@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { Conversation, ChatMessage } from '@web/shared/api/types';
+import type { Conversation, ChatMessage, TradingStrategy } from '@web/shared/api/types';
 
 // ── Simple markdown renderer ─────────────────────────────────────────
 function renderMarkdown(text: string): string {
@@ -62,11 +62,17 @@ export function ChatbotWidget() {
   const [sending, setSending] = useState(false);
   const [error, setError]     = useState<string | null>(null);
 
+  // @ mention
+  const [strategies, setStrategies]     = useState<TradingStrategy[]>([]);
+  const [mentionOpen, setMentionOpen]   = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+
   const bottomRef   = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLTextAreaElement>(null);
   const api = createApiClient();
 
-  // Load conversations when panel opens
+  // Load conversations + strategies when panel opens
   useEffect(() => {
     if (!open) return;
     setLoadingConvs(true);
@@ -74,6 +80,9 @@ export function ChatbotWidget() {
       .then(setConversations)
       .catch(() => {/* ignore */})
       .finally(() => setLoadingConvs(false));
+    api.fetchTradingStrategies()
+      .then(setStrategies)
+      .catch(() => {/* ignore */});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -162,7 +171,44 @@ export function ChatbotWidget() {
     }
   }
 
+  const filteredStrategies = strategies.filter((s) =>
+    s.name.toLowerCase().includes(mentionQuery.toLowerCase())
+  );
+
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value;
+    const cursor = e.target.selectionStart ?? val.length;
+    setInput(val);
+    const match = val.slice(0, cursor).match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1] ?? '');
+      setMentionOpen(true);
+      setMentionIndex(0);
+    } else {
+      setMentionOpen(false);
+    }
+  }
+
+  function applyMention(strategy: TradingStrategy) {
+    const cursor = inputRef.current?.selectionStart ?? input.length;
+    const before = input.slice(0, cursor).replace(/@\w*$/, `@${strategy.name} `);
+    const after = input.slice(cursor);
+    const next = before + after;
+    setInput(next);
+    setMentionOpen(false);
+    setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(before.length, before.length);
+    }, 0);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionOpen && filteredStrategies.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex((i) => Math.min(i + 1, filteredStrategies.length - 1)); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIndex((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === 'Enter')     { e.preventDefault(); applyMention(filteredStrategies[mentionIndex]!); return; }
+      if (e.key === 'Escape')    { setMentionOpen(false); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
@@ -289,16 +335,33 @@ export function ChatbotWidget() {
 
               {/* Input */}
               <div className="chat-input-area">
-                <textarea
-                  ref={inputRef}
-                  className="chat-input"
-                  rows={2}
-                  placeholder="Nhập câu hỏi... (Enter để gửi, Shift+Enter xuống dòng)"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={sending}
-                />
+                <div className="chat-input-wrap">
+                  {mentionOpen && filteredStrategies.length > 0 && (
+                    <div className="chat-mention-list">
+                      {filteredStrategies.map((s, i) => (
+                        <div
+                          key={s.id}
+                          className={`chat-mention-item${i === mentionIndex ? ' chat-mention-item--active' : ''}`}
+                          onMouseDown={(e) => { e.preventDefault(); applyMention(s); }}
+                          onMouseEnter={() => setMentionIndex(i)}
+                        >
+                          <span className="chat-mention-name">{s.name}</span>
+                          <span className="chat-mention-version">v{s.version}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <textarea
+                    ref={inputRef}
+                    className="chat-input"
+                    rows={2}
+                    placeholder="Nhập câu hỏi... (@ để chọn chiến lược)"
+                    value={input}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    disabled={sending}
+                  />
+                </div>
                 <button
                   className="chat-send-btn"
                   onClick={() => void handleSend()}
