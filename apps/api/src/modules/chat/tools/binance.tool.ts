@@ -4,19 +4,6 @@ const BASE = process.env.BINANCE_BASE_URL ?? 'https://api.binance.com';
 
 const VALID_INTERVALS = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','3d','1w','1M'];
 
-// Map trading notation (M15, H1, D1) → Binance interval format (15m, 1h, 1d)
-const INTERVAL_ALIASES: Record<string, string> = {
-  'm1':'1m','m3':'3m','m5':'5m','m15':'15m','m30':'30m',
-  'h1':'1h','h2':'2h','h4':'4h','h6':'6h','h8':'8h','h12':'12h',
-  'd1':'1d','d3':'3d','w1':'1w',
-};
-
-function normalizeInterval(raw: string): string {
-  if (VALID_INTERVALS.includes(raw)) return raw;
-  const normalized = INTERVAL_ALIASES[raw.toLowerCase()];
-  return normalized ?? '1h';
-}
-
 type KlineRow = [number, string, string, string, string, string, number, string, number, string, string, string];
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -34,14 +21,14 @@ export const getKlinesTool: ChatTool<{ symbol: string; interval: string; limit?:
     type: 'object',
     properties: {
       symbol:   { type: 'string', description: 'Trading pair symbol, e.g. BTCUSDT' },
-      interval: { type: 'string', description: 'Candlestick interval. Binance format (1m,5m,15m,30m,1h,4h,1d,1w) or trading notation (M5,M15,M30,H1,H4,D1) are both accepted.' },
+      interval: { type: 'string', description: 'Candlestick interval: 1m,5m,15m,30m,1h,4h,1d,1w' },
       limit:    { type: 'number', description: 'Number of candles to fetch (default 50, max 200)' }
     },
     required: ['symbol', 'interval']
   },
   async execute(input) {
     const symbol   = input.symbol.toUpperCase();
-    const interval = normalizeInterval(input.interval);
+    const interval = VALID_INTERVALS.includes(input.interval) ? input.interval : '1h';
     const limit    = Math.min(input.limit ?? 50, 200);
 
     const rows = await fetchJson<KlineRow[]>(
