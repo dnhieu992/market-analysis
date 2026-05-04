@@ -34,7 +34,7 @@ export class ClaudeChatProvider extends ChatProvider {
 
   constructor() {
     super();
-    this.apiKey = process.env.CLAUDE_API_KEY ?? '';
+    this.apiKey = (process.env.CLAUDE_API_KEY ?? '').trim();
     this.model  = resolveModel();
   }
 

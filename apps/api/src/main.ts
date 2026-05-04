@@ -41,8 +41,9 @@ async function bootstrap() {
   await app.listen(port);
   Logger.log(`API listening on port ${port}`, 'Bootstrap');
   Logger.log(`Swagger docs available at http://localhost:${port}/api/docs`, 'Bootstrap');
-  const apiKey = process.env.CLAUDE_API_KEY ?? '';
-  Logger.log(`CLAUDE_API_KEY: ${apiKey ? `${apiKey.slice(0, 10)}...${apiKey.slice(-4)} (length: ${apiKey.length})` : 'NOT SET'}`, 'Bootstrap');
+  const apiKey = (process.env.CLAUDE_API_KEY ?? '').trim();
+  const rawLen = (process.env.CLAUDE_API_KEY ?? '').length;
+  Logger.log(`CLAUDE_API_KEY: ${apiKey ? `${apiKey.slice(0, 10)}...${apiKey.slice(-4)} (length: ${apiKey.length}, raw: ${rawLen})` : 'NOT SET'}`, 'Bootstrap');
 }
 
 void bootstrap();
