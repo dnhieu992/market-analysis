@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import { resolve } from 'path';
 import { config } from 'dotenv';
 
-// __dirname = dist/apps/api/src → go up 4 levels to reach repo root
-config({ path: resolve(__dirname, '../../../../.env') });
+// __dirname = dist/apps/api/src → go up 6 levels to reach repo root
+config({ path: resolve(__dirname, '../../../../../../.env') });
 
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
