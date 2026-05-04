@@ -248,6 +248,37 @@ function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
   );
 }
 
+function TotalUnrealPnlCard({ orders, livePrices }: { orders: DashboardOrder[]; livePrices: Record<string, number> }) {
+  const openOrders = orders.filter(o => o.status.toLowerCase() === 'open');
+  const allPricesLoaded = openOrders.length > 0 && openOrders.every(o => livePrices[o.symbol.toUpperCase()] != null);
+
+  const total = openOrders.reduce((sum, o) => {
+    const livePrice = livePrices[o.symbol.toUpperCase()];
+    if (livePrice == null) return sum;
+    const upnl = calcUnrealizedPnl(o.entryPrice, livePrice, o.quantity, o.side);
+    return sum + (upnl ?? 0);
+  }, 0);
+
+  const isPositive = total >= 0;
+  const isLoading = openOrders.length > 0 && !allPricesLoaded;
+
+  return (
+    <div className="tt-pnl-card">
+      <span className="tt-pnl-card__label">Total Unrealized P/L</span>
+      {isLoading ? (
+        <span className="tt-pnl-card__value tt-muted">…</span>
+      ) : openOrders.length === 0 ? (
+        <span className="tt-pnl-card__value tt-muted">-</span>
+      ) : (
+        <span className={`tt-pnl-card__value ${isPositive ? 'tt-pnl-card__value--positive' : 'tt-pnl-card__value--negative'}`}>
+          {isPositive ? '+' : ''}{formatVolume(total)}
+        </span>
+      )}
+      <span className="tt-pnl-card__note">Open trades in selected period</span>
+    </div>
+  );
+}
+
 export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes }: TradesTableProps) {
   const router = useRouter();
   const [autoReload, setAutoReload] = useState(false);
@@ -378,7 +409,22 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
     <article className="panel">
       <div className="table-header">
         <div>
-          <h2>Trade History</h2>
+          <div className="trades-title-row">
+            <h2>Trade History</h2>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoReload}
+              className={`ios-toggle${autoReload ? ' ios-toggle--on' : ''}`}
+              onClick={() => setAutoReload(v => !v)}
+              aria-label="Auto-refresh every 30 seconds"
+            >
+              <span className="ios-toggle__track">
+                <span className="ios-toggle__thumb" />
+              </span>
+              {autoReload && <span className="ios-toggle__countdown">{countdown}s</span>}
+            </button>
+          </div>
           <p>{orders.length === 0 ? 'No manual trades yet.' : 'Manual positions stored in the app.'}</p>
         </div>
         <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
@@ -386,6 +432,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
 
       {orders.length > 0 && (
         <div className="tt-summary-bar">
+          <TotalUnrealPnlCard orders={filteredOrders} livePrices={livePrices} />
           <TotalPnlCard orders={filteredOrders} />
         </div>
       )}
@@ -514,25 +561,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
               )}
             </div>
           </div>
-          {/* 5. Auto-reload toggle */}
-          <div className="trades-filter-field trades-filter-field--auto-reload">
-            <label className="trades-filter-label">Auto-refresh</label>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoReload}
-              className={`ios-toggle${autoReload ? ' ios-toggle--on' : ''}`}
-              onClick={() => setAutoReload(v => !v)}
-              aria-label="Auto-refresh every 30 seconds"
-            >
-              <span className="ios-toggle__track">
-                <span className="ios-toggle__thumb" />
-              </span>
-              {autoReload && <span className="ios-toggle__countdown">{countdown}s</span>}
-            </button>
-          </div>
-
-          {/* 6. Reset filters */}
+          {/* 5. Reset filters */}
           <div className="trades-filter-field trades-filter-field--reset">
             <label className="trades-filter-label">&nbsp;</label>
             <button

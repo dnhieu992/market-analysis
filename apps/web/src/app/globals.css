@@ -1088,7 +1088,9 @@ a {
 .tt-summary-bar {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
   margin-top: 20px;
+  flex-wrap: wrap;
 }
 
 .tt-pnl-card {
@@ -1572,9 +1574,11 @@ a {
   padding-right: 26px;
 }
 
-/* Auto-reload toggle field alignment */
-.trades-filter-field--auto-reload {
-  margin-left: auto;
+/* Title row with inline auto-refresh toggle */
+.trades-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .trades-filter-reset {
