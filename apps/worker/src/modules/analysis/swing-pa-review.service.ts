@@ -89,6 +89,9 @@ export class SwingPaReviewService {
 
   async review(analysis: SwingPaAnalysis, dailyCandles: Candle[]): Promise<SwingPaReview | null> {
     const model = resolveModel();
+    const apiKey = process.env.CLAUDE_API_KEY ?? '';
+    this.logger.log(`[env] CLAUDE_API_KEY: ${apiKey ? apiKey.slice(0, 10) + '...' + apiKey.slice(-4) : 'MISSING'}`);
+    this.logger.log(`[env] CLAUDE_MODEL: ${model}`);
 
     try {
       const client = axios.create({
