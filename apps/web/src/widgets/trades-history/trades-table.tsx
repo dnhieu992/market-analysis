@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
@@ -248,15 +249,76 @@ function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
 }
 
 export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes }: TradesTableProps) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [dateFilter, setDateFilter] = useState<DateFilter | null>(null);
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
+  const router = useRouter();
+  const [autoReload, setAutoReload] = useState(false);
+  const [countdown, setCountdown] = useState(30);
 
-  const [sourceFilter, setSourceFilter] = useState<Set<string>>(new Set());
-  const [nameFilter, setNameFilter] = useState('');
+  useEffect(() => {
+    if (!autoReload) { setCountdown(30); return; }
+    setCountdown(30);
+    const id = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          router.refresh();
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [autoReload, router]);
+
+  const FILTERS_KEY = 'trades-filters';
+
+  function loadFilters() {
+    try {
+      const raw = localStorage.getItem(FILTERS_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw) as {
+        statusFilter: StatusFilter;
+        dateFilter: DateFilter | null;
+        customFrom: string;
+        customTo: string;
+        sourceFilter: string[];
+        nameFilter: string;
+      };
+    } catch { return null; }
+  }
+
+  const saved = typeof window !== 'undefined' ? loadFilters() : null;
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(saved?.statusFilter ?? 'all');
+  const [dateFilter, setDateFilter] = useState<DateFilter | null>(saved?.dateFilter ?? null);
+  const [customFrom, setCustomFrom] = useState(saved?.customFrom ?? '');
+  const [customTo, setCustomTo] = useState(saved?.customTo ?? '');
+
+  const [sourceFilter, setSourceFilter] = useState<Set<string>>(new Set(saved?.sourceFilter ?? []));
+  const [nameFilter, setNameFilter] = useState(saved?.nameFilter ?? '');
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const sourceDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify({
+        statusFilter,
+        dateFilter,
+        customFrom,
+        customTo,
+        sourceFilter: Array.from(sourceFilter),
+        nameFilter,
+      }));
+    } catch { /* ignore quota errors */ }
+  }, [statusFilter, dateFilter, customFrom, customTo, sourceFilter, nameFilter]);
+
+  function resetFilters() {
+    setStatusFilter('all');
+    setDateFilter(null);
+    setCustomFrom('');
+    setCustomTo('');
+    setSourceFilter(new Set());
+    setNameFilter('');
+    try { localStorage.removeItem(FILTERS_KEY); } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -451,6 +513,35 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                 </div>
               )}
             </div>
+          </div>
+          {/* 5. Auto-reload toggle */}
+          <div className="trades-filter-field trades-filter-field--auto-reload">
+            <label className="trades-filter-label">Auto-refresh</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoReload}
+              className={`ios-toggle${autoReload ? ' ios-toggle--on' : ''}`}
+              onClick={() => setAutoReload(v => !v)}
+              aria-label="Auto-refresh every 30 seconds"
+            >
+              <span className="ios-toggle__track">
+                <span className="ios-toggle__thumb" />
+              </span>
+              {autoReload && <span className="ios-toggle__countdown">{countdown}s</span>}
+            </button>
+          </div>
+
+          {/* 6. Reset filters */}
+          <div className="trades-filter-field trades-filter-field--reset">
+            <label className="trades-filter-label">&nbsp;</label>
+            <button
+              type="button"
+              className="btn btn--secondary trades-filter-reset"
+              onClick={resetFilters}
+            >
+              Reset
+            </button>
           </div>
         </div>
       )}

@@ -1572,6 +1572,68 @@ a {
   padding-right: 26px;
 }
 
+/* Auto-reload toggle field alignment */
+.trades-filter-field--auto-reload {
+  margin-left: auto;
+}
+
+.trades-filter-reset {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* iOS-style toggle */
+.ios-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  height: 34px;
+}
+
+.ios-toggle__track {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--border, #e5e7eb);
+  transition: background 0.22s ease;
+  flex-shrink: 0;
+}
+
+.ios-toggle--on .ios-toggle__track {
+  background: #34c759;
+}
+
+.ios-toggle__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  transition: transform 0.22s ease;
+}
+
+.ios-toggle--on .ios-toggle__thumb {
+  transform: translateX(20px);
+}
+
+.ios-toggle__countdown {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #34c759;
+  min-width: 24px;
+  text-align: left;
+}
+
 /* Source dropdown */
 .trades-source-dropdown {
   position: relative;
