@@ -23,6 +23,13 @@ type AnthropicMessage = {
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MAX_TOOL_ITERATIONS = 5;
 
+function resolveModel(): string {
+  const variant = process.env.CLAUDE_MODEL;
+  if (variant === 'opus') return 'claude-opus-4-6';
+  if (variant && variant.startsWith('claude-')) return variant;
+  return 'claude-sonnet-4-6';
+}
+
 @Injectable()
 export class ClaudeChatProvider extends ChatProvider {
   private readonly apiKey: string;
@@ -31,7 +38,7 @@ export class ClaudeChatProvider extends ChatProvider {
   constructor() {
     super();
     this.apiKey = process.env.CLAUDE_API_KEY ?? '';
-    this.model  = process.env.CLAUDE_MODEL  ?? 'claude-sonnet-4-6';
+    this.model  = resolveModel();
   }
 
   /** Simple chat (no tools) — satisfies ChatProvider contract */
