@@ -34,6 +34,24 @@ function BotIcon() {
   );
 }
 
+function HamburgerIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  );
+}
+
 function TypingIndicator() {
   return (
     <div className="chat-typing">
@@ -45,17 +63,17 @@ function TypingIndicator() {
 // ── Main Widget ───────────────────────────────────────────────────────
 
 export function ChatbotWidget() {
-  const [open, setOpen]         = useState(false);
-  const [view, setView]         = useState<'list' | 'chat'>('list');
+  const [open, setOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // conversations list
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConvs, setLoadingConvs]   = useState(false);
 
   // active conversation
-  const [activeConv, setActiveConv] = useState<Conversation | null>(null);
-  const [messages, setMessages]     = useState<ChatMessage[]>([]);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [activeConv, setActiveConv]     = useState<Conversation | null>(null);
+  const [messages, setMessages]         = useState<ChatMessage[]>([]);
+  const [loadingMsgs, setLoadingMsgs]   = useState(false);
 
   // sending
   const [input, setInput]     = useState('');
@@ -68,8 +86,8 @@ export function ChatbotWidget() {
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionIndex, setMentionIndex] = useState(0);
 
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const inputRef    = useRef<HTMLTextAreaElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
   const api = createApiClient();
 
   // Load conversations + strategies when panel opens
@@ -91,10 +109,17 @@ export function ChatbotWidget() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
-  // Load messages when opening a conversation
+  // Close history drawer on outside click
+  useEffect(() => {
+    if (!historyOpen) return;
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setHistoryOpen(false); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [historyOpen]);
+
   async function openConversation(conv: Conversation) {
     setActiveConv(conv);
-    setView('chat');
+    setHistoryOpen(false);
     setLoadingMsgs(true);
     setMessages([]);
     setError(null);
@@ -126,7 +151,7 @@ export function ChatbotWidget() {
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (activeConv?.id === id) {
         setActiveConv(null);
-        setView('list');
+        setMessages([]);
       }
     } catch {/* ignore */}
   }
@@ -137,7 +162,6 @@ export function ChatbotWidget() {
     setInput('');
     setError(null);
 
-    // Optimistic user message
     const tempUserMsg: ChatMessage = {
       id: `temp-${Date.now()}`,
       conversationId: activeConv.id,
@@ -150,11 +174,8 @@ export function ChatbotWidget() {
 
     try {
       const assistantMsg = await api.sendMessage(activeConv.id, content);
-      // Replace temp message with real one from server (it includes the assistant reply)
       const allMsgs = await api.getMessages(activeConv.id);
       setMessages(allMsgs);
-
-      // Update conversation list title
       setConversations((prev) =>
         prev.map((c) =>
           c.id === activeConv.id
@@ -170,6 +191,8 @@ export function ChatbotWidget() {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }
+
+  // ── @ mention helpers ──────────────────────────────────────────────
 
   const filteredStrategies = strategies.filter((s) =>
     s.name.toLowerCase().includes(mentionQuery.toLowerCase())
@@ -223,6 +246,10 @@ export function ChatbotWidget() {
     return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
+  const panelTitle = activeConv
+    ? (activeConv.title.length > 28 ? activeConv.title.slice(0, 28) + '…' : activeConv.title)
+    : 'Trợ lý giao dịch';
+
   return (
     <>
       {/* Floating button */}
@@ -231,13 +258,7 @@ export function ChatbotWidget() {
         onClick={() => setOpen((v) => !v)}
         aria-label="Mở trợ lý giao dịch"
       >
-        {open ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        ) : (
-          <BotIcon />
-        )}
+        {open ? <CloseIcon /> : <BotIcon />}
       </button>
 
       {/* Panel */}
@@ -245,30 +266,56 @@ export function ChatbotWidget() {
         <div className="chat-panel">
           {/* Header */}
           <div className="chat-panel-header">
-            {view === 'chat' && activeConv ? (
-              <>
-                <button className="chat-back-btn" onClick={() => setView('list')} aria-label="Quay lại">
-                  ←
-                </button>
-                <span className="chat-panel-title" title={activeConv.title}>
-                  {activeConv.title.length > 35 ? activeConv.title.slice(0, 35) + '…' : activeConv.title}
-                </span>
-              </>
-            ) : (
-              <span className="chat-panel-title">Trợ lý giao dịch</span>
-            )}
-            <button className="chat-new-btn" onClick={startNewConversation} title="Cuộc trò chuyện mới">
-              +
+            <button
+              className="chat-hamburger-btn"
+              onClick={() => setHistoryOpen((v) => !v)}
+              aria-label="Lịch sử trò chuyện"
+            >
+              <HamburgerIcon />
+            </button>
+            <span className="chat-panel-title" title={activeConv?.title}>{panelTitle}</span>
+            <button className="chat-new-btn" onClick={startNewConversation} title="Cuộc trò chuyện mới">+</button>
+            <button className="chat-close-btn" onClick={() => setOpen(false)} aria-label="Đóng">
+              <CloseIcon />
             </button>
           </div>
 
           {/* Body */}
-          {view === 'list' ? (
-            /* Conversation list */
-            <div className="chat-conv-list">
-              {loadingConvs ? (
-                <p className="chat-empty">Đang tải...</p>
-              ) : conversations.length === 0 ? (
+          <div className="chat-body">
+            {/* History drawer */}
+            {historyOpen && (
+              <>
+                <div className="chat-history-backdrop" onClick={() => setHistoryOpen(false)} />
+                <div className="chat-history-drawer">
+                  <div className="chat-history-header">Lịch sử</div>
+                  {loadingConvs ? (
+                    <p className="chat-empty">Đang tải...</p>
+                  ) : conversations.length === 0 ? (
+                    <p className="chat-empty">Chưa có cuộc trò chuyện</p>
+                  ) : (
+                    conversations.map((conv) => (
+                      <div
+                        key={conv.id}
+                        className={`chat-conv-item${activeConv?.id === conv.id ? ' chat-conv-item--active' : ''}`}
+                        onClick={() => openConversation(conv)}
+                      >
+                        <div className="chat-conv-item-title">{conv.title}</div>
+                        <div className="chat-conv-item-date">{formatDate(conv.updatedAt)}</div>
+                        <button
+                          className="chat-conv-del"
+                          onClick={(e) => handleDeleteConv(e, conv.id)}
+                          aria-label="Xoá"
+                        >✕</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Messages */}
+            <div className="chat-messages">
+              {!activeConv ? (
                 <div className="chat-empty-state">
                   <BotIcon />
                   <p>Chưa có cuộc trò chuyện nào.</p>
@@ -276,103 +323,84 @@ export function ChatbotWidget() {
                     Bắt đầu trò chuyện
                   </button>
                 </div>
+              ) : loadingMsgs ? (
+                <p className="chat-empty">Đang tải tin nhắn...</p>
+              ) : messages.length === 0 ? (
+                <div className="chat-empty-state">
+                  <BotIcon />
+                  <p>Hãy đặt câu hỏi đầu tiên!</p>
+                  <p className="chat-hint">Ví dụ: "Phân tích BTCUSDT khung H1" hoặc "Tôi hay thua ở cặp nào?"</p>
+                </div>
               ) : (
-                conversations.map((conv) => (
-                  <div key={conv.id} className="chat-conv-item" onClick={() => openConversation(conv)}>
-                    <div className="chat-conv-item-title">{conv.title}</div>
-                    <div className="chat-conv-item-date">{formatDate(conv.updatedAt)}</div>
-                    <button
-                      className="chat-conv-del"
-                      onClick={(e) => handleDeleteConv(e, conv.id)}
-                      aria-label="Xoá"
-                    >✕</button>
+                messages.map((msg) => (
+                  <div key={msg.id} className={`chat-msg chat-msg--${msg.role}`}>
+                    {msg.role === 'assistant' && (
+                      <div className="chat-msg-avatar"><BotIcon /></div>
+                    )}
+                    <div className="chat-msg-body">
+                      {msg.role === 'assistant' ? (
+                        <div
+                          className="chat-msg-text"
+                          // eslint-disable-next-line react/no-danger
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                        />
+                      ) : (
+                        <div className="chat-msg-text">{msg.content}</div>
+                      )}
+                      <span className="chat-msg-time">{formatTime(msg.createdAt)}</span>
+                    </div>
                   </div>
                 ))
               )}
-            </div>
-          ) : (
-            /* Chat thread */
-            <>
-              <div className="chat-messages">
-                {loadingMsgs ? (
-                  <p className="chat-empty">Đang tải tin nhắn...</p>
-                ) : messages.length === 0 ? (
-                  <div className="chat-empty-state">
-                    <BotIcon />
-                    <p>Hãy đặt câu hỏi đầu tiên!</p>
-                    <p className="chat-hint">Ví dụ: "Phân tích BTCUSDT khung H1" hoặc "Tôi hay thua ở cặp nào?"</p>
-                  </div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`chat-msg chat-msg--${msg.role}`}>
-                      {msg.role === 'assistant' && (
-                        <div className="chat-msg-avatar"><BotIcon /></div>
-                      )}
-                      <div className="chat-msg-body">
-                        {msg.role === 'assistant' ? (
-                          <div
-                            className="chat-msg-text"
-                            // eslint-disable-next-line react/no-danger
-                            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                          />
-                        ) : (
-                          <div className="chat-msg-text">{msg.content}</div>
-                        )}
-                        <span className="chat-msg-time">{formatTime(msg.createdAt)}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-                {sending && (
-                  <div className="chat-msg chat-msg--assistant">
-                    <div className="chat-msg-avatar"><BotIcon /></div>
-                    <div className="chat-msg-body"><TypingIndicator /></div>
-                  </div>
-                )}
-                {error && <p className="chat-error">{error}</p>}
-                <div ref={bottomRef} />
-              </div>
-
-              {/* Input */}
-              <div className="chat-input-area">
-                <div className="chat-input-wrap">
-                  {mentionOpen && filteredStrategies.length > 0 && (
-                    <div className="chat-mention-list">
-                      {filteredStrategies.map((s, i) => (
-                        <div
-                          key={s.id}
-                          className={`chat-mention-item${i === mentionIndex ? ' chat-mention-item--active' : ''}`}
-                          onMouseDown={(e) => { e.preventDefault(); applyMention(s); }}
-                          onMouseEnter={() => setMentionIndex(i)}
-                        >
-                          <span className="chat-mention-name">{s.name}</span>
-                          <span className="chat-mention-version">v{s.version}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <textarea
-                    ref={inputRef}
-                    className="chat-input"
-                    rows={2}
-                    placeholder="Nhập câu hỏi... (@ để chọn chiến lược)"
-                    value={input}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    disabled={sending}
-                  />
+              {sending && (
+                <div className="chat-msg chat-msg--assistant">
+                  <div className="chat-msg-avatar"><BotIcon /></div>
+                  <div className="chat-msg-body"><TypingIndicator /></div>
                 </div>
-                <button
-                  className="chat-send-btn"
-                  onClick={() => void handleSend()}
-                  disabled={!input.trim() || sending}
-                  aria-label="Gửi"
-                >
-                  {sending ? '…' : '↑'}
-                </button>
-              </div>
-            </>
-          )}
+              )}
+              {error && <p className="chat-error">{error}</p>}
+              <div ref={bottomRef} />
+            </div>
+          </div>
+
+          {/* Input */}
+          <div className="chat-input-area">
+            <div className="chat-input-wrap">
+              {mentionOpen && filteredStrategies.length > 0 && (
+                <div className="chat-mention-list">
+                  {filteredStrategies.map((s, i) => (
+                    <div
+                      key={s.id}
+                      className={`chat-mention-item${i === mentionIndex ? ' chat-mention-item--active' : ''}`}
+                      onMouseDown={(e) => { e.preventDefault(); applyMention(s); }}
+                      onMouseEnter={() => setMentionIndex(i)}
+                    >
+                      <span className="chat-mention-name">{s.name}</span>
+                      <span className="chat-mention-version">v{s.version}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <textarea
+                ref={inputRef}
+                className="chat-input"
+                rows={2}
+                placeholder={activeConv ? 'Nhập câu hỏi... (@ để chọn chiến lược)' : 'Tạo cuộc trò chuyện để bắt đầu'}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                disabled={sending || !activeConv}
+              />
+            </div>
+            <button
+              className="chat-send-btn"
+              onClick={() => void handleSend()}
+              disabled={!input.trim() || sending || !activeConv}
+              aria-label="Gửi"
+            >
+              {sending ? '…' : '↑'}
+            </button>
+          </div>
         </div>
       )}
     </>

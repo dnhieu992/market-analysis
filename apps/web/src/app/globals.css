@@ -3872,11 +3872,11 @@ a.metric-card--link:hover {
 /* Panel */
 .chat-panel {
   position: fixed;
-  bottom: 92px;
+  top: 16px;
+  bottom: 88px;
   right: 28px;
   z-index: 999;
   width: 380px;
-  height: 580px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -3896,18 +3896,39 @@ a.metric-card--link:hover {
 .chat-panel-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 16px;
+  gap: 6px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   background: rgba(31, 111, 91, 0.06);
   flex-shrink: 0;
 }
+
+.chat-hamburger-btn,
+.chat-close-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--foreground);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.chat-hamburger-btn:hover,
+.chat-close-btn:hover { background: rgba(0,0,0,0.06); }
 
 .chat-panel-title {
   flex: 1;
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3958,7 +3979,9 @@ a.metric-card--link:hover {
   transition: background 0.12s;
   border-bottom: 1px solid rgba(23,18,13,0.05);
 }
-.chat-conv-item:hover { background: rgba(31,111,91,0.06); }
+.chat-conv-item:hover,
+.chat-conv-item--active { background: rgba(31,111,91,0.08); }
+.chat-conv-item--active { border-left: 3px solid var(--accent); }
 
 .chat-conv-item-title {
   font-size: 0.83rem;
@@ -4026,6 +4049,51 @@ a.metric-card--link:hover {
   transition: background 0.15s;
 }
 .chat-start-btn:hover { background: #1a5e4d; }
+
+/* Body wrapper */
+.chat-body {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* History drawer */
+.chat-history-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+}
+.chat-history-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  animation: slideInLeft 0.2s ease;
+  box-shadow: 4px 0 16px rgba(0,0,0,0.08);
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+.chat-history-header {
+  padding: 12px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
 
 /* Messages */
 .chat-messages {
