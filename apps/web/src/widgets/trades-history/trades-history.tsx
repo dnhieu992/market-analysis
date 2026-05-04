@@ -25,6 +25,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [notesOrder, setNotesOrder] = useState<DashboardOrder | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     if (!closeTradeOrder) {
@@ -64,6 +65,8 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
         onEditTrade={(order) => setEditOrder(order)}
         onRemoveTrade={(orderId) => setDeleteOrderId(orderId)}
         onViewNotes={(order) => setNotesOrder(order)}
+        chatOpen={chatOpen}
+        onToggleChat={() => setChatOpen(v => !v)}
       />
 
       {/* Single trade dialog */}
@@ -168,7 +171,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
         </div>
       )}
 
-      <ChatbotWidget pinned />
+      <ChatbotWidget pinned open={chatOpen} onClose={() => setChatOpen(false)} />
     </main>
   );
 }

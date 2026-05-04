@@ -64,6 +64,8 @@ type TradesTableProps = Readonly<{
   onEditTrade: (order: DashboardOrder) => void;
   onRemoveTrade: (orderId: string) => void;
   onViewNotes: (order: DashboardOrder) => void;
+  chatOpen?: boolean;
+  onToggleChat?: () => void;
 }>;
 
 function formatPrice(value: number): string {
@@ -279,7 +281,7 @@ function TotalUnrealPnlCard({ orders, livePrices }: { orders: DashboardOrder[]; 
   );
 }
 
-export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes }: TradesTableProps) {
+export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes, chatOpen, onToggleChat }: TradesTableProps) {
   const router = useRouter();
   const [autoReload, setAutoReload] = useState(false);
   const [countdown, setCountdown] = useState(30);
@@ -430,6 +432,16 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
               </span>
               {autoReload && <span className="ios-toggle__countdown">{countdown}s</span>}
             </button>
+            {onToggleChat && (
+              <button
+                type="button"
+                className={`trades-chat-btn${chatOpen ? ' trades-chat-btn--active' : ''}`}
+                onClick={onToggleChat}
+                aria-label="Toggle AI assistant"
+              >
+                🤖
+              </button>
+            )}
           </div>
           <p>{orders.length === 0 ? 'No manual trades yet.' : 'Manual positions stored in the app.'}</p>
         </div>

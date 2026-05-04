@@ -62,8 +62,14 @@ function TypingIndicator() {
 
 // ── Main Widget ───────────────────────────────────────────────────────
 
-export function ChatbotWidget({ pinned = false }: { pinned?: boolean }) {
-  const [open, setOpen] = useState(pinned);
+export function ChatbotWidget({ pinned = false, open: propOpen, onClose }: { pinned?: boolean; open?: boolean; onClose?: () => void }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = pinned && propOpen !== undefined ? propOpen : internalOpen;
+  function setOpen(val: boolean | ((v: boolean) => boolean)) {
+    const next = typeof val === 'function' ? val(open) : val;
+    if (pinned && propOpen !== undefined) { if (!next) onClose?.(); }
+    else setInternalOpen(next);
+  }
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // conversations list
