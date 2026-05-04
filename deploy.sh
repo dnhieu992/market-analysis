@@ -30,11 +30,11 @@ pnpm -r build
 echo "── Restart API"
 pm2 delete "$PM2_API" 2>/dev/null || true
 sleep 1
-pm2 start apps/api/dist/main.js --name "$PM2_API" --cwd apps/api
+pm2 start apps/api/dist/src/main.js --name "$PM2_API" --cwd apps/api
 
 echo "── Restart Worker"
 pm2 delete "$PM2_WORKER" 2>/dev/null || true
-pm2 start apps/worker/dist/main.js --name "$PM2_WORKER" --cwd apps/worker
+pm2 start apps/worker/dist/src/main.js --name "$PM2_WORKER" --cwd apps/worker
 
 echo "── Restart Web"
 pm2 delete "$PM2_WEB" 2>/dev/null || true
