@@ -58,7 +58,7 @@ export class BackTestEngineService {
             direction: openTrade.direction,
             size,
             pnl,
-            pnlPercent: pnl / openTrade.entryPrice,
+            pnlPercent: pnl / volume,
             outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
           });
           openTrade = null;
@@ -115,7 +115,7 @@ export class BackTestEngineService {
         direction: openTrade.direction,
         size,
         pnl,
-        pnlPercent: pnl / openTrade.entryPrice,
+        pnlPercent: pnl / volume,
         outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
       });
     }
