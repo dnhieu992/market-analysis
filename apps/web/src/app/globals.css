@@ -1234,6 +1234,18 @@ a {
   line-height: 1.4;
 }
 
+/* PnL stack (value + % on open trades) */
+.tt-pnl-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tt-pnl-pct {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 /* PnL */
 .tt-pnl-positive {
   color: #16a34a;

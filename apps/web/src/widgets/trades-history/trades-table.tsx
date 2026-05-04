@@ -249,7 +249,7 @@ function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
 }
 
 function TotalUnrealPnlCard({ orders, livePrices }: { orders: DashboardOrder[]; livePrices: Record<string, number> }) {
-  const openOrders = orders.filter(o => o.status.toLowerCase() === 'open');
+  const openOrders = orders; // caller is responsible for passing only open orders
   const allPricesLoaded = openOrders.length > 0 && openOrders.every(o => livePrices[o.symbol.toUpperCase()] != null);
 
   const total = openOrders.reduce((sum, o) => {
@@ -399,6 +399,12 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
   }).filter(o => matchesSourceFilter(o.broker, sourceFilter))
     .filter(o => matchesSymbolFilter(o.symbol, nameFilter));
 
+  // For the unrealized card: always open trades, but respects date / source / symbol filters
+  const openFilteredOrders = dateFilteredOrders
+    .filter(o => o.status.toLowerCase() === 'open')
+    .filter(o => matchesSourceFilter(o.broker, sourceFilter))
+    .filter(o => matchesSymbolFilter(o.symbol, nameFilter));
+
   function applyCustom() {
     if (customFrom && customTo) {
       setDateFilter('custom');
@@ -432,7 +438,7 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
 
       {orders.length > 0 && (
         <div className="tt-summary-bar">
-          <TotalUnrealPnlCard orders={filteredOrders} livePrices={livePrices} />
+          <TotalUnrealPnlCard orders={openFilteredOrders} livePrices={livePrices} />
           <TotalPnlCard orders={filteredOrders} />
         </div>
       )}
@@ -638,7 +644,19 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                             const livePrice = livePrices[order.symbol.toUpperCase()];
                             if (livePrice == null) return <span className="tt-muted tt-live-loading">…</span>;
                             const upnl = calcUnrealizedPnl(order.entryPrice, livePrice, order.quantity, order.side);
-                            return <PnlCell pnl={upnl} />;
+                            const pct = upnl != null && order.quantity != null
+                              ? upnl / (order.entryPrice * order.quantity) * 100
+                              : null;
+                            return (
+                              <div className="tt-pnl-stack">
+                                <PnlCell pnl={upnl} />
+                                {pct != null && (
+                                  <span className={`tt-pnl-pct ${pct >= 0 ? 'tt-pnl-positive' : 'tt-pnl-negative'}`}>
+                                    {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                            );
                           })()
                         : <PnlCell pnl={order.pnl} />
                       }
