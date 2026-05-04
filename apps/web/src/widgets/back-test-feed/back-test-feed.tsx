@@ -46,7 +46,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
   // FOMO strategy params
   const [fomoTpSteps, setFomoTpSteps] = useState(1000);
   const [fomoLongTpPct, setFomoLongTpPct] = useState(1); // percentage, e.g. 1 = 1%
-  const [fomoEntryHour, setFomoEntryHour] = useState(3);
+  const [fomoEntryHour, setFomoEntryHour] = useState(0);
   const [fomoExitHour, setFomoExitHour] = useState(16);
   // RSI Reversal params
   const [rsiTpPct, setRsiTpPct] = useState(10);

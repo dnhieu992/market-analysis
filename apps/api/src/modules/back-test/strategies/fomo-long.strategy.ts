@@ -2,7 +2,7 @@ import type { Candle } from '@app/core';
 import type { IBackTestStrategy } from './strategy.interface';
 import type { StrategyContext, TradeSignal } from '../types/back-test.types';
 
-const DEFAULT_ENTRY_HOUR_UTC = 3;
+const DEFAULT_ENTRY_HOUR_UTC = 0;
 const DEFAULT_EXIT_HOUR_UTC = 16;
 const DEFAULT_TP_PCT = 0.01; // 1%
 const DEFAULT_UT_BOT_PERIOD = 10;
@@ -72,7 +72,7 @@ function isUtBotUptrend(candles: Candle[], period: number, multiplier: number): 
 export class FomoLongStrategy implements IBackTestStrategy {
   readonly name = 'fomo-long';
   readonly description =
-    'Long at 03:00 UTC every day when M30 UT Bot is uptrend. TP = entry × (1 + tpPct). Force close at 16:00 UTC if TP not reached. No price-based stop loss.';
+    'Long at 00:00 UTC every day when M30 UT Bot is uptrend. TP = entry × (1 + tpPct). Force close at 16:00 UTC if TP not reached. No price-based stop loss.';
   readonly defaultTimeframe = '1h';
   readonly forcedTimeframe = '1h';
   readonly htfTimeframes = ['M30'];
