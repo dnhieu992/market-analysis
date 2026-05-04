@@ -91,7 +91,15 @@ Triggered by `/BTCUSDT swing` → fetches 1D/4H/1W candles → pure price action
 
 MySQL 8, Prisma ORM. Key models: `AnalysisRun` (unique on `symbol+timeframe+candleCloseTime`), `Signal`, `Order` (supports images as JSON), `DailyAnalysis`, `User`, `TelegramMessageLog`.
 
-After any schema change: `pnpm prisma:generate` then create a migration.
+After any schema change:
+1. Run `pnpm prisma:generate` to regenerate the TypeScript client.
+2. **Always create a migration file manually** in `packages/db/prisma/migrations/<timestamp>_<description>/migration.sql`. Use the format `YYYYMMDDHHMMSS` for the timestamp. `pnpm prisma:generate` does NOT create migration files — only `pnpm prisma:migrate` does, and that requires a live `DATABASE_URL` which is not available locally. Without a migration file, `prisma migrate deploy` on the server will report "no pending migrations" and the schema change will never reach the database.
+
+Migration file template for adding a column:
+```sql
+-- AlterTable
+ALTER TABLE `ModelName` ADD COLUMN `columnName` COLUMN_TYPE NOT NULL DEFAULT value;
+```
 
 ### Production
 
