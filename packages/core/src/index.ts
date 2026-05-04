@@ -6,6 +6,7 @@ export { calculateMacd } from './indicators/macd';
 export { calculateRsi } from './indicators/rsi';
 export { extractSupportAndResistanceLevels } from './indicators/support-resistance';
 export { calculateVolumeRatio } from './indicators/volume';
+export { isUtBotUptrend } from './indicators/ut-bot';
 export { normalizeLlmSignal } from './normalizers/normalize-llm-signal';
 export { buildAnalysisPrompt } from './prompts/build-analysis-prompt';
 export { formatAnalysisMessage } from './telegram/format-analysis-message';
