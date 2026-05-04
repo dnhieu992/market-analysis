@@ -133,8 +133,11 @@ Gọi trực tiếp `https://api.anthropic.com/v1/messages` bằng raw fetch (kh
 **Env vars cần thiết:**
 ```env
 CLAUDE_API_KEY=sk-ant-...
-CLAUDE_MODEL=claude-sonnet-4-6
+CLAUDE_MODEL=claude-sonnet-4-6   # full model ID, dùng trực tiếp
+LLM_PROVIDER=claude
 ```
+
+> `CLAUDE_MODEL` được đọc trực tiếp làm model ID (không map qua alias). Default fallback: `claude-sonnet-4-6`.
 
 ### Agentic Tool-Use Loop
 
@@ -181,42 +184,62 @@ Tất cả là **public endpoints**, không cần API key Binance.
 
 ## Frontend Widget
 
+### Layout
+
+```
+┌─────────────────────────┐  ← top: 16px (full height)
+│ [☰]  Conv title  [+][×] │  header
+├─────────────────────────┤
+│ ┌──────────┐            │
+│ │ Lịch sử  │  messages  │  ← history drawer slide-in từ trái
+│ │ Conv 1 ● │            │
+│ │ Conv 2   │            │
+│ └──────────┘            │
+├─────────────────────────┤
+│  [textarea]    [send]   │  ← bottom: 88px (trên FAB)
+└─────────────────────────┘
+```
+
 ### UX Flow
 
 ```
-[Floating Button] → Click → [Panel mở]
-  ├── View: List         (danh sách conversations)
-  │     ├── Click item   → View: Chat (load messages)
-  │     └── Click "+"    → Tạo conversation mới → View: Chat
-  └── View: Chat
-        ├── Input + Enter → Gửi message (optimistic UI)
-        ├── Typing indicator trong khi chờ AI
-        └── "←" Back     → View: List
+[FAB] → Click → [Panel full height]
+  ├── [☰] Hamburger  → Drawer lịch sử slide-in từ trái
+  │     ├── Click conv  → Load messages, đóng drawer, active highlight
+  │     └── Click ✕     → Xoá conversation
+  ├── [+]              → Tạo conversation mới
+  ├── [×] top right    → Đóng panel
+  └── Messages area    → Luôn hiển thị (không switching view)
+        ├── Input + Enter   → Gửi (optimistic UI)
+        ├── Typing indicator khi chờ AI
+        └── @ trong input   → Dropdown chọn strategy
 ```
 
 ### Features
 
-- **Floating button** cố định góc dưới phải, Z-index 1000
-- **Auto-title**: Tiêu đề conversation tự cập nhật từ tin nhắn đầu tiên (80 ký tự đầu)
+- **Full height**: Panel từ `top: 16px` đến `bottom: 88px` — tận dụng toàn bộ màn hình
+- **Close button** (`×`) góc trên phải đóng panel
+- **Hamburger** (`☰`) góc trên trái mở/đóng history drawer; click backdrop hoặc `Escape` để đóng
+- **History drawer**: slide-in từ trái, conversation đang active có highlight xanh + border trái
+- **@ mention strategy**: gõ `@` trong input → dropdown lọc danh sách strategies đã lưu; `↑↓` navigate, `Enter` chọn, `Escape` đóng
+- **Auto-title**: Tiêu đề tự cập nhật từ 80 ký tự đầu của tin nhắn đầu tiên
 - **Optimistic UI**: Tin nhắn user hiển thị ngay, không chờ server
 - **Markdown rendering**: Bold, italic, code, heading, list được render đúng
 - **Keyboard**: `Enter` gửi, `Shift+Enter` xuống dòng
-- **Delete**: Hover conversation item → hiện nút ✕
+- **Input disabled** khi chưa có conversation active
 
 ### Ví dụ câu hỏi
 
 ```
 Phân tích BTCUSDT khung H1 và tìm điểm vào lệnh
 
+@Sonic R phân tích BTCUSDT, vào lệnh M15 follow H1
+
 Giá ETHUSDT hiện tại bao nhiêu?
 
 Tôi hay thua ở cặp nào nhất?
 
-Hãy phân tích lệnh BTC gần nhất của tôi
-
 SOLUSDT đang trong uptrend hay downtrend khung 4H?
-
-Volume 24h của BTC hôm nay như thế nào?
 ```
 
 ---
@@ -251,13 +274,22 @@ Volume 24h của BTC hôm nay như thế nào?
 
 ---
 
+## Giới hạn hiện tại
+
+- **Max 5 tool calls/request** — nếu Claude cần nhiều hơn 5 lần gọi tool thì trả về message lỗi cứng
+- **Conversation history không giới hạn** — load toàn bộ từ DB, conversation dài tốn nhiều token
+- **Trade history cố định 200 orders** — inject vào mỗi request dù user không hỏi về lịch sử
+- **Không có streaming** — user chờ toàn bộ response mới nhận được kết quả
+
+---
+
 ## Mở rộng trong tương lai
 
 | Feature | Mô tả |
 |---------|-------|
 | **Streaming** | SSE để stream từng token thay vì chờ full response |
+| **get_strategy tool** | Claude tự fetch strategy từ DB khi user mention `@name` |
 | **More tools** | Fear & Greed index, on-chain data, funding rate |
 | **Image upload** | Gửi chart screenshot để Claude phân tích |
 | **Alert bot** | Claude chủ động notify khi signal match điều kiện |
-| **Prompt templates** | Quick-action buttons (e.g., "Phân tích BTC", "Review trade hôm nay") |
 | **Export** | Export conversation thành PDF/Markdown |
