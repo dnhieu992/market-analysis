@@ -34,10 +34,6 @@ type ClaudeMessagesResponse = {
   content?: ClaudeContentBlock[];
 };
 
-const CLAUDE_MODEL_IDS: Record<ClaudeModelVariant, string> = {
-  sonnet: 'claude-3-7-sonnet-latest',
-  opus: 'claude-opus-4-20250514'
-};
 
 const DAILY_ANALYSIS_TOOL_NAME = 'record_daily_analysis_plan';
 const DAILY_ANALYSIS_TOOL_SCHEMA = {
@@ -338,7 +334,7 @@ export class ClaudeDailyAnalysisProvider implements LlmProviderAdapter {
   }
 
   getResolvedModel(): string {
-    return CLAUDE_MODEL_IDS[this.modelVariant] ?? this.modelVariant;
+    return this.modelVariant;
   }
 
   async generateDailyAnalysisPlan(

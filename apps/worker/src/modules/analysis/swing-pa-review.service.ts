@@ -62,9 +62,7 @@ const REVIEW_TOOL_SCHEMA = {
 const REVIEW_TIMEOUT_MS = 60_000;
 
 function resolveModel(): string {
-  const variant = process.env.CLAUDE_MODEL;
-  if (variant === 'opus') return 'claude-opus-4-6';
-  return 'claude-sonnet-4-6';
+  return process.env.CLAUDE_MODEL ?? 'claude-sonnet-4-6';
 }
 
 function buildUserMessage(analysis: SwingPaAnalysis, dailyCandles: Candle[]): string {

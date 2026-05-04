@@ -24,10 +24,7 @@ const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MAX_TOOL_ITERATIONS = 5;
 
 function resolveModel(): string {
-  const variant = process.env.CLAUDE_MODEL;
-  if (variant === 'opus') return 'claude-opus-4-6';
-  if (variant && variant.startsWith('claude-')) return variant;
-  return 'claude-sonnet-4-6';
+  return process.env.CLAUDE_MODEL ?? 'claude-sonnet-4-6';
 }
 
 @Injectable()

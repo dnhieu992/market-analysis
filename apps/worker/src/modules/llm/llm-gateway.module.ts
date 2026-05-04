@@ -12,7 +12,7 @@ export function resolveLlmGatewayConfig(): {
   claudeModelVariant: ClaudeModelVariant;
 } {
   const provider = process.env.LLM_PROVIDER;
-  const claudeModelVariant = (process.env.CLAUDE_MODEL ?? 'sonnet') as string;
+  const claudeModelVariant = (process.env.CLAUDE_MODEL ?? 'claude-sonnet-4-6') as string;
 
   if (provider != null && provider !== 'claude') {
     throw new Error(`Unsupported LLM provider: ${provider}`);
