@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `BackTestResult` ADD COLUMN `volume` DOUBLE NOT NULL DEFAULT 1000;
