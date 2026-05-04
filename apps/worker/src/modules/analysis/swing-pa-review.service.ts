@@ -89,8 +89,8 @@ export class SwingPaReviewService {
 
   async review(analysis: SwingPaAnalysis, dailyCandles: Candle[]): Promise<SwingPaReview | null> {
     const model = resolveModel();
-    const apiKey = process.env.CLAUDE_API_KEY ?? '';
-    this.logger.log(`[env] CLAUDE_API_KEY: ${apiKey ? apiKey.slice(0, 10) + '...' + apiKey.slice(-4) : 'MISSING'}`);
+    const apiKey = (process.env.CLAUDE_API_KEY ?? '').trim();
+    this.logger.log(`[env] CLAUDE_API_KEY: ${apiKey ? apiKey.slice(0, 10) + '...' + apiKey.slice(-4) + ' len=' + apiKey.length : 'MISSING'}`);
     this.logger.log(`[env] CLAUDE_MODEL: ${model}`);
 
     try {
@@ -98,7 +98,7 @@ export class SwingPaReviewService {
         baseURL: 'https://api.anthropic.com/v1',
         timeout: REVIEW_TIMEOUT_MS,
         headers: {
-          'x-api-key': process.env.CLAUDE_API_KEY ?? '',
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
           'content-type': 'application/json'
         }
