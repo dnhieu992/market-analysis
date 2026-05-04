@@ -169,6 +169,8 @@ export type BackTestResultRecord = {
   totalPnl: number;
   maxDrawdown: number;
   sharpeRatio: number | null;
+  volume: number;
+  parametersJson: string;
   status: string;
   createdAt: string;
 };
@@ -198,6 +200,7 @@ export type RunBackTestInput = {
   from: string;
   to: string;
   timeframe?: string;
+  volume?: number;
   params?: Record<string, unknown>;
 };
 export type TradingStrategy = {

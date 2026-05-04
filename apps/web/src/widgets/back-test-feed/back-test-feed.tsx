@@ -42,6 +42,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
     return new Date(d.getFullYear(), d.getMonth(), 0).toISOString().slice(0, 10);
   });
   const [timeframe, setTimeframe] = useState('');
+  const [volume, setVolume] = useState(1000);
   // FOMO strategy params
   const [fomoTpSteps, setFomoTpSteps] = useState(1000);
   const [fomoLongTpPct, setFomoLongTpPct] = useState(1); // percentage, e.g. 1 = 1%
@@ -78,6 +79,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
         from: new Date(from).toISOString(),
         to: new Date(to).toISOString(),
         timeframe: timeframe || undefined,
+        volume,
         params
       });
       setResult(res);
@@ -167,6 +169,18 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                   <option key={tf} value={tf}>{tf}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="settings-field">
+              <label className="settings-label">Volume ($)</label>
+              <input
+                className="settings-input"
+                type="number"
+                min={1}
+                step={100}
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+              />
             </div>
 
             {strategy === 'rsi-reversal' && (
@@ -454,6 +468,21 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                     {selectedResult?.id === r.id && (
                       <tr key={`${r.id}-detail`}>
                         <td colSpan={10} className="back-test-history-detail">
+                          {(() => {
+                            const p = (() => { try { return JSON.parse(r.parametersJson) as Record<string, unknown>; } catch { return null; } })();
+                            if (!p) return null;
+                            const entries = Object.entries(p).filter(([, v]) => v != null);
+                            return entries.length > 0 ? (
+                              <div className="back-test-params-bar">
+                                {entries.map(([k, v]) => (
+                                  <span key={k} className="back-test-param-chip">
+                                    <span className="back-test-param-key">{k}</span>
+                                    <span className="back-test-param-val">{typeof v === 'number' && k.toLowerCase().includes('pct') ? `${(v as number * 100).toFixed(2)}%` : String(v)}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null;
+                          })()}
                           {selectedResult.trades.length === 0 ? (
                             <p className="back-test-empty">No trades recorded.</p>
                           ) : (

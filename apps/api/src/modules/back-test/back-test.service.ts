@@ -15,6 +15,7 @@ export type RunBackTestDto = {
   from: string;
   to: string;
   timeframe?: string;
+  volume?: number;
   params?: Record<string, unknown>;
 };
 
@@ -66,7 +67,8 @@ export class BackTestService {
     );
     const htfCandles = Object.fromEntries(htfEntries);
 
-    const summary = this.engine.run(strategy, candles, dto.symbol, htfCandles, dto.params ?? {});
+    const volume = dto.volume ?? 1000;
+    const summary = this.engine.run(strategy, candles, dto.symbol, htfCandles, dto.params ?? {}, volume);
 
     const record = await this.repository.create({
       strategy: dto.strategy,
@@ -79,8 +81,9 @@ export class BackTestService {
       totalPnl: summary.totalPnl,
       maxDrawdown: summary.maxDrawdown,
       sharpeRatio: summary.sharpeRatio ?? undefined,
+      volume,
       tradesJson: JSON.stringify(summary.trades),
-      parametersJson: JSON.stringify({ strategy: dto.strategy, symbol: dto.symbol, timeframe, from: dto.from, to: dto.to }),
+      parametersJson: JSON.stringify({ from: dto.from, to: dto.to, volume, ...(dto.params ?? {}) }),
       status: 'completed'
     });
 

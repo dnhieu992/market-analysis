@@ -141,6 +141,7 @@ model BackTestResult {
   totalPnl       Float
   maxDrawdown    Float
   sharpeRatio    Float?
+  volume         Float    @default(1000)
   tradesJson     String   @db.LongText
   parametersJson String   @db.Text
   status         String

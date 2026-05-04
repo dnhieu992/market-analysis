@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 const SUPPORTED_TIMEFRAMES = ['15m', 'M30', '1h', '4h', '1d'];
 
@@ -25,6 +25,12 @@ export class RunBackTestDto {
   @IsString()
   @IsIn(SUPPORTED_TIMEFRAMES)
   timeframe?: string;
+
+  @ApiPropertyOptional({ description: 'Trade notional volume in USD', example: 1000 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  volume?: number;
 
   @ApiPropertyOptional({
     description: 'Strategy-specific parameters (e.g. tpSteps, entryHourUtc, exitHourUtc for fomo)',

@@ -6,7 +6,7 @@ import type { BackTestSummary, BackTestTrade, StrategyContext } from './types/ba
 
 @Injectable()
 export class BackTestEngineService {
-  run(strategy: IBackTestStrategy, candles: Candle[], symbol: string, htfCandles: Record<string, Candle[]> = {}, params: Record<string, unknown> = {}): BackTestSummary {
+  run(strategy: IBackTestStrategy, candles: Candle[], symbol: string, htfCandles: Record<string, Candle[]> = {}, params: Record<string, unknown> = {}, volume = 1000): BackTestSummary {
     const trades: BackTestTrade[] = [];
     let openTrade: {
       entryIndex: number;
@@ -44,8 +44,8 @@ export class BackTestEngineService {
           : this.checkExit(current, openTrade);
 
         if (exitResult !== null) {
-          const pnl = this.calcPnl(openTrade.direction, openTrade.entryPrice, exitResult.exitPrice);
-          const size = this.calcSize(openTrade.entryPrice);
+          const pnl = this.calcPnl(openTrade.direction, openTrade.entryPrice, exitResult.exitPrice, volume);
+          const size = this.calcSize(openTrade.entryPrice, volume);
           trades.push({
             entryIndex: openTrade.entryIndex,
             exitIndex: i,
@@ -101,8 +101,8 @@ export class BackTestEngineService {
 
     if (openTrade) {
       const lastCandle = candles[candles.length - 1]!;
-      const pnl = this.calcPnl(openTrade.direction, openTrade.entryPrice, lastCandle.close);
-      const size = this.calcSize(openTrade.entryPrice);
+      const pnl = this.calcPnl(openTrade.direction, openTrade.entryPrice, lastCandle.close, volume);
+      const size = this.calcSize(openTrade.entryPrice, volume);
       trades.push({
         entryIndex: openTrade.entryIndex,
         exitIndex: candles.length - 1,
@@ -137,19 +137,18 @@ export class BackTestEngineService {
     return null;
   }
 
-  private readonly tradeNotional = 1000; // fixed $1000 per trade
-
-  private calcSize(entry: number): number {
+  private calcSize(entry: number, volume: number): number {
     if (entry === 0) return 0;
-    return Number((this.tradeNotional / entry).toFixed(6));
+    return Number((volume / entry).toFixed(6));
   }
 
   private calcPnl(
     direction: 'long' | 'short',
     entry: number,
-    exit: number
+    exit: number,
+    volume: number
   ): number {
-    const size = this.calcSize(entry);
+    const size = this.calcSize(entry, volume);
     const priceDiff = direction === 'long' ? exit - entry : entry - exit;
     return Number((size * priceDiff).toFixed(2));
   }

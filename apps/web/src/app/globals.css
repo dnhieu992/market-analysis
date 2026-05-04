@@ -2665,6 +2665,36 @@ a {
 .back-test-outcome--completed { background: rgba(31, 111, 91, 0.12); color: var(--accent); }
 .back-test-outcome--failed { background: rgba(192, 57, 43, 0.1); color: #c0392b; }
 
+.back-test-params-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.back-test-param-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface, #f9fafb);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+}
+
+.back-test-param-key {
+  color: var(--muted, #888);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.back-test-param-val {
+  color: var(--fg, #1a1a1a);
+  font-weight: 500;
+}
+
 .back-test-empty {
   color: var(--muted);
   font-size: 0.9rem;
