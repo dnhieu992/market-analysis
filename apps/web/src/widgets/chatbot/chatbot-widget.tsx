@@ -62,8 +62,8 @@ function TypingIndicator() {
 
 // ── Main Widget ───────────────────────────────────────────────────────
 
-export function ChatbotWidget() {
-  const [open, setOpen] = useState(false);
+export function ChatbotWidget({ pinned = false }: { pinned?: boolean }) {
+  const [open, setOpen] = useState(pinned);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // conversations list
@@ -253,18 +253,20 @@ export function ChatbotWidget() {
 
   return (
     <>
-      {/* Floating button */}
-      <button
-        className={`chat-fab${open ? ' chat-fab--open' : ''}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Mở trợ lý giao dịch"
-      >
-        {open ? <CloseIcon /> : <BotIcon />}
-      </button>
+      {/* Floating button — hidden when pinned */}
+      {!pinned && (
+        <button
+          className={`chat-fab${open ? ' chat-fab--open' : ''}`}
+          onClick={() => setOpen((v) => !v)}
+          aria-label="Mở trợ lý giao dịch"
+        >
+          {open ? <CloseIcon /> : <BotIcon />}
+        </button>
+      )}
 
       {/* Panel */}
       {open && (
-        <div className="chat-panel">
+        <div className={`chat-panel${pinned ? ' chat-panel--pinned' : ''}`}>
           {/* Header */}
           <div className="chat-panel-header">
             <button

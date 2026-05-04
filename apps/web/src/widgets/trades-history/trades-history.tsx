@@ -168,7 +168,7 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
         </div>
       )}
 
-      <ChatbotWidget />
+      <ChatbotWidget pinned />
     </main>
   );
 }

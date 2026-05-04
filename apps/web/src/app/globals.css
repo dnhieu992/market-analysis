@@ -3892,6 +3892,21 @@ a.metric-card--link:hover {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Pinned mode — full height, flush to right edge */
+.chat-panel--pinned {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 400px;
+  border-radius: 0;
+  border-top: none;
+  border-bottom: none;
+  border-right: none;
+  z-index: 1000;
+  animation: none;
+  box-shadow: -4px 0 24px rgba(23, 18, 13, 0.12);
+}
+
 /* Panel header */
 .chat-panel-header {
   display: flex;
