@@ -183,8 +183,9 @@ export function ChatbotWidget() {
             : c
         )
       );
-    } catch {
-      setError('Gửi thất bại. Vui lòng thử lại.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gửi thất bại. Vui lòng thử lại.';
+      setError(msg);
       setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
     } finally {
       setSending(false);

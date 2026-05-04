@@ -628,7 +628,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content })
       }));
-      if (!res.ok) throw new Error(`sendMessage failed: ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { message?: string } | null;
+        throw new Error(body?.message ?? `sendMessage failed: ${res.status}`);
+      }
       return res.json() as Promise<ChatMessage>;
     },
   };
