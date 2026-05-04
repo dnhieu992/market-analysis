@@ -53,7 +53,7 @@ export class BackTestService {
       throw new BadRequestException('Insufficient candles for the requested date range');
     }
 
-    const htfTimeframes = ['4h', '1h'].filter((tf) => tf !== timeframe);
+    const htfTimeframes = [...new Set(['4h', '1h', ...(strategy.htfTimeframes ?? [])])].filter((tf) => tf !== timeframe);
     const htfEntries = await Promise.all(
       htfTimeframes.map(async (tf) => {
         const htf = await this.marketData.getCandlesInRange(
