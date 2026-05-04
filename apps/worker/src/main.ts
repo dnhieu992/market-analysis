@@ -3,8 +3,8 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 
 // Load env vars before the app context is created.
-// __dirname = dist/apps/worker/src → go up 4 levels to reach repo root
-const envPath = resolve(__dirname, '../../../../.env');
+// Note: TS imports are hoisted — dotenv must be called before NestFactory.createApplicationContext, not before imports.
+const envPath = resolve(process.cwd(), '.env');
 const envResult = config({ path: envPath, override: true });
 // eslint-disable-next-line no-console
 console.log('[dotenv] cwd:', process.cwd());
