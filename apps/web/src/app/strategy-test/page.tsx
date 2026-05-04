@@ -8,15 +8,12 @@ async function loadData(): Promise<{
 }> {
   const client = createServerApiClient();
 
-  try {
-    const [strategies, initialResults] = await Promise.all([
-      client.fetchBackTestStrategies(),
-      client.fetchBackTestResults()
-    ]);
-    return { strategies, initialResults };
-  } catch {
-    return { strategies: [], initialResults: [] };
-  }
+  const [strategies, initialResults] = await Promise.all([
+    client.fetchBackTestStrategies().catch(() => [] as BackTestStrategy[]),
+    client.fetchBackTestResults().catch(() => [] as BackTestResultRecord[])
+  ]);
+
+  return { strategies, initialResults };
 }
 
 export default async function StrategyPage() {

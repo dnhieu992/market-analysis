@@ -469,7 +469,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                       <tr key={`${r.id}-detail`}>
                         <td colSpan={10} className="back-test-history-detail">
                           {(() => {
-                            const p = (() => { try { return JSON.parse(r.parametersJson) as Record<string, unknown>; } catch { return null; } })();
+                            const p = (() => { try { return r.parametersJson ? JSON.parse(r.parametersJson) as Record<string, unknown> : null; } catch { return null; } })();
                             if (!p) return null;
                             const entries = Object.entries(p).filter(([, v]) => v != null);
                             return entries.length > 0 ? (

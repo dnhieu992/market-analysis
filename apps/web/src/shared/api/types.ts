@@ -169,8 +169,8 @@ export type BackTestResultRecord = {
   totalPnl: number;
   maxDrawdown: number;
   sharpeRatio: number | null;
-  volume: number;
-  parametersJson: string;
+  volume?: number;
+  parametersJson?: string;
   status: string;
   createdAt: string;
 };
