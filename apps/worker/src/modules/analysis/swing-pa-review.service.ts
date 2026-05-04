@@ -150,7 +150,8 @@ export class SwingPaReviewService {
         summary: toolInput['summary'] as string
       };
     } catch (error) {
-      this.logger.warn(`SwingPaReview failed: ${(error as Error).message}`);
+      const axiosError = error as { response?: { status?: number; data?: unknown }; message?: string };
+      this.logger.warn(`SwingPaReview failed: ${axiosError.message} | body: ${JSON.stringify(axiosError.response?.data)}`);
       return null;
     }
   }
