@@ -3,12 +3,12 @@ import type { StrategyContext, TradeSignal } from '../types/back-test.types';
 
 const DEFAULT_ENTRY_HOUR_UTC = 3;
 const DEFAULT_EXIT_HOUR_UTC = 16;
-const DEFAULT_TP_STEPS = 1000;
+const DEFAULT_TP_PCT = 0.01; // 1%
 
 export class FomoLongStrategy implements IBackTestStrategy {
   readonly name = 'fomo-long';
   readonly description =
-    'Long at 03:00 UTC every day. TP = 1000 price steps. Force close at 16:00 UTC if TP not reached. No price-based stop loss.';
+    'Long at 03:00 UTC every day. TP = entry × (1 + tpPct). Force close at 16:00 UTC if TP not reached. No price-based stop loss.';
   readonly defaultTimeframe = '1h';
   readonly forcedTimeframe = '1h';
 
@@ -17,7 +17,7 @@ export class FomoLongStrategy implements IBackTestStrategy {
 
     const entryHour = typeof params.entryHourUtc === 'number' ? params.entryHourUtc : DEFAULT_ENTRY_HOUR_UTC;
     const exitHour  = typeof params.exitHourUtc  === 'number' ? params.exitHourUtc  : DEFAULT_EXIT_HOUR_UTC;
-    const tpSteps   = typeof params.tpSteps      === 'number' ? params.tpSteps      : DEFAULT_TP_STEPS;
+    const tpPct     = typeof params.tpPct        === 'number' ? params.tpPct        : DEFAULT_TP_PCT;
 
     if (!current.openTime) return null;
 
@@ -34,7 +34,7 @@ export class FomoLongStrategy implements IBackTestStrategy {
       direction: 'long',
       entryPrice: entry,
       stopLoss: entry - 999_999, // no price-based SL — time is the only stop
-      takeProfit: entry + tpSteps,
+      takeProfit: entry * (1 + tpPct),
       forceCloseTime
     };
   }

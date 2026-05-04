@@ -7,7 +7,6 @@ import type { BackTestResult, BackTestResultRecord, BackTestStrategy } from '@we
 
 const apiClient = createApiClient();
 
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
 const TIMEFRAMES = ['5m', '15m', 'M30', '1h', '4h', '1d'];
 
 type BackTestFeedProps = Readonly<{
@@ -45,6 +44,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
   const [timeframe, setTimeframe] = useState('');
   // FOMO strategy params
   const [fomoTpSteps, setFomoTpSteps] = useState(1000);
+  const [fomoLongTpPct, setFomoLongTpPct] = useState(1); // percentage, e.g. 1 = 1%
   const [fomoEntryHour, setFomoEntryHour] = useState(3);
   const [fomoExitHour, setFomoExitHour] = useState(16);
   // RSI Reversal params
@@ -64,8 +64,10 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
     setResult(null);
 
     try {
-      const params = strategy.startsWith('fomo')
-        ? { tpSteps: fomoTpSteps, entryHourUtc: fomoEntryHour, exitHourUtc: fomoExitHour }
+      const params = strategy === 'fomo-long'
+        ? { tpPct: fomoLongTpPct / 100, entryHourUtc: fomoEntryHour, exitHourUtc: fomoExitHour }
+        : strategy === 'fomo-short'
+          ? { tpSteps: fomoTpSteps, entryHourUtc: fomoEntryHour, exitHourUtc: fomoExitHour }
         : strategy === 'rsi-reversal'
           ? { tpPct: rsiTpPct / 100, slPct: rsiSlPct / 100 }
           : undefined;
@@ -148,11 +150,13 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
 
             <div className="settings-field">
               <label className="settings-label">Symbol</label>
-              <select className="settings-input" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-                {SYMBOLS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <input
+                className="settings-input"
+                type="text"
+                placeholder="e.g. BTCUSDT"
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              />
             </div>
 
             <div className="settings-field">
@@ -192,7 +196,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
               </>
             )}
 
-            {strategy.startsWith('fomo') && (
+            {strategy === 'fomo-short' && (
               <>
                 <div className="settings-field">
                   <label className="settings-label">TP Steps</label>
@@ -202,6 +206,44 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                     min={1}
                     value={fomoTpSteps}
                     onChange={(e) => setFomoTpSteps(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">Entry Hour (UTC)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={fomoEntryHour}
+                    onChange={(e) => setFomoEntryHour(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">Exit Hour (UTC)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={fomoExitHour}
+                    onChange={(e) => setFomoExitHour(Number(e.target.value))}
+                  />
+                </div>
+              </>
+            )}
+
+            {strategy === 'fomo-long' && (
+              <>
+                <div className="settings-field">
+                  <label className="settings-label">TP (%)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    value={fomoLongTpPct}
+                    onChange={(e) => setFomoLongTpPct(Number(e.target.value))}
                   />
                 </div>
                 <div className="settings-field">
