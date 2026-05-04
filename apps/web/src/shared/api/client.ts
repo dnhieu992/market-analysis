@@ -23,7 +23,6 @@ import type {
   TradingStrategy,
   UpdateDashboardOrderInput,
   UpdatePortfolioInput,
-  UpdateProfileInput,
   UpdateTradingStrategyInput,
   UpsertSettingsInput,
   UserProfile,
@@ -573,9 +572,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
         email: String(row.email),
         name: String(row.name),
         symbolsTracking: Array.isArray(row.symbolsTracking) ? (row.symbolsTracking as unknown[]).map(String) : [],
+        dailySignalWatchlist: Array.isArray(row.dailySignalWatchlist) ? (row.dailySignalWatchlist as unknown[]).map(String) : [],
       };
     },
-    async updateUserProfile(input: UpdateProfileInput): Promise<UserProfile> {
+    async updateUserProfile(input: { name?: string; symbolsTracking?: string[]; dailySignalWatchlist?: string[] }): Promise<UserProfile> {
       const response = await fetchImpl(`${baseUrl}/user/profile`, withDefaults({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -590,6 +590,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
         email: String(row.email),
         name: String(row.name),
         symbolsTracking: Array.isArray(row.symbolsTracking) ? (row.symbolsTracking as unknown[]).map(String) : [],
+        dailySignalWatchlist: Array.isArray(row.dailySignalWatchlist) ? (row.dailySignalWatchlist as unknown[]).map(String) : [],
       };
     },
 

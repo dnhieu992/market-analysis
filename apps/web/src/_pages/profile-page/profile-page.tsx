@@ -15,6 +15,8 @@ export function ProfilePage({ initial }: ProfilePageProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [symbols, setSymbols] = useState<string[]>(initial?.symbolsTracking ?? []);
   const [symbolInput, setSymbolInput] = useState('');
+  const [dailySymbols, setDailySymbols] = useState<string[]>(initial?.dailySignalWatchlist ?? []);
+  const [dailySymbolInput, setDailySymbolInput] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const initials = (initial?.name ?? '?')
@@ -35,10 +37,21 @@ export function ProfilePage({ initial }: ProfilePageProps) {
     setSymbols(symbols.filter((_, i) => i !== index));
   }
 
+  function handleAddDailySymbol() {
+    const trimmed = dailySymbolInput.trim().toUpperCase();
+    if (!trimmed || dailySymbols.includes(trimmed)) return;
+    setDailySymbols([...dailySymbols, trimmed]);
+    setDailySymbolInput('');
+  }
+
+  function handleRemoveDailySymbol(index: number) {
+    setDailySymbols(dailySymbols.filter((_, i) => i !== index));
+  }
+
   async function handleSave() {
     setStatus('saving');
     try {
-      await apiClient.updateUserProfile({ name, symbolsTracking: symbols });
+      await apiClient.updateUserProfile({ name, symbolsTracking: symbols, dailySignalWatchlist: dailySymbols });
       setStatus('saved');
     } catch {
       setStatus('error');
@@ -113,6 +126,42 @@ export function ProfilePage({ initial }: ProfilePageProps) {
                 placeholder="e.g. BTCUSDT"
               />
               <button className="btn btn--secondary" onClick={handleAddSymbol}>Add</button>
+            </div>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="profile-daily-symbol-input" className="settings-label">Daily Signal Watchlist</label>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+              At 00:00 UTC, worker checks M30 UT Bot uptrend and sends a Telegram list of coins that can be longed today.
+            </p>
+            <div className="settings-symbol-list">
+              {dailySymbols.length === 0
+                ? <span className="settings-symbol-list-empty">No symbols yet — add one below</span>
+                : dailySymbols.map((sym, i) => (
+                    <span key={sym} className="settings-symbol-tag">
+                      {sym}
+                      <button
+                        className="settings-symbol-remove"
+                        onClick={() => handleRemoveDailySymbol(i)}
+                        aria-label={`Remove ${sym}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+              }
+            </div>
+            <div className="settings-symbol-add">
+              <input
+                id="profile-daily-symbol-input"
+                className="settings-input"
+                type="text"
+                value={dailySymbolInput}
+                onChange={(e) => setDailySymbolInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddDailySymbol(); }}
+                placeholder="e.g. BTCUSDT"
+              />
+              <button className="btn btn--secondary" onClick={handleAddDailySymbol}>Add</button>
             </div>
           </div>
 
