@@ -48,6 +48,8 @@ export class SwingPaService {
   }
 
   async analyzeAndSend(symbol: string, chatId: string): Promise<void> {
+    this.logger.log(`[env] TELEGRAM_BOT_TOKEN: ${process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.slice(0, 10) + '...' : 'MISSING'}`);
+    this.logger.log(`[env] TELEGRAM_CHAT_ID: ${process.env.TELEGRAM_CHAT_ID ?? 'MISSING'} | chatId param: ${chatId}`);
     const { text, reviewText, chartBuffer } = await this.analyze(symbol);
 
     await this.telegramService.sendToChat(chatId, text);
