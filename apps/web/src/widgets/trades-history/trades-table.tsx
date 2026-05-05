@@ -284,16 +284,16 @@ function TotalUnrealPnlCard({ orders, livePrices }: { orders: DashboardOrder[]; 
 export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes, chatOpen, onToggleChat }: TradesTableProps) {
   const router = useRouter();
   const [autoReload, setAutoReload] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
-    if (!autoReload) { setCountdown(30); return; }
-    setCountdown(30);
+    if (!autoReload) { setCountdown(5); return; }
+    setCountdown(5);
     const id = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
           router.refresh();
-          return 30;
+          return 5;
         }
         return prev - 1;
       });

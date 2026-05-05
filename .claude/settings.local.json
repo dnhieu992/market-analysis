@@ -79,7 +79,12 @@
       "Bash(pm2 list:*)",
       "Bash(yarn workspace:*)",
       "Bash(bash /Users/dnhieu92/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh --project-dir /Users/dnhieu92/Documents/personal/new-account/market-analysis)",
-      "Bash(pnpm test:*)"
+      "Bash(pnpm test:*)",
+      "Bash(node_modules/.bin/jest --config apps/web/jest.config.cjs --testPathPatterns=trades-table)",
+      "Bash(/Users/dnhieu92/Documents/personal/new-account/market-analysis/node_modules/.bin/jest --config apps/web/jest.config.cjs --testPathPatterns=trades-table)",
+      "Bash(/Users/dnhieu92/Documents/personal/new-account/market-analysis/node_modules/.bin/jest --config jest.config.cjs --testPathPatterns=trades-table)",
+      "Bash(/Users/dnhieu92/Documents/personal/new-account/market-analysis/node_modules/.bin/jest --config jest.config.cjs)",
+      "Bash(curl:*)"
     ]
   }
 }
