@@ -76,6 +76,40 @@ describe('listFiltered', () => {
     expect(result.closedPnlSum).toBe(0);
   });
 
+  it('applies dateFrom as openedAt gte filter', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const count = jest.fn().mockResolvedValue(0);
+    const repo = createOrderRepository(makeMockClient({ findMany, count }));
+    const dateFrom = new Date('2025-01-01');
+    await repo.listFiltered({ dateFrom, page: 1, pageSize: 20 });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ openedAt: { gte: dateFrom } }) })
+    );
+  });
+
+  it('applies dateTo as openedAt lte filter', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const count = jest.fn().mockResolvedValue(0);
+    const repo = createOrderRepository(makeMockClient({ findMany, count }));
+    const dateTo = new Date('2025-05-01');
+    await repo.listFiltered({ dateTo, page: 1, pageSize: 20 });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ openedAt: { lte: dateTo } }) })
+    );
+  });
+
+  it('applies both dateFrom and dateTo as openedAt range', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const count = jest.fn().mockResolvedValue(0);
+    const repo = createOrderRepository(makeMockClient({ findMany, count }));
+    const dateFrom = new Date('2025-01-01');
+    const dateTo = new Date('2025-05-01');
+    await repo.listFiltered({ dateFrom, dateTo, page: 1, pageSize: 20 });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ openedAt: { gte: dateFrom, lte: dateTo } }) })
+    );
+  });
+
   it('skips openOrders query when status=closed', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const repo = createOrderRepository(makeMockClient({ findMany }));

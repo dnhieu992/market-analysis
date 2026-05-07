@@ -4,7 +4,7 @@ import { prisma } from '../client';
 
 export type ListFilteredParams = {
   symbol?: string;
-  status?: string;
+  status?: 'open' | 'closed';
   brokers?: string[];
   dateFrom?: Date;
   dateTo?: Date;
@@ -54,7 +54,10 @@ export function createOrderRepository(client = prisma) {
         }),
         params.status === 'closed'
           ? Promise.resolve([])
-          : client.order.findMany({
+          : // All open orders matching the filter — intentionally unbounded.
+            // The frontend needs the full set to compute total unrealized P&L across filters.
+            // Typically small (active positions); monitor if user base scales significantly.
+            client.order.findMany({
               where: { ...where, status: 'open' },
               orderBy: { openedAt: 'desc' },
             }),
