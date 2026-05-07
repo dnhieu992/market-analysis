@@ -335,8 +335,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (params?.broker) qs.set('broker', params.broker);
       if (params?.dateFrom) qs.set('dateFrom', params.dateFrom);
       if (params?.dateTo) qs.set('dateTo', params.dateTo);
-      if (params?.page) qs.set('page', String(params.page));
-      if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+      if (params?.page != null) qs.set('page', String(params.page));
+      if (params?.pageSize != null) qs.set('pageSize', String(params.pageSize));
       const query = qs.toString();
       const url = query ? `${baseUrl}/orders?${query}` : `${baseUrl}/orders`;
       const result = await fetchJson<{

@@ -25,7 +25,7 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     mockedCreateApiClient.mockReturnValue({
       baseUrl: 'http://localhost:3000',
-      fetchOrders: async () => [],
+      fetchOrders: async () => ({ data: [], total: 0, page: 1, pageSize: 20, closedPnlSum: 0, openOrders: [] }),
       fetchSignals: async () => [],
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
@@ -59,7 +59,7 @@ describe('SettingsPage', () => {
   it('renders empty form when no settings exist', async () => {
     mockedCreateApiClient.mockReturnValue({
       baseUrl: 'http://localhost:3000',
-      fetchOrders: async () => [],
+      fetchOrders: async () => ({ data: [], total: 0, page: 1, pageSize: 20, closedPnlSum: 0, openOrders: [] }),
       fetchSignals: async () => [],
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),

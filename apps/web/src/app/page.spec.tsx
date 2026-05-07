@@ -17,27 +17,7 @@ describe('HomePage', () => {
   beforeEach(() => {
     mockedCreateApiClient.mockReturnValue({
       baseUrl: 'http://localhost:3000',
-      fetchOrders: async () => [
-        {
-          id: 'order-1',
-          symbol: 'BTCUSDT',
-          side: 'long',
-          status: 'open',
-          entryPrice: 68000,
-          openedAt: new Date('2026-04-01T08:00:00.000Z'),
-          closedAt: null,
-          createdAt: new Date('2026-04-01T08:00:00.000Z'),
-          updatedAt: new Date('2026-04-01T08:00:00.000Z'),
-          closePrice: null,
-          pnl: null,
-          quantity: 1,
-          leverage: 1,
-          note: null,
-          source: 'manual',
-          exchange: null,
-          signalId: null
-        }
-      ],
+      fetchOrders: async () => ({ data: [{ id: 'order-1', symbol: 'BTCUSDT', side: 'long', status: 'open', entryPrice: 68000, openedAt: new Date('2026-04-01T08:00:00.000Z'), closedAt: null, createdAt: new Date('2026-04-01T08:00:00.000Z'), updatedAt: new Date('2026-04-01T08:00:00.000Z'), closePrice: null, pnl: null, quantity: 1, leverage: 1, note: null, source: 'manual', exchange: null, signalId: null }], total: 1, page: 1, pageSize: 20, closedPnlSum: 0, openOrders: [] }),
       fetchSignals: async () => [
         {
           id: 'signal-1',
