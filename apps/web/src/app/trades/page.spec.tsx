@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import TradesPage from './page';
+import TradesPage from '@web/pages/trades-page/trades-page';
 import { createApiClient } from '@web/shared/api/client';
 
 jest.mock('next/headers', () => ({
