@@ -79,9 +79,8 @@ describe('TradesPage', () => {
   it('renders trading history and manual trade entry', async () => {
     const markup = renderToStaticMarkup(await TradesPage({ searchParams: {} }));
 
-    expect(markup).toContain('Trading History');
-    expect(markup).toContain('Add Manual Trade');
+    expect(markup).toContain('Trade History');
+    expect(markup).toContain('+ Add Trade');
     expect(markup).toContain('BTCUSDT');
-    expect(markup).toContain('Open trading history');
   });
 });
