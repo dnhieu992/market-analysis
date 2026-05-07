@@ -6,20 +6,23 @@ import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
 export function calcUnrealizedPnl(
-  entryPrice: number,
-  currentPrice: number,
-  quantity: number | null | undefined,
-  side: string,
-): number | null {
-  if (quantity == null) return null;
-  const diff = side.toLowerCase() === 'short'
-    ? entryPrice - currentPrice
-    : currentPrice - entryPrice;
-  return diff * quantity;
+  openOrders: DashboardOrder[],
+  pricesMap: Record<string, number>,
+): number {
+  if (!openOrders || openOrders.length === 0) return 0;
+  return openOrders.reduce((sum, order) => {
+    const currentPrice = pricesMap[order.symbol];
+    if (currentPrice == null) return sum;
+    if (order.quantity == null) return sum;
+    const diff = order.side.toLowerCase() === 'short'
+      ? order.entryPrice - currentPrice
+      : currentPrice - order.entryPrice;
+    return sum + diff * order.quantity;
+  }, 0);
 }
 
 export function getPageNumbers(current: number, total: number): (number | '...')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
   const pages: (number | '...')[] = [1];
   if (current > 3) pages.push('...');
   for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
@@ -216,12 +219,10 @@ function TotalPnlCard({ closedPnlSum }: { closedPnlSum: number }) {
 
 function TotalUnrealPnlCard({ openOrders, livePrices }: { openOrders: DashboardOrder[]; livePrices: Record<string, number> }) {
   const allPricesLoaded = openOrders.length > 0 && openOrders.every(o => livePrices[o.symbol.toUpperCase()] != null);
-  const total = openOrders.reduce((sum, o) => {
-    const livePrice = livePrices[o.symbol.toUpperCase()];
-    if (livePrice == null) return sum;
-    const upnl = calcUnrealizedPnl(o.entryPrice, livePrice, o.quantity, o.side);
-    return sum + (upnl ?? 0);
-  }, 0);
+  const normalizedPricesMap: Record<string, number> = {};
+  for (const [k, v] of Object.entries(livePrices)) normalizedPricesMap[k.toUpperCase()] = v;
+  const normalizedOrders = openOrders.map(o => ({ ...o, symbol: o.symbol.toUpperCase() }));
+  const total = calcUnrealizedPnl(normalizedOrders, normalizedPricesMap);
   const isPositive = total >= 0;
   const isLoading = openOrders.length > 0 && !allPricesLoaded;
 
@@ -661,7 +662,11 @@ export function TradesTable({
                         ? (() => {
                             const livePrice = livePrices[order.symbol.toUpperCase()];
                             if (livePrice == null) return <span className="tt-muted tt-live-loading">…</span>;
-                            const upnl = calcUnrealizedPnl(order.entryPrice, livePrice, order.quantity, order.side);
+                            const upnl = order.quantity != null
+                              ? (order.side.toLowerCase() === 'short'
+                                  ? order.entryPrice - livePrice
+                                  : livePrice - order.entryPrice) * order.quantity
+                              : null;
                             const pct = upnl != null && order.quantity != null
                               ? upnl / (order.entryPrice * order.quantity) * 100
                               : null;
