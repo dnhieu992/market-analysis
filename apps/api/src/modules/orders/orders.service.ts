@@ -36,12 +36,12 @@ export class OrdersService {
     private readonly orderRepository: OrderRepository
   ) {}
 
-  listOrders(query: ListOrdersQueryDto) {
+  async listOrders(query: ListOrdersQueryDto) {
     const brokers = query.broker
       ? query.broker.split(',').map((b) => b.trim()).filter(Boolean)
       : undefined;
 
-    return this.orderRepository.listFiltered({
+    const result = await this.orderRepository.listFiltered({
       symbol: query.symbol,
       status: query.status,
       brokers,
@@ -50,6 +50,8 @@ export class OrdersService {
       page: query.page,
       pageSize: query.pageSize,
     });
+
+    return { ...result, page: query.page, pageSize: query.pageSize };
   }
 
   listBrokers() {
