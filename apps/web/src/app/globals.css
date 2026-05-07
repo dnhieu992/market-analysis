@@ -1143,6 +1143,66 @@ a {
   color: var(--muted);
 }
 
+/* ── Pagination ──────────────────────────────────────────────── */
+.tt-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px 0 8px;
+  flex-wrap: wrap;
+}
+
+.tt-pagination__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--fg, #1a1a1a);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.tt-pagination__btn:hover:not(:disabled) {
+  background: var(--hover, #f3f4f6);
+  border-color: #9ca3af;
+}
+
+.tt-pagination__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tt-pagination__btn--active {
+  background: var(--accent, #1f6f5b);
+  border-color: var(--accent, #1f6f5b);
+  color: #fff;
+  font-weight: 700;
+}
+
+.tt-pagination__btn--active:hover {
+  background: var(--accent, #1f6f5b);
+}
+
+.tt-pagination__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 0.9rem;
+  color: var(--muted, #888);
+  user-select: none;
+}
+
 /* ── Trades table (new flat layout) ─────────────────────────── */
 .tt-wrap {
   overflow-x: auto;
