@@ -1,19 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
-
-export function matchesSymbolFilter(symbol: string, filter: string): boolean {
-  if (!filter) return true;
-  return symbol.toLowerCase().includes(filter.toLowerCase());
-}
-
-export function matchesSourceFilter(broker: string | null | undefined, selected: Set<string>): boolean {
-  if (selected.size === 0) return true;
-  return broker != null && selected.has(broker);
-}
 
 export function calcUnrealizedPnl(
   entryPrice: number,
@@ -28,36 +18,26 @@ export function calcUnrealizedPnl(
   return diff * quantity;
 }
 
-type StatusFilter = 'all' | 'open' | 'closed';
-type DateFilter = 'today' | '7D' | '30D' | 'custom';
-
-function getDateRange(filter: DateFilter, customFrom: string, customTo: string): { from: Date; to: Date } | null {
-  const now = new Date();
-  if (filter === 'today') {
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    return { from, to };
+export function getPageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '...')[] = [1];
+  if (current > 3) pages.push('...');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
   }
-  if (filter === '7D') {
-    const from = new Date(now);
-    from.setDate(from.getDate() - 7);
-    from.setHours(0, 0, 0, 0);
-    return { from, to: now };
-  }
-  if (filter === '30D') {
-    const from = new Date(now);
-    from.setDate(from.getDate() - 30);
-    from.setHours(0, 0, 0, 0);
-    return { from, to: now };
-  }
-  if (filter === 'custom' && customFrom && customTo) {
-    return { from: new Date(customFrom), to: new Date(customTo + 'T23:59:59') };
-  }
-  return null;
+  if (current < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
 }
 
 type TradesTableProps = Readonly<{
   orders: DashboardOrder[];
+  total: number;
+  page: number;
+  pageSize: number;
+  closedPnlSum: number;
+  openOrders: DashboardOrder[];
+  availableBrokers: string[];
   onAddTrade: () => void;
   onAddMultiple: () => void;
   onCloseTrade: (order: DashboardOrder) => void;
@@ -117,12 +97,7 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
     <div className="lightbox-backdrop" onClick={onClose}>
       <button className="lightbox-close" onClick={onClose} aria-label="Close">✕</button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt="screenshot"
-        className="lightbox-img"
-        onClick={(e) => e.stopPropagation()}
-      />
+      <img src={url} alt="screenshot" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
     </div>
   );
 }
@@ -175,11 +150,7 @@ export function NotesDialog({
                   {images.map((url) => (
                     <div key={url} className="notes-img-thumb">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt="trade screenshot"
-                        onClick={() => setLightboxUrl(url)}
-                      />
+                      <img src={url} alt="trade screenshot" onClick={() => setLightboxUrl(url)} />
                       <button
                         className="notes-img-del"
                         aria-label="Delete image"
@@ -206,12 +177,8 @@ export function NotesDialog({
 
 function StatusPill({ status }: { status: string }) {
   const normalized = status.toLowerCase();
-  if (normalized === 'open') {
-    return <span className="tt-status-pill tt-status-pill--opening">Opening</span>;
-  }
-  if (normalized === 'closed') {
-    return <span className="tt-status-pill tt-status-pill--closed">Closed</span>;
-  }
+  if (normalized === 'open') return <span className="tt-status-pill tt-status-pill--opening">Opening</span>;
+  if (normalized === 'closed') return <span className="tt-status-pill tt-status-pill--closed">Closed</span>;
   return <span className="tt-status-pill">{status}</span>;
 }
 
@@ -234,33 +201,27 @@ function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; o
   );
 }
 
-function TotalPnlCard({ orders }: { orders: DashboardOrder[] }) {
-  const closedOrders = orders.filter(o => o.status.toLowerCase() === 'closed');
-  const total = closedOrders.reduce((sum, o) => sum + (o.pnl ?? 0), 0);
-  const isPositive = total >= 0;
-
+function TotalPnlCard({ closedPnlSum }: { closedPnlSum: number }) {
+  const isPositive = closedPnlSum >= 0;
   return (
     <div className="tt-pnl-card">
       <span className="tt-pnl-card__label">Total Profit/Loss</span>
       <span className={`tt-pnl-card__value ${isPositive ? 'tt-pnl-card__value--positive' : 'tt-pnl-card__value--negative'}`}>
-        {isPositive ? '+' : ''}{formatVolume(total)}
+        {isPositive ? '+' : ''}{formatVolume(closedPnlSum)}
       </span>
       <span className="tt-pnl-card__note">Closed trades in selected period</span>
     </div>
   );
 }
 
-function TotalUnrealPnlCard({ orders, livePrices }: { orders: DashboardOrder[]; livePrices: Record<string, number> }) {
-  const openOrders = orders; // caller is responsible for passing only open orders
+function TotalUnrealPnlCard({ openOrders, livePrices }: { openOrders: DashboardOrder[]; livePrices: Record<string, number> }) {
   const allPricesLoaded = openOrders.length > 0 && openOrders.every(o => livePrices[o.symbol.toUpperCase()] != null);
-
   const total = openOrders.reduce((sum, o) => {
     const livePrice = livePrices[o.symbol.toUpperCase()];
     if (livePrice == null) return sum;
     const upnl = calcUnrealizedPnl(o.entryPrice, livePrice, o.quantity, o.side);
     return sum + (upnl ?? 0);
   }, 0);
-
   const isPositive = total >= 0;
   const isLoading = openOrders.length > 0 && !allPricesLoaded;
 
@@ -281,77 +242,93 @@ function TotalUnrealPnlCard({ orders, livePrices }: { orders: DashboardOrder[]; 
   );
 }
 
-export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes, chatOpen, onToggleChat }: TradesTableProps) {
+function Pagination({ page, pageSize, total, onPageChange }: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (p: number) => void;
+}) {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) return null;
+  const pages = getPageNumbers(page, totalPages);
+
+  return (
+    <div className="tt-pagination">
+      <button
+        className="tt-pagination__btn"
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 1}
+        aria-label="Previous page"
+      >
+        ← Prev
+      </button>
+      {pages.map((p, i) =>
+        p === '...' ? (
+          <span key={`ellipsis-${i}`} className="tt-pagination__ellipsis">…</span>
+        ) : (
+          <button
+            key={p}
+            className={`tt-pagination__btn${p === page ? ' tt-pagination__btn--active' : ''}`}
+            onClick={() => onPageChange(p)}
+            aria-label={`Page ${p}`}
+            aria-current={p === page ? 'page' : undefined}
+          >
+            {p}
+          </button>
+        )
+      )}
+      <button
+        className="tt-pagination__btn"
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages}
+        aria-label="Next page"
+      >
+        Next →
+      </button>
+    </div>
+  );
+}
+
+export function TradesTable({
+  orders, total, page, pageSize, closedPnlSum, openOrders, availableBrokers,
+  onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes,
+  chatOpen, onToggleChat,
+}: TradesTableProps) {
   const router = useRouter();
+  const searchParams = useSearchParams()!;
   const [autoReload, setAutoReload] = useState(false);
   const [countdown, setCountdown] = useState(5);
 
+  // Symbol: local draft to avoid re-fetching on every keystroke
+  const [symbolDraft, setSymbolDraft] = useState(searchParams.get('symbol') ?? '');
   useEffect(() => {
-    if (!autoReload) { setCountdown(5); return; }
-    setCountdown(5);
-    const id = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          router.refresh();
-          return 5;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [autoReload, router]);
+    setSymbolDraft(searchParams.get('symbol') ?? '');
+  }, [searchParams]);
 
-  const FILTERS_KEY = 'trades-filters';
+  // Debounce symbol push to URL (400ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (symbolDraft) params.set('symbol', symbolDraft);
+      else params.delete('symbol');
+      params.delete('page');
+      router.push(`/trades?${params.toString()}`);
+    }, 400);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbolDraft]);
 
-  function loadFilters() {
-    try {
-      const raw = localStorage.getItem(FILTERS_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw) as {
-        statusFilter: StatusFilter;
-        dateFilter: DateFilter | null;
-        customFrom: string;
-        customTo: string;
-        sourceFilter: string[];
-        nameFilter: string;
-      };
-    } catch { return null; }
-  }
+  const statusFilter = searchParams.get('status') ?? 'all';
+  const brokerFilter = searchParams.get('broker') ?? '';
+  const dateFilter = searchParams.get('dateFilter') ?? '';
+  const customFrom = searchParams.get('dateFrom') ?? '';
+  const customTo = searchParams.get('dateTo') ?? '';
 
-  const saved = typeof window !== 'undefined' ? loadFilters() : null;
-
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(saved?.statusFilter ?? 'all');
-  const [dateFilter, setDateFilter] = useState<DateFilter | null>(saved?.dateFilter ?? null);
-  const [customFrom, setCustomFrom] = useState(saved?.customFrom ?? '');
-  const [customTo, setCustomTo] = useState(saved?.customTo ?? '');
-
-  const [sourceFilter, setSourceFilter] = useState<Set<string>>(new Set(saved?.sourceFilter ?? []));
-  const [nameFilter, setNameFilter] = useState(saved?.nameFilter ?? '');
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
+  const [showDatePopover, setShowDatePopover] = useState(false);
+  const [localCustomFrom, setLocalCustomFrom] = useState(customFrom);
+  const [localCustomTo, setLocalCustomTo] = useState(customTo);
   const sourceDropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(FILTERS_KEY, JSON.stringify({
-        statusFilter,
-        dateFilter,
-        customFrom,
-        customTo,
-        sourceFilter: Array.from(sourceFilter),
-        nameFilter,
-      }));
-    } catch { /* ignore quota errors */ }
-  }, [statusFilter, dateFilter, customFrom, customTo, sourceFilter, nameFilter]);
-
-  function resetFilters() {
-    setStatusFilter('all');
-    setDateFilter(null);
-    setCustomFrom('');
-    setCustomTo('');
-    setSourceFilter(new Set());
-    setNameFilter('');
-    try { localStorage.removeItem(FILTERS_KEY); } catch { /* ignore */ }
-  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -363,12 +340,93 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
-
   useEffect(() => {
-    const openSymbols = Array.from(new Set(
-      orders.filter(o => o.status.toLowerCase() === 'open').map(o => o.symbol.toUpperCase())
-    ));
+    if (!autoReload) { setCountdown(5); return; }
+    setCountdown(5);
+    const id = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { router.refresh(); return 5; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [autoReload, router]);
+
+  function updateParam(key: string, value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set(key, value);
+    else params.delete(key);
+    params.delete('page');
+    router.push(`/trades?${params.toString()}`);
+  }
+
+  function handleStatusChange(val: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (val === 'all') params.delete('status');
+    else params.set('status', val);
+    params.delete('page');
+    router.push(`/trades?${params.toString()}`);
+  }
+
+  function handleBrokerToggle(broker: string) {
+    const current = brokerFilter ? brokerFilter.split(',') : [];
+    const next = current.includes(broker)
+      ? current.filter(b => b !== broker)
+      : [...current, broker];
+    updateParam('broker', next.join(','));
+  }
+
+  function handleDatePreset(preset: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('dateFrom');
+    params.delete('dateTo');
+    params.delete('page');
+    if (preset) params.set('dateFilter', preset);
+    else params.delete('dateFilter');
+
+    const now = new Date();
+    if (preset === 'today') {
+      params.set('dateFrom', now.toISOString().slice(0, 10));
+      params.set('dateTo', now.toISOString().slice(0, 10));
+    } else if (preset === '7D') {
+      const from = new Date(now); from.setDate(from.getDate() - 7);
+      params.set('dateFrom', from.toISOString().slice(0, 10));
+      params.set('dateTo', now.toISOString().slice(0, 10));
+    } else if (preset === '30D') {
+      const from = new Date(now); from.setDate(from.getDate() - 30);
+      params.set('dateFrom', from.toISOString().slice(0, 10));
+      params.set('dateTo', now.toISOString().slice(0, 10));
+    }
+    router.push(`/trades?${params.toString()}`);
+  }
+
+  function applyCustomDate() {
+    if (!localCustomFrom || !localCustomTo) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('dateFilter', 'custom');
+    params.set('dateFrom', localCustomFrom);
+    params.set('dateTo', localCustomTo);
+    params.delete('page');
+    router.push(`/trades?${params.toString()}`);
+    setShowDatePopover(false);
+  }
+
+  function resetFilters() {
+    router.push('/trades');
+    setSymbolDraft('');
+    setLocalCustomFrom('');
+    setLocalCustomTo('');
+  }
+
+  function handlePageChange(newPage: number) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('page', String(newPage));
+    router.push(`/trades?${params.toString()}`);
+  }
+
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const openSymbols = Array.from(new Set(openOrders.map(o => o.symbol.toUpperCase())));
     if (openSymbols.length === 0) return;
     const symbolsParam = encodeURIComponent(JSON.stringify(openSymbols));
     fetch(`https://api.binance.com/api/v3/ticker/price?symbols=${symbolsParam}`)
@@ -378,40 +436,12 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
         for (const item of data) map[item.symbol] = Number(item.price);
         setLivePrices(map);
       })
-      .catch(() => { /* silent — column shows '-' on failure */ });
-  }, [orders]);
+      .catch(() => { /* silent */ });
+  }, [openOrders]);
 
-  const dateRange = dateFilter ? getDateRange(dateFilter, customFrom, customTo) : null;
-
-  const dateFilteredOrders = orders.filter(o => {
-    if (!dateRange) return true;
-    const opened = new Date(o.openedAt);
-    return opened >= dateRange.from && opened <= dateRange.to;
-  });
-
-  const openCount = dateFilteredOrders.filter(o => o.status.toLowerCase() === 'open').length;
-  const closedCount = dateFilteredOrders.filter(o => o.status.toLowerCase() === 'closed').length;
-
-  const uniqueSources = Array.from(new Set(orders.map(o => o.broker).filter((b): b is string => !!b))).sort();
-
-  const filteredOrders = dateFilteredOrders.filter(o => {
-    if (statusFilter === 'open') return o.status.toLowerCase() === 'open';
-    if (statusFilter === 'closed') return o.status.toLowerCase() === 'closed';
-    return true;
-  }).filter(o => matchesSourceFilter(o.broker, sourceFilter))
-    .filter(o => matchesSymbolFilter(o.symbol, nameFilter));
-
-  // For the unrealized card: always open trades, but respects date / source / symbol filters
-  const openFilteredOrders = dateFilteredOrders
-    .filter(o => o.status.toLowerCase() === 'open')
-    .filter(o => matchesSourceFilter(o.broker, sourceFilter))
-    .filter(o => matchesSymbolFilter(o.symbol, nameFilter));
-
-  function applyCustom() {
-    if (customFrom && customTo) {
-      setDateFilter('custom');
-    }
-  }
+  const selectedBrokers = brokerFilter ? new Set(brokerFilter.split(',').filter(Boolean)) : new Set<string>();
+  const totalPages = Math.ceil(total / pageSize);
+  const hasOrders = total > 0 || orders.length > 0;
 
   return (
     <article className="panel">
@@ -425,11 +455,9 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
               aria-checked={autoReload}
               className={`ios-toggle${autoReload ? ' ios-toggle--on' : ''}`}
               onClick={() => setAutoReload(v => !v)}
-              aria-label="Auto-refresh every 30 seconds"
+              aria-label="Auto-refresh every 5 seconds"
             >
-              <span className="ios-toggle__track">
-                <span className="ios-toggle__thumb" />
-              </span>
+              <span className="ios-toggle__track"><span className="ios-toggle__thumb" /></span>
               {autoReload && <span className="ios-toggle__countdown">{countdown}s</span>}
             </button>
             {onToggleChat && (
@@ -443,157 +471,148 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
               </button>
             )}
           </div>
-          <p>{orders.length === 0 ? 'No manual trades yet.' : 'Manual positions stored in the app.'}</p>
+          <p>{total === 0 ? 'No manual trades yet.' : `${total} trade${total !== 1 ? 's' : ''} found.`}</p>
         </div>
         <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
       </div>
 
-      {orders.length > 0 && (
+      {hasOrders && (
         <div className="tt-summary-bar">
-          <TotalUnrealPnlCard orders={openFilteredOrders} livePrices={livePrices} />
-          <TotalPnlCard orders={filteredOrders} />
+          <TotalUnrealPnlCard openOrders={openOrders} livePrices={livePrices} />
+          <TotalPnlCard closedPnlSum={closedPnlSum} />
         </div>
       )}
 
-      {orders.length > 0 && (
-        <div className="trades-filter-bar">
-          {/* 1. Symbol search */}
-          <div className="trades-filter-field">
-            <label className="trades-filter-label">Symbol</label>
-            <div className="trades-name-search">
-              <input
-                type="text"
-                className="trades-filter-input"
-                placeholder="Search…"
-                value={nameFilter}
-                onChange={e => setNameFilter(e.target.value)}
-              />
-              {nameFilter && (
-                <button className="trades-input-clear" onClick={() => setNameFilter('')} aria-label="Clear">✕</button>
-              )}
-            </div>
+      <div className="trades-filter-bar">
+        {/* 1. Symbol search */}
+        <div className="trades-filter-field">
+          <label className="trades-filter-label">Symbol</label>
+          <div className="trades-name-search">
+            <input
+              type="text"
+              className="trades-filter-input"
+              placeholder="Search…"
+              value={symbolDraft}
+              onChange={e => setSymbolDraft(e.target.value)}
+            />
+            {symbolDraft && (
+              <button className="trades-input-clear" onClick={() => setSymbolDraft('')} aria-label="Clear">✕</button>
+            )}
           </div>
+        </div>
 
-          {/* 2. Status select */}
+        {/* 2. Status select */}
+        <div className="trades-filter-field">
+          <label className="trades-filter-label">Status</label>
+          <select
+            className="trades-filter-select"
+            value={statusFilter}
+            onChange={e => handleStatusChange(e.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+
+        {/* 3. Source multi-select dropdown */}
+        {availableBrokers.length > 0 && (
           <div className="trades-filter-field">
-            <label className="trades-filter-label">Status</label>
-            <select
-              className="trades-filter-select"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-            >
-              <option value="all">All ({dateFilteredOrders.length})</option>
-              <option value="open">Open ({openCount})</option>
-              <option value="closed">Closed ({closedCount})</option>
-            </select>
-          </div>
-
-          {/* 3. Source multi-select dropdown */}
-          {uniqueSources.length > 0 && (
-            <div className="trades-filter-field">
-              <label className="trades-filter-label">Source</label>
-              <div className="trades-source-dropdown" ref={sourceDropdownRef}>
-                <button
-                  className={`trades-filter-select trades-filter-select--btn${sourceFilter.size > 0 ? ' trades-filter-select--active' : ''}`}
-                  onClick={() => setShowSourceDropdown(v => !v)}
-                  type="button"
-                >
-                  <span>{sourceFilter.size === 0 ? 'All' : Array.from(sourceFilter).join(', ')}</span>
-                  <span className="trades-select-caret">▾</span>
-                </button>
-                {showSourceDropdown && (
-                  <div className="trades-source-menu">
-                    {uniqueSources.map(source => (
-                      <label key={source} className="trades-source-option">
-                        <input
-                          type="checkbox"
-                          checked={sourceFilter.has(source)}
-                          onChange={() => {
-                            setSourceFilter(prev => {
-                              const next = new Set(prev);
-                              next.has(source) ? next.delete(source) : next.add(source);
-                              return next;
-                            });
-                          }}
-                        />
-                        {source}
-                      </label>
-                    ))}
-                    {sourceFilter.size > 0 && (
-                      <button
-                        className="trades-source-clear"
-                        onClick={() => { setSourceFilter(new Set()); setShowSourceDropdown(false); }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 4. Date select */}
-          <div className="trades-filter-field">
-            <label className="trades-filter-label">Date</label>
-            <div className="trades-date-custom-wrap">
-              <select
-                className="trades-filter-select"
-                value={dateFilter ?? ''}
-                onChange={e => {
-                  const val = e.target.value as DateFilter | '';
-                  if (val === '') { setDateFilter(null); setCustomFrom(''); setCustomTo(''); }
-                  else { setDateFilter(val as DateFilter); }
-                }}
+            <label className="trades-filter-label">Source</label>
+            <div className="trades-source-dropdown" ref={sourceDropdownRef}>
+              <button
+                className={`trades-filter-select trades-filter-select--btn${selectedBrokers.size > 0 ? ' trades-filter-select--active' : ''}`}
+                onClick={() => setShowSourceDropdown(v => !v)}
+                type="button"
               >
-                <option value="">All time</option>
-                <option value="today">Today</option>
-                <option value="7D">Last 7 days</option>
-                <option value="30D">Last 30 days</option>
-                <option value="custom">{dateFilter === 'custom' && customFrom && customTo ? `${customFrom} – ${customTo}` : 'Custom…'}</option>
-              </select>
-              {dateFilter === 'custom' && (
-                <div className="trades-date-popover">
-                  <label className="trades-date-popover__label">From</label>
-                  <input
-                    type="date"
-                    className="trades-date-popover__input"
-                    value={customFrom}
-                    onChange={e => setCustomFrom(e.target.value)}
-                  />
-                  <label className="trades-date-popover__label">To</label>
-                  <input
-                    type="date"
-                    className="trades-date-popover__input"
-                    value={customTo}
-                    onChange={e => setCustomTo(e.target.value)}
-                  />
-                  <button
-                    className="btn btn--primary trades-date-popover__apply"
-                    onClick={applyCustom}
-                    disabled={!customFrom || !customTo}
-                  >
-                    Apply
-                  </button>
+                <span>{selectedBrokers.size === 0 ? 'All' : Array.from(selectedBrokers).join(', ')}</span>
+                <span className="trades-select-caret">▾</span>
+              </button>
+              {showSourceDropdown && (
+                <div className="trades-source-menu">
+                  {availableBrokers.map(broker => (
+                    <label key={broker} className="trades-source-option">
+                      <input
+                        type="checkbox"
+                        checked={selectedBrokers.has(broker)}
+                        onChange={() => handleBrokerToggle(broker)}
+                      />
+                      {broker}
+                    </label>
+                  ))}
+                  {selectedBrokers.size > 0 && (
+                    <button
+                      className="trades-source-clear"
+                      onClick={() => { updateParam('broker', ''); setShowSourceDropdown(false); }}
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           </div>
-          {/* 5. Reset filters */}
-          <div className="trades-filter-field trades-filter-field--reset">
-            <label className="trades-filter-label">&nbsp;</label>
-            <button
-              type="button"
-              className="btn btn--secondary trades-filter-reset"
-              onClick={resetFilters}
+        )}
+
+        {/* 4. Date filter */}
+        <div className="trades-filter-field">
+          <label className="trades-filter-label">Date</label>
+          <div className="trades-date-custom-wrap">
+            <select
+              className="trades-filter-select"
+              value={dateFilter}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === 'custom') { setShowDatePopover(true); }
+                else { handleDatePreset(val); setShowDatePopover(false); }
+              }}
             >
-              Reset
-            </button>
+              <option value="">All time</option>
+              <option value="today">Today</option>
+              <option value="7D">Last 7 days</option>
+              <option value="30D">Last 30 days</option>
+              <option value="custom">
+                {dateFilter === 'custom' && customFrom && customTo ? `${customFrom} – ${customTo}` : 'Custom…'}
+              </option>
+            </select>
+            {(dateFilter === 'custom' || showDatePopover) && (
+              <div className="trades-date-popover">
+                <label className="trades-date-popover__label">From</label>
+                <input
+                  type="date"
+                  className="trades-date-popover__input"
+                  value={localCustomFrom}
+                  onChange={e => setLocalCustomFrom(e.target.value)}
+                />
+                <label className="trades-date-popover__label">To</label>
+                <input
+                  type="date"
+                  className="trades-date-popover__input"
+                  value={localCustomTo}
+                  onChange={e => setLocalCustomTo(e.target.value)}
+                />
+                <button
+                  className="btn btn--primary trades-date-popover__apply"
+                  onClick={applyCustomDate}
+                  disabled={!localCustomFrom || !localCustomTo}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      {filteredOrders.length > 0 && (
+        {/* 5. Reset */}
+        <div className="trades-filter-field trades-filter-field--reset">
+          <label className="trades-filter-label">&nbsp;</label>
+          <button type="button" className="btn btn--secondary trades-filter-reset" onClick={resetFilters}>
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {orders.length > 0 && (
         <div className="tt-wrap tt-card-wrap">
           <table className="tt tt-card">
             <thead>
@@ -612,44 +631,31 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order) => {
+              {orders.map((order) => {
                 const isOpen = order.status.toLowerCase() === 'open';
                 return (
                   <tr key={order.id}>
-                    {/* NAME */}
                     <td data-label="Name" data-full="">
                       <div className="tt-name">
                         <button className="tt-symbol-btn" onClick={() => onEditTrade(order)}>{order.symbol}</button>
                         <span className={`tt-side tt-side--${order.side.toLowerCase()}`}>{order.side.toUpperCase()}</span>
                       </div>
                     </td>
-
-                    {/* OPEN */}
                     <td data-label="Open">
                       <div className="tt-price-date">
                         <span>Price: {formatPrice(order.entryPrice)}</span>
                         <span>Date: {formatDate(order.openedAt)}</span>
                       </div>
                     </td>
-
-                    {/* CLOSE */}
                     <td data-label="Close">
                       <div className="tt-price-date">
                         <span>Price: {order.closePrice != null ? formatPrice(order.closePrice) : '-'}</span>
                         <span>Date: {order.closedAt ? formatDate(order.closedAt) : '-'}</span>
                       </div>
                     </td>
-
-                    {/* VOLUME */}
                     <td data-label="Volume">{order.quantity != null ? formatVolume(order.quantity * order.entryPrice) : '-'}</td>
-
-                    {/* SOURCE */}
                     <td data-label="Source">{order.broker ?? '-'}</td>
-
-                    {/* STRATEGY */}
                     <td data-label="Strategy">{order.exchange ?? '-'}</td>
-
-                    {/* UNREALIZED P/L */}
                     <td data-label="Unreal P/L">
                       {isOpen
                         ? (() => {
@@ -673,43 +679,20 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
                         : <PnlCell pnl={order.pnl} />
                       }
                     </td>
-
-                    {/* PROFIT/LOSS */}
                     <td data-label="P/L"><PnlCell pnl={order.pnl} /></td>
-
-                    {/* ORDER TYPE */}
                     <td data-label="Order Type">{order.orderType ?? '-'}</td>
-
-                    {/* STATUS */}
                     <td data-label="Status"><StatusPill status={order.status} /></td>
-
-                    {/* ACTIONS */}
                     <td data-label="Actions" data-full="">
                       <div className="tt-actions">
                         {isOpen && (
-                          <button
-                            className="tt-btn tt-btn--success"
-                            data-tooltip="Close Trade"
-                            aria-label="Close Trade"
-                            onClick={() => onCloseTrade(order)}
-                          >
+                          <button className="tt-btn tt-btn--success" data-tooltip="Close Trade" aria-label="Close Trade" onClick={() => onCloseTrade(order)}>
                             <IconCircleCheck />
                           </button>
                         )}
-                        <button
-                          className="tt-btn tt-btn--notes"
-                          data-tooltip="View Notes"
-                          aria-label="View Notes"
-                          onClick={() => onViewNotes(order)}
-                        >
+                        <button className="tt-btn tt-btn--notes" data-tooltip="View Notes" aria-label="View Notes" onClick={() => onViewNotes(order)}>
                           <IconNotes />
                         </button>
-                        <button
-                          className="tt-btn tt-btn--danger"
-                          data-tooltip="Delete"
-                          aria-label="Delete Trade"
-                          onClick={() => onRemoveTrade(order.id)}
-                        >
+                        <button className="tt-btn tt-btn--danger" data-tooltip="Delete" aria-label="Delete Trade" onClick={() => onRemoveTrade(order.id)}>
                           <IconTrash />
                         </button>
                       </div>
@@ -722,6 +705,9 @@ export function TradesTable({ orders, onAddTrade, onAddMultiple, onCloseTrade, o
         </div>
       )}
 
+      {totalPages > 1 && (
+        <Pagination page={page} pageSize={pageSize} total={total} onPageChange={handlePageChange} />
+      )}
     </article>
   );
 }

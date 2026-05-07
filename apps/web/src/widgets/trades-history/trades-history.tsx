@@ -14,9 +14,15 @@ import { ChatbotWidget } from '@web/widgets/chatbot/chatbot-widget';
 
 type TradesHistoryProps = Readonly<{
   orders: DashboardOrder[];
+  total: number;
+  page: number;
+  pageSize: number;
+  closedPnlSum: number;
+  openOrders: DashboardOrder[];
+  availableBrokers: string[];
 }>;
 
-export function TradesHistory({ orders }: TradesHistoryProps) {
+export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, openOrders, availableBrokers }: TradesHistoryProps) {
   const [singleOpen, setSingleOpen] = useState(false);
   const [multiOpen, setMultiOpen] = useState(false);
   const [closeTradeOrder, setCloseTradeOrder] = useState<DashboardOrder | null>(null);
@@ -59,6 +65,12 @@ export function TradesHistory({ orders }: TradesHistoryProps) {
     <main className="dashboard-shell trades-shell">
       <TradesTable
         orders={orders}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        closedPnlSum={closedPnlSum}
+        openOrders={openOrders}
+        availableBrokers={availableBrokers}
         onAddTrade={() => setSingleOpen(true)}
         onAddMultiple={() => setMultiOpen(true)}
         onCloseTrade={(order) => setCloseTradeOrder(order)}
