@@ -1616,6 +1616,21 @@ a {
   white-space: nowrap;
 }
 
+.trades-filter-field--count {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.trades-filter-count {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted, #888);
+  white-space: nowrap;
+}
+
 /* iOS-style toggle */
 .ios-toggle {
   display: inline-flex;

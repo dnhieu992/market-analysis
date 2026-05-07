@@ -657,6 +657,14 @@ export function TradesTable({
             Reset
           </button>
         </div>
+
+        {/* 6. Total count */}
+        <div className="trades-filter-field trades-filter-field--count">
+          <label className="trades-filter-label">&nbsp;</label>
+          <span className="trades-filter-count">
+            {total} order{total !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       {orders.length > 0 && (
