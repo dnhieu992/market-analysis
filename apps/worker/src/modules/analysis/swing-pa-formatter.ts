@@ -1,4 +1,4 @@
-import type { SwingPaAnalysis, SwingTrend, SwingSetup } from './swing-pa-analyzer';
+import type { SwingPaAnalysis, SwingTrend, SwingSetup, FibLevel } from './swing-pa-analyzer';
 import type { SwingPaReview, SwingPaSetupReview } from './swing-pa-review.service';
 
 function esc(text: string | null | undefined): string {
@@ -24,6 +24,47 @@ function setupLabel(type: SwingSetup['type']): string {
   if (type === 'limit-support')     return 'Limit Buy @ Support';
   if (type === 'limit-resistance')  return 'Limit Sell @ Resistance';
   return 'None';
+}
+
+function fibLevelNote(level: FibLevel, currentPrice: number): string {
+  const nearPct = Math.abs(currentPrice - level.price) / currentPrice * 100;
+  const near    = nearPct <= 1.0 ? ' ⬅ price near' : '';
+  const key     = (level.ratio === 0.618 || level.ratio === 0.5) ? ' 🔑' : '';
+  const tag     = level.type === 'extension' ? '[ext]' : '';
+  return `  ${level.ratio.toFixed(3)}${key}  $${fmtPrice(level.price)}  ${tag}${near}`.trimEnd();
+}
+
+function formatFibSection(a: SwingPaAnalysis, lines: string[]): void {
+  if (!a.fibPivot || a.fibLevels.length === 0) return;
+
+  lines.push('');
+  lines.push(`<b>FIBONACCI</b> (swing $${fmtPrice(a.fibPivot.low)} → $${fmtPrice(a.fibPivot.high)}):`);
+
+  const retracements = a.fibLevels.filter((l) => l.type === 'retracement');
+  const extensions   = a.fibLevels.filter((l) => l.type === 'extension');
+
+  for (const l of retracements) {
+    lines.push(fibLevelNote(l, a.currentPrice));
+  }
+  if (extensions.length > 0) {
+    for (const l of extensions) {
+      lines.push(fibLevelNote(l, a.currentPrice));
+    }
+  }
+
+  // Highlight proximity comment for 0.5 and 0.618
+  const goldenZone = retracements.filter((l) => l.ratio === 0.5 || l.ratio === 0.618);
+  if (goldenZone.length === 2) {
+    const [half, golden] = [goldenZone[0]!, goldenZone[1]!];
+    const lo = Math.min(half.price, golden.price);
+    const hi = Math.max(half.price, golden.price);
+    const inZone = a.currentPrice >= lo * 0.99 && a.currentPrice <= hi * 1.01;
+    if (inZone) {
+      lines.push(`  ⚡ Giá đang trong Golden Zone (0.5–0.618) — vùng vào lệnh chất lượng cao`);
+    } else {
+      lines.push(`  🔑 Golden Zone: $${fmtPrice(lo)} – $${fmtPrice(hi)}`);
+    }
+  }
 }
 
 function confidenceBadge(c: 'high' | 'medium' | 'low'): string {
@@ -152,6 +193,9 @@ export function formatSwingPaMessage(a: SwingPaAnalysis): string {
       lines.push(`  ${icon} ${label}: ${fmtPrice(z.low)} – ${fmtPrice(z.high)}  (${z.touches}x tested)`);
     }
   }
+
+  // ── Fibonacci ────────────────────────────────────────────────────────────
+  formatFibSection(a, lines);
 
   // ── Active Setup ─────────────────────────────────────────────────────────
   lines.push('');

@@ -2,7 +2,7 @@ import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { ChartConfiguration, Plugin } from 'chart.js';
 import type { Candle } from '@app/core';
 
-import type { SwingPaAnalysis, SRZone } from './swing-pa-analyzer';
+import type { SwingPaAnalysis, SRZone, FibLevel } from './swing-pa-analyzer';
 
 const CANVAS_WIDTH  = 1200;
 const CANVAS_HEIGHT = 700;
@@ -156,6 +156,52 @@ function swingMarkersPlugin(
   };
 }
 
+// ── Fibonacci retracement / extension plugin ──────────────────────────────────
+
+const FIB_COLORS: Record<number, string> = {
+  0.236: 'rgba(255,235,59,0.50)',
+  0.382: 'rgba(255,235,59,0.75)',
+  0.500: 'rgba(255,152,0,0.80)',
+  0.618: 'rgba(255,87,34,0.95)',  // golden ratio
+  0.786: 'rgba(255,235,59,0.55)',
+  1.272: 'rgba(186,104,200,0.65)',
+  1.618: 'rgba(186,104,200,0.90)',
+};
+
+function fibonacciPlugin(levels: FibLevel[]): Plugin {
+  return {
+    id: 'paFib',
+    beforeDatasetsDraw(chart) {
+      const { ctx, scales, chartArea } = chart;
+      const yScale = scales['y'];
+      if (!yScale || !chartArea || levels.length === 0) return;
+
+      for (const level of levels) {
+        const y     = yScale.getPixelForValue(level.price);
+        if (y < chartArea.top || y > chartArea.bottom) continue;
+
+        const color = FIB_COLORS[level.ratio] ?? 'rgba(255,255,255,0.4)';
+        const dashed = level.type === 'retracement';
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = 1;
+        ctx.setLineDash(dashed ? [4, 3] : [8, 3]);
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left,  y);
+        ctx.lineTo(chartArea.right, y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.font      = '9px sans-serif';
+        ctx.fillStyle = color;
+        ctx.fillText(`Fib ${level.ratio}`, chartArea.left + 4, y - 3);
+        ctx.restore();
+      }
+    }
+  };
+}
+
 // ── Date label helper ─────────────────────────────────────────────────────────
 
 function dateLabels(candles: Candle[], step: number): string[] {
@@ -187,6 +233,7 @@ export async function renderSwingPaChart(
   // Sets for O(1) marker lookup
   const swingHighSet = new Set(analysis.swingHighs);
   const swingLowSet  = new Set(analysis.swingLows);
+  const fibLevels    = analysis.fibLevels;
 
   const config: ChartConfiguration = {
     type: 'line',
@@ -259,6 +306,7 @@ export async function renderSwingPaChart(
     },
     plugins: [
       zoneBandsPlugin(analysis.srZones),
+      fibonacciPlugin(fibLevels),
       candlestickPlugin(slice),
       swingMarkersPlugin(slice, swingHighSet, swingLowSet)
     ]

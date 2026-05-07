@@ -29,9 +29,9 @@ export class SwingPaService {
     this.logger.log(`Swing PA analysis: ${symbol}`);
 
     const [dailyCandles, weeklyCandles, h4Candles] = await Promise.all([
-      this.marketData.getCandles(symbol, '1d' as AnalysisTimeframe, 60),
-      this.marketData.getCandles(symbol, '1w' as AnalysisTimeframe, 52),
-      this.marketData.getCandles(symbol, '4h' as AnalysisTimeframe, 100),
+      this.marketData.getCandles(symbol, '1d' as AnalysisTimeframe, 365),
+      this.marketData.getCandles(symbol, '1w' as AnalysisTimeframe, 150),
+      this.marketData.getCandles(symbol, '4h' as AnalysisTimeframe, 360),
     ]);
 
     const analysis = analyzeSwingPa(symbol, dailyCandles, weeklyCandles, h4Candles);
