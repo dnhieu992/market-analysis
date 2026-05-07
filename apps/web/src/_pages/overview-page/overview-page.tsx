@@ -6,11 +6,12 @@ import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-ove
 async function loadDashboardData() {
   const client = createServerApiClient();
   try {
-    const [orders, analysisRuns, portfolios] = await Promise.all([
+    const [paginatedOrders, analysisRuns, portfolios] = await Promise.all([
       client.fetchOrders(),
       client.fetchAnalysisRuns(),
       client.fetchPortfolios(),
     ]);
+    const orders = paginatedOrders.data;
 
     // fetch holdings for all portfolios in parallel
     const holdingsByPortfolio = await Promise.all(

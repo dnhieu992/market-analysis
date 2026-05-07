@@ -330,3 +330,22 @@ export type ChatMessage = {
 };
 
 import type { DailyAnalysisPlan } from '@app/core';
+
+export type OrderFilterParams = {
+  symbol?: string;
+  status?: string;
+  broker?: string;      // comma-separated, e.g. "Binance,Bybit"
+  dateFrom?: string;    // ISO date string, e.g. "2025-01-01"
+  dateTo?: string;      // ISO date string, e.g. "2025-05-01"
+  page?: number;
+  pageSize?: number;
+};
+
+export type PaginatedOrders = {
+  data: DashboardOrder[];
+  total: number;
+  page: number;
+  pageSize: number;
+  closedPnlSum: number;
+  openOrders: DashboardOrder[];
+};

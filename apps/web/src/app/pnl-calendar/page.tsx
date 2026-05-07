@@ -6,7 +6,8 @@ export default async function Page() {
   const client = createServerApiClient();
   let orders: DashboardOrder[] = [];
   try {
-    orders = await client.fetchOrders();
+    const result = await client.fetchOrders();
+    orders = result.data;
   } catch {
     // ignore — render empty calendar
   }

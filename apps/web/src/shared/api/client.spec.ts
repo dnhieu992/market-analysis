@@ -26,18 +26,25 @@ describe('dashboard api clients', () => {
     fetchImpl
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify([
-            {
-              id: 'order-1',
-              symbol: 'BTCUSDT',
-              side: 'long',
-              status: 'open',
-              entryPrice: 68000,
-              openedAt: '2026-04-01T08:00:00.000Z',
-              createdAt: '2026-04-01T08:00:00.000Z',
-              updatedAt: '2026-04-01T08:01:00.000Z'
-            }
-          ]),
+          JSON.stringify({
+            data: [
+              {
+                id: 'order-1',
+                symbol: 'BTCUSDT',
+                side: 'long',
+                status: 'open',
+                entryPrice: 68000,
+                openedAt: '2026-04-01T08:00:00.000Z',
+                createdAt: '2026-04-01T08:00:00.000Z',
+                updatedAt: '2026-04-01T08:01:00.000Z'
+              }
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+            closedPnlSum: 0,
+            openOrders: []
+          }),
           { status: 200 }
         )
       )
@@ -98,10 +105,14 @@ describe('dashboard api clients', () => {
     const analysisRuns = await client.fetchAnalysisRuns();
     const health = await client.fetchHealth();
 
-    expect(orders[0]!).toMatchObject({
+    expect(orders.data[0]!).toMatchObject({
       openedAt: expect.any(Date),
       createdAt: expect.any(Date)
     });
+    expect(orders.total).toBe(1);
+    expect(orders.page).toBe(1);
+    expect(orders.closedPnlSum).toBe(0);
+    expect(orders.openOrders).toEqual([]);
     expect(signals[0]!).toMatchObject({
       supportLevels: [67200, 66500],
       resistanceLevels: [68800, 69500],
@@ -242,7 +253,10 @@ describe('dashboard api clients', () => {
     });
 
     fetchImpl.mockResolvedValueOnce(
-      new Response(JSON.stringify([]), { status: 200 })
+      new Response(
+        JSON.stringify({ data: [], total: 0, page: 1, pageSize: 20, closedPnlSum: 0, openOrders: [] }),
+        { status: 200 }
+      )
     );
 
     await client.fetchOrders();

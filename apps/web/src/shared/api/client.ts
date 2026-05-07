@@ -14,6 +14,8 @@ import type {
   DashboardOrder,
   DashboardSignal,
   Holding,
+  OrderFilterParams,
+  PaginatedOrders,
   PnlSnapshot,
   Portfolio,
   QueryPnlInput,
@@ -326,9 +328,36 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const data = (await response.json()) as { urls: string[] };
       return data.urls;
     },
-    async fetchOrders(): Promise<DashboardOrder[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/orders`, withDefaults());
-      return rows.map(mapOrder);
+    async fetchOrders(params?: OrderFilterParams): Promise<PaginatedOrders> {
+      const qs = new URLSearchParams();
+      if (params?.symbol) qs.set('symbol', params.symbol);
+      if (params?.status) qs.set('status', params.status);
+      if (params?.broker) qs.set('broker', params.broker);
+      if (params?.dateFrom) qs.set('dateFrom', params.dateFrom);
+      if (params?.dateTo) qs.set('dateTo', params.dateTo);
+      if (params?.page) qs.set('page', String(params.page));
+      if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+      const query = qs.toString();
+      const url = query ? `${baseUrl}/orders?${query}` : `${baseUrl}/orders`;
+      const result = await fetchJson<{
+        data: JsonRecord[];
+        total: number;
+        page: number;
+        pageSize: number;
+        closedPnlSum: number;
+        openOrders: JsonRecord[];
+      }>(fetchImpl, url, withDefaults());
+      return {
+        data: result.data.map(mapOrder),
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+        closedPnlSum: result.closedPnlSum,
+        openOrders: result.openOrders.map(mapOrder),
+      };
+    },
+    async fetchOrderBrokers(): Promise<string[]> {
+      return fetchJson<string[]>(fetchImpl, `${baseUrl}/orders/brokers`, withDefaults());
     },
     async fetchSignals(): Promise<DashboardSignal[]> {
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/signals`, withDefaults());

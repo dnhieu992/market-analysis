@@ -6,7 +6,8 @@ async function loadOrders() {
   const client = createServerApiClient();
 
   try {
-    return await client.fetchOrders();
+    const result = await client.fetchOrders();
+    return result.data;
   } catch {
     return [] as DashboardOrder[];
   }
