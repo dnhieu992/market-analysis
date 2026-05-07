@@ -9,6 +9,7 @@ const customJestConfig = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/*.spec.ts', '**/*.spec.tsx'],
   moduleNameMapper: {
+    '^@web/pages/(.*)$': '<rootDir>/src/_pages/$1',
     '^@web/(.*)$': '<rootDir>/src/$1'
   },
   maxWorkers: 1
