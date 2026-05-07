@@ -43,7 +43,7 @@ export class OrdersService {
 
     return this.orderRepository.listFiltered({
       symbol: query.symbol,
-      status: query.status as 'open' | 'closed' | undefined,
+      status: query.status,
       brokers,
       dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
       dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
