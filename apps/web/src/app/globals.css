@@ -1106,6 +1106,16 @@ a {
   box-shadow: 0 1px 6px rgba(0,0,0,0.06);
 }
 
+.tt-pnl-card--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tt-pnl-card--link:hover {
+  border-color: var(--accent, #1f6f5b);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+}
+
 .tt-pnl-card__label {
   font-size: 0.72rem;
   font-weight: 700;

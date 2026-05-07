@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
@@ -232,13 +233,13 @@ function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; o
 function TotalPnlCard({ closedPnlSum }: { closedPnlSum: number }) {
   const isPositive = closedPnlSum >= 0;
   return (
-    <div className="tt-pnl-card">
+    <Link href="/pnl-calendar" className="tt-pnl-card tt-pnl-card--link">
       <span className="tt-pnl-card__label">Total Profit/Loss</span>
       <span className={`tt-pnl-card__value ${isPositive ? 'tt-pnl-card__value--positive' : 'tt-pnl-card__value--negative'}`}>
         {isPositive ? '+' : ''}{formatVolume(closedPnlSum)}
       </span>
       <span className="tt-pnl-card__note">Closed trades in selected period</span>
-    </div>
+    </Link>
   );
 }
 
