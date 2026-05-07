@@ -20,7 +20,7 @@ function toDatetimeLocal(date: Date): string {
 function formatEntryPrice(value: string): string {
   const num = Number(value);
   if (isNaN(num) || value === '') return value;
-  const decimals = num >= 1 ? 3 : 5;
+  const decimals = num >= 1 ? 3 : 10;
   return parseFloat(num.toFixed(decimals)).toString();
 }
 
