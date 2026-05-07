@@ -185,7 +185,7 @@ function PerformanceStats({ orders }: { orders: DashboardOrder[] }) {
           <p className="perf-col-title">PNL trung bình</p>
           <StatRow label="PNL trung bình"      value={fmtU(avgPnl)}  colored />
           <StatRow label="Lợi nhuận trung bình" value={fmtU(avgWin)} colored />
-          <StatRow label="Tỷ lệ thua"           value={fmtU(avgLoss)} colored />
+          <StatRow label="Lỗ trung bình"        value={fmtU(avgLoss)} colored />
         </div>
 
         <div className="perf-col">

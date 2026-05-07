@@ -35,11 +35,11 @@ export class ListOrdersQueryDto {
   @Min(1)
   page = 1;
 
-  @ApiPropertyOptional({ description: 'Page size (max 100)', example: 20, default: 20 })
+  @ApiPropertyOptional({ description: 'Page size (max 1000)', example: 20, default: 20 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(1000)
   pageSize = 20;
 }
