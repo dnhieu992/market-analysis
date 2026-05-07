@@ -42,6 +42,7 @@ export type SwingPaAnalysis = {
   symbol: string;
   currentPrice: number;
   trend: SwingTrend;
+  weeklyTrend: SwingTrend;
   swingHighs: number[];
   swingLows: number[];
   consecutiveHhCount: number;
@@ -53,6 +54,7 @@ export type SwingPaAnalysis = {
   avgVolume20: number;
   fibPivot: { high: number; low: number } | null;
   fibLevels: FibLevel[];
+  invalidationLevel: number | null;
 };
 
 // ── Swing detection ───────────────────────────────────────────────────────────
@@ -169,38 +171,41 @@ const SR_CLUSTER_TOL = 0.005; // 0.5% — cluster nearby swing points
 const SR_ZONE_HALF   = 0.005; // ±0.5% zone width around midpoint
 
 export function extractSRZones(weeklyCandles: Candle[], currentPrice: number): SRZone[] {
-  const highPrices = findSwingHighPrices(weeklyCandles);
-  const lowPrices  = findSwingLowPrices(weeklyCandles);
+  // Collect all swing price levels regardless of high/low origin
+  const allPrices = [
+    ...findSwingHighPrices(weeklyCandles),
+    ...findSwingLowPrices(weeklyCandles),
+  ];
 
-  function buildZones(prices: number[], role: 'support' | 'resistance'): SRZone[] {
-    const clusters: { price: number; touches: number }[] = [];
-    for (const p of prices) {
-      const found = clusters.find((c) => Math.abs(c.price - p) / p < SR_CLUSTER_TOL);
-      if (found) {
-        found.touches++;
-      } else {
-        clusters.push({ price: p, touches: 1 });
-      }
+  // Cluster prices that are within SR_CLUSTER_TOL of each other
+  const clusters: { price: number; touches: number }[] = [];
+  for (const p of allPrices) {
+    const found = clusters.find((c) => Math.abs(c.price - p) / p < SR_CLUSTER_TOL);
+    if (found) {
+      // Update cluster midpoint to weighted average
+      found.price   = (found.price * found.touches + p) / (found.touches + 1);
+      found.touches += 1;
+    } else {
+      clusters.push({ price: p, touches: 1 });
     }
-    return clusters.map((c) => ({
+  }
+
+  // Classify each cluster by its position relative to current price (NOT by origin)
+  // Zone sitting at current price (within 0.3%) is skipped — not actionable
+  return clusters
+    .filter((c) => {
+      const dist = Math.abs(c.price - currentPrice) / currentPrice;
+      return dist > 0.003 && dist <= 0.30;
+    })
+    .map((c) => ({
       low:      c.price * (1 - SR_ZONE_HALF),
       high:     c.price * (1 + SR_ZONE_HALF),
       midpoint: c.price,
       touches:  c.touches,
-      role,
-    }));
-  }
-
-  const allZones = [
-    ...buildZones(highPrices, 'resistance'),
-    ...buildZones(lowPrices,  'support'),
-  ];
-
-  // Only zones within 30% of current price, sorted by proximity, max 5
-  return allZones
-    .filter((z) => Math.abs(z.midpoint - currentPrice) / currentPrice <= 0.30)
+      role:     (c.price > currentPrice ? 'resistance' : 'support') as 'support' | 'resistance',
+    }))
     .sort((a, b) => Math.abs(a.midpoint - currentPrice) - Math.abs(b.midpoint - currentPrice))
-    .slice(0, 5);
+    .slice(0, 6);
 }
 
 // ── Volume ────────────────────────────────────────────────────────────────────
@@ -239,6 +244,54 @@ function fmtPrice(n: number): string {
   return n >= 1000
     ? n.toLocaleString('en-US', { maximumFractionDigits: 2 })
     : n.toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
+
+// ── Trade helpers ─────────────────────────────────────────────────────────────
+
+function calcRR(entry: number, sl: number, tp1: number): number {
+  const risk   = Math.abs(entry - sl);
+  const reward = Math.abs(tp1 - entry);
+  return risk === 0 ? 0 : reward / risk;
+}
+
+/** Nearest resistance zone or swing high that is strictly ABOVE currentPrice */
+function findTp1Long(
+  currentPrice: number,
+  srZones: SRZone[],
+  swingHighs: number[],
+  fibLevels: FibLevel[]
+): number {
+  const res = srZones
+    .filter((z) => z.role === 'resistance' && z.midpoint > currentPrice)
+    .sort((a, b) => a.midpoint - b.midpoint)[0];
+  if (res) return res.midpoint;
+
+  const sh = swingHighs.filter((h) => h > currentPrice).sort((a, b) => a - b)[0];
+  if (sh) return sh;
+
+  const ext = fibLevels
+    .filter((l) => l.type === 'extension' && l.price > currentPrice)
+    .sort((a, b) => a.price - b.price)[0];
+  if (ext) return ext.price;
+
+  return currentPrice * 1.05;
+}
+
+/** Nearest support zone or swing low that is strictly BELOW currentPrice */
+function findTp1Short(
+  currentPrice: number,
+  srZones: SRZone[],
+  swingLows: number[]
+): number {
+  const sup = srZones
+    .filter((z) => z.role === 'support' && z.midpoint < currentPrice)
+    .sort((a, b) => b.midpoint - a.midpoint)[0];
+  if (sup) return sup.midpoint;
+
+  const sl = swingLows.filter((l) => l < currentPrice).sort((a, b) => b - a)[0];
+  if (sl) return sl;
+
+  return currentPrice * 0.95;
 }
 
 // ── Setup 1: Break & Retest ───────────────────────────────────────────────────
@@ -343,6 +396,7 @@ function detectPullbackHl(
     const confidence: 'high' | 'medium' | 'low' =
       golden || factors >= 2 ? 'high' : factors >= 1 ? 'medium' : 'low';
 
+    const tp1Long = findTp1Long(current.close, srZones, swingHighs, fibLevels);
     return {
       type: 'pullback-hl',
       entryType: 'market',
@@ -351,7 +405,7 @@ function detectPullbackHl(
       limitPrice: null,
       entryZone: [lastHl * 0.99, lastHl * 1.01],
       stopLoss:  lastHl * 0.985,
-      tp1:       swingHighs[swingHighs.length - 1] ?? current.close * 1.05,
+      tp1:       tp1Long,
       tp2:       null,
       notes: [
         `Pullback to last HL: ${fmtPrice(lastHl)}`,
@@ -376,6 +430,7 @@ function detectPullbackHl(
     const confidence: 'high' | 'medium' | 'low' =
       golden || factors >= 2 ? 'high' : factors >= 1 ? 'medium' : 'low';
 
+    const tp1Short = findTp1Short(current.close, srZones, swingLows);
     return {
       type: 'pullback-hl',
       entryType: 'market',
@@ -384,7 +439,7 @@ function detectPullbackHl(
       limitPrice: null,
       entryZone: [lastLh * 0.99, lastLh * 1.01],
       stopLoss:  lastLh * 1.015,
-      tp1:       swingLows[swingLows.length - 1] ?? current.close * 0.95,
+      tp1:       tp1Short,
       tp2:       null,
       notes: [
         `Pullback to last LH: ${fmtPrice(lastLh)}`,
@@ -477,6 +532,35 @@ function detectLiquiditySweep(
   return null;
 }
 
+// ── Deduplication ─────────────────────────────────────────────────────────────
+// Merge setups of the same direction whose limit prices are within 2% of each
+// other.  Keep the higher-confidence one; combine notes to preserve context.
+
+const CONF_RANK: Record<'high' | 'medium' | 'low', number> = { high: 3, medium: 2, low: 1 };
+
+function deduplicateSetups(setups: SwingSetup[]): SwingSetup[] {
+  const result: SwingSetup[] = [];
+  for (const s of setups) {
+    const dup = result.find(
+      (r) =>
+        r.direction === s.direction &&
+        r.limitPrice !== null &&
+        s.limitPrice !== null &&
+        Math.abs(r.limitPrice - s.limitPrice) / r.limitPrice < 0.02
+    );
+    if (!dup) {
+      result.push({ ...s });
+    } else if (CONF_RANK[s.confidence] > CONF_RANK[dup.confidence]) {
+      const idx = result.indexOf(dup);
+      // Merge: keep stronger setup, absorb unique notes from the weaker one
+      const mergedNotes = [...new Set([...s.notes, ...dup.notes])];
+      result[idx] = { ...s, notes: mergedNotes };
+    }
+    // else keep existing dup — it already has equal or better confidence
+  }
+  return result;
+}
+
 // ── Pending Limit Setups ──────────────────────────────────────────────────────
 //
 // When no active market setup exists, generate limit order plans at key S/R
@@ -498,16 +582,21 @@ function detectPendingLimitSetups(
     .sort((a, b) => b.midpoint - a.midpoint); // closest first
 
   for (const zone of supportZones.slice(0, 2)) {
-    const distPct    = ((currentPrice - zone.midpoint) / currentPrice) * 100;
-    const lastHl     = swingLows.length > 0 ? swingLows[swingLows.length - 1]! : null;
-    const hlConf     = lastHl !== null && Math.abs(lastHl - zone.midpoint) / zone.midpoint < 0.02;
-    const fibConf    = findFibConfluence(zone.midpoint, fibLevels);
-    const golden     = fibConf ? isGoldenZone(fibConf) : false;
+    const distPct  = ((currentPrice - zone.midpoint) / currentPrice) * 100;
+    const lastHl   = swingLows.length > 0 ? swingLows[swingLows.length - 1]! : null;
+    const hlConf   = lastHl !== null && Math.abs(lastHl - zone.midpoint) / zone.midpoint < 0.02;
+    const fibConf  = findFibConfluence(zone.midpoint, fibLevels);
+    const golden   = fibConf ? isGoldenZone(fibConf) : false;
 
+    const tp1      = findTp1Long(currentPrice, srZones, swingHighs, fibLevels);
+    const sl       = zone.low * 0.995;
+    const rr       = calcRR(zone.midpoint, sl, tp1);
+
+    const confCount = [hlConf, !!fibConf, zone.touches >= 2, golden].filter(Boolean).length;
     const confidence: 'high' | 'medium' | 'low' =
-      golden ? 'high' :
-      (zone.touches >= 3 && hlConf) || (zone.touches >= 2 && !!fibConf) ? 'high' :
-      zone.touches >= 2 || hlConf || !!fibConf ? 'medium' : 'low';
+      rr < 1.5 ? 'low' :
+      (confCount >= 3 || (golden && rr >= 2.0)) ? 'high' :
+      confCount >= 2 ? 'medium' : 'low';
 
     results.push({
       type: 'limit-support',
@@ -516,10 +605,8 @@ function detectPendingLimitSetups(
       confidence,
       limitPrice: zone.midpoint,
       entryZone: [zone.low, zone.high],
-      stopLoss:  zone.low * 0.995,
-      tp1:       swingHighs.length > 0
-        ? (swingHighs.find((h) => h > currentPrice) ?? currentPrice * 1.05)
-        : currentPrice * 1.05,
+      stopLoss:  sl,
+      tp1,
       tp2:       null,
       notes: [
         `Support zone: $${fmtPrice(zone.low)} – $${fmtPrice(zone.high)}`,
@@ -529,6 +616,7 @@ function detectPendingLimitSetups(
         fibConf
           ? `Fib ${fibConf.ratio} confluence ✅${golden ? ' 🔑 Golden Zone' : ''}`
           : 'No Fibonacci confluence',
+        `R:R = 1:${rr.toFixed(2)}${rr >= 2 ? ' ✅' : rr >= 1.5 ? ' ⚠️' : ' ❌'}`,
         trend === 'uptrend' ? 'Trend aligned: UPTREND ✅' : trend === 'sideway' ? 'Sideway — watch for bounce' : 'Counter-trend ⚠️',
       ],
     });
@@ -540,16 +628,21 @@ function detectPendingLimitSetups(
     .sort((a, b) => a.midpoint - b.midpoint); // closest first
 
   for (const zone of resistanceZones.slice(0, 2)) {
-    const distPct = ((zone.midpoint - currentPrice) / currentPrice) * 100;
-    const lastLh  = swingHighs.length > 0 ? swingHighs[swingHighs.length - 1]! : null;
-    const lhConf  = lastLh !== null && Math.abs(lastLh - zone.midpoint) / zone.midpoint < 0.02;
-    const fibConf = findFibConfluence(zone.midpoint, fibLevels);
-    const golden  = fibConf ? isGoldenZone(fibConf) : false;
+    const distPct  = ((zone.midpoint - currentPrice) / currentPrice) * 100;
+    const lastLh   = swingHighs.length > 0 ? swingHighs[swingHighs.length - 1]! : null;
+    const lhConf   = lastLh !== null && Math.abs(lastLh - zone.midpoint) / zone.midpoint < 0.02;
+    const fibConf  = findFibConfluence(zone.midpoint, fibLevels);
+    const golden   = fibConf ? isGoldenZone(fibConf) : false;
 
+    const tp1      = findTp1Short(currentPrice, srZones, swingLows);
+    const sl       = zone.high * 1.005;
+    const rr       = calcRR(zone.midpoint, sl, tp1);
+
+    const confCount = [lhConf, !!fibConf, zone.touches >= 2, golden].filter(Boolean).length;
     const confidence: 'high' | 'medium' | 'low' =
-      golden ? 'high' :
-      (zone.touches >= 3 && lhConf) || (zone.touches >= 2 && !!fibConf) ? 'high' :
-      zone.touches >= 2 || lhConf || !!fibConf ? 'medium' : 'low';
+      rr < 1.5 ? 'low' :
+      (confCount >= 3 || (golden && rr >= 2.0)) ? 'high' :
+      confCount >= 2 ? 'medium' : 'low';
 
     results.push({
       type: 'limit-resistance',
@@ -558,10 +651,8 @@ function detectPendingLimitSetups(
       confidence,
       limitPrice: zone.midpoint,
       entryZone: [zone.low, zone.high],
-      stopLoss:  zone.high * 1.005,
-      tp1:       swingLows.length > 0
-        ? (swingLows.slice().reverse().find((l) => l < currentPrice) ?? currentPrice * 0.95)
-        : currentPrice * 0.95,
+      stopLoss:  sl,
+      tp1,
       tp2:       null,
       notes: [
         `Resistance zone: $${fmtPrice(zone.low)} – $${fmtPrice(zone.high)}`,
@@ -571,6 +662,7 @@ function detectPendingLimitSetups(
         fibConf
           ? `Fib ${fibConf.ratio} confluence ✅${golden ? ' 🔑 Golden Zone' : ''}`
           : 'No Fibonacci confluence',
+        `R:R = 1:${rr.toFixed(2)}${rr >= 2 ? ' ✅' : rr >= 1.5 ? ' ⚠️' : ' ❌'}`,
         trend === 'downtrend' ? 'Trend aligned: DOWNTREND ✅' : trend === 'sideway' ? 'Sideway — watch for rejection' : 'Counter-trend ⚠️',
       ],
     });
@@ -584,20 +676,26 @@ function detectPendingLimitSetups(
     );
     if (!alreadyCovered && lastHl < currentPrice) {
       const distPct = ((currentPrice - lastHl) / currentPrice) * 100;
+      const tp1hl   = findTp1Long(currentPrice, srZones, swingHighs, fibLevels);
+      const sl      = lastHl * 0.985;
+      const rr      = calcRR(lastHl, sl, tp1hl);
+      const fibConf = findFibConfluence(lastHl, fibLevels);
+      const golden  = fibConf ? isGoldenZone(fibConf) : false;
       results.unshift({
         type: 'limit-support',
         entryType: 'limit',
         direction: 'long',
-        confidence: 'medium',
+        confidence: rr < 1.5 ? 'low' : golden ? 'high' : 'medium',
         limitPrice: lastHl,
         entryZone: [lastHl * 0.99, lastHl * 1.01],
-        stopLoss:  lastHl * 0.985,
-        tp1:       swingHighs[swingHighs.length - 1] ?? currentPrice * 1.05,
+        stopLoss:  sl,
+        tp1:       tp1hl,
         tp2:       null,
         notes: [
           `Last Higher Low: $${fmtPrice(lastHl)}`,
           `${distPct.toFixed(1)}% below current price`,
-          'Entry on pullback to HL structure',
+          fibConf ? `Fib ${fibConf.ratio} confluence ✅${golden ? ' 🔑 Golden Zone' : ''}` : 'No Fibonacci confluence',
+          `R:R = 1:${rr.toFixed(2)}${rr >= 2 ? ' ✅' : rr >= 1.5 ? ' ⚠️' : ' ❌'}`,
           'Uptrend aligned ✅',
         ],
       });
@@ -611,20 +709,26 @@ function detectPendingLimitSetups(
     );
     if (!alreadyCovered && lastLh > currentPrice) {
       const distPct = ((lastLh - currentPrice) / currentPrice) * 100;
+      const tp1lh   = findTp1Short(currentPrice, srZones, swingLows);
+      const sl      = lastLh * 1.015;
+      const rr      = calcRR(lastLh, sl, tp1lh);
+      const fibConf = findFibConfluence(lastLh, fibLevels);
+      const golden  = fibConf ? isGoldenZone(fibConf) : false;
       results.unshift({
         type: 'limit-resistance',
         entryType: 'limit',
         direction: 'short',
-        confidence: 'medium',
+        confidence: rr < 1.5 ? 'low' : golden ? 'high' : 'medium',
         limitPrice: lastLh,
         entryZone: [lastLh * 0.99, lastLh * 1.01],
-        stopLoss:  lastLh * 1.015,
-        tp1:       swingLows[swingLows.length - 1] ?? currentPrice * 0.95,
+        stopLoss:  sl,
+        tp1:       tp1lh,
         tp2:       null,
         notes: [
           `Last Lower High: $${fmtPrice(lastLh)}`,
           `${distPct.toFixed(1)}% above current price`,
-          'Entry on retest of LH structure',
+          fibConf ? `Fib ${fibConf.ratio} confluence ✅${golden ? ' 🔑 Golden Zone' : ''}` : 'No Fibonacci confluence',
+          `R:R = 1:${rr.toFixed(2)}${rr >= 2 ? ' ✅' : rr >= 1.5 ? ' ⚠️' : ' ❌'}`,
           'Downtrend aligned ✅',
         ],
       });
@@ -653,46 +757,55 @@ function detectPendingLimitSetups(
 
     if (isLong) {
       const srSupport = srZones.find((z) => z.role === 'support' && Math.abs(z.midpoint - fibLevel.price) / fibLevel.price < 0.02);
+      const tp1fib    = findTp1Long(currentPrice, srZones, swingHighs, fibLevels);
+      const sl        = fibLevel.price * 0.985;
+      const rr        = calcRR(fibLevel.price, sl, tp1fib);
       results.push({
         type: 'limit-support',
         entryType: 'limit',
         direction: 'long',
-        confidence: ratio === 0.618 ? 'high' : 'medium',
+        confidence: rr < 1.5 ? 'low' : ratio === 0.618 ? 'high' : 'medium',
         limitPrice: fibLevel.price,
         entryZone:  [fibLevel.price * 0.99, fibLevel.price * 1.01],
-        stopLoss:   fibLevel.price * 0.985,
-        tp1:        swingHighs[swingHighs.length - 1] ?? currentPrice * 1.05,
+        stopLoss:   sl,
+        tp1:        tp1fib,
         tp2:        null,
         notes: [
           `Fib ${ratio} retracement: $${fmtPrice(fibLevel.price)} 🔑 Golden Zone`,
           `${distPct.toFixed(1)}% below current price`,
           srSupport ? `S/R confluence at $${fmtPrice(srSupport.midpoint)} ✅` : 'No S/R confluence — pure Fibonacci level',
+          `R:R = 1:${rr.toFixed(2)}${rr >= 2 ? ' ✅' : rr >= 1.5 ? ' ⚠️' : ' ❌'}`,
           trend === 'uptrend' ? 'Trend aligned: UPTREND ✅' : 'Sideway — watch for bounce',
         ],
       });
     } else {
       const srResist = srZones.find((z) => z.role === 'resistance' && Math.abs(z.midpoint - fibLevel.price) / fibLevel.price < 0.02);
+      const tp1fib   = findTp1Short(currentPrice, srZones, swingLows);
+      const sl       = fibLevel.price * 1.015;
+      const rr       = calcRR(fibLevel.price, sl, tp1fib);
       results.push({
         type: 'limit-resistance',
         entryType: 'limit',
         direction: 'short',
-        confidence: ratio === 0.618 ? 'high' : 'medium',
+        confidence: rr < 1.5 ? 'low' : ratio === 0.618 ? 'high' : 'medium',
         limitPrice: fibLevel.price,
         entryZone:  [fibLevel.price * 0.99, fibLevel.price * 1.01],
-        stopLoss:   fibLevel.price * 1.015,
-        tp1:        swingLows[swingLows.length - 1] ?? currentPrice * 0.95,
+        stopLoss:   sl,
+        tp1:        tp1fib,
         tp2:        null,
         notes: [
           `Fib ${ratio} retracement: $${fmtPrice(fibLevel.price)} 🔑 Golden Zone`,
           `${distPct.toFixed(1)}% above current price`,
           srResist ? `S/R confluence at $${fmtPrice(srResist.midpoint)} ✅` : 'No S/R confluence — pure Fibonacci level',
+          `R:R = 1:${rr.toFixed(2)}${rr >= 2 ? ' ✅' : rr >= 1.5 ? ' ⚠️' : ' ❌'}`,
           'Trend aligned: DOWNTREND ✅',
         ],
       });
     }
   }
 
-  return results;
+  // ── Deduplicate setups that are too close to each other (<2%) ─────────────
+  return deduplicateSetups(results);
 }
 
 // ── Fibonacci helpers ─────────────────────────────────────────────────────────
@@ -765,8 +878,18 @@ export function analyzeSwingPa(
   const { trend, swingHighs, swingLows, consecutiveHhCount, consecutiveHlCount } =
     detectDailyTrend(dailyCandles);
 
+  const weeklyTrend = detectDailyTrend(weeklyCandles).trend;
+
   const choch   = detectChoch(dailyCandles, trend, swingHighs, swingLows);
   const srZones = extractSRZones(weeklyCandles, currentPrice);
+
+  // Price level that invalidates the current trend structure
+  const invalidationLevel: number | null =
+    trend === 'uptrend' && swingLows.length >= 1
+      ? swingLows[swingLows.length - 1]! * 0.995
+      : trend === 'downtrend' && swingHighs.length >= 1
+      ? swingHighs[swingHighs.length - 1]! * 1.005
+      : null;
 
   // Fibonacci must be computed before setup detection so it can be used as a confluence factor
   const { pivot: fibPivot, levels: fibLevels } = calcFibLevels(trend, swingHighs, swingLows);
@@ -817,6 +940,7 @@ export function analyzeSwingPa(
     symbol,
     currentPrice,
     trend,
+    weeklyTrend,
     swingHighs,
     swingLows,
     consecutiveHhCount,
@@ -828,5 +952,6 @@ export function analyzeSwingPa(
     avgVolume20: avgVol,
     fibPivot,
     fibLevels,
+    invalidationLevel,
   };
 }

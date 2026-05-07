@@ -26,7 +26,9 @@ const mockAnalysis: SwingPaAnalysis = {
   pendingLimitSetups: [],
   avgVolume20: 1000,
   fibPivot: { high: 85000, low: 75000 },
-  fibLevels: []
+  fibLevels: [],
+  weeklyTrend: 'uptrend',
+  invalidationLevel: 77900
 };
 
 const mockCandles: Candle[] = Array.from({ length: 30 }, (_, i) => ({

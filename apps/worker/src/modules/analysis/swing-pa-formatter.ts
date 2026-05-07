@@ -160,7 +160,14 @@ export function formatSwingPaMessage(a: SwingPaAnalysis): string {
   lines.push(`<b>SWING PA — ${a.symbol}</b>  |  Daily  |  Pure Price Action`);
   lines.push(sep);
 
+  // ── HTF Context ─────────────────────────────────────────────────────────
+  const htfAligned = a.weeklyTrend === a.trend || a.trend === 'sideway';
+  const htfIcon    = a.weeklyTrend === 'uptrend' ? '📈' : a.weeklyTrend === 'downtrend' ? '📉' : '↔️';
+  lines.push(`<b>HTF CONTEXT</b>  (Weekly: ${htfIcon} ${a.weeklyTrend.toUpperCase()}  |  Daily: ${a.trend.toUpperCase()})`);
+  lines.push(`  Alignment: ${htfAligned ? '✅ Aligned' : '⚠️ Diverging — reduce size'}`);
+
   // ── Trend ───────────────────────────────────────────────────────────────
+  lines.push('');
   lines.push(`<b>TREND</b>: ${trendIcon(a.trend)}`);
   if (a.swingHighs.length >= 2) {
     lines.push(`  Highs: ${a.swingHighs.map(fmtPrice).join(' → ')}`);
@@ -245,6 +252,9 @@ export function formatSwingPaMessage(a: SwingPaAnalysis): string {
   lines.push('');
   lines.push(sep);
   lines.push(`💰 Price: <b>$${fmtPrice(a.currentPrice)}</b>`);
+  if (a.invalidationLevel !== null) {
+    lines.push(`🚫 Trend invalid if Daily close &lt; $${fmtPrice(a.invalidationLevel)}`);
+  }
 
   lines.push('');
   lines.push(`⚠️ Tín hiệu tự động — xác nhận trước khi vào lệnh`);
