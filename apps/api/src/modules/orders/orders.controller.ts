@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { OrdersService } from './orders.service';
 import { CloseOrderDto } from './dto/close-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
 @ApiTags('Orders')
@@ -15,10 +16,17 @@ export class OrdersController {
     private readonly ordersService: OrdersService
   ) {}
 
+  // NOTE: /orders/brokers MUST come before /orders/:id to avoid route conflict
+  @Get('brokers')
+  @ApiOperation({ summary: 'List distinct broker names across all orders' })
+  listBrokers() {
+    return this.ordersService.listBrokers();
+  }
+
   @Get()
-  @ApiOperation({ summary: 'List all orders' })
-  listOrders() {
-    return this.ordersService.listOrders();
+  @ApiOperation({ summary: 'List orders with optional filter and pagination' })
+  listOrders(@Query() query: ListOrdersQueryDto) {
+    return this.ordersService.listOrders(query);
   }
 
   @Get(':id')

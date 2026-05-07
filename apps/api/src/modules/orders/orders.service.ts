@@ -3,12 +3,28 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ORDER_REPOSITORY } from '../database/database.providers';
 import type { CloseOrderDto } from './dto/close-order.dto';
 import type { CreateOrderDto } from './dto/create-order.dto';
+import type { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import type { UpdateOrderDto } from './dto/update-order.dto';
 
 type OrderRepository = {
   create: (data: Record<string, unknown>) => Promise<unknown>;
   findById: (id: string) => Promise<unknown | null>;
   listLatest: (limit?: number) => Promise<unknown[]>;
+  listFiltered: (params: {
+    symbol?: string;
+    status?: 'open' | 'closed';
+    brokers?: string[];
+    dateFrom?: Date;
+    dateTo?: Date;
+    page: number;
+    pageSize: number;
+  }) => Promise<{
+    data: unknown[];
+    total: number;
+    closedPnlSum: number;
+    openOrders: unknown[];
+  }>;
+  listDistinctBrokers: () => Promise<string[]>;
   update: (id: string, data: Record<string, unknown>) => Promise<unknown>;
   remove: (id: string) => Promise<unknown>;
 };
@@ -20,8 +36,24 @@ export class OrdersService {
     private readonly orderRepository: OrderRepository
   ) {}
 
-  listOrders() {
-    return this.orderRepository.listLatest(50);
+  listOrders(query: ListOrdersQueryDto) {
+    const brokers = query.broker
+      ? query.broker.split(',').map((b) => b.trim()).filter(Boolean)
+      : undefined;
+
+    return this.orderRepository.listFiltered({
+      symbol: query.symbol,
+      status: query.status as 'open' | 'closed' | undefined,
+      brokers,
+      dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+      dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+  }
+
+  listBrokers() {
+    return this.orderRepository.listDistinctBrokers();
   }
 
   async getOrderById(id: string) {
@@ -57,7 +89,6 @@ export class OrdersService {
       ...(input.openedAt ? { openedAt: new Date(input.openedAt) } : {})
     };
 
-    // Recalculate PnL if the order is closed and price/quantity fields changed
     if (existingOrder.status === 'closed') {
       const entryPrice = input.entryPrice ?? existingOrder.entryPrice ?? 0;
       const closePrice = input.closePrice ?? existingOrder.closePrice ?? 0;
