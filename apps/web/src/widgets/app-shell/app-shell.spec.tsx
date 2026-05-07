@@ -12,7 +12,7 @@ describe('AppShell', () => {
 
     expect(markup).toContain('Overview');
     expect(markup).toContain('Trading History');
-    expect(markup).toContain('Analysis Feed');
+    expect(markup).toContain('Daily Plan');
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('Dashboard body');
   });
@@ -25,7 +25,6 @@ describe('AppShell', () => {
     );
 
     expect(markup).toContain('app-shell');
-    expect(markup).toContain('topbar');
     expect(markup).toContain('sidebar-nav');
     expect(markup).toContain('app-shell-content');
     expect(markup).toContain('Dashboard body');

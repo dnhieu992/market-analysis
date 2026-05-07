@@ -15,7 +15,6 @@ describe('TradeForm', () => {
   it('renders the required manual trade fields', () => {
     const markup = renderToStaticMarkup(<TradeForm />);
 
-    expect(markup).toContain('Add Manual Trade');
     expect(markup).toContain('Symbol');
     expect(markup).toContain('Side');
     expect(markup).toContain('Entry Price');

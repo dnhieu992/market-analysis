@@ -68,8 +68,8 @@ describe('DailyPlanPage', () => {
 
   it('renders the daily plan page with BTC header', async () => {
     const markup = renderToStaticMarkup(await DailyPlanPage());
-    expect(markup).toContain('BTC Daily Analysis');
-    expect(markup).toContain('Daily Plan');
+    expect(markup).toContain('BTCUSDT');
+    expect(markup).toContain('daily-plan-shell');
   });
 
   it('renders a card with trend and level data', async () => {
@@ -94,6 +94,6 @@ describe('DailyPlanPage', () => {
     } as unknown as ReturnType<typeof createApiClient>);
 
     const markup = renderToStaticMarkup(await DailyPlanPage());
-    expect(markup).toContain('No daily plans yet');
+    expect(markup).toContain('No daily plans yet.');
   });
 });

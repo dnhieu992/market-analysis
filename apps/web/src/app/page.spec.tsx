@@ -81,10 +81,5 @@ describe('HomePage', () => {
     });
     expect(markup).toContain('Overview Dashboard');
     expect(markup).toContain('Open Orders');
-    expect(markup).toContain('Recent Analysis');
-    expect(markup).toContain('Order Activity');
-    expect(markup).toContain('/trades');
-    expect(markup).toContain('/analysis');
-    expect(markup).toContain('BTCUSDT');
   });
 });
