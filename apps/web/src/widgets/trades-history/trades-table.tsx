@@ -622,7 +622,7 @@ export function TradesTable({
                 {dateFilter === 'custom' && customFrom && customTo ? `${customFrom} – ${customTo}` : 'Custom…'}
               </option>
             </select>
-            {(dateFilter === 'custom' || showDatePopover) && (
+            {showDatePopover && (
               <div className="trades-date-popover">
                 <label className="trades-date-popover__label">From</label>
                 <input
