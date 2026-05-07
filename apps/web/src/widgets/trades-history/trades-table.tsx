@@ -5,6 +5,31 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
+const FILTER_STORAGE_KEY = 'trades_filters';
+const PERSISTED_FILTER_KEYS = ['symbol', 'status', 'broker', 'dateFrom', 'dateTo', 'dateFilter'] as const;
+
+function saveFiltersToStorage(params: URLSearchParams) {
+  const filters: Record<string, string> = {};
+  for (const key of PERSISTED_FILTER_KEYS) {
+    const val = params.get(key);
+    if (val) filters[key] = val;
+  }
+  if (Object.keys(filters).length > 0) {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+  } else {
+    localStorage.removeItem(FILTER_STORAGE_KEY);
+  }
+}
+
+function loadFiltersFromStorage(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function calcUnrealizedPnl(
   openOrders: DashboardOrder[],
   pricesMap: Record<string, number>,
@@ -353,6 +378,26 @@ export function TradesTable({
     return () => clearInterval(id);
   }, [autoReload, router]);
 
+  // Restore filters from localStorage on mount if URL has no filter params
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const hasUrlFilters = PERSISTED_FILTER_KEYS.some(k => searchParams.get(k));
+    if (hasUrlFilters) return;
+    const saved = loadFiltersFromStorage();
+    if (Object.keys(saved).length === 0) return;
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(saved)) params.set(k, v);
+    router.replace(`/trades?${params.toString()}`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist filters to localStorage whenever search params change
+  useEffect(() => {
+    saveFiltersToStorage(new URLSearchParams(searchParams.toString()));
+  }, [searchParams]);
+
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (value) params.set(key, value);
@@ -413,6 +458,7 @@ export function TradesTable({
   }
 
   function resetFilters() {
+    localStorage.removeItem(FILTER_STORAGE_KEY);
     router.push('/trades');
     setSymbolDraft('');
     setLocalCustomFrom('');
