@@ -3,9 +3,53 @@ import axios, { type AxiosInstance } from 'axios';
 
 import { TelegramService } from '../telegram/telegram.service';
 import { SwingPaService } from '../analysis/swing-pa.service';
-import { SwingSignalService } from '../swing-signal/swing-signal.service';
+import { SwingSignalService, type SymbolDebugResult } from '../swing-signal/swing-signal.service';
 import { EmaSignalService } from './ema-signal.service';
 import { WatchlistService } from './watchlist.service';
+
+function formatDebugResult(result: SymbolDebugResult): string {
+  if (result.stage === 'insufficient_candles') {
+    return `❌ ${result.symbol}: Not enough candles to analyze.`;
+  }
+  if (result.stage === 'api_failed') {
+    return `❌ ${result.symbol}: Claude API call failed (check server logs for HTTP status/details).`;
+  }
+  if (result.stage === 'parse_failed') {
+    return `❌ ${result.symbol}: Claude returned invalid JSON.\n\nRaw snippet:\n<code>${result.rawSnippet}</code>`;
+  }
+
+  const { symbol, currentPrice, recommendation, overallAssessment, trendAlignment,
+          patternsCount, rawSetupCount, validSetupCount, rejections, summary } = result;
+
+  const trendLine = `W: ${trendAlignment.weekly} | D: ${trendAlignment.daily} | 4H: ${trendAlignment.fourHour}`;
+  const alignedLine = trendAlignment.aligned ? '✅ Aligned' : '⚠️ Not aligned';
+
+  const setupLine = rawSetupCount === 0
+    ? '⚪ Claude generated 0 setups (SKIP at source)'
+    : validSetupCount === 0
+      ? `🔴 ${rawSetupCount} setup(s) generated → all rejected by validator`
+      : `🟢 ${rawSetupCount} setup(s) generated → ${validSetupCount} passed validation`;
+
+  const rejectionLines = rejections.length > 0
+    ? `\nRejection reasons:\n${rejections.map(r => `  • ${r}`).join('\n')}`
+    : '';
+
+  return [
+    `🔍 Debug: ${symbol}`,
+    `Price: $${currentPrice}`,
+    `Assessment: ${overallAssessment}`,
+    `Recommendation: ${recommendation}`,
+    '',
+    `Trend: ${trendLine}`,
+    alignedLine,
+    '',
+    `Patterns detected: ${patternsCount}`,
+    setupLine,
+    rejectionLines,
+    '',
+    `Summary: ${summary}`
+  ].filter(l => l !== undefined).join('\n');
+}
 
 type TelegramUpdate = {
   update_id: number;
@@ -131,6 +175,23 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
         await this.telegramService.sendToChat(
           chatId,
           `❌ Scan failed: ${err instanceof Error ? err.message : 'unknown error'}`
+        );
+      }
+      return;
+    }
+
+    // /check SYMBOL → debug single symbol, show full pipeline result
+    const checkSymbolMatch = /^\/check\s+([A-Z0-9]+)$/i.exec(text);
+    if (checkSymbolMatch) {
+      const symbol = checkSymbolMatch[1]!.toUpperCase();
+      await this.telegramService.sendToChat(chatId, `⏳ Debugging ${symbol}...`);
+      try {
+        const result = await this.swingSignalService.debugSymbol(symbol);
+        await this.telegramService.sendToChat(chatId, formatDebugResult(result));
+      } catch (err) {
+        await this.telegramService.sendToChat(
+          chatId,
+          `❌ Debug failed for ${symbol}: ${err instanceof Error ? err.message : 'unknown error'}`
         );
       }
       return;

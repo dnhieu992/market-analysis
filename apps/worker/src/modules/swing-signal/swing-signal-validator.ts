@@ -183,6 +183,52 @@ function validateSetup(
   return { valid: true, warnings };
 }
 
+// ─── Validation Result with Rejection Details ─────────────────────────────────
+
+export type ValidationResult = {
+  analysis: SwingSignalAiResponse;
+  rawSetupCount: number;
+  rejections: string[];
+};
+
+export function validateAnalysisWithDetails(
+  analysis: SwingSignalAiResponse,
+  currentPrice: number
+): ValidationResult {
+  const rawSetupCount = analysis.buy_setups.length;
+  const rejections: string[] = [];
+
+  const mtfWarning = !analysis.trend_alignment.aligned
+    ? ['Multi-timeframe trends not aligned']
+    : [];
+
+  const validSetups: BuySetup[] = [];
+
+  for (const setup of analysis.buy_setups) {
+    const { valid, warnings } = validateSetup(setup, currentPrice);
+    if (valid) {
+      setup.warnings = [...mtfWarning, ...warnings];
+      validSetups.push(setup);
+    } else {
+      rejections.push(`${setup.type}: ${warnings.join(', ')}`);
+    }
+  }
+
+  validSetups.sort((a, b) => b.confidence - a.confidence);
+  analysis.buy_setups = validSetups;
+
+  if (validSetups.length === 0) {
+    analysis.recommendation = 'SKIP';
+  }
+
+  const validRecs: Recommendation[] = ['BUY_NOW', 'WAIT_FOR_PULLBACK', 'WAIT_FOR_BREAKOUT', 'SKIP'];
+  if (!validRecs.includes(analysis.recommendation)) {
+    analysis.recommendation = 'SKIP';
+  }
+
+  return { analysis, rawSetupCount, rejections };
+}
+
 // ─── Main Validator ───────────────────────────────────────────────────────────
 
 export function validateAnalysis(

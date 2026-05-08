@@ -9,6 +9,7 @@ import { buildSwingSignalPrompt, SWING_SIGNAL_SYSTEM_PROMPT } from './swing-sign
 import {
   parseAiResponse,
   validateAnalysis,
+  validateAnalysisWithDetails,
   type SwingSignalAiResponse
 } from './swing-signal-validator';
 import { formatSwingSignalBreakoutMessage } from './swing-signal-formatter';
@@ -225,4 +226,67 @@ export class SwingSignalService {
 
     return validateAnalysis(analysis, processed.currentPrice);
   }
+
+  // Debug: full pipeline transparency for a single symbol
+  async debugSymbol(symbol: string): Promise<SymbolDebugResult> {
+    const [weekly, daily, fourHour] = await Promise.all([
+      this.marketDataService.getCandles(symbol, '1w', 150),
+      this.marketDataService.getCandles(symbol, '1d', 365),
+      this.marketDataService.getCandles(symbol, '4h', 360)
+    ]);
+
+    if (daily.length < 30) {
+      return { stage: 'insufficient_candles', symbol };
+    }
+
+    const processed = preProcess(symbol, weekly, daily, fourHour);
+    const userPrompt = buildSwingSignalPrompt(processed);
+    const rawText = await this.callClaude(userPrompt);
+
+    if (!rawText) {
+      return { stage: 'api_failed', symbol };
+    }
+
+    const analysis = parseAiResponse(rawText);
+    if (!analysis) {
+      return { stage: 'parse_failed', symbol, rawSnippet: rawText.slice(0, 200) };
+    }
+
+    const { analysis: validated, rawSetupCount, rejections } = validateAnalysisWithDetails(
+      analysis,
+      processed.currentPrice
+    );
+
+    return {
+      stage: 'validated',
+      symbol,
+      currentPrice: processed.currentPrice,
+      recommendation: validated.recommendation,
+      overallAssessment: validated.overall_assessment,
+      trendAlignment: validated.trend_alignment,
+      patternsCount: validated.patterns_detected.length,
+      rawSetupCount,
+      validSetupCount: validated.buy_setups.length,
+      rejections,
+      summary: validated.summary
+    };
+  }
 }
+
+export type SymbolDebugResult =
+  | { stage: 'insufficient_candles'; symbol: string }
+  | { stage: 'api_failed'; symbol: string }
+  | { stage: 'parse_failed'; symbol: string; rawSnippet: string }
+  | {
+      stage: 'validated';
+      symbol: string;
+      currentPrice: number;
+      recommendation: string;
+      overallAssessment: string;
+      trendAlignment: { weekly: string; daily: string; fourHour: string; aligned: boolean };
+      patternsCount: number;
+      rawSetupCount: number;
+      validSetupCount: number;
+      rejections: string[];
+      summary: string;
+    };
