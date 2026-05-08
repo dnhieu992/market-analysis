@@ -37,76 +37,34 @@ function SkillCard({ skill }: { skill: Skill }) {
   const categoryColor = CATEGORY_COLORS[skill.category] ?? 'var(--accent)';
 
   return (
-    <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 16,
-      padding: '24px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 16,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-      transition: 'box-shadow 0.2s, transform 0.2s',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <span style={{ fontSize: 36, lineHeight: 1 }}>{skill.icon}</span>
-        <span style={{
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
-          color: categoryColor,
-          background: `${categoryColor}18`,
-          padding: '3px 10px',
-          borderRadius: 20,
-          whiteSpace: 'nowrap'
-        }}>
-          {CATEGORY_LABELS[skill.category] ?? skill.category}
-        </span>
+    <div className="skill-card">
+      <div className="skill-card-top">
+        <span className="skill-card-icon">{skill.icon}</span>
+        <div className="skill-card-meta">
+          <h3 className="skill-card-name">{skill.name}</h3>
+          <span
+            className="skill-card-badge"
+            style={{ color: categoryColor, background: `${categoryColor}18` }}
+          >
+            {CATEGORY_LABELS[skill.category] ?? skill.category}
+          </span>
+        </div>
       </div>
 
-      <div>
-        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--foreground)' }}>
-          {skill.name}
-        </h3>
-        <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>
-          {skill.description}
-        </p>
-      </div>
+      <p className="skill-card-desc">{skill.description}</p>
 
       {skill.exampleQuestions.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div className="skill-card-examples">
           {skill.exampleQuestions.slice(0, 2).map((q) => (
-            <p key={q} style={{
-              margin: 0,
-              fontSize: 12,
-              color: 'var(--muted)',
-              background: 'var(--background)',
-              padding: '5px 10px',
-              borderRadius: 8,
-              lineHeight: 1.4
-            }}>
-              {q}
-            </p>
+            <p key={q} className="skill-card-example">{q}</p>
           ))}
         </div>
       )}
 
       <button
+        className="skill-card-btn"
         onClick={() => { void handleUseSkill(); }}
         disabled={loading}
-        style={{
-          marginTop: 'auto',
-          padding: '10px 20px',
-          background: loading ? 'var(--muted)' : 'var(--accent)',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 10,
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: loading ? 'not-allowed' : 'pointer',
-          transition: 'background 0.15s'
-        }}
       >
         {loading ? 'Đang tạo...' : 'Dùng skill này'}
       </button>
@@ -124,11 +82,7 @@ export function SkillsGrid({ skills }: { skills: Skill[] }) {
   }
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-      gap: 20
-    }}>
+    <div className="skills-grid">
       {skills.map((skill) => (
         <SkillCard key={skill.id} skill={skill} />
       ))}
