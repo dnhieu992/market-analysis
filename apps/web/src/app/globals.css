@@ -5167,27 +5167,6 @@ a.metric-card--link:hover {
 
 /* Desktop layout */
 @media (min-width: 768px) {
-  .sc-sidebar {
-    position: static;
-    width: 260px;
-    min-width: 260px;
-    transform: none !important;
-    border-right: 1px solid var(--border);
-    z-index: auto;
-  }
-
-  .sc-sidebar-backdrop {
-    display: none !important;
-  }
-
-  .sc-sidebar-close {
-    display: none;
-  }
-
-  .sc-header-menu-btn {
-    display: none;
-  }
-
   .sc-messages {
     padding: 24px;
   }
@@ -5235,15 +5214,65 @@ a.metric-card--link:hover {
   word-break: break-word;
 }
 
-/* ── Sidebar solid background (override semi-transparent var) ───────────────── */
+/* ── Sidebar: always light mode, solid white ─────────────────────────────────── */
 .sc-sidebar {
-  background: #fff;
+  background: #ffffff !important;
+  color: #1a1a1a;
 }
 
-@media (prefers-color-scheme: dark) {
-  .sc-sidebar {
-    background: #1a1a2e;
-  }
+.sc-sidebar .sc-back-link,
+.sc-sidebar .sc-skill-cat,
+.sc-sidebar .sc-conv-empty,
+.sc-sidebar .sc-conv-date {
+  color: #888;
+}
+
+.sc-sidebar .sc-skill-name,
+.sc-sidebar .sc-conv-title {
+  color: #1a1a1a;
+}
+
+.sc-sidebar .sc-conv-link {
+  color: #1a1a1a;
+}
+
+.sc-sidebar .sc-conv-link:hover {
+  background: #f0f4ff;
+}
+
+.sc-sidebar .sc-conv-item--active .sc-conv-link {
+  background: #e8f0fe;
+  color: var(--accent);
+}
+
+.sc-sidebar .sc-new-btn {
+  background: #e8f0fe;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.sc-sidebar .sc-conv-rename-input {
+  background: #fff;
+  color: #1a1a1a;
+  border-color: var(--accent);
+}
+
+.sc-sidebar .sc-conv-confirm {
+  color: #888;
+}
+
+.sc-sidebar .sc-conv-confirm-no {
+  background: #f5f5f5;
+  border-color: #ddd;
+  color: #333;
+}
+
+.sc-sidebar .sc-sidebar-close {
+  color: #888;
+}
+
+.sc-sidebar .sc-sidebar-close:hover {
+  color: #333;
 }
 
 /* ── Conversation CRUD items ─────────────────────────────────────────────────── */
