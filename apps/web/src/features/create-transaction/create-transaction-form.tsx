@@ -36,7 +36,7 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
   const priceRef = useRef<HTMLInputElement>(null);
 
   async function handleCoinBlur() {
-    if (!coinId.trim() || price) return;
+    if (!coinId.trim()) return;
     const fetched = await fetchCoinPrice(coinId);
     if (fetched != null) setPrice(String(fetched));
   }
