@@ -24,17 +24,11 @@ function formatCrypto(value: number): string {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(value);
 }
 
-function PnlCell({ value, invested }: { value: number; invested: number }) {
+function PnlCell({ value }: { value: number }) {
   const isPositive = value >= 0;
-  const pct = invested > 0 ? (value / invested) * 100 : 0;
   return (
-    <div>
-      <div className={isPositive ? 'tt-pnl-positive' : 'tt-pnl-negative'}>
-        {isPositive ? '+' : ''}{formatUsd(value)}
-      </div>
-      <div style={{ fontSize: '0.75rem', color: isPositive ? '#22c55e' : '#ef4444' }}>
-        {isPositive ? '▲' : '▼'} {Math.abs(pct).toFixed(2)}%
-      </div>
+    <div className={isPositive ? 'tt-pnl-positive' : 'tt-pnl-negative'}>
+      {isPositive ? '+' : ''}{formatUsd(value)}
     </div>
   );
 }
@@ -86,7 +80,6 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
 
   const allTimeProfit = stats.reduce((sum, s) => sum + s.totalPnl, 0);
   const totalCostBasis = stats.reduce((sum, s) => sum + s.totalInvested, 0);
-  const overallPct = totalCostBasis > 0 ? (allTimeProfit / totalCostBasis) * 100 : 0;
   const isProfitPositive = allTimeProfit >= 0;
 
   const best = [...stats].sort((a, b) => b.pnlPct - a.pnlPct)[0];
@@ -110,14 +103,9 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
         {loading ? (
           <span className="tt-muted">loading…</span>
         ) : (
-          <>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: isProfitPositive ? '#22c55e' : '#ef4444' }}>
-              {isProfitPositive ? '+' : ''}{formatUsd(allTimeProfit)}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: isProfitPositive ? '#22c55e' : '#ef4444', marginTop: '0.25rem' }}>
-              {isProfitPositive ? '▲' : '▼'} {Math.abs(overallPct).toFixed(2)}%
-            </div>
-          </>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: isProfitPositive ? '#22c55e' : '#ef4444' }}>
+            {isProfitPositive ? '+' : ''}{formatUsd(allTimeProfit)}
+          </div>
         )}
       </div>
 
@@ -136,8 +124,8 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
               <CoinAvatar coinId={best.coinId} />
               <span style={{ fontWeight: 700 }}>{best.coinId}</span>
             </div>
-            <div style={{ fontSize: '0.8rem', color: best.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
-              {best.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(best.pnlPct).toFixed(2)}%
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: best.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
+              {best.totalPnl >= 0 ? '+' : ''}{formatUsd(best.totalPnl)}
             </div>
           </>
         ) : null}
@@ -152,8 +140,8 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
               <CoinAvatar coinId={worst.coinId} />
               <span style={{ fontWeight: 700 }}>{worst.coinId}</span>
             </div>
-            <div style={{ fontSize: '0.8rem', color: worst.pnlPct >= 0 ? '#22c55e' : '#ef4444' }}>
-              {worst.pnlPct >= 0 ? '▲' : '▼'} {Math.abs(worst.pnlPct).toFixed(2)}%
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: worst.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
+              {worst.totalPnl >= 0 ? '+' : ''}{formatUsd(worst.totalPnl)}
             </div>
           </>
         ) : null}
@@ -236,7 +224,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                     </td>
                     <td data-label="P/L">
                       {pricesLoaded
-                        ? <PnlCell value={totalPnl} invested={h.totalInvested} />
+                        ? <PnlCell value={totalPnl} />
                         : <span className="tt-muted">loading…</span>
                       }
                     </td>

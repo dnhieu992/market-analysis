@@ -751,6 +751,40 @@ a {
   grid-column: 1 / -1;
 }
 
+/* ── Transaction type tabs (Buy / Sell) ─────────────────────────── */
+.tx-type-tabs {
+  grid-column: 1 / -1;
+  display: flex;
+  background: #f0f2f5;
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.tx-type-tab {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #888;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tx-type-tab--buy {
+  background: #16a34a;
+  color: #fff;
+}
+
+.tx-type-tab--sell {
+  background: #dc2626;
+  color: #fff;
+}
+
 .trade-submit {
   grid-column: 1 / -1;
   border: 0;
