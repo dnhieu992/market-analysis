@@ -4860,3 +4860,348 @@ a.metric-card--link:hover {
     font-size: 17px;
   }
 }
+
+/* ── Skill chat page ─────────────────────────────────────────────────────────── */
+
+.sc-root {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Sidebar */
+.sc-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-elevated);
+  overflow: hidden;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+}
+
+.sc-sidebar--open {
+  transform: translateX(0);
+}
+
+.sc-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 199;
+}
+
+.sc-sidebar-backdrop--open {
+  display: block;
+}
+
+.sc-sidebar-head {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sc-sidebar-close {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+}
+
+.sc-back-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.sc-skill-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sc-skill-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.sc-skill-name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--foreground);
+}
+
+.sc-skill-cat {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sc-new-btn-wrap {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sc-new-btn {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.sc-conv-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.sc-conv-item {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 2px;
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.sc-conv-item--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sc-conv-item:not(.sc-conv-item--active) {
+  color: var(--foreground);
+}
+
+.sc-conv-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-conv-date {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.sc-conv-empty {
+  padding: 12px 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Main area */
+.sc-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.sc-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--background-elevated);
+  flex-shrink: 0;
+}
+
+.sc-header-menu-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.sc-header-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.sc-header-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--foreground);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Messages */
+.sc-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* Welcome */
+.sc-welcome {
+  max-width: 600px;
+  margin-bottom: 24px;
+}
+
+.sc-welcome-msg {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--foreground);
+  line-height: 1.6;
+}
+
+.sc-quick-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sc-quick-btn {
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--foreground);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Input */
+.sc-input-area {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  background: var(--background-elevated);
+  flex-shrink: 0;
+}
+
+.sc-input-wrap {
+  flex: 1;
+}
+
+.sc-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.sc-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sc-send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+.sc-send-btn:disabled {
+  background: var(--muted);
+  cursor: not-allowed;
+}
+
+/* Desktop layout */
+@media (min-width: 768px) {
+  .sc-sidebar {
+    position: static;
+    width: 260px;
+    min-width: 260px;
+    transform: none !important;
+    border-right: 1px solid var(--border);
+    z-index: auto;
+  }
+
+  .sc-sidebar-backdrop {
+    display: none !important;
+  }
+
+  .sc-sidebar-close {
+    display: none;
+  }
+
+  .sc-header-menu-btn {
+    display: none;
+  }
+
+  .sc-messages {
+    padding: 24px;
+  }
+
+  .sc-input-area {
+    padding: 14px 24px;
+  }
+
+  .sc-header {
+    padding: 14px 24px;
+  }
+
+  .sc-quick-actions {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}

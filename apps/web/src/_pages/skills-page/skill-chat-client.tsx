@@ -62,6 +62,7 @@ export function SkillChatClient({
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,6 +72,11 @@ export function SkillChatClient({
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, [conversationId]);
+
+  // Close sidebar when navigating to a new conversation
+  useEffect(() => {
+    setSidebarOpen(false);
   }, [conversationId]);
 
   async function handleNewConversation() {
@@ -135,61 +141,39 @@ export function SkillChatClient({
   const showWelcome = messages.length === 0 && !sending;
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div className="sc-root">
 
-      {/* ── Left Sidebar ──────────────────────────────────────────── */}
-      <aside style={{
-        width: 260,
-        minWidth: 260,
-        borderRight: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--background-elevated)',
-        overflow: 'hidden'
-      }}>
-        {/* Back + Skill info */}
-        <div style={{ padding: '20px 16px 12px', borderBottom: '1px solid var(--border)' }}>
-          <Link
-            href="/skills"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}
-          >
-            ← Tất cả skills
-          </Link>
+      {/* ── Backdrop (mobile only) ─────────────────────────────── */}
+      <div
+        className={`sc-sidebar-backdrop${sidebarOpen ? ' sc-sidebar-backdrop--open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* ── Sidebar ───────────────────────────────────────────── */}
+      <aside className={`sc-sidebar${sidebarOpen ? ' sc-sidebar--open' : ''}`}>
+        <div className="sc-sidebar-head">
+          <button className="sc-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng">✕</button>
+          <Link href="/skills" className="sc-back-link">← Tất cả skills</Link>
           {skill && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 28 }}>{skill.icon}</span>
+            <div className="sc-skill-info">
+              <span className="sc-skill-icon">{skill.icon}</span>
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--foreground)' }}>{skill.name}</p>
-                <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{skill.category}</p>
+                <p className="sc-skill-name">{skill.name}</p>
+                <p className="sc-skill-cat">{skill.category}</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* New conversation button */}
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-          <button
-            onClick={() => { void handleNewConversation(); }}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              background: 'var(--accent-soft)',
-              color: 'var(--accent)',
-              border: '1px solid var(--accent)',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
+        <div className="sc-new-btn-wrap">
+          <button className="sc-new-btn" onClick={() => { void handleNewConversation(); }}>
             + Cuộc trò chuyện mới
           </button>
         </div>
 
-        {/* Conversation list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
+        <div className="sc-conv-list">
           {conversations.length === 0 ? (
-            <p style={{ padding: '12px 8px', color: 'var(--muted)', fontSize: 13 }}>Chưa có cuộc trò chuyện</p>
+            <p className="sc-conv-empty">Chưa có cuộc trò chuyện</p>
           ) : (
             conversations.map((conv) => {
               const isActive = conv.id === conversationId;
@@ -197,27 +181,11 @@ export function SkillChatClient({
                 <Link
                   key={conv.id}
                   href={`/skills/${skillId}/chat/${conv.id}`}
-                  style={{
-                    display: 'block',
-                    padding: '9px 10px',
-                    borderRadius: 8,
-                    background: isActive ? 'var(--accent-soft)' : 'transparent',
-                    color: isActive ? 'var(--accent)' : 'var(--foreground)',
-                    fontSize: 13,
-                    fontWeight: isActive ? 600 : 400,
-                    marginBottom: 2,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
+                  className={`sc-conv-item${isActive ? ' sc-conv-item--active' : ''}`}
                   title={conv.title}
                 >
-                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {conv.title}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>
-                    {formatDate(conv.updatedAt)}
-                  </span>
+                  <span className="sc-conv-title">{conv.title}</span>
+                  <span className="sc-conv-date">{formatDate(conv.updatedAt)}</span>
                 </Link>
               );
             })
@@ -225,57 +193,32 @@ export function SkillChatClient({
         </div>
       </aside>
 
-      {/* ── Main Chat Area ────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ── Main Chat Area ────────────────────────────────────── */}
+      <div className="sc-main">
 
         {/* Header */}
-        <div style={{
-          padding: '16px 24px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          background: 'var(--background-elevated)'
-        }}>
-          {skill && <span style={{ fontSize: 22 }}>{skill.icon}</span>}
-          <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--foreground)' }}>
-            {skill?.name ?? 'Chat'}
-          </span>
+        <div className="sc-header">
+          <button
+            className="sc-header-menu-btn"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Mở menu"
+          >
+            ☰
+          </button>
+          {skill && <span className="sc-header-icon">{skill.icon}</span>}
+          <span className="sc-header-title">{skill?.name ?? 'Chat'}</span>
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+        <div className="sc-messages">
 
-          {/* Welcome + quick actions */}
           {showWelcome && skill && (
-            <div style={{ maxWidth: 600, marginBottom: 32 }}>
-              <div style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                padding: '16px 20px',
-                marginBottom: 16
-              }}>
-                <p style={{ margin: 0, color: 'var(--foreground)', fontSize: 14, lineHeight: 1.6 }}>
-                  {skill.welcomeMessage}
-                </p>
-              </div>
+            <div className="sc-welcome">
+              <div className="sc-welcome-msg">{skill.welcomeMessage}</div>
               {skill.exampleQuestions.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div className="sc-quick-actions">
                   {skill.exampleQuestions.slice(0, 4).map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => handleQuickAction(q)}
-                      style={{
-                        padding: '7px 14px',
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 20,
-                        fontSize: 13,
-                        color: 'var(--foreground)',
-                        cursor: 'pointer'
-                      }}
-                    >
+                    <button key={q} className="sc-quick-btn" onClick={() => handleQuickAction(q)}>
                       {q}
                     </button>
                   ))}
@@ -284,12 +227,8 @@ export function SkillChatClient({
             </div>
           )}
 
-          {/* Message thread */}
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`chat-msg chat-msg--${msg.role}`}
-            >
+            <div key={msg.id} className={`chat-msg chat-msg--${msg.role}`}>
               {msg.role === 'assistant' && (
                 <div className="chat-msg-avatar" style={{ fontSize: 18 }}>
                   {skill?.icon ?? '🤖'}
@@ -325,13 +264,13 @@ export function SkillChatClient({
         </div>
 
         {/* Input */}
-        <div className="chat-input-area" style={{ padding: '16px 24px' }}>
-          <div className="chat-input-wrap">
+        <div className="sc-input-area">
+          <div className="sc-input-wrap">
             <textarea
               ref={inputRef}
-              className="chat-input"
+              className="sc-input"
               rows={2}
-              placeholder={`Hỏi ${skill?.name ?? 'AI'}... (Enter để gửi, Shift+Enter xuống dòng)`}
+              placeholder={`Hỏi ${skill?.name ?? 'AI'}...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -339,7 +278,7 @@ export function SkillChatClient({
             />
           </div>
           <button
-            className="chat-send-btn"
+            className="sc-send-btn"
             onClick={() => void handleSend()}
             disabled={!input.trim() || sending}
             aria-label="Gửi"
