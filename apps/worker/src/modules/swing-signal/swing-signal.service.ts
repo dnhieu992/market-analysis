@@ -19,10 +19,21 @@ const RATE_LIMIT_DELAY_MS = 1_500;
 
 export type SymbolScanResult = {
   symbol: string;
+  currentPrice: number;
   recommendation: string;
   validSetupCount: number;
   signalSent: boolean;
   summary: string;
+  // Trend
+  weeklyTrend: string;
+  dailyTrend: string;
+  fourHourTrend: string;
+  // Sideways: range boundaries
+  sidewaysRange?: { low: number; high: number };
+  // Downtrend: top support levels
+  supportLevels?: number[];
+  // Uptrend: nearest resistance
+  resistanceLevels?: number[];
   error?: string;
 };
 
@@ -105,10 +116,14 @@ export class SwingSignalService {
           summary.errors++;
           summary.symbolResults.push({
             symbol,
+            currentPrice: 0,
             recommendation: 'ERROR',
             validSetupCount: 0,
             signalSent: false,
             summary: 'Pipeline failed (API, candles, or parse error)',
+            weeklyTrend: '-',
+            dailyTrend: '-',
+            fourHourTrend: '-',
             error: 'See server logs for details'
           });
         }
@@ -118,10 +133,14 @@ export class SwingSignalService {
         this.logger.error(`SwingSignal failed for ${symbol}: ${msg}`);
         summary.symbolResults.push({
           symbol,
+          currentPrice: 0,
           recommendation: 'ERROR',
           validSetupCount: 0,
           signalSent: false,
           summary: msg,
+          weeklyTrend: '-',
+          dailyTrend: '-',
+          fourHourTrend: '-',
           error: msg
         });
       }
@@ -184,13 +203,44 @@ export class SwingSignalService {
       signalSent = true;
     }
 
-    return {
+    // 8. Build per-symbol scan result with trend + level info from pre-processed data
+    const dailyTrend = processed.daily.trend.direction;
+    const weeklyTrend = processed.weekly.trend.direction;
+    const fourHourTrend = processed.fourHour.trend.direction;
+
+    const result: SymbolScanResult = {
       symbol,
+      currentPrice: processed.currentPrice,
       recommendation: validated.recommendation,
       validSetupCount: validated.buy_setups.length,
       signalSent,
-      summary: validated.summary
+      summary: validated.summary,
+      weeklyTrend,
+      dailyTrend,
+      fourHourTrend
     };
+
+    if (dailyTrend === 'SIDEWAYS') {
+      const topResistance = processed.daily.resistance[0]?.zoneCenter;
+      const topSupport = processed.daily.support[0]?.zoneCenter;
+      if (topSupport !== undefined && topResistance !== undefined) {
+        result.sidewaysRange = { low: topSupport, high: topResistance };
+      }
+    }
+
+    if (dailyTrend === 'DOWNTREND') {
+      result.supportLevels = processed.daily.support
+        .slice(0, 3)
+        .map((l) => l.zoneCenter);
+    }
+
+    if (dailyTrend === 'UPTREND') {
+      result.resistanceLevels = processed.daily.resistance
+        .slice(0, 2)
+        .map((l) => l.zoneCenter);
+    }
+
+    return result;
   }
 
   private async callClaude(userPrompt: string): Promise<string | null> {

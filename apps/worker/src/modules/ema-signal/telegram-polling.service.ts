@@ -15,11 +15,40 @@ function recEmoji(rec: string): string {
   return '⚪';
 }
 
+function fmtPrice(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function trendEmoji(trend: string): string {
+  if (trend === 'UPTREND') return '📈';
+  if (trend === 'DOWNTREND') return '📉';
+  if (trend === 'SIDEWAYS') return '↔️';
+  return '—';
+}
+
 function formatSymbolScanResult(r: SymbolScanResult): string {
-  const emoji = r.signalSent ? recEmoji(r.recommendation) : recEmoji(r.error ? 'ERROR' : 'SKIP');
-  const setupInfo = r.validSetupCount > 0 ? ` (${r.validSetupCount} setup)` : '';
-  const summaryLine = r.summary ? `\n   ${r.summary}` : '';
-  return `${emoji} <b>${r.symbol}</b>: ${r.recommendation}${setupInfo}${summaryLine}`;
+  const sigEmoji = r.signalSent ? recEmoji(r.recommendation) : recEmoji(r.error ? 'ERROR' : 'SKIP');
+  const setupInfo = r.validSetupCount > 0 ? ` · ${r.validSetupCount} setup` : '';
+
+  const trendLine = `${trendEmoji(r.weeklyTrend)} W:${r.weeklyTrend} · ${trendEmoji(r.dailyTrend)} D:${r.dailyTrend} · ${trendEmoji(r.fourHourTrend)} 4H:${r.fourHourTrend}`;
+
+  let extraLine = '';
+  if (r.dailyTrend === 'SIDEWAYS' && r.sidewaysRange) {
+    extraLine = `   ↔️ Range: $${fmtPrice(r.sidewaysRange.low)} – $${fmtPrice(r.sidewaysRange.high)}`;
+  } else if (r.dailyTrend === 'DOWNTREND' && r.supportLevels && r.supportLevels.length > 0) {
+    extraLine = `   🛡 Supports: ${r.supportLevels.map((p) => `$${fmtPrice(p)}`).join(' · ')}`;
+  } else if (r.dailyTrend === 'UPTREND' && r.resistanceLevels && r.resistanceLevels.length > 0) {
+    extraLine = `   🎯 Resistance: ${r.resistanceLevels.map((p) => `$${fmtPrice(p)}`).join(' · ')}`;
+  }
+
+  const summaryLine = r.summary ? `   💬 ${r.summary}` : '';
+
+  return [
+    `${sigEmoji} <b>${r.symbol}</b> $${fmtPrice(r.currentPrice)} · ${r.recommendation}${setupInfo}`,
+    `   ${trendLine}`,
+    extraLine,
+    summaryLine
+  ].filter(Boolean).join('\n');
 }
 
 function formatDebugResult(result: SymbolDebugResult): string {
