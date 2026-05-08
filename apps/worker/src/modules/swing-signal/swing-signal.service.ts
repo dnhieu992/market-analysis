@@ -17,12 +17,22 @@ import { formatSwingSignalBreakoutMessage } from './swing-signal-formatter';
 const CLAUDE_TIMEOUT_MS = 90_000;
 const RATE_LIMIT_DELAY_MS = 1_500;
 
+export type SymbolScanResult = {
+  symbol: string;
+  recommendation: string;
+  validSetupCount: number;
+  signalSent: boolean;
+  summary: string;
+  error?: string;
+};
+
 export type SwingScanSummary = {
   total: number;
   signals: number;
   skipped: number;
   errors: number;
   sentSymbols: string[];
+  symbolResults: SymbolScanResult[];
 };
 
 function sleep(ms: number): Promise<void> {
@@ -67,7 +77,8 @@ export class SwingSignalService {
       signals: 0,
       skipped: 0,
       errors: 0,
-      sentSymbols: []
+      sentSymbols: [],
+      symbolResults: []
     };
 
     if (symbols.length === 0) {
@@ -81,18 +92,38 @@ export class SwingSignalService {
 
     for (const symbol of symbols) {
       try {
-        const sent = await this.analyzeSymbol(symbol);
-        if (sent) {
-          summary.signals++;
-          summary.sentSymbols.push(symbol);
+        const result = await this.analyzeSymbol(symbol);
+        if (result) {
+          summary.symbolResults.push(result);
+          if (result.signalSent) {
+            summary.signals++;
+            summary.sentSymbols.push(symbol);
+          } else {
+            summary.skipped++;
+          }
         } else {
-          summary.skipped++;
+          summary.errors++;
+          summary.symbolResults.push({
+            symbol,
+            recommendation: 'ERROR',
+            validSetupCount: 0,
+            signalSent: false,
+            summary: 'Pipeline failed (API, candles, or parse error)',
+            error: 'See server logs for details'
+          });
         }
       } catch (error) {
         summary.errors++;
-        this.logger.error(
-          `SwingSignal failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
-        );
+        const msg = error instanceof Error ? error.message : 'unknown error';
+        this.logger.error(`SwingSignal failed for ${symbol}: ${msg}`);
+        summary.symbolResults.push({
+          symbol,
+          recommendation: 'ERROR',
+          validSetupCount: 0,
+          signalSent: false,
+          summary: msg,
+          error: msg
+        });
       }
       await sleep(RATE_LIMIT_DELAY_MS);
     }
@@ -103,7 +134,7 @@ export class SwingSignalService {
     return summary;
   }
 
-  private async analyzeSymbol(symbol: string): Promise<boolean> {
+  private async analyzeSymbol(symbol: string): Promise<SymbolScanResult | null> {
     this.logger.log(`SwingSignal: analyzing ${symbol}`);
 
     // 1. Fetch multi-timeframe candles in parallel
@@ -115,7 +146,7 @@ export class SwingSignalService {
 
     if (daily.length < 30) {
       this.logger.warn(`SwingSignal: insufficient candles for ${symbol}`);
-      return false;
+      return null;
     }
 
     // 2. Pre-process (code does all math)
@@ -128,14 +159,14 @@ export class SwingSignalService {
     const rawText = await this.callClaude(userPrompt);
     if (!rawText) {
       this.logger.warn(`SwingSignal: empty Claude response for ${symbol}`);
-      return false;
+      return null;
     }
 
     // 5. Parse JSON
     const analysis = parseAiResponse(rawText);
     if (!analysis) {
       this.logger.warn(`SwingSignal: failed to parse AI response for ${symbol}`);
-      return false;
+      return null;
     }
 
     // 6. Validate
@@ -146,13 +177,20 @@ export class SwingSignalService {
     );
 
     // 7. Send if actionable
+    let signalSent = false;
     if (validated.recommendation !== 'SKIP' && validated.buy_setups.length > 0) {
       const message = formatSwingSignalBreakoutMessage(validated);
       await this.sendTelegram(symbol, message);
-      return true;
+      signalSent = true;
     }
 
-    return false;
+    return {
+      symbol,
+      recommendation: validated.recommendation,
+      validSetupCount: validated.buy_setups.length,
+      signalSent,
+      summary: validated.summary
+    };
   }
 
   private async callClaude(userPrompt: string): Promise<string | null> {

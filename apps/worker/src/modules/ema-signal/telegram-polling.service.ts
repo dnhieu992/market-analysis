@@ -3,9 +3,24 @@ import axios, { type AxiosInstance } from 'axios';
 
 import { TelegramService } from '../telegram/telegram.service';
 import { SwingPaService } from '../analysis/swing-pa.service';
-import { SwingSignalService, type SymbolDebugResult } from '../swing-signal/swing-signal.service';
+import { SwingSignalService, type SymbolDebugResult, type SymbolScanResult } from '../swing-signal/swing-signal.service';
 import { EmaSignalService } from './ema-signal.service';
 import { WatchlistService } from './watchlist.service';
+
+function recEmoji(rec: string): string {
+  if (rec === 'BUY_NOW') return '🟢';
+  if (rec === 'WAIT_FOR_PULLBACK') return '🟡';
+  if (rec === 'WAIT_FOR_BREAKOUT') return '🔵';
+  if (rec === 'ERROR') return '❌';
+  return '⚪';
+}
+
+function formatSymbolScanResult(r: SymbolScanResult): string {
+  const emoji = r.signalSent ? recEmoji(r.recommendation) : recEmoji(r.error ? 'ERROR' : 'SKIP');
+  const setupInfo = r.validSetupCount > 0 ? ` (${r.validSetupCount} setup)` : '';
+  const summaryLine = r.summary ? `\n   ${r.summary}` : '';
+  return `${emoji} <b>${r.symbol}</b>: ${r.recommendation}${setupInfo}${summaryLine}`;
+}
 
 function formatDebugResult(result: SymbolDebugResult): string {
   if (result.stage === 'insufficient_candles') {
@@ -160,16 +175,17 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
           return;
         }
 
-        const signalLine =
-          summary.signals > 0
-            ? `🟢 Signals sent: ${summary.sentSymbols.join(', ')}`
-            : '⚪ No actionable signals found.';
+        const perSymbolLines = summary.symbolResults
+          .map((r) => formatSymbolScanResult(r))
+          .join('\n');
 
-        const errorLine = summary.errors > 0 ? `\n❌ Errors: ${summary.errors} symbol(s) failed` : '';
+        const errorLine = summary.errors > 0
+          ? `\n⚠️ ${summary.errors} symbol(s) failed (see server logs)`
+          : '';
 
         await this.telegramService.sendToChat(
           chatId,
-          `✅ Scan complete — ${summary.total} symbol(s) checked.\n${signalLine}${errorLine}`
+          `✅ Scan complete — ${summary.total} symbol(s) checked, ${summary.signals} signal(s) sent.\n\n${perSymbolLines}${errorLine}`
         );
       } catch (err) {
         await this.telegramService.sendToChat(
