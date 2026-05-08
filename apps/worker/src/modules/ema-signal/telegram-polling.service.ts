@@ -106,8 +106,27 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
     if (/^\/check$/i.test(text)) {
       await this.telegramService.sendToChat(chatId, '⏳ Running swing signal scan...');
       try {
-        await this.swingSignalService.checkAll();
-        await this.telegramService.sendToChat(chatId, '✅ Swing signal scan complete.');
+        const summary = await this.swingSignalService.checkAll();
+
+        if (summary.total === 0) {
+          await this.telegramService.sendToChat(
+            chatId,
+            '⚠️ No symbols in watchlist.\n\nAdd symbols via the Profile page on the web app.'
+          );
+          return;
+        }
+
+        const signalLine =
+          summary.signals > 0
+            ? `🟢 Signals sent: ${summary.sentSymbols.join(', ')}`
+            : '⚪ No actionable signals found.';
+
+        const errorLine = summary.errors > 0 ? `\n❌ Errors: ${summary.errors} symbol(s) failed` : '';
+
+        await this.telegramService.sendToChat(
+          chatId,
+          `✅ Scan complete — ${summary.total} symbol(s) checked.\n${signalLine}${errorLine}`
+        );
       } catch (err) {
         await this.telegramService.sendToChat(
           chatId,

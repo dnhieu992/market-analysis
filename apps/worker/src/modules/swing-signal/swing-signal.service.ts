@@ -16,6 +16,14 @@ import { formatSwingSignalBreakoutMessage } from './swing-signal-formatter';
 const CLAUDE_TIMEOUT_MS = 90_000;
 const RATE_LIMIT_DELAY_MS = 1_500;
 
+export type SwingScanSummary = {
+  total: number;
+  signals: number;
+  skipped: number;
+  errors: number;
+  sentSymbols: string[];
+};
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -47,15 +55,23 @@ export class SwingSignalService {
     });
   }
 
-  async checkAll(): Promise<void> {
+  async checkAll(): Promise<SwingScanSummary> {
     const user = await this.userRepository.findFirst();
     const symbols: string[] = Array.isArray(user?.symbolsTracking)
       ? (user.symbolsTracking as string[])
       : [];
 
+    const summary: SwingScanSummary = {
+      total: symbols.length,
+      signals: 0,
+      skipped: 0,
+      errors: 0,
+      sentSymbols: []
+    };
+
     if (symbols.length === 0) {
       this.logger.log('SwingSignal: no symbols to check (symbolsTracking empty)');
-      return;
+      return summary;
     }
 
     this.logger.log(
@@ -64,8 +80,15 @@ export class SwingSignalService {
 
     for (const symbol of symbols) {
       try {
-        await this.analyzeSymbol(symbol);
+        const sent = await this.analyzeSymbol(symbol);
+        if (sent) {
+          summary.signals++;
+          summary.sentSymbols.push(symbol);
+        } else {
+          summary.skipped++;
+        }
       } catch (error) {
+        summary.errors++;
         this.logger.error(
           `SwingSignal failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
         );
@@ -73,10 +96,13 @@ export class SwingSignalService {
       await sleep(RATE_LIMIT_DELAY_MS);
     }
 
-    this.logger.log('SwingSignal: daily scan complete');
+    this.logger.log(
+      `SwingSignal: scan complete — ${summary.signals} signal(s), ${summary.skipped} skipped, ${summary.errors} error(s)`
+    );
+    return summary;
   }
 
-  private async analyzeSymbol(symbol: string): Promise<void> {
+  private async analyzeSymbol(symbol: string): Promise<boolean> {
     this.logger.log(`SwingSignal: analyzing ${symbol}`);
 
     // 1. Fetch multi-timeframe candles in parallel
@@ -88,7 +114,7 @@ export class SwingSignalService {
 
     if (daily.length < 30) {
       this.logger.warn(`SwingSignal: insufficient candles for ${symbol}`);
-      return;
+      return false;
     }
 
     // 2. Pre-process (code does all math)
@@ -101,14 +127,14 @@ export class SwingSignalService {
     const rawText = await this.callClaude(userPrompt);
     if (!rawText) {
       this.logger.warn(`SwingSignal: empty Claude response for ${symbol}`);
-      return;
+      return false;
     }
 
     // 5. Parse JSON
     const analysis = parseAiResponse(rawText);
     if (!analysis) {
       this.logger.warn(`SwingSignal: failed to parse AI response for ${symbol}`);
-      return;
+      return false;
     }
 
     // 6. Validate
@@ -122,7 +148,10 @@ export class SwingSignalService {
     if (validated.recommendation !== 'SKIP' && validated.buy_setups.length > 0) {
       const message = formatSwingSignalBreakoutMessage(validated);
       await this.sendTelegram(symbol, message);
+      return true;
     }
+
+    return false;
   }
 
   private async callClaude(userPrompt: string): Promise<string | null> {
