@@ -73,8 +73,6 @@ type TradesTableProps = Readonly<{
   onEditTrade: (order: DashboardOrder) => void;
   onRemoveTrade: (orderId: string) => void;
   onViewNotes: (order: DashboardOrder) => void;
-  chatOpen?: boolean;
-  onToggleChat?: () => void;
 }>;
 
 function formatPrice(value: number): string {
@@ -319,7 +317,6 @@ function Pagination({ page, pageSize, total, onPageChange }: {
 export function TradesTable({
   orders, total, page, pageSize, closedPnlSum, openOrders, availableBrokers,
   onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes,
-  chatOpen, onToggleChat,
 }: TradesTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams()!;
@@ -508,16 +505,7 @@ export function TradesTable({
               <span className="ios-toggle__track"><span className="ios-toggle__thumb" /></span>
               {autoReload && <span className="ios-toggle__countdown">{countdown}s</span>}
             </button>
-            {onToggleChat && (
-              <button
-                type="button"
-                className={`trades-chat-btn${chatOpen ? ' trades-chat-btn--active' : ''}`}
-                onClick={onToggleChat}
-                aria-label="Toggle AI assistant"
-              >
-                🤖
-              </button>
-            )}
+
           </div>
           <p>{total === 0 ? 'No manual trades yet.' : `${total} trade${total !== 1 ? 's' : ''} found.`}</p>
         </div>

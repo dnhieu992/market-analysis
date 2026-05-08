@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
@@ -32,15 +32,15 @@ export class ChatController {
 
   // ── Conversations CRUD ─────────────────────────────────────────────
   @Get('conversations')
-  @ApiOperation({ summary: 'List all conversations for the current user' })
-  listConversations(@Req() req: AuthenticatedRequest) {
-    return this.conversationService.listConversations(req.authUser!.id);
+  @ApiOperation({ summary: 'List conversations for the current user, optionally filtered by skillId' })
+  listConversations(@Req() req: AuthenticatedRequest, @Query('skillId') skillId?: string) {
+    return this.conversationService.listConversations(req.authUser!.id, skillId);
   }
 
   @Post('conversations')
   @ApiOperation({ summary: 'Create a new conversation' })
   createConversation(@Req() req: AuthenticatedRequest, @Body() body: CreateConversationDto) {
-    return this.conversationService.createConversation(req.authUser!.id, body.title);
+    return this.conversationService.createConversation(req.authUser!.id, body.title, body.skillId);
   }
 
   @Delete('conversations/:id')

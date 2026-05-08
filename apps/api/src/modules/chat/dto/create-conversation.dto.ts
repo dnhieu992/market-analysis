@@ -7,4 +7,10 @@ export class CreateConversationDto {
   @IsString()
   @MaxLength(200)
   title?: string;
+
+  @ApiPropertyOptional({ example: 'price-action' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  skillId?: string;
 }

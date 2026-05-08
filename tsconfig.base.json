@@ -19,7 +19,8 @@
     "paths": {
       "@app/config": ["packages/config/src"],
       "@app/core": ["packages/core/src"],
-      "@app/db": ["packages/db/src"]
+      "@app/db": ["packages/db/src"],
+      "@app/skills": ["packages/skills/src"]
     }
   }
 }

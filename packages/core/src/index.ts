@@ -1,4 +1,16 @@
 export { buildIndicatorSnapshot } from './analysis/indicator-snapshot';
+export { analyzeMarketStructure } from './analysis/market-structure';
+export type {
+  MarketStructure,
+  TimeframeData,
+  TrendResult,
+  TrendDirection,
+  TrendStrength,
+  VolumeMetrics,
+  KeyLevel,
+  FibLevels,
+  SwingPoint
+} from './analysis/market-structure';
 export { SUPPORTED_TIMEFRAMES } from './constants/timeframes';
 export { calculateAtr } from './indicators/atr';
 export { calculateEma } from './indicators/ema';

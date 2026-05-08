@@ -181,6 +181,7 @@ model User {
 model Conversation {
   id        String                @id @default(uuid()) @db.Char(36)
   userId    String
+  skillId   String?               @db.VarChar(50)
   title     String                @db.VarChar(200)
   createdAt DateTime              @default(now())
   updatedAt DateTime              @updatedAt

@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { getSkillById } from '@app/skills';
 
 import { CONVERSATION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
 import { ClaudeChatProvider } from './providers/claude-chat.provider';
@@ -20,12 +21,12 @@ export class ConversationService {
 
   // ── CRUD ──────────────────────────────────────────────────────────────
 
-  createConversation(userId: string, title?: string) {
-    return this.convRepo.create(userId, title ?? 'Cuộc trò chuyện mới');
+  createConversation(userId: string, title?: string, skillId?: string) {
+    return this.convRepo.create(userId, title ?? 'Cuộc trò chuyện mới', skillId);
   }
 
-  async listConversations(userId: string) {
-    return this.convRepo.listByUser(userId);
+  async listConversations(userId: string, skillId?: string) {
+    return this.convRepo.listByUser(userId, skillId);
   }
 
   async getConversationMessages(id: string, userId: string) {
@@ -64,11 +65,17 @@ export class ConversationService {
     // Load full history (includes just-saved user message)
     const history = await this.convRepo.listMessages(conversationId);
 
-    // Build system prompt
-    const systemPrompt = await this.buildSystemPrompt(userId);
+    // Resolve skill (if any)
+    const skill = conv.skillId ? getSkillById(conv.skillId) : undefined;
 
-    // Tools
-    const tools = this.toolRegistry.listTools();
+    // Build system prompt — skill-specific or general
+    const systemPrompt = await this.buildSystemPrompt(userId, skill?.systemPrompt);
+
+    // Filter tools to skill's allowed list, or use all tools for general chat
+    const allTools = this.toolRegistry.listTools();
+    const tools = skill
+      ? allTools.filter((t) => skill.tools.includes(t.name))
+      : allTools;
 
     // Call Claude with agentic tool loop
     const reply = await this.claude.chatAgentLoop(
@@ -94,7 +101,7 @@ export class ConversationService {
 
   // ── System prompt ─────────────────────────────────────────────────────
 
-  private async buildSystemPrompt(_userId: string): Promise<string> {
+  private async buildSystemPrompt(_userId: string, skillSystemPrompt?: string): Promise<string> {
     // Fetch user's trade history for context
     let tradeContext = 'Không có dữ liệu giao dịch.';
     try {
@@ -152,7 +159,7 @@ ${recent}`;
 
     const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-    return `Bạn là trợ lý giao dịch crypto chuyên nghiệp tích hợp trực tiếp vào dashboard của trader.
+    const generalPrompt = `Bạn là trợ lý giao dịch crypto chuyên nghiệp tích hợp trực tiếp vào dashboard của trader.
 
 Thời gian hiện tại: ${now} (GMT+7)
 
@@ -163,6 +170,7 @@ Bạn có thể sử dụng các công cụ sau để lấy dữ liệu thị tr
 - get_klines: lấy nến OHLCV theo khung thời gian
 - get_ticker_price: lấy giá hiện tại
 - get_24h_ticker: thống kê 24h (high, low, volume, % thay đổi)
+- analyze_market_structure: phân tích cấu trúc thị trường đa khung thời gian (1W/1D/4H)
 
 Hướng dẫn:
 1. Dùng công cụ khi cần phân tích kỹ thuật hoặc người dùng hỏi về giá/biểu đồ hiện tại.
@@ -171,5 +179,11 @@ Hướng dẫn:
 4. Ngắn gọn, thực tế, có thể hành động được.
 5. Phản hồi bằng ngôn ngữ người dùng đang dùng (Tiếng Việt hoặc English).
 6. Không đưa ra lời khuyên tài chính tuyệt đối — luôn nhắc quản lý rủi ro.`;
+
+    if (skillSystemPrompt) {
+      return `${skillSystemPrompt}\n\n---\n\nThời gian hiện tại: ${now} (GMT+7)\n\nHồ sơ giao dịch của người dùng:\n${tradeContext}`;
+    }
+
+    return generalPrompt;
   }
 }

@@ -2,19 +2,19 @@ import { prisma } from '../client';
 
 export function createConversationRepository(client = prisma) {
   return {
-    create(userId: string, title: string) {
-      return client.conversation.create({ data: { userId, title } });
+    create(userId: string, title: string, skillId?: string) {
+      return client.conversation.create({ data: { userId, title, skillId: skillId ?? null } });
     },
 
     findById(id: string) {
       return client.conversation.findUnique({ where: { id } });
     },
 
-    listByUser(userId: string) {
+    listByUser(userId: string, skillId?: string) {
       return client.conversation.findMany({
-        where: { userId },
+        where: { userId, ...(skillId !== undefined ? { skillId } : {}) },
         orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, createdAt: true, updatedAt: true }
+        select: { id: true, title: true, skillId: true, createdAt: true, updatedAt: true }
       });
     },
 

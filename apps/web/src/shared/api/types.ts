@@ -314,9 +314,21 @@ export type UpdateProfileInput = {
 };
 
 
+export type Skill = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  tools: string[];
+  exampleQuestions: string[];
+  welcomeMessage: string;
+};
+
 export type Conversation = {
   id: string;
   title: string;
+  skillId: string | null;
   createdAt: string;
   updatedAt: string;
 };

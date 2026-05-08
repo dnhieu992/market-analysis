@@ -10,7 +10,6 @@ import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
 
 import { TradesTable, NotesDialog } from './trades-table';
-import { ChatbotWidget } from '@web/widgets/chatbot/chatbot-widget';
 
 type TradesHistoryProps = Readonly<{
   orders: DashboardOrder[];
@@ -31,7 +30,6 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [notesOrder, setNotesOrder] = useState<DashboardOrder | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     if (!closeTradeOrder) {
@@ -77,8 +75,6 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
         onEditTrade={(order) => setEditOrder(order)}
         onRemoveTrade={(orderId) => setDeleteOrderId(orderId)}
         onViewNotes={(order) => setNotesOrder(order)}
-        chatOpen={chatOpen}
-        onToggleChat={() => setChatOpen(v => !v)}
       />
 
       {/* Single trade dialog */}
@@ -183,7 +179,6 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
         </div>
       )}
 
-      <ChatbotWidget pinned open={chatOpen} onClose={() => setChatOpen(false)} />
     </main>
   );
 }
