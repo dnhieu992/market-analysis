@@ -49,6 +49,12 @@ export class ChatController {
     return this.conversationService.deleteConversation(id, req.authUser!.id);
   }
 
+  @Post('conversations/:id/title/generate')
+  @ApiOperation({ summary: 'AI-generate a title from the first message' })
+  generateTitle(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.conversationService.generateTitle(id, req.authUser!.id);
+  }
+
   @Patch('conversations/:id/title')
   @ApiOperation({ summary: 'Update conversation title' })
   updateTitle(

@@ -648,6 +648,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
     async deleteConversation(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/chat/conversations/${id}`, withDefaults({ method: 'DELETE' }));
     },
+    async generateTitle(conversationId: string): Promise<{ title: string }> {
+      const res = await fetchImpl(`${baseUrl}/chat/conversations/${conversationId}/title/generate`, withDefaults({ method: 'POST' }));
+      if (!res.ok) throw new Error(`generateTitle failed: ${res.status}`);
+      return res.json() as Promise<{ title: string }>;
+    },
     async updateConversationTitle(id: string, title: string): Promise<Conversation> {
       const res = await fetchImpl(`${baseUrl}/chat/conversations/${id}/title`, withDefaults({
         method: 'PATCH',

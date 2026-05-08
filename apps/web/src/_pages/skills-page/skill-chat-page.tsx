@@ -13,16 +13,29 @@ async function loadData(skillId: string, conversationId: string): Promise<{
   initialMessages: ChatMessage[];
 }> {
   const api = createServerApiClient();
+
+  if (conversationId === 'new') {
+    const [skillResult, conversations] = await Promise.allSettled([
+      api.fetchSkills().then((skills) => skills.find((s) => s.id === skillId) ?? null),
+      api.listConversations(skillId),
+    ]);
+    return {
+      skill: skillResult.status === 'fulfilled' ? skillResult.value : null,
+      conversations: conversations.status === 'fulfilled' ? conversations.value : [],
+      initialMessages: [],
+    };
+  }
+
   const [skillResult, conversations, initialMessages] = await Promise.allSettled([
     api.fetchSkills().then((skills) => skills.find((s) => s.id === skillId) ?? null),
     api.listConversations(skillId),
-    api.getMessages(conversationId)
+    api.getMessages(conversationId),
   ]);
 
   return {
     skill: skillResult.status === 'fulfilled' ? skillResult.value : null,
     conversations: conversations.status === 'fulfilled' ? conversations.value : [],
-    initialMessages: initialMessages.status === 'fulfilled' ? initialMessages.value : []
+    initialMessages: initialMessages.status === 'fulfilled' ? initialMessages.value : [],
   };
 }
 

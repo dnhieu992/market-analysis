@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { createApiClient } from '@web/shared/api/client';
 import type { Skill } from '@web/shared/api/types';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -17,21 +16,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   education: '#7c5a2a'
 };
 
-const api = createApiClient();
-
 function SkillCard({ skill }: { skill: Skill }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  async function handleUseSkill() {
+  function handleUseSkill() {
     setLoading(true);
-    try {
-      const conversation = await api.createConversation(skill.name, skill.id);
-      router.push(`/skills/${skill.id}/chat/${conversation.id}`);
-    } catch (err) {
-      console.error('Failed to create conversation', err);
-      setLoading(false);
-    }
+    router.push(`/skills/${skill.id}/chat/new`);
   }
 
   const categoryColor = CATEGORY_COLORS[skill.category] ?? 'var(--accent)';

@@ -99,6 +99,17 @@ export class ConversationService {
     return assistantMsg;
   }
 
+  async generateTitle(id: string, userId: string): Promise<{ title: string }> {
+    const conv = await this.convRepo.findById(id);
+    if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
+    const messages = await this.convRepo.listMessages(id);
+    const firstUserMsg = messages.find((m) => m.role === 'user');
+    if (!firstUserMsg) return { title: conv.title };
+    const title = await this.claude.generateTitle(firstUserMsg.content);
+    await this.convRepo.updateTitle(id, title);
+    return { title };
+  }
+
   // ── System prompt ─────────────────────────────────────────────────────
 
   private async buildSystemPrompt(_userId: string, skillSystemPrompt?: string): Promise<string> {

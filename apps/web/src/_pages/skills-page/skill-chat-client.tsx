@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
 import type { Skill, Conversation, ChatMessage } from '@web/shared/api/types';
 
-// ── Markdown renderer ─────────────────────────────────────────────────
+// ── Markdown renderer ──────────────────────────────────────────────────────────
 function renderMarkdown(text: string): string {
   return text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -23,27 +23,108 @@ function renderMarkdown(text: string): string {
 }
 
 function TypingIndicator() {
-  return (
-    <div className="chat-typing">
-      <span /><span /><span />
-    </div>
-  );
+  return <div className="chat-typing"><span /><span /><span /></div>;
 }
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 
 const api = createApiClient();
 
-// ── Props ─────────────────────────────────────────────────────────────
+// ── Conversation item with rename/delete ───────────────────────────────────────
+function ConvItem({
+  conv,
+  isActive,
+  skillId,
+  onRenamed,
+  onDeleted,
+}: {
+  conv: Conversation;
+  isActive: boolean;
+  skillId: string;
+  onRenamed: (id: string, title: string) => void;
+  onDeleted: (id: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(conv.title);
+  const [confirming, setConfirming] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  async function submitRename() {
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === conv.title) { setEditing(false); return; }
+    try {
+      await api.updateConversationTitle(conv.id, trimmed);
+      onRenamed(conv.id, trimmed);
+    } catch { /* ignore */ }
+    setEditing(false);
+  }
+
+  async function confirmDelete() {
+    try {
+      await api.deleteConversation(conv.id);
+      onDeleted(conv.id);
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className={`sc-conv-item${isActive ? ' sc-conv-item--active' : ''}`}>
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="sc-conv-rename-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => { void submitRename(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); void submitRename(); }
+            if (e.key === 'Escape') { setEditing(false); setDraft(conv.title); }
+          }}
+        />
+      ) : confirming ? (
+        <div className="sc-conv-confirm">
+          <span>Xóa?</span>
+          <button className="sc-conv-confirm-yes" onClick={() => { void confirmDelete(); }}>Có</button>
+          <button className="sc-conv-confirm-no" onClick={() => setConfirming(false)}>Không</button>
+        </div>
+      ) : (
+        <>
+          <Link href={`/skills/${skillId}/chat/${conv.id}`} className="sc-conv-link" title={conv.title}>
+            <span className="sc-conv-title">{conv.title}</span>
+            <span className="sc-conv-date">{formatDate(conv.updatedAt)}</span>
+          </Link>
+          <div className="sc-conv-actions">
+            <button
+              className="sc-conv-action-btn"
+              onClick={() => { setDraft(conv.title); setEditing(true); }}
+              title="Đổi tên"
+              aria-label="Đổi tên"
+            >✏️</button>
+            <button
+              className="sc-conv-action-btn"
+              onClick={() => setConfirming(true)}
+              title="Xóa"
+              aria-label="Xóa"
+            >🗑️</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Props ──────────────────────────────────────────────────────────────────────
 type Props = {
   skillId: string;
-  conversationId: string;
+  conversationId: string; // 'new' = draft mode
   skill: Skill | null;
   initialConversations: Conversation[];
   initialMessages: ChatMessage[];
@@ -54,9 +135,11 @@ export function SkillChatClient({
   conversationId,
   skill,
   initialConversations,
-  initialMessages
+  initialMessages,
 }: Props) {
   const router = useRouter();
+  const isNew = conversationId === 'new';
+
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState('');
@@ -74,19 +157,12 @@ export function SkillChatClient({
     inputRef.current?.focus();
   }, [conversationId]);
 
-  // Close sidebar when navigating to a new conversation
   useEffect(() => {
     setSidebarOpen(false);
   }, [conversationId]);
 
-  async function handleNewConversation() {
-    try {
-      const conv = await api.createConversation(skill?.name, skillId);
-      setConversations((prev) => [conv, ...prev]);
-      router.push(`/skills/${skillId}/chat/${conv.id}`);
-    } catch {
-      setError('Không thể tạo cuộc trò chuyện mới');
-    }
+  function handleNewConversation() {
+    router.push(`/skills/${skillId}/chat/new`);
   }
 
   async function handleSend() {
@@ -94,27 +170,62 @@ export function SkillChatClient({
     const content = input.trim();
     setInput('');
     setError(null);
+    setSending(true);
 
+    if (isNew) {
+      // Draft mode: create conversation then send first message
+      try {
+        const conv = await api.createConversation(skill?.name ?? 'New Chat', skillId);
+        setConversations((prev) => [conv, ...prev]);
+
+        const tempMsg: ChatMessage = {
+          id: `temp-${Date.now()}`,
+          conversationId: conv.id,
+          role: 'user',
+          content,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages([tempMsg]);
+
+        await api.sendMessage(conv.id, content);
+        const allMsgs = await api.getMessages(conv.id);
+        setMessages(allMsgs);
+
+        // Generate AI title in background
+        api.generateTitle(conv.id)
+          .then(({ title }) => {
+            setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, title } : c));
+          })
+          .catch(() => { /* ignore */ });
+
+        router.replace(`/skills/${skillId}/chat/${conv.id}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Gửi thất bại. Vui lòng thử lại.';
+        setError(msg);
+        setMessages([]);
+      } finally {
+        setSending(false);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
+      return;
+    }
+
+    // Existing conversation
     const tempMsg: ChatMessage = {
       id: `temp-${Date.now()}`,
       conversationId,
       role: 'user',
       content,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, tempMsg]);
-    setSending(true);
 
     try {
       await api.sendMessage(conversationId, content);
       const allMsgs = await api.getMessages(conversationId);
       setMessages(allMsgs);
       setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? { ...c, title: content.slice(0, 80), updatedAt: new Date().toISOString() }
-            : c
-        )
+        prev.map((c) => c.id === conversationId ? { ...c, updatedAt: new Date().toISOString() } : c)
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Gửi thất bại. Vui lòng thử lại.';
@@ -143,13 +254,13 @@ export function SkillChatClient({
   return (
     <div className="sc-root">
 
-      {/* ── Backdrop (mobile only) ─────────────────────────────── */}
+      {/* Backdrop (mobile) */}
       <div
         className={`sc-sidebar-backdrop${sidebarOpen ? ' sc-sidebar-backdrop--open' : ''}`}
         onClick={() => setSidebarOpen(false)}
       />
 
-      {/* ── Sidebar ───────────────────────────────────────────── */}
+      {/* Sidebar */}
       <aside className={`sc-sidebar${sidebarOpen ? ' sc-sidebar--open' : ''}`}>
         <div className="sc-sidebar-head">
           <button className="sc-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng">✕</button>
@@ -166,7 +277,7 @@ export function SkillChatClient({
         </div>
 
         <div className="sc-new-btn-wrap">
-          <button className="sc-new-btn" onClick={() => { void handleNewConversation(); }}>
+          <button className="sc-new-btn" onClick={handleNewConversation}>
             + Cuộc trò chuyện mới
           </button>
         </div>
@@ -175,43 +286,37 @@ export function SkillChatClient({
           {conversations.length === 0 ? (
             <p className="sc-conv-empty">Chưa có cuộc trò chuyện</p>
           ) : (
-            conversations.map((conv) => {
-              const isActive = conv.id === conversationId;
-              return (
-                <Link
-                  key={conv.id}
-                  href={`/skills/${skillId}/chat/${conv.id}`}
-                  className={`sc-conv-item${isActive ? ' sc-conv-item--active' : ''}`}
-                  title={conv.title}
-                >
-                  <span className="sc-conv-title">{conv.title}</span>
-                  <span className="sc-conv-date">{formatDate(conv.updatedAt)}</span>
-                </Link>
-              );
-            })
+            conversations.map((conv) => (
+              <ConvItem
+                key={conv.id}
+                conv={conv}
+                isActive={conv.id === conversationId}
+                skillId={skillId}
+                onRenamed={(id, title) =>
+                  setConversations((prev) => prev.map((c) => c.id === id ? { ...c, title } : c))
+                }
+                onDeleted={(id) => {
+                  setConversations((prev) => prev.filter((c) => c.id !== id));
+                  if (id === conversationId) router.push(`/skills/${skillId}/chat/new`);
+                }}
+              />
+            ))
           )}
         </div>
       </aside>
 
-      {/* ── Main Chat Area ────────────────────────────────────── */}
+      {/* Main chat */}
       <div className="sc-main">
 
         {/* Header */}
         <div className="sc-header">
-          <button
-            className="sc-header-menu-btn"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Mở menu"
-          >
-            ☰
-          </button>
+          <button className="sc-header-menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Mở menu">☰</button>
           {skill && <span className="sc-header-icon">{skill.icon}</span>}
           <span className="sc-header-title">{skill?.name ?? 'Chat'}</span>
         </div>
 
         {/* Messages */}
         <div className="sc-messages">
-
           {showWelcome && skill && (
             <div className="sc-welcome">
               <div className="sc-welcome-msg">{skill.welcomeMessage}</div>
@@ -230,9 +335,7 @@ export function SkillChatClient({
           {messages.map((msg) => (
             <div key={msg.id} className={`chat-msg chat-msg--${msg.role}`}>
               {msg.role === 'assistant' && (
-                <div className="chat-msg-avatar" style={{ fontSize: 18 }}>
-                  {skill?.icon ?? '🤖'}
-                </div>
+                <div className="chat-msg-avatar" style={{ fontSize: 18 }}>{skill?.icon ?? '🤖'}</div>
               )}
               <div className="chat-msg-body">
                 {msg.role === 'assistant' ? (
@@ -256,9 +359,7 @@ export function SkillChatClient({
             </div>
           )}
 
-          {error && (
-            <p style={{ color: '#e53e3e', fontSize: 13, margin: '8px 0' }}>{error}</p>
-          )}
+          {error && <p style={{ color: '#e53e3e', fontSize: 13, margin: '8px 0' }}>{error}</p>}
 
           <div ref={bottomRef} />
         </div>

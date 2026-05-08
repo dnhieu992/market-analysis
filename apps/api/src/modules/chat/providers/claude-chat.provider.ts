@@ -147,6 +147,21 @@ export class ClaudeChatProvider extends ChatProvider {
     return 'Xin lỗi, tôi đã đạt giới hạn xử lý. Vui lòng thử lại.';
   }
 
+  /** Generate a short conversation title from the first user message */
+  async generateTitle(firstMessage: string): Promise<string> {
+    try {
+      const res = await this.callApi(
+        'You generate ultra-short conversation titles. Respond with ONLY 4-7 words, no punctuation, no quotes, no explanation.',
+        [{ role: 'user', content: `Title for: "${firstMessage.slice(0, 300)}"` }],
+        []
+      );
+      const block = res.content.find((b): b is AnthropicTextBlock => b.type === 'text');
+      return block?.text.trim().slice(0, 80) ?? firstMessage.slice(0, 50).trim();
+    } catch {
+      return firstMessage.slice(0, 50).trim();
+    }
+  }
+
   private async callApi(
     systemPrompt: string | undefined,
     messages: AnthropicMessage[],
