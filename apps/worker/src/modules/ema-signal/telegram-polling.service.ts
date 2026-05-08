@@ -3,6 +3,7 @@ import axios, { type AxiosInstance } from 'axios';
 
 import { TelegramService } from '../telegram/telegram.service';
 import { SwingPaService } from '../analysis/swing-pa.service';
+import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { EmaSignalService } from './ema-signal.service';
 import { WatchlistService } from './watchlist.service';
 
@@ -29,7 +30,8 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
     private readonly emaSignalService: EmaSignalService,
     private readonly telegramService: TelegramService,
     private readonly watchlistService: WatchlistService,
-    private readonly swingPaService: SwingPaService
+    private readonly swingPaService: SwingPaService,
+    private readonly swingSignalService: SwingSignalService
   ) {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
     this.http = axios.create({
@@ -95,6 +97,21 @@ export class TelegramPollingService implements OnModuleInit, OnModuleDestroy {
         await this.telegramService.sendToChat(
           chatId,
           `❌ Analysis failed for ${symbol}: ${err instanceof Error ? err.message : 'unknown error'}`
+        );
+      }
+      return;
+    }
+
+    // /check → trigger daily swing signal scan immediately
+    if (/^\/check$/i.test(text)) {
+      await this.telegramService.sendToChat(chatId, '⏳ Running swing signal scan...');
+      try {
+        await this.swingSignalService.checkAll();
+        await this.telegramService.sendToChat(chatId, '✅ Swing signal scan complete.');
+      } catch (err) {
+        await this.telegramService.sendToChat(
+          chatId,
+          `❌ Scan failed: ${err instanceof Error ? err.message : 'unknown error'}`
         );
       }
       return;

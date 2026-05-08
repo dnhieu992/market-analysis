@@ -41,10 +41,10 @@ export class SchedulerService {
     await this.dailySignalService.checkAndSend();
   }
 
-  // Runs after every H4 candle close: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC
-  @Cron('0 0,4,8,12,16,20 * * *', { timeZone: 'UTC' })
-  async checkSwingSignals() {
-    this.logger.log('Running H4 swing signal check');
+  // Runs daily at 00:30 UTC
+  @Cron('30 0 * * *', { timeZone: 'UTC' })
+  async runDailySwingScan() {
+    this.logger.log('Running daily swing signal scan');
     await this.swingSignalService.checkAll();
   }
 

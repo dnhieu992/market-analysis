@@ -1,23 +1,51 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { calculateRsi, formatSwingSignalMessage } from '@app/core';
 import { createUserRepository } from '@app/db';
+import axios, { type AxiosInstance } from 'axios';
 
 import { MarketDataService } from '../market/market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { preProcess } from './swing-signal-preprocessor';
+import { buildSwingSignalPrompt, SWING_SIGNAL_SYSTEM_PROMPT } from './swing-signal-prompt';
+import {
+  parseAiResponse,
+  validateAnalysis,
+  type SwingSignalAiResponse
+} from './swing-signal-validator';
+import { formatSwingSignalBreakoutMessage } from './swing-signal-formatter';
 
-const RSI_PERIOD = 14;
-const RSI_OVERSOLD = 30;
-const CANDLE_LIMIT = RSI_PERIOD + 10; // enough candles to compute RSI
+const CLAUDE_TIMEOUT_MS = 90_000;
+const RATE_LIMIT_DELAY_MS = 1_500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveModel(): string {
+  const env = process.env.CLAUDE_MODEL ?? '';
+  if (env === 'opus') return 'claude-opus-4-6';
+  return 'claude-sonnet-4-6';
+}
 
 @Injectable()
 export class SwingSignalService {
   private readonly logger = new Logger(SwingSignalService.name);
   private readonly userRepository = createUserRepository();
+  private readonly claudeClient: AxiosInstance;
 
   constructor(
     private readonly marketDataService: MarketDataService,
     private readonly telegramService: TelegramService
-  ) {}
+  ) {
+    this.claudeClient = axios.create({
+      baseURL: 'https://api.anthropic.com/v1',
+      timeout: CLAUDE_TIMEOUT_MS,
+      headers: {
+        'x-api-key': (process.env.CLAUDE_API_KEY ?? '').trim(),
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      }
+    });
+  }
 
   async checkAll(): Promise<void> {
     const user = await this.userRepository.findFirst();
@@ -30,55 +58,142 @@ export class SwingSignalService {
       return;
     }
 
-    this.logger.log(`SwingSignal: checking ${symbols.length} symbol(s): ${symbols.join(', ')}`);
-
-    const triggeredSymbols: string[] = [];
+    this.logger.log(
+      `SwingSignal: starting daily scan for ${symbols.length} symbol(s): ${symbols.join(', ')}`
+    );
 
     for (const symbol of symbols) {
       try {
-        const triggered = await this.checkSymbol(symbol);
-        if (triggered) triggeredSymbols.push(symbol);
+        await this.analyzeSymbol(symbol);
       } catch (error) {
         this.logger.error(
           `SwingSignal failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
         );
       }
+      await sleep(RATE_LIMIT_DELAY_MS);
     }
 
-    if (triggeredSymbols.length === 0) {
-      const checkedList = symbols.map((s) => `• ${s}`).join('\n');
-      await this.telegramService.sendAnalysisMessage({
-        content: `📊 H4 Swing Signal Check — No signals\n\nChecked ${symbols.length} symbol(s):\n${checkedList}\n\nRSI(14) > ${RSI_OVERSOLD} for all. No oversold zone detected.`,
-        messageType: 'swing-signal-no-result'
-      });
-      this.logger.log('SwingSignal: no signals found, notification sent');
+    this.logger.log('SwingSignal: daily scan complete');
+  }
+
+  private async analyzeSymbol(symbol: string): Promise<void> {
+    this.logger.log(`SwingSignal: analyzing ${symbol}`);
+
+    // 1. Fetch multi-timeframe candles in parallel
+    const [weekly, daily, fourHour] = await Promise.all([
+      this.marketDataService.getCandles(symbol, '1w', 150),
+      this.marketDataService.getCandles(symbol, '1d', 365),
+      this.marketDataService.getCandles(symbol, '4h', 360)
+    ]);
+
+    if (daily.length < 30) {
+      this.logger.warn(`SwingSignal: insufficient candles for ${symbol}`);
+      return;
+    }
+
+    // 2. Pre-process (code does all math)
+    const processed = preProcess(symbol, weekly, daily, fourHour);
+
+    // 3. Build user prompt
+    const userPrompt = buildSwingSignalPrompt(processed);
+
+    // 4. Call Claude
+    const rawText = await this.callClaude(userPrompt);
+    if (!rawText) {
+      this.logger.warn(`SwingSignal: empty Claude response for ${symbol}`);
+      return;
+    }
+
+    // 5. Parse JSON
+    const analysis = parseAiResponse(rawText);
+    if (!analysis) {
+      this.logger.warn(`SwingSignal: failed to parse AI response for ${symbol}`);
+      return;
+    }
+
+    // 6. Validate
+    const validated = validateAnalysis(analysis, processed.currentPrice);
+
+    this.logger.log(
+      `SwingSignal: ${symbol} → ${validated.recommendation} (${validated.buy_setups.length} valid setups)`
+    );
+
+    // 7. Send if actionable
+    if (validated.recommendation !== 'SKIP' && validated.buy_setups.length > 0) {
+      const message = formatSwingSignalBreakoutMessage(validated);
+      await this.sendTelegram(symbol, message);
     }
   }
 
-  private async checkSymbol(symbol: string): Promise<boolean> {
-    const candles = await this.marketDataService.getCandles(symbol, '4h', CANDLE_LIMIT);
+  private async callClaude(userPrompt: string): Promise<string | null> {
+    try {
+      const response = await this.claudeClient.post<{
+        content?: Array<{ type?: string; text?: string }>;
+      }>('/messages', {
+        model: resolveModel(),
+        max_tokens: 4000,
+        temperature: 0.2,
+        system: [
+          {
+            type: 'text',
+            text: SWING_SIGNAL_SYSTEM_PROMPT,
+            cache_control: { type: 'ephemeral' }
+          }
+        ],
+        messages: [{ role: 'user', content: userPrompt }]
+      });
 
-    if (candles.length < RSI_PERIOD + 2) {
-      this.logger.warn(`SwingSignal: not enough candles for ${symbol}`);
-      return false;
+      return (
+        response.data.content?.find((block) => block.type === 'text')?.text?.trim() ?? null
+      );
+    } catch (error) {
+      const candidate = error as {
+        response?: { status?: number; data?: unknown };
+        message?: string;
+      };
+      const status = candidate.response?.status;
+      const details = candidate.response?.data
+        ? `: ${JSON.stringify(candidate.response.data)}`
+        : '';
+      this.logger.warn(
+        `SwingSignal: Claude API error${status ? ` HTTP ${status}` : ''}${details || ` — ${candidate.message ?? 'unknown'}`}`
+      );
+      return null;
     }
+  }
 
-    const closes = candles.map((c) => c.close);
-    const rsi = calculateRsi(closes, RSI_PERIOD);
+  private async sendTelegram(symbol: string, message: string): Promise<void> {
+    try {
+      await this.telegramService.sendAnalysisMessage({
+        content: message,
+        messageType: 'swing-signal'
+      });
+      this.logger.log(`SwingSignal: signal sent for ${symbol}`);
+    } catch (error) {
+      this.logger.warn(
+        `SwingSignal: Telegram send failed for ${symbol}: ${error instanceof Error ? error.message : 'unknown error'}`
+      );
+    }
+  }
 
-    this.logger.log(`SwingSignal: ${symbol} RSI(14)=${rsi.toFixed(1)}`);
+  // Exposed for manual trigger / testing
+  async analyzeOne(symbol: string): Promise<SwingSignalAiResponse | null> {
+    const [weekly, daily, fourHour] = await Promise.all([
+      this.marketDataService.getCandles(symbol, '1w', 150),
+      this.marketDataService.getCandles(symbol, '1d', 365),
+      this.marketDataService.getCandles(symbol, '4h', 360)
+    ]);
 
-    if (rsi > RSI_OVERSOLD) return false;
+    if (daily.length < 30) return null;
 
-    const currentPrice = candles[candles.length - 1]!.close;
-    const message = formatSwingSignalMessage({ symbol, rsi, currentPrice });
+    const processed = preProcess(symbol, weekly, daily, fourHour);
+    const userPrompt = buildSwingSignalPrompt(processed);
+    const rawText = await this.callClaude(userPrompt);
+    if (!rawText) return null;
 
-    await this.telegramService.sendAnalysisMessage({
-      content: message,
-      messageType: 'swing-signal'
-    });
+    const analysis = parseAiResponse(rawText);
+    if (!analysis) return null;
 
-    this.logger.log(`SwingSignal alert sent for ${symbol} (RSI=${rsi.toFixed(1)})`);
-    return true;
+    return validateAnalysis(analysis, processed.currentPrice);
   }
 }
