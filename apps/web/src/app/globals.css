@@ -4875,7 +4875,7 @@ a.metric-card--link:hover {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
+  width: 280px;
   height: 100%;
   z-index: 200;
   display: flex;
@@ -4884,6 +4884,7 @@ a.metric-card--link:hover {
   overflow: hidden;
   transform: translateX(-100%);
   transition: transform 0.25s ease;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.15);
 }
 
 .sc-sidebar--open {
