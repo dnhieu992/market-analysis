@@ -211,6 +211,8 @@ importers:
         specifier: ^5.22.0
         version: 5.22.0
 
+  packages/skills: {}
+
 packages:
 
   '@apideck/better-ajv-errors@0.3.7':
