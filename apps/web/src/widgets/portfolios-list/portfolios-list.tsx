@@ -1,19 +1,59 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { CreatePortfolioForm } from '@web/features/create-portfolio/create-portfolio-form';
 import { EditPortfolioForm } from '@web/features/edit-portfolio/edit-portfolio-form';
 import { createApiClient } from '@web/shared/api/client';
-import type { Portfolio } from '@web/shared/api/types';
+import type { Holding, Portfolio } from '@web/shared/api/types';
 
 type PortfoliosListProps = Readonly<{
   portfolios: Portfolio[];
+  holdingsMap: Record<string, Holding[]>;
 }>;
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatUsd(value: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+}
+
+async function fetchPrices(coinIds: string[]): Promise<Record<string, number>> {
+  if (coinIds.length === 0) return {};
+  try {
+    const symbols = JSON.stringify(coinIds.map((c) => `${c}USDT`));
+    const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(symbols)}`);
+    const data = await res.json() as { symbol: string; price: string }[];
+    const map: Record<string, number> = {};
+    for (const item of data) {
+      const coin = item.symbol.replace('USDT', '');
+      map[coin] = Number(item.price);
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+function computeAllTimeProfit(holdings: Holding[], prices: Record<string, number>): number {
+  return holdings.reduce((sum, h) => {
+    const currentPrice = prices[h.coinId] ?? 0;
+    const unrealizedPnl = (currentPrice - h.avgCost) * h.totalAmount;
+    return sum + unrealizedPnl + h.realizedPnl;
+  }, 0);
+}
+
+function ProfitCell({ profit, loaded }: { profit: number; loaded: boolean }) {
+  if (!loaded) return <span className="tt-muted" style={{ fontSize: '0.8rem' }}>loading…</span>;
+  const isPositive = profit >= 0;
+  return (
+    <span style={{ fontWeight: 600, color: isPositive ? '#22c55e' : '#ef4444' }}>
+      {isPositive ? '+' : ''}{formatUsd(profit)}
+    </span>
+  );
 }
 
 function IconEdit() {
@@ -32,11 +72,19 @@ function IconTrash() {
   );
 }
 
-export function PortfoliosList({ portfolios }: PortfoliosListProps) {
+export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editPortfolio, setEditPortfolio] = useState<Portfolio | null>(null);
   const [deletePortfolioId, setDeletePortfolioId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [pricesLoaded, setPricesLoaded] = useState(false);
+
+  useEffect(() => {
+    const allCoinIds = [...new Set(Object.values(holdingsMap).flat().map((h) => h.coinId))];
+    if (allCoinIds.length === 0) { setPricesLoaded(true); return; }
+    fetchPrices(allCoinIds).then((p) => { setPrices(p); setPricesLoaded(true); });
+  }, [holdingsMap]);
 
   async function handleConfirmDelete() {
     if (!deletePortfolioId) return;
@@ -68,18 +116,28 @@ export function PortfoliosList({ portfolios }: PortfoliosListProps) {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>All-time Profit</th>
                   <th>Description</th>
                   <th>Created</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {portfolios.map((portfolio) => (
+                {portfolios.map((portfolio) => {
+                  const holdings = holdingsMap[portfolio.id] ?? [];
+                  const profit = computeAllTimeProfit(holdings, prices);
+                  return (
                   <tr key={portfolio.id}>
                     <td>
                       <Link href={`/portfolio/${portfolio.id}`} className="tt-symbol-btn">
                         {portfolio.name}
                       </Link>
+                    </td>
+                    <td>
+                      {holdings.length === 0
+                        ? <span className="tt-muted">—</span>
+                        : <ProfitCell profit={profit} loaded={pricesLoaded} />
+                      }
                     </td>
                     <td className="tt-muted">{portfolio.description ?? '-'}</td>
                     <td className="tt-muted">{formatDate(portfolio.createdAt)}</td>
@@ -104,7 +162,8 @@ export function PortfoliosList({ portfolios }: PortfoliosListProps) {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
