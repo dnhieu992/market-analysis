@@ -269,7 +269,7 @@ function mapHolding(row: JsonRecord): Holding {
     coinId: String(row.coinId),
     totalAmount: Number(row.totalAmount),
     avgCost: Number(row.avgCost),
-    totalInvested: Number(row.totalInvested ?? row.totalCost),
+    totalInvested: Number(row.totalCost ?? row.totalInvested),
     realizedPnl: Number(row.realizedPnl)
   };
 }
