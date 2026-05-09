@@ -10,7 +10,7 @@ async function loadPortfolios(): Promise<{ portfolios: Portfolio[]; holdingsMap:
     const holdingsMap: Record<string, Holding[]> = {};
     portfolios.forEach((p, i) => {
       const result = holdingsResults[i];
-      holdingsMap[p.id] = result.status === 'fulfilled' ? result.value : [];
+      holdingsMap[p.id] = result?.status === 'fulfilled' ? result.value : [];
     });
     return { portfolios, holdingsMap };
   } catch {
