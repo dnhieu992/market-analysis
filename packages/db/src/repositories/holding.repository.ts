@@ -11,6 +11,7 @@ export function createHoldingRepository(client = prisma) {
         update: {
           totalAmount: data.totalAmount,
           totalCost: data.totalCost,
+          totalInvested: data.totalInvested,
           avgCost: data.avgCost,
           realizedPnl: data.realizedPnl
         }

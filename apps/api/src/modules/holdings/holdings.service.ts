@@ -13,6 +13,7 @@ export type HoldingWithPnl = {
   coinId: string;
   totalAmount: Decimal;
   totalCost: Decimal;
+  totalInvested: Decimal;
   avgCost: Decimal;
   realizedPnl: Decimal;
   updatedAt: Date;
@@ -57,6 +58,7 @@ export class HoldingsService {
         coinId,
         totalAmount: new Decimal(amount),
         totalCost: new Decimal(totalValue),
+        totalInvested: new Decimal(totalValue),
         avgCost: new Decimal(totalValue / amount),
         realizedPnl: new Decimal(0)
       });
@@ -65,11 +67,13 @@ export class HoldingsService {
 
     const newTotalAmount = Number(existing.totalAmount) + amount;
     const newTotalCost = Number(existing.totalCost) + totalValue;
+    const newTotalInvested = Number(existing.totalInvested) + totalValue;
     const newAvgCost = newTotalCost / newTotalAmount;
 
     await this.holdingRepository.update(portfolioId, coinId, {
       totalAmount: new Decimal(newTotalAmount),
       totalCost: new Decimal(newTotalCost),
+      totalInvested: new Decimal(newTotalInvested),
       avgCost: new Decimal(newAvgCost)
     });
   }
@@ -133,6 +137,7 @@ export class HoldingsService {
   ): Promise<void> {
     let totalAmount = 0;
     let totalCost = 0;
+    let totalInvested = 0;
     let avgCost = 0;
     let realizedPnl = 0;
 
@@ -144,6 +149,7 @@ export class HoldingsService {
       if (t.type === 'buy') {
         totalAmount += amount;
         totalCost += totalValue;
+        totalInvested += totalValue;
         avgCost = totalAmount > 0 ? totalCost / totalAmount : 0;
       } else {
         realizedPnl += (price - avgCost) * amount;
@@ -161,12 +167,14 @@ export class HoldingsService {
           coinId,
           totalAmount: new Decimal(totalAmount),
           totalCost: new Decimal(totalCost),
+          totalInvested: new Decimal(totalInvested),
           avgCost: new Decimal(avgCost),
           realizedPnl: new Decimal(realizedPnl)
         },
         update: {
           totalAmount: new Decimal(totalAmount),
           totalCost: new Decimal(totalCost),
+          totalInvested: new Decimal(totalInvested),
           avgCost: new Decimal(avgCost),
           realizedPnl: new Decimal(realizedPnl)
         }
