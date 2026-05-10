@@ -150,10 +150,13 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
   );
 }
 
+type SortKey = 'pnl' | 'holding';
+
 export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<SortKey>('pnl');
 
   useEffect(() => {
     if (holdings.length === 0) { setPricesLoaded(true); return; }
@@ -183,14 +186,27 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 <th>Coin</th>
                 <th>Current Price</th>
                 <th>Avg. Buy Price</th>
-                <th>Holdings</th>
-                <th>Profit / Loss</th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                  onClick={() => setSortBy('holding')}
+                >
+                  Holdings {sortBy === 'holding' ? '▼' : ''}
+                </th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                  onClick={() => setSortBy('pnl')}
+                >
+                  Profit / Loss {sortBy === 'pnl' ? '▼' : ''}
+                </th>
               </tr>
             </thead>
             <tbody>
               {[...holdings].sort((a, b) => {
                 const priceA = prices[a.coinId] ?? 0;
                 const priceB = prices[b.coinId] ?? 0;
+                if (sortBy === 'holding') {
+                  return (priceB * b.totalAmount) - (priceA * a.totalAmount);
+                }
                 const pnlA = (priceA - a.avgCost) * a.totalAmount + a.realizedPnl;
                 const pnlB = (priceB - b.avgCost) * b.totalAmount + b.realizedPnl;
                 return pnlB - pnlA;

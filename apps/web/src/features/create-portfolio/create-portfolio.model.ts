@@ -4,6 +4,7 @@ import type { CreatePortfolioInput, Portfolio } from '@web/shared/api/types';
 type CreatePortfolioFormInput = {
   name: string;
   description?: string;
+  totalCapital?: number;
 };
 
 function requireText(value: FormDataEntryValue | null, fieldName: string): string {
@@ -13,16 +14,20 @@ function requireText(value: FormDataEntryValue | null, fieldName: string): strin
 }
 
 export function parseCreatePortfolioFormData(formData: FormData): CreatePortfolioFormInput {
+  const capitalStr = formData.get('totalCapital')?.toString().trim();
+  const totalCapital = capitalStr ? Number(capitalStr) : undefined;
   return {
     name: requireText(formData.get('name'), 'Name'),
-    description: formData.get('description')?.toString().trim() || undefined
+    description: formData.get('description')?.toString().trim() || undefined,
+    totalCapital: totalCapital && totalCapital > 0 ? totalCapital : undefined
   };
 }
 
 export async function submitCreatePortfolio(input: CreatePortfolioFormInput): Promise<Portfolio> {
   const payload: CreatePortfolioInput = {
     name: input.name,
-    description: input.description
+    description: input.description,
+    totalCapital: input.totalCapital
   };
   return createApiClient().createPortfolio(payload);
 }

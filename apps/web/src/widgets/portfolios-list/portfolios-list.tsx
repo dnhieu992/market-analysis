@@ -46,6 +46,13 @@ function computeAllTimeProfit(holdings: Holding[], prices: Record<string, number
   }, 0);
 }
 
+function computeCurrentUse(holdings: Holding[], prices: Record<string, number>): number {
+  return holdings.reduce((sum, h) => {
+    const currentPrice = prices[h.coinId] ?? 0;
+    return sum + currentPrice * h.totalAmount;
+  }, 0);
+}
+
 function ProfitCell({ profit, loaded }: { profit: number; loaded: boolean }) {
   if (!loaded) return <span className="tt-muted" style={{ fontSize: '0.8rem' }}>loading…</span>;
   const isPositive = profit >= 0;
@@ -117,6 +124,9 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                 <tr>
                   <th>Name</th>
                   <th>All-time Profit</th>
+                  <th>Total Capital</th>
+                  <th>Current Use</th>
+                  <th>Coins Holding</th>
                   <th>Description</th>
                   <th>Created</th>
                   <th>Actions</th>
@@ -125,7 +135,12 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
               <tbody>
                 {portfolios.map((portfolio) => {
                   const holdings = holdingsMap[portfolio.id] ?? [];
+                  const activeHoldings = holdings.filter((h) => h.totalAmount > 0);
                   const profit = computeAllTimeProfit(holdings, prices);
+                  const currentUse = computeCurrentUse(activeHoldings, prices);
+                  const capitalPct = portfolio.totalCapital && portfolio.totalCapital > 0
+                    ? (currentUse / portfolio.totalCapital) * 100
+                    : null;
                   return (
                   <tr key={portfolio.id}>
                     <td>
@@ -137,6 +152,35 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                       {holdings.length === 0
                         ? <span className="tt-muted">—</span>
                         : <ProfitCell profit={profit} loaded={pricesLoaded} />
+                      }
+                    </td>
+                    <td>
+                      {portfolio.totalCapital != null
+                        ? <span style={{ fontWeight: 600 }}>{formatUsd(portfolio.totalCapital)}</span>
+                        : <span className="tt-muted">—</span>
+                      }
+                    </td>
+                    <td>
+                      {activeHoldings.length === 0
+                        ? <span className="tt-muted">—</span>
+                        : !pricesLoaded
+                          ? <span className="tt-muted" style={{ fontSize: '0.8rem' }}>loading…</span>
+                          : (
+                            <div>
+                              <span style={{ fontWeight: 600 }}>{formatUsd(currentUse)}</span>
+                              {capitalPct != null && (
+                                <span className="tt-muted" style={{ fontSize: '0.8rem', marginLeft: '0.4rem' }}>
+                                  ({capitalPct.toFixed(1)}%)
+                                </span>
+                              )}
+                            </div>
+                          )
+                      }
+                    </td>
+                    <td>
+                      {activeHoldings.length > 0
+                        ? <span style={{ fontWeight: 600 }}>{activeHoldings.length}</span>
+                        : <span className="tt-muted">—</span>
                       }
                     </td>
                     <td className="tt-muted">{portfolio.description ?? '-'}</td>

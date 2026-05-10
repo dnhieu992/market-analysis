@@ -43,6 +43,11 @@ export function CreatePortfolioForm({ onSubmitted }: CreatePortfolioFormProps) {
         <textarea name="description" rows={3} placeholder="Optional notes about this portfolio" />
       </label>
 
+      <label className="trade-field">
+        <span>Total Capital ($)</span>
+        <input name="totalCapital" type="number" min="0" step="0.01" placeholder="e.g. 10000" />
+      </label>
+
       {error ? <p className="trade-form-error">{error}</p> : null}
 
       <button type="submit" className="trade-submit" disabled={isPending}>

@@ -222,6 +222,7 @@ model Portfolio {
   userId       String
   name         String            @db.VarChar(100)
   description  String?           @db.Text
+  totalCapital Decimal?          @db.Decimal(20, 2)
   createdAt    DateTime          @default(now())
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions CoinTransaction[]

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNumber, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
 
 export class CreatePortfolioDto {
   @ApiProperty({ example: 'Main' })
@@ -11,4 +11,10 @@ export class CreatePortfolioDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({ example: 10000 })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  totalCapital?: number;
 }

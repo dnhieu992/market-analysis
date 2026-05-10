@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNumber, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
 
 export class UpdatePortfolioDto {
   @ApiPropertyOptional({ example: 'Altcoins' })
@@ -12,4 +12,10 @@ export class UpdatePortfolioDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({ example: 10000 })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  totalCapital?: number;
 }

@@ -231,6 +231,7 @@ export type Portfolio = {
   id: string;
   name: string;
   description: string | null;
+  totalCapital: number | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -272,11 +273,13 @@ export type PnlSnapshot = {
 export type CreatePortfolioInput = {
   name: string;
   description?: string;
+  totalCapital?: number;
 };
 
 export type UpdatePortfolioInput = {
   name?: string;
   description?: string;
+  totalCapital?: number;
 };
 
 export type CreateTransactionInput = {

@@ -240,6 +240,7 @@ function mapPortfolio(row: JsonRecord): Portfolio {
     id: String(row.id),
     name: String(row.name),
     description: row.description == null ? null : String(row.description),
+    totalCapital: row.totalCapital == null ? null : Number(row.totalCapital),
     userId: String(row.userId),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt)

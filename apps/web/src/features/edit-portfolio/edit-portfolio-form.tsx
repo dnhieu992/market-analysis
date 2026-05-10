@@ -44,6 +44,11 @@ export function EditPortfolioForm({ portfolio, onSubmitted }: EditPortfolioFormP
         <textarea name="description" rows={3} defaultValue={portfolio.description ?? ''} />
       </label>
 
+      <label className="trade-field">
+        <span>Total Capital ($)</span>
+        <input name="totalCapital" type="number" min="0" step="0.01" defaultValue={portfolio.totalCapital ?? ''} placeholder="e.g. 10000" />
+      </label>
+
       {error ? <p className="trade-form-error">{error}</p> : null}
 
       <button type="submit" className="trade-submit" disabled={isPending}>
