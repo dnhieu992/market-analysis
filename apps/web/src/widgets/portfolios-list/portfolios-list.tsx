@@ -118,8 +118,8 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
         </div>
 
         {portfolios.length > 0 && (
-          <div className="tt-wrap">
-            <table className="tt">
+          <div className="tt-wrap tt-card-wrap">
+            <table className="tt tt-card">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -143,24 +143,25 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                     : null;
                   return (
                   <tr key={portfolio.id}>
-                    <td>
+                    {/* Full-width: portfolio name */}
+                    <td data-label="Portfolio" data-full="">
                       <Link href={`/portfolio/${portfolio.id}`} className="tt-symbol-btn">
                         {portfolio.name}
                       </Link>
                     </td>
-                    <td>
+                    <td data-label="All-time Profit">
                       {holdings.length === 0
                         ? <span className="tt-muted">—</span>
                         : <ProfitCell profit={profit} loaded={pricesLoaded} />
                       }
                     </td>
-                    <td>
+                    <td data-label="Total Capital">
                       {portfolio.totalCapital != null
                         ? <span style={{ fontWeight: 600 }}>{formatUsd(portfolio.totalCapital)}</span>
                         : <span className="tt-muted">—</span>
                       }
                     </td>
-                    <td>
+                    <td data-label="Current Use">
                       {activeHoldings.length === 0
                         ? <span className="tt-muted">—</span>
                         : !pricesLoaded
@@ -169,23 +170,24 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                             <div>
                               <span style={{ fontWeight: 600 }}>{formatUsd(currentUse)}</span>
                               {capitalPct != null && (
-                                <span className="tt-muted" style={{ fontSize: '0.8rem', marginLeft: '0.4rem' }}>
-                                  ({capitalPct.toFixed(1)}%)
-                                </span>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                                  {capitalPct.toFixed(1)}% of capital
+                                </div>
                               )}
                             </div>
                           )
                       }
                     </td>
-                    <td>
+                    <td data-label="Coins Holding">
                       {activeHoldings.length > 0
-                        ? <span style={{ fontWeight: 600 }}>{activeHoldings.length}</span>
+                        ? <span style={{ fontWeight: 600 }}>{activeHoldings.length} coin{activeHoldings.length === 1 ? '' : 's'}</span>
                         : <span className="tt-muted">—</span>
                       }
                     </td>
-                    <td className="tt-muted">{portfolio.description ?? '-'}</td>
-                    <td className="tt-muted">{formatDate(portfolio.createdAt)}</td>
-                    <td>
+                    <td data-label="Description" className="tt-muted">{portfolio.description ?? '—'}</td>
+                    <td data-label="Created" className="tt-muted">{formatDate(portfolio.createdAt)}</td>
+                    {/* Full-width: actions */}
+                    <td data-label="" data-full="">
                       <div className="tt-actions">
                         <button
                           className="tt-btn"

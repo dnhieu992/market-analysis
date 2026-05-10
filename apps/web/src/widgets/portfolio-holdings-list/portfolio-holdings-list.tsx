@@ -11,10 +11,11 @@ type PortfolioHoldingsListProps = Readonly<{
   holdings: Holding[];
 }>;
 
+type SortKey = 'pnl' | 'holding';
+
 function formatUsd(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 }
-
 
 function formatExactPrice(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 8 }).format(value);
@@ -150,7 +151,45 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
   );
 }
 
-type SortKey = 'pnl' | 'holding';
+function SortToggle({ sortBy, onChange }: { sortBy: SortKey; onChange: (k: SortKey) => void }) {
+  const base: React.CSSProperties = {
+    padding: '5px 12px', fontSize: '0.78rem', fontWeight: 600,
+    borderRadius: '6px', border: 'none', cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s',
+    whiteSpace: 'nowrap',
+  };
+  const active: React.CSSProperties = {
+    ...base,
+    background: 'var(--accent, #1f6f5b)',
+    color: '#fff',
+  };
+  const inactive: React.CSSProperties = {
+    ...base,
+    background: 'transparent',
+    color: 'var(--muted)',
+  };
+  return (
+    <div
+      role="group"
+      aria-label="Sort holdings by"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '2px',
+        padding: '3px',
+        background: 'var(--input-bg, rgba(255,255,255,0.06))',
+        border: '1px solid var(--border)',
+        borderRadius: '8px',
+      }}
+    >
+      <span style={{ fontSize: '0.72rem', color: 'var(--muted)', padding: '0 6px 0 4px', whiteSpace: 'nowrap' }}>Sort:</span>
+      <button style={sortBy === 'pnl' ? active : inactive} onClick={() => onChange('pnl')}>
+        P/L {sortBy === 'pnl' ? '▼' : ''}
+      </button>
+      <button style={sortBy === 'holding' ? active : inactive} onClick={() => onChange('holding')}>
+        Value {sortBy === 'holding' ? '▼' : ''}
+      </button>
+    </div>
+  );
+}
 
 export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -164,6 +203,18 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
       .then((p) => { setPrices(p); setPricesLoaded(true); });
   }, [holdings]);
 
+  const sorted = [...holdings].sort((a, b) => {
+    const priceA = prices[a.coinId] ?? 0;
+    const priceB = prices[b.coinId] ?? 0;
+    if (sortBy === 'holding') {
+      return (priceB * b.totalAmount) - (priceA * a.totalAmount);
+    }
+    // default: pnl descending
+    const pnlA = (priceA - a.avgCost) * a.totalAmount + a.realizedPnl;
+    const pnlB = (priceB - b.avgCost) * b.totalAmount + b.realizedPnl;
+    return pnlB - pnlA;
+  });
+
   return (
     <>
       <PortfolioStatsPanel holdings={holdings} prices={prices} pricesLoaded={pricesLoaded} />
@@ -173,9 +224,17 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
           <h2>Holdings</h2>
           <p>{holdings.length === 0 ? 'No holdings yet.' : `${holdings.length} coin${holdings.length === 1 ? '' : 's'}`}</p>
         </div>
-        <div className="table-actions">
-          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
-        </div>
+        {holdings.length > 0 && (
+          <div className="table-actions">
+            <SortToggle sortBy={sortBy} onChange={setSortBy} />
+            <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
+          </div>
+        )}
+        {holdings.length === 0 && (
+          <div className="table-actions">
+            <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
+          </div>
+        )}
       </div>
 
       {holdings.length > 0 && (
@@ -187,30 +246,23 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 <th>Current Price</th>
                 <th>Avg. Buy Price</th>
                 <th
-                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', opacity: sortBy === 'holding' ? 1 : 0.6 }}
                   onClick={() => setSortBy('holding')}
+                  title="Sort by holding value"
                 >
                   Holdings {sortBy === 'holding' ? '▼' : ''}
                 </th>
                 <th
-                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', opacity: sortBy === 'pnl' ? 1 : 0.6 }}
                   onClick={() => setSortBy('pnl')}
+                  title="Sort by profit / loss"
                 >
                   Profit / Loss {sortBy === 'pnl' ? '▼' : ''}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {[...holdings].sort((a, b) => {
-                const priceA = prices[a.coinId] ?? 0;
-                const priceB = prices[b.coinId] ?? 0;
-                if (sortBy === 'holding') {
-                  return (priceB * b.totalAmount) - (priceA * a.totalAmount);
-                }
-                const pnlA = (priceA - a.avgCost) * a.totalAmount + a.realizedPnl;
-                const pnlB = (priceB - b.avgCost) * b.totalAmount + b.realizedPnl;
-                return pnlB - pnlA;
-              }).map((h) => {
+              {sorted.map((h) => {
                 const currentPrice = prices[h.coinId];
                 const currentValue = currentPrice != null ? currentPrice * h.totalAmount : null;
                 const unrealizedPnl = currentPrice != null ? (currentPrice - h.avgCost) * h.totalAmount : 0;
@@ -218,6 +270,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
 
                 return (
                   <tr key={h.coinId}>
+                    {/* Full-width on mobile */}
                     <td data-label="Coin" data-full="">
                       <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
                         <strong>{h.coinId}</strong>
