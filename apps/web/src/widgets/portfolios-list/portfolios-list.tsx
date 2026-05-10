@@ -124,7 +124,7 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                   <th>Total Capital</th>
                   <th>Current Use</th>
                   <th>Coins Holding</th>
-                  <th>Description</th>
+
                   <th>Created</th>
                   <th>Actions</th>
                 </tr>
@@ -179,7 +179,7 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                         : <span className="tt-muted">—</span>
                       }
                     </td>
-                    <td data-label="Description" className="tt-muted">{portfolio.description ?? '—'}</td>
+
                     <td data-label="Created" className="tt-muted">{formatDate(portfolio.createdAt)}</td>
                     {/* Full-width: actions */}
                     <td data-label="" data-full="">
