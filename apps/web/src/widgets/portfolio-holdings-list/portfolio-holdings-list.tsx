@@ -83,8 +83,8 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
   const totalCostBasis = stats.reduce((sum, s) => sum + s.totalInvested, 0);
   const isProfitPositive = allTimeProfit >= 0;
 
-  const best = [...stats].sort((a, b) => b.pnlPct - a.pnlPct)[0];
-  const worst = [...stats].sort((a, b) => a.pnlPct - b.pnlPct)[0];
+  const best = [...stats].sort((a, b) => b.totalPnl - a.totalPnl)[0];
+  const worst = [...stats].sort((a, b) => a.totalPnl - b.totalPnl)[0];
 
   const cardStyle: React.CSSProperties = {
     background: 'var(--panel-bg, rgba(255,255,255,0.04))',
@@ -185,7 +185,7 @@ function SortToggle({ sortBy, onChange }: { sortBy: SortKey; onChange: (k: SortK
         P/L {sortBy === 'pnl' ? '▼' : ''}
       </button>
       <button style={sortBy === 'holding' ? active : inactive} onClick={() => onChange('holding')}>
-        Value {sortBy === 'holding' ? '▼' : ''}
+        Holding {sortBy === 'holding' ? '▼' : ''}
       </button>
     </div>
   );
@@ -248,7 +248,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 <th
                   style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', opacity: sortBy === 'holding' ? 1 : 0.6 }}
                   onClick={() => setSortBy('holding')}
-                  title="Sort by holding value"
+                  title="Sort by holding value ($)"
                 >
                   Holdings {sortBy === 'holding' ? '▼' : ''}
                 </th>
