@@ -384,9 +384,9 @@ export function TradesTable({
     const hasUrlFilters = PERSISTED_FILTER_KEYS.some(k => searchParams.get(k));
     if (hasUrlFilters) return;
     const saved = loadFiltersFromStorage();
-    if (Object.keys(saved).length === 0) return;
+    const filtersToApply = Object.keys(saved).length > 0 ? saved : { status: 'open' };
     const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(saved)) params.set(k, v);
+    for (const [k, v] of Object.entries(filtersToApply)) params.set(k, v);
     router.replace(`/trades?${params.toString()}`);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
