@@ -46,11 +46,8 @@ function computeAllTimeProfit(holdings: Holding[], prices: Record<string, number
   }, 0);
 }
 
-function computeCurrentUse(holdings: Holding[], prices: Record<string, number>): number {
-  return holdings.reduce((sum, h) => {
-    const currentPrice = prices[h.coinId] ?? 0;
-    return sum + currentPrice * h.totalAmount;
-  }, 0);
+function computeCurrentUse(holdings: Holding[]): number {
+  return holdings.reduce((sum, h) => sum + h.totalInvested, 0);
 }
 
 function ProfitCell({ profit, loaded }: { profit: number; loaded: boolean }) {
@@ -137,7 +134,7 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                   const holdings = holdingsMap[portfolio.id] ?? [];
                   const activeHoldings = holdings.filter((h) => h.totalAmount > 0);
                   const profit = computeAllTimeProfit(holdings, prices);
-                  const currentUse = computeCurrentUse(activeHoldings, prices);
+                  const currentUse = computeCurrentUse(activeHoldings);
                   const capitalPct = portfolio.totalCapital && portfolio.totalCapital > 0
                     ? (currentUse / portfolio.totalCapital) * 100
                     : null;
@@ -164,18 +161,16 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
                     <td data-label="Current Use">
                       {activeHoldings.length === 0
                         ? <span className="tt-muted">—</span>
-                        : !pricesLoaded
-                          ? <span className="tt-muted" style={{ fontSize: '0.8rem' }}>loading…</span>
-                          : (
-                            <div>
-                              <span style={{ fontWeight: 600 }}>{formatUsd(currentUse)}</span>
-                              {capitalPct != null && (
-                                <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                                  {capitalPct.toFixed(1)}% of capital
-                                </div>
-                              )}
-                            </div>
-                          )
+                        : (
+                          <div>
+                            <span style={{ fontWeight: 600 }}>{formatUsd(currentUse)}</span>
+                            {capitalPct != null && (
+                              <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                                {capitalPct.toFixed(1)}% of capital
+                              </div>
+                            )}
+                          </div>
+                        )
                       }
                     </td>
                     <td data-label="Coins Holding">
