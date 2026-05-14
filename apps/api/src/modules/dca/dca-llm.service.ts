@@ -51,12 +51,12 @@ const DCA_ANALYSIS_TOOL_SCHEMA = {
   }
 } as const;
 
-type LlmPlanResult = {
+export type LlmPlanResult = {
   llmAnalysis: string;
   items: LlmPlanItem[];
 };
 
-type LlmAnalysisResult = {
+export type LlmAnalysisResult = {
   llmAnalysis: string;
 };
 
@@ -84,7 +84,10 @@ type ArchivedPlanContext = {
 const TIMEOUT_MS = 90_000;
 
 function resolveModel(): string {
-  return process.env.CLAUDE_MODEL ?? 'claude-sonnet-4-6';
+  const env = process.env.CLAUDE_MODEL ?? 'sonnet';
+  if (env === 'opus') return 'claude-opus-4-6';
+  if (env === 'sonnet') return 'claude-sonnet-4-6';
+  return env; // allow fully qualified model ID override
 }
 
 function formatCandles(candles: Candle[]): string {
@@ -152,6 +155,10 @@ export class DcaLlmService {
     toolSchema: Record<string, unknown>
   ): Promise<T | null> {
     const apiKey = (process.env.CLAUDE_API_KEY ?? '').trim();
+    if (!apiKey) {
+      this.logger.warn('DCA LLM: CLAUDE_API_KEY is not set');
+      return null;
+    }
     const model = resolveModel();
 
     try {
