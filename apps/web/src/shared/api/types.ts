@@ -364,3 +364,87 @@ export type PaginatedOrders = {
   closedPnlSum: number;
   openOrders: DashboardOrder[];
 };
+
+export type DcaConfig = {
+  id: string;
+  userId: string;
+  coin: 'BTC' | 'ETH';
+  totalBudget: number;
+  portfolioId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DcaPlanItem = {
+  id: string;
+  dcaPlanId: string;
+  type: 'buy' | 'sell';
+  targetPrice: number;
+  suggestedAmount: number;
+  note: string | null;
+  source: 'llm' | 'user';
+  userModified: boolean;
+  deletedByUser: boolean;
+  originalTargetPrice: number | null;
+  originalSuggestedAmount: number | null;
+  status: 'pending' | 'executed' | 'skipped';
+  executedPrice: number | null;
+  executedAmount: number | null;
+  executedAt: string | null;
+  createdAt: string;
+};
+
+export type DcaPlan = {
+  id: string;
+  dcaConfigId: string;
+  status: 'active' | 'archived';
+  llmAnalysis: string | null;
+  createdAt: string;
+  archivedAt: string | null;
+  items: DcaPlanItem[];
+};
+
+export type DcaCapitalState = {
+  totalBudget: number;
+  deployedAmount: number;
+  remaining: number;
+  runnerAmount: number;
+  runnerAvgCost: number;
+};
+
+export type DcaActivePlanResponse = {
+  config: DcaConfig;
+  plan: DcaPlan | null;
+  capital: DcaCapitalState;
+};
+
+export type CreateDcaConfigInput = {
+  coin: 'BTC' | 'ETH';
+  totalBudget: number;
+  portfolioId: string;
+};
+
+export type UpdateDcaConfigInput = {
+  totalBudget?: number;
+  portfolioId?: string;
+};
+
+export type CreateDcaPlanItemInput = {
+  type: 'buy' | 'sell';
+  targetPrice: number;
+  suggestedAmount: number;
+  note?: string;
+};
+
+export type UpdateDcaPlanItemInput = {
+  type?: 'buy' | 'sell';
+  targetPrice?: number;
+  suggestedAmount?: number;
+  note?: string;
+};
+
+export type ExecuteDcaPlanItemInput = {
+  executedPrice: number;
+  executedAmount: number;
+  executedAt?: string;
+};
