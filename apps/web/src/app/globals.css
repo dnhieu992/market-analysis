@@ -5429,3 +5429,122 @@ a.metric-card--link:hover {
   cursor: pointer;
   color: var(--foreground);
 }
+
+/* --- DCA Manager --- */
+.dca-page h1 {
+  margin-bottom: 1.5rem;
+}
+
+.dca-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.dca-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.dca-budget-bar {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.dca-runner-bar {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.dca-analysis {
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+}
+
+.dca-analysis summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.dca-analysis p {
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.dca-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dca-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.dca-items-table th,
+.dca-items-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.dca-type--buy { color: var(--green, #22c55e); font-weight: 600; }
+.dca-type--sell { color: var(--red, #ef4444); font-weight: 600; }
+
+.dca-item--executed { opacity: 0.6; }
+.dca-item--skipped { opacity: 0.4; text-decoration: line-through; }
+
+.dca-source-badge {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-subtle, #f1f5f9);
+}
+
+.dca-item-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.dca-item-actions button {
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dca-add-item-btn {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .dca-items-table thead { display: none; }
+  .dca-items-table tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem;
+  }
+  .dca-items-table td {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: none;
+    padding: 0.25rem 0.5rem;
+  }
+  .dca-items-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    margin-right: 1rem;
+  }
+}

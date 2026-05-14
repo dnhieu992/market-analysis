@@ -28,6 +28,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Coin holdings & PnL tracker'
   },
   {
+    href: '/dca',
+    label: 'DCA Manager',
+    description: 'DCA buy/sell plans for BTC & ETH'
+  },
+  {
     href: '/trades',
     label: 'Trading History',
     description: 'Manual orders'
