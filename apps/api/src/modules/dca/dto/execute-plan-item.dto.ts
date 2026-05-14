@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class ExecutePlanItemDto {
   @ApiProperty({ example: 71500, description: 'Actual execution price' })
@@ -14,6 +14,6 @@ export class ExecutePlanItemDto {
 
   @ApiPropertyOptional({ example: '2026-05-14T10:00:00.000Z', description: 'When the trade actually happened' })
   @IsOptional()
-  @IsString()
+  @IsDateString()
   executedAt?: string;
 }
