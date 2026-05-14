@@ -16,7 +16,6 @@ import type {
   DashboardOrder,
   DashboardSignal,
   DcaActivePlanResponse,
-  DcaCapitalState,
   DcaConfig,
   DcaPlan,
   DcaPlanItem,
@@ -345,7 +344,13 @@ function mapDcaActivePlanResponse(row: JsonRecord): DcaActivePlanResponse {
   return {
     config: mapDcaConfig(row.config as JsonRecord),
     plan: row.plan ? mapDcaPlan(row.plan as JsonRecord) : null,
-    capital: row.capital as DcaCapitalState
+    capital: {
+      totalBudget: Number((row.capital as JsonRecord).totalBudget),
+      deployedAmount: Number((row.capital as JsonRecord).deployedAmount),
+      remaining: Number((row.capital as JsonRecord).remaining),
+      runnerAmount: Number((row.capital as JsonRecord).runnerAmount),
+      runnerAvgCost: Number((row.capital as JsonRecord).runnerAvgCost)
+    }
   };
 }
 
@@ -789,6 +794,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config/${configId}/plan/replan`, withDefaults({
         method: 'POST'
       }));
+      if (row == null) return { error: 'No plan returned' };
       if (row.error) return { error: String(row.error) };
       return mapDcaPlan(row);
     },
@@ -797,6 +803,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config/${configId}/plan/reanalyze`, withDefaults({
         method: 'POST'
       }));
+      if (row == null) return { error: 'No active plan returned' };
       if (row.error) return { error: String(row.error) };
       return mapDcaPlan(row);
     },
