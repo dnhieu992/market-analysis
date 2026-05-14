@@ -5430,8 +5430,8 @@ a.metric-card--link:hover {
   color: var(--foreground);
 }
 
-/* --- DCA Manager --- */
-.dca-page h1 {
+/* --- DCA Manager --- (inline styles used; no custom classes needed) */
+.dca-page-unused {
   margin-bottom: 1.5rem;
 }
 

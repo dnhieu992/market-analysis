@@ -9,7 +9,6 @@ export default async function DcaPage() {
     api.fetchPortfolios().catch(() => [])
   ]);
 
-  // Fetch active plan for each config
   const configsWithPlans = await Promise.all(
     configs.map(async (config) => {
       const data = await api.fetchDcaActivePlan(config.id).catch(() => ({
@@ -22,9 +21,8 @@ export default async function DcaPage() {
   );
 
   return (
-    <div className="dca-page">
-      <h1>DCA Manager</h1>
-      <div className="dca-panels">
+    <main className="dashboard-shell">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {configsWithPlans.map((data) => (
           <DcaPanel
             key={data.config.id}
@@ -43,6 +41,6 @@ export default async function DcaPage() {
           />
         )}
       </div>
-    </div>
+    </main>
   );
 }

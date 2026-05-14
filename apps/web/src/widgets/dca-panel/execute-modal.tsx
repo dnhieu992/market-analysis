@@ -15,10 +15,15 @@ type ExecuteModalProps = {
 
 const api = createApiClient();
 
+function toDateTimeLocal(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function ExecuteModal({ item, coin, planId, onClose, onDone }: ExecuteModalProps) {
   const [price, setPrice] = useState(String(item.targetPrice));
   const [amount, setAmount] = useState('');
-  const [executedAt, setExecutedAt] = useState('');
+  const [executedAt, setExecutedAt] = useState(toDateTimeLocal(new Date()));
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +34,7 @@ export function ExecuteModal({ item, coin, planId, onClose, onDone }: ExecuteMod
         await api.executeDcaPlanItem(planId, item.id, {
           executedPrice: Number(price),
           executedAmount: Number(amount),
-          ...(executedAt ? { executedAt: new Date(executedAt).toISOString() } : {})
+          executedAt: new Date(executedAt).toISOString()
         });
         await onDone();
       } catch (err) {
@@ -39,28 +44,35 @@ export function ExecuteModal({ item, coin, planId, onClose, onDone }: ExecuteMod
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>Execute {item.type.toUpperCase()} @ ${item.targetPrice.toLocaleString()}</h3>
-        <form onSubmit={handleSubmit}>
-          <label>
-            Actual Price (USD)
-            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" />
-          </label>
-          <label>
-            Actual Amount ({coin})
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="any" />
-          </label>
-          <label>
-            Executed At (optional)
-            <input type="datetime-local" value={executedAt} onChange={(e) => setExecutedAt(e.target.value)} />
-          </label>
-          {error && <p className="error-text">{error}</p>}
-          <div className="modal-actions">
-            <button type="button" onClick={onClose}>Cancel</button>
-            <button type="submit" disabled={isPending}>{isPending ? 'Executing...' : 'Confirm'}</button>
-          </div>
-        </form>
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            Execute {item.type.toUpperCase()} — Target&nbsp;
+            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(item.targetPrice)}
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body">
+          <form className="trade-form" onSubmit={handleSubmit}>
+            <label className="trade-field">
+              <span>Actual Price (USD)</span>
+              <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required min="0" step="any" />
+            </label>
+            <label className="trade-field">
+              <span>Actual Amount ({coin})</span>
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="any" placeholder="0.001" />
+            </label>
+            <label className="trade-field trade-field-wide">
+              <span>Executed At</span>
+              <input type="datetime-local" value={executedAt} onChange={(e) => setExecutedAt(e.target.value)} required />
+            </label>
+            {error && <p className="trade-form-error">{error}</p>}
+            <button type="submit" className="trade-submit" disabled={isPending}>
+              {isPending ? 'Confirming…' : 'Confirm Execution'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

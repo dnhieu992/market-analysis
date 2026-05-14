@@ -44,41 +44,77 @@ export function AddEditItemModal({ item, planId, onClose, onDone }: AddEditItemM
         }
         await onDone();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed');
+        setError(err instanceof Error ? err.message : 'Failed to save');
       }
     });
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>{isEdit ? 'Edit Item' : 'Add Item'}</h3>
-        <form onSubmit={handleSubmit}>
-          <label>
-            Type
-            <select value={type} onChange={(e) => setType(e.target.value as 'buy' | 'sell')}>
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
-            </select>
-          </label>
-          <label>
-            Target Price (USD)
-            <input type="number" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)} required min="0" step="any" />
-          </label>
-          <label>
-            Amount {type === 'buy' ? '(USD)' : '(Coin)'}
-            <input type="number" value={suggestedAmount} onChange={(e) => setSuggestedAmount(e.target.value)} required min="0" step="any" />
-          </label>
-          <label>
-            Note
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
-          </label>
-          {error && <p className="error-text">{error}</p>}
-          <div className="modal-actions">
-            <button type="button" onClick={onClose}>Cancel</button>
-            <button type="submit" disabled={isPending}>{isPending ? 'Saving...' : isEdit ? 'Save' : 'Add'}</button>
-          </div>
-        </form>
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">{isEdit ? 'Edit Plan Item' : 'Add Plan Item'}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body">
+          <form className="trade-form" onSubmit={handleSubmit}>
+            {/* Buy / Sell tabs */}
+            <div className="tx-type-tabs">
+              <button
+                type="button"
+                className={`tx-type-tab${type === 'buy' ? ' tx-type-tab--buy' : ''}`}
+                onClick={() => setType('buy')}
+              >
+                Buy
+              </button>
+              <button
+                type="button"
+                className={`tx-type-tab${type === 'sell' ? ' tx-type-tab--sell' : ''}`}
+                onClick={() => setType('sell')}
+              >
+                Sell
+              </button>
+            </div>
+
+            <label className="trade-field">
+              <span>Target Price (USD)</span>
+              <input
+                type="number"
+                value={targetPrice}
+                onChange={(e) => setTargetPrice(e.target.value)}
+                required
+                min="0"
+                step="any"
+                placeholder="95000"
+              />
+            </label>
+            <label className="trade-field">
+              <span>Amount ({type === 'buy' ? 'USD' : 'Coin qty'})</span>
+              <input
+                type="number"
+                value={suggestedAmount}
+                onChange={(e) => setSuggestedAmount(e.target.value)}
+                required
+                min="0"
+                step="any"
+                placeholder={type === 'buy' ? '500' : '0.005'}
+              />
+            </label>
+            <label className="trade-field trade-field-wide">
+              <span>Note (optional)</span>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={2}
+                placeholder="Reason for this zone…"
+              />
+            </label>
+            {error && <p className="trade-form-error">{error}</p>}
+            <button type="submit" className="trade-submit" disabled={isPending}>
+              {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Item'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
