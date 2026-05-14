@@ -39,6 +39,10 @@ export class DcaPlanService {
     return this.planRepository.listArchivedByConfigId(dcaConfigId);
   }
 
+  getPlanById(planId: string) {
+    return this.planRepository.findById(planId);
+  }
+
   async createPlanWithItems(dcaConfigId: string, llmAnalysis: string, items: LlmPlanItem[]) {
     // Archive any existing active plan
     await this.planRepository.archiveActive(dcaConfigId);

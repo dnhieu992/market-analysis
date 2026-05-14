@@ -18,6 +18,7 @@ import { SignalsModule } from './modules/signals/signals.module';
 import { StrategiesModule } from './modules/strategies/strategies.module';
 import { TelegramLogsModule } from './modules/telegram-logs/telegram-logs.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
+import { DcaModule } from './modules/dca/dca.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { UserModule } from './modules/user/user.module';
@@ -44,7 +45,8 @@ import { WorkerModule } from './modules/worker/worker.module';
     PnlModule,
     UserModule,
     UploadModule,
-    SkillsModule
+    SkillsModule,
+    DcaModule
   ],
   providers: [
     {
