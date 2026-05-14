@@ -233,3 +233,42 @@ Plan items with `deletedByUser=true` are hidden from the UI (soft-deleted, only 
 - `apps/web/src/_pages/dca-page/dca-page.tsx`
 - `apps/web/src/features/dca/`
 - `apps/web/src/shared/api/client.ts` — add DCA API methods + mappers
+
+---
+
+## Implementation Checklist
+
+### DB
+- [ ] Add `DcaConfig`, `DcaPlan`, `DcaPlanItem` models to `packages/db/prisma/schema.prisma`
+- [ ] Run `pnpm prisma:generate` to regenerate Prisma client
+- [ ] Create migration file `packages/db/prisma/migrations/<timestamp>_add_dca_tables/migration.sql`
+
+### API
+- [ ] Create `DcaModule` with controller, service, dca-plan.service, dca-llm.service
+- [ ] Implement `DcaConfig` CRUD endpoints (`GET /dca/config`, `POST`, `PATCH /:id`)
+- [ ] Implement plan generation endpoint (`POST /dca/config/:configId/plan/generate`)
+- [ ] Implement re-plan endpoint (`POST /dca/config/:configId/plan/replan`) — archive + generate
+- [ ] Implement re-analyze endpoint (`POST /dca/config/:configId/plan/reanalyze`) — llmAnalysis only
+- [ ] Implement plan item CRUD (`POST`, `PATCH`, `DELETE` with soft-delete logic)
+- [ ] Implement execute endpoint — tick item + create Portfolio transaction
+- [ ] Implement skip endpoint
+- [ ] Register `DcaModule` in `app.module.ts`
+
+### LLM
+- [ ] Build LLM prompt for DCA plan generation (market context + budget + holdings + history)
+- [ ] Build LLM prompt for re-plan (adds current plan items + user edits/deletions)
+- [ ] Build LLM prompt for re-analyze (analysis only, no item output)
+- [ ] Integrate with existing LLM module using `tool_use` for structured output
+
+### Web
+- [ ] Add `app/dca/page.tsx` route (thin re-export)
+- [ ] Build `_pages/dca-page/dca-page.tsx` server component (fetch configs + active plans)
+- [ ] Build budget summary bar (Budget / Deployed / Remaining)
+- [ ] Build runner summary line
+- [ ] Build plan items table with source badges (`llm` / `llm ✎` / `user`)
+- [ ] Build execute modal (input executedPrice + executedAmount)
+- [ ] Build add/edit item form
+- [ ] Wire `[Re-plan]` button
+- [ ] Wire `[Re-analyze]` button
+- [ ] Add DCA API methods + mappers to `apps/web/src/shared/api/client.ts`
+- [ ] Add `/dca` link to navigation
