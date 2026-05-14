@@ -14,7 +14,10 @@ export function createDcaPlanRepository(client = prisma) {
       return client.dcaPlan.findFirst({
         where: { dcaConfigId, status: 'active' },
         include: {
-          items: { orderBy: { targetPrice: 'asc' } }
+          items: {
+            where: { deletedByUser: false },
+            orderBy: { targetPrice: 'asc' }
+          }
         }
       });
     },
@@ -22,7 +25,10 @@ export function createDcaPlanRepository(client = prisma) {
       return client.dcaPlan.findMany({
         where: { dcaConfigId, status: 'archived' },
         include: {
-          items: { orderBy: { targetPrice: 'asc' } }
+          items: {
+            where: { deletedByUser: false },
+            orderBy: { targetPrice: 'asc' }
+          }
         },
         orderBy: { archivedAt: 'desc' }
       });
