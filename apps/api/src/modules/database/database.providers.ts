@@ -4,6 +4,9 @@ import {
   createCoinTransactionRepository,
   createConversationRepository,
   createDailyAnalysisRepository,
+  createDcaConfigRepository,
+  createDcaPlanItemRepository,
+  createDcaPlanRepository,
   createHoldingRepository,
   createOrderRepository,
   createPnlHistoryRepository,
@@ -31,6 +34,9 @@ export const COIN_TRANSACTION_REPOSITORY = Symbol('COIN_TRANSACTION_REPOSITORY')
 export const HOLDING_REPOSITORY = Symbol('HOLDING_REPOSITORY');
 export const PNL_HISTORY_REPOSITORY = Symbol('PNL_HISTORY_REPOSITORY');
 export const CONVERSATION_REPOSITORY = Symbol('CONVERSATION_REPOSITORY');
+export const DCA_CONFIG_REPOSITORY = Symbol('DCA_CONFIG_REPOSITORY');
+export const DCA_PLAN_REPOSITORY = Symbol('DCA_PLAN_REPOSITORY');
+export const DCA_PLAN_ITEM_REPOSITORY = Symbol('DCA_PLAN_ITEM_REPOSITORY');
 export const DatabaseProviders: Provider[] = [
   {
     provide: 'PRISMA_CLIENT',
@@ -91,5 +97,17 @@ export const DatabaseProviders: Provider[] = [
   {
     provide: CONVERSATION_REPOSITORY,
     useFactory: () => createConversationRepository()
+  },
+  {
+    provide: DCA_CONFIG_REPOSITORY,
+    useFactory: () => createDcaConfigRepository()
+  },
+  {
+    provide: DCA_PLAN_REPOSITORY,
+    useFactory: () => createDcaPlanRepository()
+  },
+  {
+    provide: DCA_PLAN_ITEM_REPOSITORY,
+    useFactory: () => createDcaPlanItemRepository()
   },
 ];
