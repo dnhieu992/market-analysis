@@ -181,20 +181,40 @@ export class DcaController {
 
   @Post('plan/:planId/items')
   @ApiOperation({ summary: 'Add item manually' })
-  addItem(@Param('planId') planId: string, @Body() body: CreatePlanItemDto) {
+  async addItem(
+    @Param('planId') planId: string,
+    @Body() body: CreatePlanItemDto,
+    @Req() req: AuthenticatedRequest
+  ) {
+    const plan = await this.planService.getPlanById(planId);
+    if (!plan) return { error: 'Plan not found' };
+    await this.dcaService.getConfig(plan.dcaConfigId, req.authUser!.id);
     return this.planService.addItem(planId, body);
   }
 
   @Patch('plan/:planId/items/:itemId')
   @ApiOperation({ summary: 'Edit item' })
-  editItem(@Param('itemId') itemId: string, @Body() body: UpdatePlanItemDto) {
+  async editItem(
+    @Param('itemId') itemId: string,
+    @Body() body: UpdatePlanItemDto,
+    @Req() req: AuthenticatedRequest
+  ) {
+    const plan = await this.planService.getPlanByItemId(itemId);
+    if (!plan) return { error: 'Plan not found' };
+    await this.dcaService.getConfig(plan.dcaConfigId, req.authUser!.id);
     return this.planService.editItem(itemId, body);
   }
 
   @Delete('plan/:planId/items/:itemId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete item (soft for LLM, hard for user)' })
-  deleteItem(@Param('itemId') itemId: string) {
+  async deleteItem(
+    @Param('itemId') itemId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    const plan = await this.planService.getPlanByItemId(itemId);
+    if (!plan) return { error: 'Plan not found' };
+    await this.dcaService.getConfig(plan.dcaConfigId, req.authUser!.id);
     return this.planService.deleteItem(itemId);
   }
 
@@ -217,7 +237,13 @@ export class DcaController {
 
   @Patch('plan/:planId/items/:itemId/skip')
   @ApiOperation({ summary: 'Mark item as skipped' })
-  skipItem(@Param('itemId') itemId: string) {
+  async skipItem(
+    @Param('itemId') itemId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    const plan = await this.planService.getPlanByItemId(itemId);
+    if (!plan) return { error: 'Plan not found' };
+    await this.dcaService.getConfig(plan.dcaConfigId, req.authUser!.id);
     return this.planService.skipItem(itemId);
   }
 }
