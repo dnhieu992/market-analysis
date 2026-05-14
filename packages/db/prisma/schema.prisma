@@ -175,6 +175,7 @@ model User {
   sessions            Session[]
   portfolios          Portfolio[]
   conversations       Conversation[]
+  dcaConfigs          DcaConfig[]
   @@map("users")
 }
 
@@ -228,6 +229,7 @@ model Portfolio {
   transactions CoinTransaction[]
   holdings     Holding[]
   pnlHistory   PnlHistory[]
+  dcaConfigs   DcaConfig[]
 
   @@index([userId])
   @@map("portfolios")
@@ -284,3 +286,56 @@ model PnlHistory {
   @@map("pnl_history")
 }
 
+model DcaConfig {
+  id          String    @id @default(uuid()) @db.Char(36)
+  userId      String
+  coin        String    @db.VarChar(10)
+  totalBudget Decimal   @db.Decimal(20, 8)
+  portfolioId String    @db.Char(36)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  plans       DcaPlan[]
+
+  @@unique([userId, coin])
+  @@index([userId])
+  @@map("dca_configs")
+}
+
+model DcaPlan {
+  id           String        @id @default(uuid()) @db.Char(36)
+  dcaConfigId  String        @db.Char(36)
+  status       String        @db.VarChar(20)
+  llmAnalysis  String?       @db.Text
+  createdAt    DateTime      @default(now())
+  archivedAt   DateTime?
+  dcaConfig    DcaConfig     @relation(fields: [dcaConfigId], references: [id], onDelete: Cascade)
+  items        DcaPlanItem[]
+
+  @@index([dcaConfigId, status])
+  @@map("dca_plans")
+}
+
+model DcaPlanItem {
+  id                      String    @id @default(uuid()) @db.Char(36)
+  dcaPlanId               String    @db.Char(36)
+  type                    String    @db.VarChar(10)
+  targetPrice             Decimal   @db.Decimal(20, 8)
+  suggestedAmount         Decimal   @db.Decimal(20, 8)
+  note                    String?   @db.Text
+  source                  String    @db.VarChar(10)
+  userModified            Boolean   @default(false)
+  originalTargetPrice     Decimal?  @db.Decimal(20, 8)
+  originalSuggestedAmount Decimal?  @db.Decimal(20, 8)
+  deletedByUser           Boolean   @default(false)
+  status                  String    @default("pending") @db.VarChar(20)
+  executedPrice           Decimal?  @db.Decimal(20, 8)
+  executedAmount          Decimal?  @db.Decimal(20, 8)
+  executedAt              DateTime?
+  createdAt               DateTime  @default(now())
+  dcaPlan                 DcaPlan   @relation(fields: [dcaPlanId], references: [id], onDelete: Cascade)
+
+  @@index([dcaPlanId, status])
+  @@map("dca_plan_items")
+}

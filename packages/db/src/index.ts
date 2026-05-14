@@ -14,3 +14,6 @@ export { createCoinTransactionRepository } from './repositories/coin-transaction
 export { createHoldingRepository } from './repositories/holding.repository';
 export { createPnlHistoryRepository } from './repositories/pnl-history.repository';
 export { createConversationRepository } from './repositories/conversation.repository';
+export { createDcaConfigRepository } from './repositories/dca-config.repository';
+export { createDcaPlanRepository } from './repositories/dca-plan.repository';
+export { createDcaPlanItemRepository } from './repositories/dca-plan-item.repository';
