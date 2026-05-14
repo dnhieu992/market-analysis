@@ -39,13 +39,16 @@ One record per coin. Holds the budget and links to the portfolio used as ledger.
 | Column | Type | Notes |
 |--------|------|-------|
 | id | VARCHAR(36) PK | UUID |
+| userId | VARCHAR(36) FK → User | Owner, for auth guard checks |
 | coin | ENUM('BTC', 'ETH') | |
 | totalBudget | DECIMAL(20,8) | Total capital allocated for this coin's DCA |
 | portfolioId | VARCHAR(36) FK → Portfolio | Portfolio used as transaction ledger |
 | createdAt | DATETIME | |
 | updatedAt | DATETIME | |
 
-UNIQUE KEY on `coin` (one config per coin).
+UNIQUE KEY on `(userId, coin)` (one config per coin per user).
+
+**Validation:** `PATCH /dca/config/:id` must reject `totalBudget` decreases below current `deployedAmount`.
 
 ---
 
@@ -72,16 +75,24 @@ Individual buy/sell orders within a plan. Fully CRUD-able by the user.
 | dcaPlanId | VARCHAR(36) FK → DcaPlan | |
 | type | ENUM('buy', 'sell') | |
 | targetPrice | DECIMAL(20,8) | LLM-suggested target price |
-| suggestedAmount | DECIMAL(20,8) | LLM-suggested USD amount to deploy |
+| suggestedAmount | DECIMAL(20,8) | Buy = USD to spend; Sell = coin amount to sell |
 | note | TEXT | LLM reasoning for this zone (nullable) |
 | source | ENUM('llm', 'user') | Who created this item |
 | userModified | BOOLEAN | DEFAULT false — true if user edited an LLM item |
+| originalTargetPrice | DECIMAL(20,8) | nullable — original LLM value before user edit |
+| originalSuggestedAmount | DECIMAL(20,8) | nullable — original LLM value before user edit |
 | deletedByUser | BOOLEAN | DEFAULT false — soft delete, kept for LLM context |
 | status | ENUM('pending', 'executed', 'skipped') | |
 | executedPrice | DECIMAL(20,8) | nullable — actual price when executed |
-| executedAmount | DECIMAL(20,8) | nullable — actual amount when executed |
-| executedAt | DATETIME | nullable |
+| executedAmount | DECIMAL(20,8) | nullable — actual coin amount when executed |
+| executedAt | DATETIME | nullable — user-provided execution timestamp |
 | createdAt | DATETIME | |
+
+**Amount convention:**
+- `buy` items: `suggestedAmount` = USD to spend (e.g., $500)
+- `sell` items: `suggestedAmount` = coin quantity to sell (e.g., 0.01 BTC)
+
+**Original values:** `originalTargetPrice` and `originalSuggestedAmount` are populated on the first user edit of an LLM-created item. This lets the LLM see what it suggested vs what the user preferred (e.g., "I suggested $72k but user changed to $70k").
 
 ---
 
@@ -120,7 +131,7 @@ Holdings state:
 Current plan items (re-plan only):
   - All items with status: pending / executed / skipped
   - Items soft-deleted by user (deletedByUser=true) — LLM learns from disagreement
-  - Items user edited (userModified=true, original vs current values)
+  - Items user edited (userModified=true, originalTargetPrice/originalSuggestedAmount vs current values)
 
 History:
   - Executed items from all archived plans for this coin
@@ -150,7 +161,7 @@ Re-analyze is for getting the LLM's current read on the market without committin
 When user ticks a plan item as executed:
 
 ```
-1. User inputs executedPrice + executedAmount
+1. User inputs executedPrice + executedAmount + executedAt (optional, defaults to now)
 2. DcaPlanItem → status = 'executed', executedPrice, executedAmount, executedAt set
 3. Transaction created in linked Portfolio:
    - portfolioId = DcaConfig.portfolioId
@@ -158,6 +169,7 @@ When user ticks a plan item as executed:
    - type        = DcaPlanItem.type (buy/sell)
    - price       = executedPrice
    - amount      = executedAmount
+   - transactedAt = executedAt (so Portfolio records the actual trade time, not the tick time)
 4. HoldingsService.updateOnBuy/Sell() runs automatically (existing behavior)
 ```
 
@@ -171,6 +183,7 @@ POST   /dca/config                          — create config for a coin
 PATCH  /dca/config/:id                      — update totalBudget or portfolioId
 
 GET    /dca/config/:configId/plan/active    — get active plan + items
+GET    /dca/config/:configId/plan/history   — list archived plans + items (for review)
 POST   /dca/config/:configId/plan/generate  — generate first plan (LLM)
 POST   /dca/config/:configId/plan/replan    — archive current + generate new plan (LLM)
 POST   /dca/config/:configId/plan/reanalyze — update llmAnalysis only (LLM)
@@ -245,13 +258,14 @@ Plan items with `deletedByUser=true` are hidden from the UI (soft-deleted, only 
 
 ### API
 - [ ] Create `DcaModule` with controller, service, dca-plan.service, dca-llm.service
-- [ ] Implement `DcaConfig` CRUD endpoints (`GET /dca/config`, `POST`, `PATCH /:id`)
+- [ ] Implement `DcaConfig` CRUD endpoints (`GET /dca/config`, `POST`, `PATCH /:id` with budget validation)
 - [ ] Implement plan generation endpoint (`POST /dca/config/:configId/plan/generate`)
 - [ ] Implement re-plan endpoint (`POST /dca/config/:configId/plan/replan`) — archive + generate
 - [ ] Implement re-analyze endpoint (`POST /dca/config/:configId/plan/reanalyze`) — llmAnalysis only
 - [ ] Implement plan item CRUD (`POST`, `PATCH`, `DELETE` with soft-delete logic)
-- [ ] Implement execute endpoint — tick item + create Portfolio transaction
+- [ ] Implement execute endpoint — tick item + create Portfolio transaction (with executedAt)
 - [ ] Implement skip endpoint
+- [ ] Implement plan history endpoint (`GET /dca/config/:configId/plan/history`)
 - [ ] Register `DcaModule` in `app.module.ts`
 
 ### LLM
