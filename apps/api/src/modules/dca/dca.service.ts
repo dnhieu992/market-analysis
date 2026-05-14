@@ -79,7 +79,11 @@ export class DcaService {
     }
 
     if (input.totalBudget !== undefined) {
-      const capital = await this.getCapitalState(config);
+      const effectivePortfolioId = input.portfolioId ?? config.portfolioId;
+      const capital = await this.getCapitalState({
+        ...config,
+        portfolioId: effectivePortfolioId
+      });
       if (input.totalBudget < capital.deployedAmount) {
         throw new BadRequestException(
           `Cannot reduce budget below deployed amount ($${capital.deployedAmount.toFixed(2)})`
