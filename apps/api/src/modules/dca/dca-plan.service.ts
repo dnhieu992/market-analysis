@@ -96,6 +96,8 @@ export class DcaPlanService {
   async editItem(itemId: string, input: UpdatePlanItemDto) {
     const item = await this.itemRepository.findById(itemId);
     if (!item) throw new NotFoundException('Plan item not found');
+    if (item.status === 'executed') throw new BadRequestException('Cannot edit an executed item');
+    if (item.status === 'skipped') throw new BadRequestException('Cannot edit a skipped item');
 
     const updateData: Record<string, unknown> = {};
 
@@ -122,6 +124,7 @@ export class DcaPlanService {
   async deleteItem(itemId: string) {
     const item = await this.itemRepository.findById(itemId);
     if (!item) throw new NotFoundException('Plan item not found');
+    if (item.status === 'executed') throw new BadRequestException('Cannot delete an executed item');
 
     if (item.source === 'llm') {
       // Soft delete — keep for LLM context
@@ -135,6 +138,7 @@ export class DcaPlanService {
   async skipItem(itemId: string) {
     const item = await this.itemRepository.findById(itemId);
     if (!item) throw new NotFoundException('Plan item not found');
+    if (item.status === 'executed') throw new BadRequestException('Cannot skip an executed item');
     return this.itemRepository.update(itemId, { status: 'skipped' });
   }
 
@@ -152,15 +156,7 @@ export class DcaPlanService {
 
     const executedAt = input.executedAt ? new Date(input.executedAt) : new Date();
 
-    // Update plan item
-    await this.itemRepository.update(itemId, {
-      status: 'executed',
-      executedPrice: new Decimal(input.executedPrice),
-      executedAmount: new Decimal(input.executedAmount),
-      executedAt
-    });
-
-    // Create portfolio transaction
+    // Create portfolio transaction FIRST — if this fails, item remains 'pending' and is retryable
     await this.transactionService.createTransaction(portfolioId, {
       coinId,
       type: item.type as 'buy' | 'sell',
@@ -168,6 +164,14 @@ export class DcaPlanService {
       amount: input.executedAmount,
       transactedAt: executedAt.toISOString(),
       note: `DCA ${item.type} — ${item.note || 'plan item executed'}`
+    });
+
+    // Mark item as executed only after transaction succeeds
+    await this.itemRepository.update(itemId, {
+      status: 'executed',
+      executedPrice: new Decimal(input.executedPrice),
+      executedAmount: new Decimal(input.executedAmount),
+      executedAt
     });
 
     return this.itemRepository.findById(itemId);
