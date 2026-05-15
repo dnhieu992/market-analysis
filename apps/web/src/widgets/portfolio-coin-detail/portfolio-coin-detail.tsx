@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from 'react';
 
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import { createApiClient } from '@web/shared/api/client';
+import { formatCryptoPrice } from '@web/shared/lib/format';
 import type { CoinTransaction, Holding } from '@web/shared/api/types';
 
 type PortfolioCoinDetailProps = Readonly<{
@@ -21,10 +22,6 @@ function formatUsd(value: number): string {
 function formatPrice(value: number): string {
   const decimals = value >= 1 ? 3 : 5;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
-}
-
-function formatExactPrice(value: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 10 }).format(value);
 }
 
 function formatCrypto(value: number, coin: string): string {
@@ -139,7 +136,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           {formatCrypto(totalAmount, coinId)}
         </StatCard>
         <StatCard label="Avg. buy price">
-          {formatExactPrice(avgCost)}
+          {formatCryptoPrice(avgCost)}
         </StatCard>
         <StatCard label="Basic Cost">
           {formatUsd(totalInvested)}
@@ -190,7 +187,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                         </div>
                       </td>
                       {/* Price */}
-                      <td data-label="Price">{formatExactPrice(tx.price)}</td>
+                      <td data-label="Price">{formatCryptoPrice(tx.price)}</td>
                       {/* Amount */}
                       <td data-label="Amount">
                         <div style={{ color: amountColor, fontWeight: 500 }}>

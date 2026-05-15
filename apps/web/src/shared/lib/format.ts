@@ -8,6 +8,16 @@ export function formatPrice(value: number): string {
   }).format(value);
 }
 
+export function formatCryptoPrice(value: number): string {
+  const decimals = value >= 1 ? 3 : 10;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value);
+}
+
 export function formatDateTime(value: Date): string {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
