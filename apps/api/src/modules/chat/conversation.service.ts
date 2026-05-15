@@ -1,12 +1,14 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { getSkillById } from '@app/skills';
 
-import { CONVERSATION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
+import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
 import { ClaudeChatProvider } from './providers/claude-chat.provider';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
 
 type ConversationRepo = ReturnType<typeof import('@app/db').createConversationRepository>;
 type OrderRepo = ReturnType<typeof import('@app/db').createOrderRepository>;
+type HoldingRepo = ReturnType<typeof import('@app/db').createHoldingRepository>;
+type CoinTransactionRepo = ReturnType<typeof import('@app/db').createCoinTransactionRepository>;
 
 @Injectable()
 export class ConversationService {
@@ -15,14 +17,19 @@ export class ConversationService {
     private readonly convRepo: ConversationRepo,
     @Inject(ORDER_REPOSITORY)
     private readonly orderRepo: OrderRepo,
+    @Inject(HOLDING_REPOSITORY)
+    private readonly holdingRepo: HoldingRepo,
+    @Inject(COIN_TRANSACTION_REPOSITORY)
+    private readonly txRepo: CoinTransactionRepo,
     private readonly claude: ClaudeChatProvider,
     private readonly toolRegistry: ChatToolRegistry
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────
 
-  createConversation(userId: string, title?: string, skillId?: string) {
-    return this.convRepo.create(userId, title ?? 'Cuộc trò chuyện mới', skillId);
+  createConversation(userId: string, title?: string, skillId?: string, coinId?: string, portfolioId?: string) {
+    const metadata = coinId && portfolioId ? { coinId, portfolioId } : undefined;
+    return this.convRepo.create(userId, title ?? 'Cuộc trò chuyện mới', skillId, metadata);
   }
 
   async listConversations(userId: string, skillId?: string) {
@@ -68,8 +75,13 @@ export class ConversationService {
     // Resolve skill (if any)
     const skill = conv.skillId ? getSkillById(conv.skillId) : undefined;
 
+    // Extract coin context from conversation metadata (if any)
+    const meta = conv.metadata as Record<string, string> | null;
+    const coinId = meta?.coinId;
+    const portfolioId = meta?.portfolioId;
+
     // Build system prompt — skill-specific or general
-    const systemPrompt = await this.buildSystemPrompt(userId, skill?.systemPrompt);
+    const systemPrompt = await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
 
     // Filter tools to skill's allowed list, or use all tools for general chat
     const allTools = this.toolRegistry.listTools();
@@ -112,7 +124,39 @@ export class ConversationService {
 
   // ── System prompt ─────────────────────────────────────────────────────
 
-  private async buildSystemPrompt(_userId: string, skillSystemPrompt?: string): Promise<string> {
+  private async buildCoinContext(coinId: string, portfolioId: string): Promise<string> {
+    try {
+      const [holding, transactions] = await Promise.all([
+        this.holdingRepo.findByPortfolioAndCoin(portfolioId, coinId),
+        this.txRepo.listByPortfolio(portfolioId, { coinId })
+      ]);
+
+      if (!holding) return '';
+
+      const totalAmount = Number(holding.totalAmount);
+      const avgCost = Number(holding.avgCost);
+      const totalInvested = Number(holding.totalCost);
+      const realizedPnl = Number(holding.realizedPnl);
+
+      const recentTxLines = transactions.slice(0, 10).map((tx) => {
+        const date = new Date(tx.transactedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `  - ${tx.type.toUpperCase()} ${Number(tx.amount)} ${coinId} @ $${Number(tx.price).toLocaleString()} on ${date}`;
+      }).join('\n');
+
+      return `
+=== Portfolio Context: ${coinId} ===
+Holdings: ${totalAmount} ${coinId} | Avg buy price: $${avgCost.toLocaleString()} | Total invested: $${totalInvested.toLocaleString()}
+Realized P&L: ${realizedPnl >= 0 ? '+' : ''}$${realizedPnl.toLocaleString()}
+
+Recent transactions (last ${Math.min(transactions.length, 10)}):
+${recentTxLines || '  (none)'}
+===========================`;
+    } catch {
+      return '';
+    }
+  }
+
+  private async buildSystemPrompt(_userId: string, skillSystemPrompt?: string, coinId?: string, portfolioId?: string): Promise<string> {
     // Fetch user's trade history for context
     let tradeContext = 'Không có dữ liệu giao dịch.';
     try {
@@ -170,6 +214,8 @@ ${recent}`;
 
     const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
+    const coinContext = coinId && portfolioId ? await this.buildCoinContext(coinId, portfolioId) : '';
+
     const generalPrompt = `Bạn là trợ lý giao dịch crypto chuyên nghiệp tích hợp trực tiếp vào dashboard của trader.
 
 Thời gian hiện tại: ${now} (GMT+7)
@@ -193,6 +239,10 @@ Hướng dẫn:
 
     if (skillSystemPrompt) {
       return `${skillSystemPrompt}\n\n---\n\nThời gian hiện tại: ${now} (GMT+7)\n\nHồ sơ giao dịch của người dùng:\n${tradeContext}`;
+    }
+
+    if (coinContext) {
+      return `${generalPrompt}\n\n${coinContext}`;
     }
 
     return generalPrompt;

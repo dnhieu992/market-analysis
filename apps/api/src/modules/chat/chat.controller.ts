@@ -40,7 +40,7 @@ export class ChatController {
   @Post('conversations')
   @ApiOperation({ summary: 'Create a new conversation' })
   createConversation(@Req() req: AuthenticatedRequest, @Body() body: CreateConversationDto) {
-    return this.conversationService.createConversation(req.authUser!.id, body.title, body.skillId);
+    return this.conversationService.createConversation(req.authUser!.id, body.title, body.skillId, body.coinId, body.portfolioId);
   }
 
   @Delete('conversations/:id')

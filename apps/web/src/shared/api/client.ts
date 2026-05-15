@@ -724,11 +724,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
         : `${baseUrl}/chat/conversations`;
       return fetchJson<Conversation[]>(fetchImpl, url, withDefaults());
     },
-    async createConversation(title?: string, skillId?: string): Promise<Conversation> {
+    async createConversation(title?: string, skillId?: string, coinId?: string, portfolioId?: string): Promise<Conversation> {
       const res = await fetchImpl(`${baseUrl}/chat/conversations`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, skillId })
+        body: JSON.stringify({ title, skillId, coinId, portfolioId })
       }));
       if (!res.ok) throw new Error(`createConversation failed: ${res.status}`);
       return res.json() as Promise<Conversation>;

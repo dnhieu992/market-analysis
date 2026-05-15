@@ -7,6 +7,7 @@ import { CreateTransactionForm } from '@web/features/create-transaction/create-t
 import { createApiClient } from '@web/shared/api/client';
 import { formatCryptoPrice } from '@web/shared/lib/format';
 import type { CoinTransaction, Holding } from '@web/shared/api/types';
+import { CoinChatDrawer } from '@web/widgets/coin-chat-drawer/coin-chat-drawer';
 
 type PortfolioCoinDetailProps = Readonly<{
   portfolioId: string;
@@ -77,6 +78,7 @@ function IconTrash() {
 export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions }: PortfolioCoinDetailProps) {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -128,7 +130,10 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
             {currentPrice != null ? formatPrice(currentPrice) : <span style={{ color: 'var(--muted)', fontSize: '1.2rem' }}>Fetching price…</span>}
           </div>
         </div>
-        <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn--secondary" onClick={() => setAskOpen(true)}>Ask AI</button>
+          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -241,6 +246,17 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
             </div>
           </div>
         </div>
+      )}
+
+      {/* AI Chat Drawer */}
+      {askOpen && (
+        <CoinChatDrawer
+          coinId={coinId}
+          portfolioId={portfolioId}
+          holding={holding}
+          currentPrice={currentPrice}
+          onClose={() => setAskOpen(false)}
+        />
       )}
 
       {/* Delete confirmation dialog */}

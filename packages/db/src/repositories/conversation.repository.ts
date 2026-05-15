@@ -1,9 +1,18 @@
+import { Prisma } from '@prisma/client';
+
 import { prisma } from '../client';
 
 export function createConversationRepository(client = prisma) {
   return {
-    create(userId: string, title: string, skillId?: string) {
-      return client.conversation.create({ data: { userId, title, skillId: skillId ?? null } });
+    create(userId: string, title: string, skillId?: string, metadata?: Record<string, unknown>) {
+      return client.conversation.create({
+        data: {
+          userId,
+          title,
+          skillId: skillId ?? null,
+          ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {})
+        }
+      });
     },
 
     findById(id: string) {
