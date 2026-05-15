@@ -79,6 +79,7 @@ type PlanItemContext = {
   originalSuggestedAmount?: number | null;
   executedPrice?: number | null;
   executedAmount?: number | null;
+  probability?: number | null;
 };
 
 type ArchivedPlanContext = {
@@ -214,7 +215,7 @@ export class DcaLlmService {
     }
   }
 
-  private buildGenerateMessage(
+  private buildMarketContextSection(
     coin: string,
     capital: CapitalState,
     dailyCandles: Candle[],
@@ -233,7 +234,18 @@ export class DcaLlmService {
       formatCandles(dailyCandles),
       '',
       `Weekly Candles (last 26):`,
-      formatCandles(weeklyCandles),
+      formatCandles(weeklyCandles)
+    ].join('\n');
+  }
+
+  private buildGenerateMessage(
+    coin: string,
+    capital: CapitalState,
+    dailyCandles: Candle[],
+    weeklyCandles: Candle[]
+  ): string {
+    return [
+      this.buildMarketContextSection(coin, capital, dailyCandles, weeklyCandles),
       '',
       'Create a DCA plan with EXACTLY 10 buy zones (spread across support levels) and EXACTLY 10 sell zones (at resistance). ',
       `Allocate the remaining $${capital.remaining.toFixed(2)} across the 10 buy entries. `,
@@ -278,7 +290,7 @@ export class DcaLlmService {
     weeklyCandles: Candle[],
     currentItems: PlanItemContext[]
   ): string {
-    const base = this.buildGenerateMessage(coin, capital, dailyCandles, weeklyCandles);
+    const base = this.buildMarketContextSection(coin, capital, dailyCandles, weeklyCandles);
 
     return base + [
       '',
