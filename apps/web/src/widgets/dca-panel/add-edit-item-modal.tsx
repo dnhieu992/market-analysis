@@ -20,6 +20,7 @@ export function AddEditItemModal({ item, planId, onClose, onDone }: AddEditItemM
   const [targetPrice, setTargetPrice] = useState(item ? String(item.targetPrice) : '');
   const [suggestedAmount, setSuggestedAmount] = useState(item ? String(item.suggestedAmount) : '');
   const [note, setNote] = useState(item?.note ?? '');
+  const [probability, setProbability] = useState(item?.probability != null ? String(item.probability) : '');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -27,19 +28,22 @@ export function AddEditItemModal({ item, planId, onClose, onDone }: AddEditItemM
     e.preventDefault();
     startTransition(async () => {
       try {
+        const prob = probability !== '' ? Number(probability) : undefined;
         if (isEdit) {
           await api.editDcaPlanItem(planId, item.id, {
             type,
             targetPrice: Number(targetPrice),
             suggestedAmount: Number(suggestedAmount),
-            note: note || undefined
+            note: note || undefined,
+            probability: prob
           });
         } else {
           await api.addDcaPlanItem(planId, {
             type,
             targetPrice: Number(targetPrice),
             suggestedAmount: Number(suggestedAmount),
-            note: note || undefined
+            note: note || undefined,
+            probability: prob
           });
         }
         await onDone();
@@ -58,7 +62,6 @@ export function AddEditItemModal({ item, planId, onClose, onDone }: AddEditItemM
         </div>
         <div className="dialog-body">
           <form className="trade-form" onSubmit={handleSubmit}>
-            {/* Buy / Sell tabs */}
             <div className="tx-type-tabs">
               <button
                 type="button"
@@ -98,6 +101,18 @@ export function AddEditItemModal({ item, planId, onClose, onDone }: AddEditItemM
                 min="0"
                 step="any"
                 placeholder={type === 'buy' ? '500' : '0.005'}
+              />
+            </label>
+            <label className="trade-field">
+              <span>Probability % (0–100, optional)</span>
+              <input
+                type="number"
+                value={probability}
+                onChange={(e) => setProbability(e.target.value)}
+                min="0"
+                max="100"
+                step="1"
+                placeholder="75"
               />
             </label>
             <label className="trade-field trade-field-wide">
