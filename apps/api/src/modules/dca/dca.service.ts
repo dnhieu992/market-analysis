@@ -103,17 +103,14 @@ export class DcaService {
     });
 
     let buyTotal = 0;
-    let sellTotal = 0;
     for (const tx of transactions) {
       if (tx.type === 'buy') {
         buyTotal += Number(tx.totalValue);
-      } else {
-        sellTotal += Number(tx.totalValue);
       }
     }
 
     const totalBudget = Number(config.totalBudget);
-    const deployedAmount = buyTotal - sellTotal;
+    const deployedAmount = buyTotal;
     const remaining = totalBudget - deployedAmount;
 
     const holding = await this.holdingRepository.findByPortfolioAndCoin(config.portfolioId, config.coin);
