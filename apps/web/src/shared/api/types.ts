@@ -375,6 +375,13 @@ export type DcaConfig = {
   updatedAt: string;
 };
 
+export type DcaConfigSummary = DcaConfig & {
+  planId: string | null;
+  pendingBuyCount: number;
+  pendingSellCount: number;
+  capital: DcaCapitalState;
+};
+
 export type DcaPlanItem = {
   id: string;
   dcaPlanId: string;
@@ -422,7 +429,8 @@ export type DcaActivePlanResponse = {
 export type CreateDcaConfigInput = {
   coin: 'BTC' | 'ETH';
   totalBudget: number;
-  portfolioId: string;
+  portfolioId?: string;
+  portfolioName?: string;
 };
 
 export type UpdateDcaConfigInput = {
