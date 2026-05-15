@@ -54,6 +54,10 @@ export class DcaService {
   }
 
   async createConfig(userId: string, input: CreateDcaConfigDto) {
+    if (input.portfolioName && input.portfolioId) {
+      throw new BadRequestException('Provide either portfolioId or portfolioName, not both');
+    }
+
     let portfolioId: string;
 
     if (input.portfolioName) {

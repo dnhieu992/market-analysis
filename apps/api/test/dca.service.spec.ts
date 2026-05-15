@@ -46,6 +46,17 @@ describe('DcaService.createConfig', () => {
     ).rejects.toThrow('Either portfolioId or portfolioName is required');
   });
 
+  it('throws when both portfolioId and portfolioName are provided', async () => {
+    await expect(
+      service.createConfig('u-1', {
+        coin: 'BTC',
+        totalBudget: 1000,
+        portfolioId: 'p-1',
+        portfolioName: 'My DCA'
+      })
+    ).rejects.toThrow('Provide either portfolioId or portfolioName, not both');
+  });
+
   it('allows two configs for the same coin (no duplicate check)', async () => {
     portfolioService.getPortfolio.mockResolvedValue({ id: 'p-2', name: 'Portfolio 2' });
     dcaConfigRepo.create.mockResolvedValue({ id: 'c-2', coin: 'BTC', portfolioId: 'p-2' });

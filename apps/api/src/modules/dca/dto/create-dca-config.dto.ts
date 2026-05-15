@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export const SUPPORTED_DCA_COINS = ['BTC', 'ETH'] as const;
 export type SupportedDcaCoin = typeof SUPPORTED_DCA_COINS[number];
@@ -22,5 +22,6 @@ export class CreateDcaConfigDto {
   @ApiPropertyOptional({ example: 'BTC DCA Portfolio 2026' })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   portfolioName?: string;
 }
