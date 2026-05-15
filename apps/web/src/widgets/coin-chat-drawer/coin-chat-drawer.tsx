@@ -81,6 +81,18 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
     setInitializing(false);
   }
 
+  async function handleClear() {
+    if (!conversationId) return;
+    const api = createApiClient();
+    try {
+      await api.deleteConversation(conversationId);
+    } catch { /* ignore */ }
+    localStorage.removeItem(STORAGE_KEY(portfolioId, coinId));
+    setConversationId(null);
+    setMessages([]);
+    await initConversation();
+  }
+
   async function handleSend() {
     const content = input.trim();
     if (!content || !conversationId || loading) return;
@@ -156,16 +168,32 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
               </div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: '#6b7280', fontSize: '1.4rem', lineHeight: 1, padding: '0.25rem',
-            }}
-          >
-            ✕
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <button
+              onClick={() => void handleClear()}
+              disabled={initializing || messages.length === 0}
+              aria-label="Clear conversation"
+              title="Clear conversation"
+              style={{
+                background: 'none', border: '1px solid #e5e7eb', borderRadius: '6px',
+                cursor: 'pointer', color: '#6b7280', fontSize: '0.75rem',
+                padding: '0.3rem 0.6rem', lineHeight: 1,
+                opacity: initializing || messages.length === 0 ? 0.4 : 1,
+              }}
+            >
+              Clear
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#6b7280', fontSize: '1.4rem', lineHeight: 1, padding: '0.25rem',
+              }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
