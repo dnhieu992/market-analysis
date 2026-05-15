@@ -129,27 +129,29 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
         }}
       />
 
-      {/* Drawer */}
+      {/* Drawer — light mode */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0,
         width: 'min(440px, 100vw)',
-        background: 'var(--panel-bg, #1a1a2e)',
-        borderLeft: '1px solid var(--border)',
+        background: '#ffffff',
+        borderLeft: '1px solid #e5e7eb',
         display: 'flex', flexDirection: 'column',
         zIndex: 1000,
-        boxShadow: '-4px 0 24px rgba(0,0,0,0.4)',
+        boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
+        color: '#111827',
       }}>
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '1rem 1.25rem',
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid #e5e7eb',
+          background: '#f9fafb',
           flexShrink: 0,
         }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '1rem' }}>{coinId} — AI Assistant</div>
+            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#111827' }}>{coinId} — AI Assistant</div>
             {unrealizedPnl != null && (
-              <div style={{ fontSize: '0.75rem', color: unrealizedPnl >= 0 ? '#22c55e' : '#ef4444', marginTop: '0.15rem' }}>
+              <div style={{ fontSize: '0.75rem', color: unrealizedPnl >= 0 ? '#16a34a' : '#dc2626', marginTop: '0.15rem' }}>
                 Unrealized P&L: {unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}
               </div>
             )}
@@ -159,7 +161,7 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
             aria-label="Close"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--muted)', fontSize: '1.4rem', lineHeight: 1, padding: '0.25rem',
+              color: '#6b7280', fontSize: '1.4rem', lineHeight: 1, padding: '0.25rem',
             }}
           >
             ✕
@@ -167,13 +169,13 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#f9fafb' }}>
           {initializing ? (
-            <div style={{ color: 'var(--muted)', fontSize: '0.85rem', textAlign: 'center', paddingTop: '2rem' }}>
+            <div style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'center', paddingTop: '2rem' }}>
               Đang khởi tạo…
             </div>
           ) : messages.length === 0 ? (
-            <div style={{ color: 'var(--muted)', fontSize: '0.85rem', textAlign: 'center', paddingTop: '2rem' }}>
+            <div style={{ color: '#6b7280', fontSize: '0.85rem', textAlign: 'center', paddingTop: '2rem' }}>
               Hỏi bất cứ điều gì về <strong>{coinId}</strong> trong portfolio của bạn.
             </div>
           ) : (
@@ -185,11 +187,13 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
                     maxWidth: '85%',
                     padding: '0.6rem 0.9rem',
                     borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    background: isUser ? 'var(--accent, #6366f1)' : 'rgba(255,255,255,0.06)',
-                    color: isUser ? '#fff' : 'inherit',
+                    background: isUser ? '#4f46e5' : '#ffffff',
+                    color: isUser ? '#ffffff' : '#111827',
+                    border: isUser ? 'none' : '1px solid #e5e7eb',
                     fontSize: '0.875rem',
                     lineHeight: 1.6,
                     wordBreak: 'break-word',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                   }}>
                     {isUser ? (
                       <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
@@ -203,7 +207,7 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
           )}
           {loading && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div style={{ padding: '0.6rem 0.9rem', background: 'rgba(255,255,255,0.06)', borderRadius: '16px 16px 16px 4px' }}>
+              <div style={{ padding: '0.6rem 0.9rem', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px 16px 16px 4px', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
                 <TypingIndicator />
               </div>
             </div>
@@ -214,7 +218,8 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
         {/* Input */}
         <div style={{
           padding: '0.75rem 1.25rem',
-          borderTop: '1px solid var(--border)',
+          borderTop: '1px solid #e5e7eb',
+          background: '#ffffff',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
@@ -229,11 +234,11 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
               style={{
                 flex: 1,
                 resize: 'none',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--border)',
+                background: '#f9fafb',
+                border: '1px solid #d1d5db',
                 borderRadius: '10px',
                 padding: '0.6rem 0.75rem',
-                color: 'inherit',
+                color: '#111827',
                 fontSize: '0.875rem',
                 outline: 'none',
                 fontFamily: 'inherit',
@@ -245,7 +250,7 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
               disabled={loading || initializing || !input.trim() || !conversationId}
               style={{
                 padding: '0.6rem 1rem',
-                background: 'var(--accent, #6366f1)',
+                background: '#4f46e5',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '10px',
@@ -253,13 +258,13 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
                 fontWeight: 600,
                 fontSize: '0.875rem',
                 flexShrink: 0,
-                opacity: loading || initializing || !input.trim() ? 0.5 : 1,
+                opacity: loading || initializing || !input.trim() ? 0.45 : 1,
               }}
             >
               Gửi
             </button>
           </div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.35rem' }}>
+          <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.35rem' }}>
             Shift+Enter để xuống dòng
           </div>
         </div>
