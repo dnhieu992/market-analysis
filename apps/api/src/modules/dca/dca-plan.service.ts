@@ -193,6 +193,12 @@ export class DcaPlanService {
     return this.itemRepository.findById(itemId);
   }
 
+  async deletePlan(planId: string) {
+    const plan = await this.planRepository.findById(planId);
+    if (!plan) throw new NotFoundException('Plan not found');
+    return this.planRepository.deleteById(planId);
+  }
+
   /** Get all items including soft-deleted for LLM context */
   getAllItemsForLlm(planId: string) {
     return this.itemRepository.listByPlanId(planId, true);

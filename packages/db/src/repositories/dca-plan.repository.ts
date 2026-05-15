@@ -44,6 +44,9 @@ export function createDcaPlanRepository(client = prisma) {
         where: { id },
         data: { llmAnalysis }
       });
+    },
+    deleteById(id: string) {
+      return client.dcaPlan.delete({ where: { id } });
     }
   };
 }
