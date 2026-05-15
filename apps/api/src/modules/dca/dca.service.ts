@@ -54,12 +54,18 @@ export class DcaService {
   }
 
   async createConfig(userId: string, input: CreateDcaConfigDto) {
-    // Verify portfolio belongs to user
-    await this.portfolioService.getPortfolio(input.portfolioId, userId);
+    let portfolioId: string;
 
-    const existing = await this.dcaConfigRepository.findByUserAndCoin(userId, input.coin);
-    if (existing) {
-      throw new BadRequestException(`DCA config for ${input.coin} already exists`);
+    if (input.portfolioName) {
+      const portfolio = await this.portfolioService.createPortfolio(userId, {
+        name: input.portfolioName
+      });
+      portfolioId = portfolio.id;
+    } else if (input.portfolioId) {
+      await this.portfolioService.getPortfolio(input.portfolioId, userId);
+      portfolioId = input.portfolioId;
+    } else {
+      throw new BadRequestException('Either portfolioId or portfolioName is required');
     }
 
     return this.dcaConfigRepository.create({
@@ -67,7 +73,7 @@ export class DcaService {
       userId,
       coin: input.coin,
       totalBudget: new Decimal(input.totalBudget),
-      portfolioId: input.portfolioId
+      portfolioId
     });
   }
 

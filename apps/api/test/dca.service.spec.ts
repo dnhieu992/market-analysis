@@ -1,6 +1,61 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { DcaService } from '../src/modules/dca/dca.service';
 
+describe('DcaService.createConfig', () => {
+  let service: DcaService;
+  let dcaConfigRepo: { create: jest.Mock };
+  let portfolioService: { getPortfolio: jest.Mock; createPortfolio: jest.Mock };
+
+  beforeEach(() => {
+    dcaConfigRepo = { create: jest.fn() };
+    portfolioService = {
+      getPortfolio: jest.fn(),
+      createPortfolio: jest.fn()
+    };
+    service = new DcaService(
+      dcaConfigRepo as never,
+      {} as never,
+      {} as never,
+      portfolioService as never
+    );
+  });
+
+  it('creates config with existing portfolioId', async () => {
+    portfolioService.getPortfolio.mockResolvedValue({ id: 'p-1', name: 'Portfolio' });
+    dcaConfigRepo.create.mockResolvedValue({ id: 'c-1', coin: 'BTC', portfolioId: 'p-1' });
+
+    const result = await service.createConfig('u-1', { coin: 'BTC', totalBudget: 1000, portfolioId: 'p-1' });
+
+    expect(portfolioService.getPortfolio).toHaveBeenCalledWith('p-1', 'u-1');
+    expect(result).toMatchObject({ portfolioId: 'p-1' });
+  });
+
+  it('auto-creates portfolio when portfolioName is provided', async () => {
+    portfolioService.createPortfolio.mockResolvedValue({ id: 'p-new', name: 'My DCA' });
+    dcaConfigRepo.create.mockResolvedValue({ id: 'c-1', coin: 'BTC', portfolioId: 'p-new' });
+
+    const result = await service.createConfig('u-1', { coin: 'BTC', totalBudget: 1000, portfolioName: 'My DCA' });
+
+    expect(portfolioService.createPortfolio).toHaveBeenCalledWith('u-1', { name: 'My DCA' });
+    expect(result).toMatchObject({ portfolioId: 'p-new' });
+  });
+
+  it('throws when neither portfolioId nor portfolioName provided', async () => {
+    await expect(
+      service.createConfig('u-1', { coin: 'BTC', totalBudget: 1000 } as never)
+    ).rejects.toThrow('Either portfolioId or portfolioName is required');
+  });
+
+  it('allows two configs for the same coin (no duplicate check)', async () => {
+    portfolioService.getPortfolio.mockResolvedValue({ id: 'p-2', name: 'Portfolio 2' });
+    dcaConfigRepo.create.mockResolvedValue({ id: 'c-2', coin: 'BTC', portfolioId: 'p-2' });
+
+    const result = await service.createConfig('u-1', { coin: 'BTC', totalBudget: 2000, portfolioId: 'p-2' });
+
+    expect(result).toMatchObject({ id: 'c-2' });
+  });
+});
+
 describe('DcaService.getCapitalState', () => {
   let service: DcaService;
   let txRepo: { listByPortfolio: jest.Mock };
