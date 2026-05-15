@@ -387,6 +387,7 @@ export type DcaPlanItem = {
   deletedByUser: boolean;
   originalTargetPrice: number | null;
   originalSuggestedAmount: number | null;
+  probability: number | null;
   status: 'pending' | 'executed' | 'skipped';
   executedPrice: number | null;
   executedAmount: number | null;
@@ -434,6 +435,7 @@ export type CreateDcaPlanItemInput = {
   targetPrice: number;
   suggestedAmount: number;
   note?: string;
+  probability?: number;
 };
 
 export type UpdateDcaPlanItemInput = {
@@ -441,6 +443,7 @@ export type UpdateDcaPlanItemInput = {
   targetPrice?: number;
   suggestedAmount?: number;
   note?: string;
+  probability?: number;
 };
 
 export type ExecuteDcaPlanItemInput = {

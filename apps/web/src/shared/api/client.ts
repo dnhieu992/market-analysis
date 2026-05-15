@@ -320,6 +320,7 @@ function mapDcaPlanItem(row: JsonRecord): DcaPlanItem {
     deletedByUser: Boolean(row.deletedByUser),
     originalTargetPrice: row.originalTargetPrice == null ? null : Number(row.originalTargetPrice),
     originalSuggestedAmount: row.originalSuggestedAmount == null ? null : Number(row.originalSuggestedAmount),
+    probability: row.probability == null ? null : Number(row.probability),
     status: String(row.status) as 'pending' | 'executed' | 'skipped',
     executedPrice: row.executedPrice == null ? null : Number(row.executedPrice),
     executedAmount: row.executedAmount == null ? null : Number(row.executedAmount),
