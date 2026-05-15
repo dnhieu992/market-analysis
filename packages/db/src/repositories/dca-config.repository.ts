@@ -10,11 +10,6 @@ export function createDcaConfigRepository(client = prisma) {
     findById(id: string) {
       return client.dcaConfig.findUnique({ where: { id } });
     },
-    findByUserAndCoin(userId: string, coin: string) {
-      return client.dcaConfig.findUnique({
-        where: { userId_coin: { userId, coin } }
-      });
-    },
     listByUserId(userId: string) {
       return client.dcaConfig.findMany({
         where: { userId },
