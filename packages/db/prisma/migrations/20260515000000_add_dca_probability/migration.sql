@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `dca_plan_items` ADD COLUMN `probability` INT NULL;

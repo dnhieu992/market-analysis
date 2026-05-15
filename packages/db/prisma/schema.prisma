@@ -329,6 +329,7 @@ model DcaPlanItem {
   originalTargetPrice     Decimal?  @db.Decimal(20, 8)
   originalSuggestedAmount Decimal?  @db.Decimal(20, 8)
   deletedByUser           Boolean   @default(false)
+  probability             Int?
   status                  String    @default("pending") @db.VarChar(20)
   executedPrice           Decimal?  @db.Decimal(20, 8)
   executedAmount          Decimal?  @db.Decimal(20, 8)
