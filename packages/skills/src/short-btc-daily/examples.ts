@@ -1,8 +1,8 @@
 export const EXAMPLE_QUESTIONS = [
-  'BTC có thể short không hôm nay? Tôi đang nhìn daily chart',
-  'Tìm setup short BTC daily với entry, SL và TP cụ thể',
-  'BTC đang downtrend chưa? Có vùng nào để short không?',
-  'Phân tích bearish BTC — CHoCH đã xảy ra chưa?',
-  'Pending short BTC ở vùng nào trên daily?',
-  'Short BTC với R:R tốt nhất hiện tại là ở đâu?'
+  'Tìm setup short BTC intraday hôm nay, tôi không giữ qua đêm',
+  'BTC đang ở vùng nào có thể đặt lệnh limit short?',
+  'Cho tôi entry zone, SL và TP cụ thể để short BTC hôm nay',
+  'Short BTC với risk score cao nhất hiện tại là setup nào?',
+  'BTC đang uptrend nhưng tôi vẫn muốn short — có vùng nào an toàn không?',
+  'Phân tích 4H + 1H để tìm setup short BTC với R:R tối thiểu 2:1'
 ];

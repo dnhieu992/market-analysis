@@ -4,12 +4,12 @@ import { EXAMPLE_QUESTIONS } from './examples';
 
 export const shortBtcDailySkill: SkillDefinition = {
   id: 'short-btc-daily',
-  name: 'Short BTC Daily',
-  description: 'Phân tích BTCUSDT daily để tìm setup short (bearish) — cấu trúc swing, vùng S/R weekly, Fibonacci, và setup cụ thể với entry, SL, TP.',
+  name: 'Short BTC Intraday',
+  description: 'Tìm setup short BTC trong ngày — limit entry zone, stop loss, TP1/TP2 với risk score cụ thể. Không giữ qua đêm. Phân tích trên 4H + 1H + 15min.',
   icon: '🐻',
   category: 'strategy',
   systemPrompt: SYSTEM_PROMPT,
   tools: ['get_klines', 'get_ticker_price', 'analyze_market_structure'],
   exampleQuestions: EXAMPLE_QUESTIONS,
-  welcomeMessage: 'Xin chào! Tôi chuyên phân tích BTC daily để tìm cơ hội short. Tôi sẽ fetch dữ liệu live từ Binance, phân tích cấu trúc swing, vùng S/R weekly, và tìm setup bearish với entry zone, stop loss, take profit cụ thể. Bạn muốn phân tích ngay không?',
+  welcomeMessage: 'Xin chào! Tôi tìm setup short BTC trong ngày — không giữ qua đêm. Tôi sẽ phân tích 4H (context) + 1H (setup) + 15min (entry confirmation), chấm điểm rủi ro 0–10, và đưa ra entry zone cụ thể với limit order, stop loss, và TP1/TP2. Bạn muốn phân tích ngay không?',
 };
