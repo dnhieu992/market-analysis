@@ -19,6 +19,7 @@ export type LlmPlanItem = {
   targetPrice: number;
   suggestedAmount: number;
   note: string;
+  probability?: number;
 };
 
 @Injectable()
@@ -70,6 +71,7 @@ export class DcaPlanService {
           targetPrice: new Decimal(item.targetPrice),
           suggestedAmount: new Decimal(item.suggestedAmount),
           note: item.note || null,
+          probability: item.probability ?? null,
           source: 'llm',
           status: 'pending'
         }))
@@ -98,6 +100,7 @@ export class DcaPlanService {
       targetPrice: new Decimal(input.targetPrice),
       suggestedAmount: new Decimal(input.suggestedAmount),
       note: input.note || null,
+      probability: input.probability ?? null,
       source: 'user',
       status: 'pending'
     });
@@ -119,6 +122,9 @@ export class DcaPlanService {
     }
     if (input.suggestedAmount !== undefined) {
       updateData.suggestedAmount = new Decimal(input.suggestedAmount);
+    }
+    if (input.probability !== undefined) {
+      updateData.probability = input.probability;
     }
 
     // Track original values on first edit of an LLM item
