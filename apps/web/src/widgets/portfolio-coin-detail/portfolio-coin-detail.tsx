@@ -104,8 +104,9 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
   const realizedPnl = holding?.realizedPnl ?? 0;
   const unrealizedPnl = currentPrice != null ? (currentPrice - avgCost) * totalAmount : 0;
   const totalPnl = unrealizedPnl + realizedPnl;
-  const pnlPct = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
   const isPnlPositive = totalPnl >= 0;
+  const avgPricePct = avgCost > 0 && currentPrice != null ? ((currentPrice - avgCost) / avgCost) * 100 : null;
+  const isAvgPricePctPositive = avgPricePct != null && avgPricePct >= 0;
 
   return (
     <main className="dashboard-shell">
@@ -137,6 +138,11 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
         </StatCard>
         <StatCard label="Avg. buy price">
           {formatCryptoPrice(avgCost)}
+          {avgPricePct != null && (
+            <div style={{ fontSize: '0.85rem', fontWeight: 500, color: isAvgPricePctPositive ? '#22c55e' : '#ef4444', marginTop: '0.2rem' }}>
+              {isAvgPricePctPositive ? '▲' : '▼'} {Math.abs(avgPricePct).toFixed(2)}%
+            </div>
+          )}
         </StatCard>
         <StatCard label="Basic Cost">
           {formatUsd(totalInvested)}
@@ -145,9 +151,6 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           <span className={isPnlPositive ? 'tt-pnl-positive' : 'tt-pnl-negative'}>
             {isPnlPositive ? '+' : ''}{formatUsd(totalPnl)}
           </span>
-          <div style={{ fontSize: '0.85rem', fontWeight: 500, color: isPnlPositive ? '#22c55e' : '#ef4444', marginTop: '0.2rem' }}>
-            {isPnlPositive ? '▲' : '▼'} {Math.abs(pnlPct).toFixed(2)}%
-          </div>
         </StatCard>
       </div>
 
