@@ -298,7 +298,6 @@ model DcaConfig {
   portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   plans       DcaPlan[]
 
-  @@unique([userId, coin])
   @@index([userId])
   @@map("dca_configs")
 }
