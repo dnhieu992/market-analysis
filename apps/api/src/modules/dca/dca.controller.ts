@@ -38,18 +38,34 @@ export class DcaController {
     const configs = await this.dcaService.listConfigs(req.authUser!.id);
     return Promise.all(
       configs.map(async (config) => {
-        const [plan, capital] = await Promise.all([
-          this.planService.getActivePlan(config.id),
-          this.dcaService.getCapitalState(config)
-        ]);
-        const pendingItems = plan?.items.filter((i) => i.status === 'pending') ?? [];
-        return {
-          ...config,
-          planId: plan?.id ?? null,
-          pendingBuyCount: pendingItems.filter((i) => i.type === 'buy').length,
-          pendingSellCount: pendingItems.filter((i) => i.type === 'sell').length,
-          capital
-        };
+        try {
+          const [plan, capital] = await Promise.all([
+            this.planService.getActivePlan(config.id),
+            this.dcaService.getCapitalState(config)
+          ]);
+          const pendingItems = plan?.items.filter((i) => i.status === 'pending') ?? [];
+          return {
+            ...config,
+            planId: plan?.id ?? null,
+            pendingBuyCount: pendingItems.filter((i) => i.type === 'buy').length,
+            pendingSellCount: pendingItems.filter((i) => i.type === 'sell').length,
+            capital
+          };
+        } catch {
+          return {
+            ...config,
+            planId: null,
+            pendingBuyCount: 0,
+            pendingSellCount: 0,
+            capital: {
+              totalBudget: Number(config.totalBudget),
+              deployedAmount: 0,
+              remaining: Number(config.totalBudget),
+              runnerAmount: 0,
+              runnerAvgCost: 0
+            }
+          };
+        }
       })
     );
   }

@@ -29,10 +29,10 @@ DCA (Dollar Cost Averaging) planning tool allowing users to create multiple DCA 
 - `apps/api/src/modules/dca/dca-plan.service.ts` — plan CRUD, zone execution, re-plan/re-analyze
 - `apps/api/src/modules/dca/dca.controller.ts` — REST endpoints (`POST /dca/config`, `GET /dca`, `GET /dca/[id]`, plan generation, zone operations)
 - `apps/api/src/modules/dca/dto/` — DTOs for create config, new plan, zone execution
-- `apps/web/src/types/dca.ts` — DcaConfig, DcaPlan, DcaPlanItem type definitions
+- `apps/web/src/shared/api/types.ts` — DcaConfig, DcaPlan, DcaPlanItem type definitions
 - `apps/web/src/shared/api/client.ts` — DCA API client methods
-- `apps/web/src/pages/dca/dca-page.tsx` — DCA list page, new plan button, config cards
-- `apps/web/src/pages/dca-detail/dca-detail-page.tsx` — detail page layout, plan generation trigger
+- `apps/web/src/_pages/dca-page/dca-page.tsx` — DCA list page, new plan button, config cards
+- `apps/web/src/_pages/dca-detail-page/dca-detail-page.tsx` — detail page layout, plan generation trigger
 - `apps/web/src/widgets/dca-panel/dca-panel.tsx` — detail page panel, capital display, action buttons
 - `apps/web/src/widgets/dca-panel/plan-items-table.tsx` — buy/sell sections, probability badge, expandable notes
 - `apps/web/src/widgets/dca-panel/new-plan-modal.tsx` — new plan dialog (portfolio name/ID, coin, budget)
