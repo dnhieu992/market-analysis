@@ -33,9 +33,25 @@ export class DcaController {
   // --- Config CRUD ---
 
   @Get('config')
-  @ApiOperation({ summary: 'List all DCA configs' })
-  listConfigs(@Req() req: AuthenticatedRequest) {
-    return this.dcaService.listConfigs(req.authUser!.id);
+  @ApiOperation({ summary: 'List all DCA configs with plan summary' })
+  async listConfigs(@Req() req: AuthenticatedRequest) {
+    const configs = await this.dcaService.listConfigs(req.authUser!.id);
+    return Promise.all(
+      configs.map(async (config) => {
+        const [plan, capital] = await Promise.all([
+          this.planService.getActivePlan(config.id),
+          this.dcaService.getCapitalState(config)
+        ]);
+        const pendingItems = plan?.items.filter((i) => i.status === 'pending') ?? [];
+        return {
+          ...config,
+          planId: plan?.id ?? null,
+          pendingBuyCount: pendingItems.filter((i) => i.type === 'buy').length,
+          pendingSellCount: pendingItems.filter((i) => i.type === 'sell').length,
+          capital
+        };
+      })
+    );
   }
 
   @Post('config')
