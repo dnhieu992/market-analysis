@@ -100,6 +100,8 @@ function ZoneTable({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [executeItem, setExecuteItem] = useState<DcaPlanItem | null>(null);
   const [editItem, setEditItem] = useState<DcaPlanItem | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -111,13 +113,29 @@ function ZoneTable({
   };
 
   const handleSkip = async (itemId: string) => {
-    await api.skipDcaPlanItem(planId, itemId);
-    await onRefresh();
+    setLoadingId(itemId);
+    setInlineError(null);
+    try {
+      await api.skipDcaPlanItem(planId, itemId);
+      await onRefresh();
+    } catch {
+      setInlineError('Failed to skip item');
+    } finally {
+      setLoadingId(null);
+    }
   };
 
   const handleDelete = async (itemId: string) => {
-    await api.deleteDcaPlanItem(planId, itemId);
-    await onRefresh();
+    setLoadingId(itemId);
+    setInlineError(null);
+    try {
+      await api.deleteDcaPlanItem(planId, itemId);
+      await onRefresh();
+    } catch {
+      setInlineError('Failed to delete item');
+    } finally {
+      setLoadingId(null);
+    }
   };
 
   if (items.length === 0) {
@@ -193,6 +211,7 @@ function ZoneTable({
                           onClick={() => handleSkip(item.id)}
                           aria-label="Skip"
                           data-tooltip="Skip"
+                          disabled={loadingId === item.id}
                         >
                           <IconSkip />
                         </button>
@@ -201,6 +220,7 @@ function ZoneTable({
                           onClick={() => handleDelete(item.id)}
                           aria-label="Delete"
                           data-tooltip="Delete"
+                          disabled={loadingId === item.id}
                         >
                           <IconTrash />
                         </button>
@@ -215,7 +235,7 @@ function ZoneTable({
                   </td>
                 </tr>
                 {expandedIds.has(item.id) && item.note && (
-                  <tr>
+                  <tr onClick={(e) => e.stopPropagation()}>
                     <td
                       colSpan={6}
                       style={{
@@ -246,6 +266,10 @@ function ZoneTable({
           </tbody>
         </table>
       </div>
+
+      {inlineError && (
+        <p className="trade-form-error" style={{ marginTop: 8, fontSize: '0.82rem' }}>{inlineError}</p>
+      )}
 
       {executeItem && (
         <ExecuteModal
