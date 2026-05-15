@@ -17,6 +17,7 @@ import type {
   DashboardSignal,
   DcaActivePlanResponse,
   DcaConfig,
+  DcaConfigSummary,
   DcaPlan,
   DcaPlanItem,
   ExecuteDcaPlanItemInput,
@@ -304,6 +305,23 @@ function mapDcaConfig(row: JsonRecord): DcaConfig {
     portfolioId: String(row.portfolioId),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt)
+  };
+}
+
+function mapDcaConfigSummary(row: JsonRecord): DcaConfigSummary {
+  const capitalRow = row.capital as JsonRecord;
+  return {
+    ...mapDcaConfig(row),
+    planId: row.planId == null ? null : String(row.planId),
+    pendingBuyCount: Number(row.pendingBuyCount ?? 0),
+    pendingSellCount: Number(row.pendingSellCount ?? 0),
+    capital: {
+      totalBudget: Number(capitalRow.totalBudget),
+      deployedAmount: Number(capitalRow.deployedAmount),
+      remaining: Number(capitalRow.remaining),
+      runnerAmount: Number(capitalRow.runnerAmount),
+      runnerAvgCost: Number(capitalRow.runnerAvgCost)
+    }
   };
 }
 
@@ -750,9 +768,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     // --- DCA ---
 
-    async fetchDcaConfigs(): Promise<DcaConfig[]> {
+    async fetchDcaConfigs(): Promise<DcaConfigSummary[]> {
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/dca/config`, withDefaults());
-      return rows.map(mapDcaConfig);
+      return rows.map(mapDcaConfigSummary);
     },
 
     async createDcaConfig(input: CreateDcaConfigInput): Promise<DcaConfig> {
