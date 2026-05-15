@@ -110,6 +110,19 @@ export class DcaController {
     return this.planService.getArchivedPlans(config.id);
   }
 
+  @Delete('config/:configId/plan/active')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hard delete the active plan and all its items' })
+  async deleteActivePlan(
+    @Param('configId') configId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    const config = await this.dcaService.getConfig(configId, req.authUser!.id);
+    const plan = await this.planService.getActivePlan(config.id);
+    if (!plan) return { error: 'No active plan' };
+    return this.planService.deletePlan(plan.id);
+  }
+
   @Post('config/:configId/plan/generate')
   @ApiOperation({ summary: 'Generate first plan (LLM)' })
   async generatePlan(

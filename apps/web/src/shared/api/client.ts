@@ -866,5 +866,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }));
       return mapDcaPlanItem(row);
     },
+
+    async deleteDcaActivePlan(configId: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/dca/config/${configId}/plan/active`, withDefaults({ method: 'DELETE' }));
+      if (!response.ok) throw new Error(`Request failed for DELETE plan: ${response.status}`);
+    },
   };
 }

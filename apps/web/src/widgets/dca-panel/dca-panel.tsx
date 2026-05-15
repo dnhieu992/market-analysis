@@ -135,6 +135,20 @@ export function DcaPanel({ config: initialConfig, plan: initialPlan, capital: in
     });
   };
 
+  const handleDeletePlan = () => {
+    if (!confirm('Delete this plan and all its zones? This cannot be undone.')) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await api.deleteDcaActivePlan(config.id);
+        setPlan(null);
+        setCapital((prev) => prev ? { ...prev, deployedAmount: 0, remaining: prev.totalBudget } : prev);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete plan');
+      }
+    });
+  };
+
   return (
     <article className="panel">
       {/* Panel header */}
@@ -160,6 +174,9 @@ export function DcaPanel({ config: initialConfig, plan: initialPlan, capital: in
               </button>
               <button className="btn btn--primary" onClick={handleReplan} disabled={isPending}>
                 {isPending ? 'Re-planning…' : 'Re-plan'}
+              </button>
+              <button className="btn btn--danger" onClick={handleDeletePlan} disabled={isPending}>
+                Delete Plan
               </button>
             </>
           ) : (
