@@ -11,7 +11,7 @@ const DCA_ANALYSIS_TOOL_NAME = 'record_dca_analysis';
 const PLAN_ITEM_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['type', 'targetPrice', 'suggestedAmount', 'note'],
+  required: ['type', 'targetPrice', 'suggestedAmount', 'note', 'probability'],
   properties: {
     type: { type: 'string', enum: ['buy', 'sell'] },
     targetPrice: { type: 'number', description: 'Target price level' },
@@ -19,7 +19,13 @@ const PLAN_ITEM_SCHEMA = {
       type: 'number',
       description: 'Buy = USD to spend; Sell = coin quantity to sell'
     },
-    note: { type: 'string', description: 'Reasoning for this zone (Vietnamese)' }
+    note: { type: 'string', description: 'Reasoning for this zone (Vietnamese)' },
+    probability: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 100,
+      description: 'Estimated probability (0-100) that price will reach this zone before trend invalidation'
+    }
   }
 } as const;
 
@@ -229,9 +235,11 @@ export class DcaLlmService {
       `Weekly Candles (last 26):`,
       formatCandles(weeklyCandles),
       '',
-      'Create a DCA plan with buy zones (spread across support levels) and sell zones (at resistance). ',
-      `Allocate the remaining $${capital.remaining.toFixed(2)} across multiple buy entries. `,
-      'For sells, use coin quantity based on runner amount and expected buy positions.'
+      'Create a DCA plan with EXACTLY 10 buy zones (spread across support levels) and EXACTLY 10 sell zones (at resistance). ',
+      `Allocate the remaining $${capital.remaining.toFixed(2)} across the 10 buy entries. `,
+      'For sells, use coin quantity based on runner amount and expected buy positions. ',
+      'For each zone, assign a probability (0-100) estimating how likely price will reach it before trend invalidation. ',
+      'Higher probability = closer to current price or stronger zone. Lower = deeper discount or major resistance.'
     ].join('\n');
   }
 
