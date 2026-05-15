@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 import type { DcaPlanItem } from '@web/shared/api/types';
 import { createApiClient } from '@web/shared/api/client';
@@ -18,12 +18,6 @@ const api = createApiClient();
 
 function formatUsd(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
-}
-
-function sourceBadge(item: DcaPlanItem): string {
-  if (item.source === 'user') return 'user';
-  if (item.userModified) return 'llm ✎';
-  return 'llm';
 }
 
 function IconCheck() {
@@ -58,6 +52,30 @@ function IconTrash() {
   );
 }
 
+function ProbabilityBadge({ probability }: { probability: number | null }) {
+  if (probability === null) return null;
+  const level = probability >= 70 ? 'high' : probability >= 40 ? 'med' : 'low';
+  const colors: Record<'high' | 'med' | 'low', { bg: string; color: string }> = {
+    high: { bg: 'rgba(22,163,74,0.12)', color: '#16a34a' },
+    med: { bg: 'rgba(202,138,4,0.12)', color: '#b45309' },
+    low: { bg: 'rgba(220,38,38,0.12)', color: '#dc2626' }
+  };
+  const { bg, color } = colors[level];
+  return (
+    <span style={{
+      display: 'inline-block',
+      fontSize: '0.75rem',
+      fontWeight: 600,
+      padding: '2px 8px',
+      borderRadius: 6,
+      background: bg,
+      color
+    }}>
+      {probability}%
+    </span>
+  );
+}
+
 function StatusPill({ status }: { status: DcaPlanItem['status'] }) {
   const cls =
     status === 'executed' ? 'tt-status-pill tt-status-pill--closed' :
@@ -66,10 +84,31 @@ function StatusPill({ status }: { status: DcaPlanItem['status'] }) {
   return <span className={cls}>{status}</span>;
 }
 
-export function PlanItemsTable({ planId, items, coin, onRefresh }: PlanItemsTableProps) {
+function ZoneTable({
+  items,
+  coin,
+  planId,
+  type,
+  onRefresh
+}: {
+  items: DcaPlanItem[];
+  coin: string;
+  planId: string;
+  type: 'buy' | 'sell';
+  onRefresh: () => Promise<void>;
+}) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [executeItem, setExecuteItem] = useState<DcaPlanItem | null>(null);
   const [editItem, setEditItem] = useState<DcaPlanItem | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleSkip = async (itemId: string) => {
     await api.skipDcaPlanItem(planId, itemId);
@@ -81,116 +120,131 @@ export function PlanItemsTable({ planId, items, coin, onRefresh }: PlanItemsTabl
     await onRefresh();
   };
 
+  if (items.length === 0) {
+    return (
+      <p className="tt-muted" style={{ padding: '0.4rem 0', fontSize: '0.85rem' }}>
+        No {type} zones.
+      </p>
+    );
+  }
+
   return (
-    <div>
+    <>
       <div className="tt-wrap">
         <table className="tt">
           <thead>
             <tr>
-              <th>Type</th>
-              <th>Target Price</th>
-              <th>Amount</th>
-              <th>Note</th>
-              <th>Source</th>
+              <th style={{ width: 36 }}>#</th>
+              <th>Price</th>
+              <th>{type === 'buy' ? 'USD Amount' : `${coin} Amount`}</th>
+              <th>Probability</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={7} className="tt-muted" style={{ textAlign: 'center', padding: '1.25rem' }}>
-                  No plan items yet.
-                </td>
-              </tr>
-            )}
-            {items.map((item) => (
-              <tr key={item.id} style={{ opacity: item.status === 'skipped' ? 0.45 : 1 }}>
-                <td data-label="Type">
-                  <span style={{
-                    fontWeight: 700,
-                    fontSize: '0.8rem',
-                    color: item.type === 'buy' ? '#16a34a' : '#dc2626'
-                  }}>
-                    {item.type.toUpperCase()}
-                  </span>
-                </td>
-                <td data-label="Target Price">{formatUsd(item.targetPrice)}</td>
-                <td data-label="Amount">
-                  {item.type === 'buy'
-                    ? formatUsd(item.suggestedAmount)
-                    : `${item.suggestedAmount} ${coin}`}
-                </td>
-                <td data-label="Note" className="tt-muted" style={{ maxWidth: 200, fontSize: '0.82rem' }}>
-                  {item.note || '—'}
-                </td>
-                <td data-label="Source">
-                  <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    padding: '2px 7px',
-                    borderRadius: 6,
-                    background: 'rgba(0,0,0,0.07)',
-                    color: 'var(--muted)'
-                  }}>
-                    {sourceBadge(item)}
-                  </span>
-                </td>
-                <td data-label="Status">
-                  <StatusPill status={item.status} />
-                </td>
-                <td data-label="Actions">
-                  {item.status === 'pending' ? (
-                    <div className="tt-actions">
-                      <button
-                        className="tt-btn tt-btn--success"
-                        onClick={() => setExecuteItem(item)}
-                        data-tooltip="Execute"
-                        aria-label="Execute"
-                      >
-                        <IconCheck />
-                      </button>
-                      <button
-                        className="tt-btn"
-                        onClick={() => setEditItem(item)}
-                        data-tooltip="Edit"
-                        aria-label="Edit"
-                      >
-                        <IconEdit />
-                      </button>
-                      <button
-                        className="tt-btn"
-                        onClick={() => handleSkip(item.id)}
-                        data-tooltip="Skip"
-                        aria-label="Skip"
-                      >
-                        <IconSkip />
-                      </button>
-                      <button
-                        className="tt-btn tt-btn--danger"
-                        onClick={() => handleDelete(item.id)}
-                        data-tooltip="Delete"
-                        aria-label="Delete"
-                      >
-                        <IconTrash />
-                      </button>
-                    </div>
-                  ) : item.status === 'executed' ? (
-                    <span className="tt-muted" style={{ fontSize: '0.82rem' }}>
-                      {item.executedPrice != null ? formatUsd(item.executedPrice) : '—'}
-                    </span>
-                  ) : (
-                    <span className="tt-muted">—</span>
-                  )}
-                </td>
-              </tr>
+            {items.map((item, idx) => (
+              <Fragment key={item.id}>
+                <tr
+                  style={{
+                    opacity: item.status === 'skipped' ? 0.45 : 1,
+                    cursor: item.note ? 'pointer' : 'default'
+                  }}
+                  onClick={() => item.note && toggleExpand(item.id)}
+                >
+                  <td data-label="#" style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>
+                    {idx + 1}
+                  </td>
+                  <td data-label="Price" style={{ fontWeight: 600 }}>
+                    {formatUsd(item.targetPrice)}
+                  </td>
+                  <td data-label="Amount">
+                    {type === 'buy'
+                      ? formatUsd(item.suggestedAmount)
+                      : `${item.suggestedAmount} ${coin}`}
+                  </td>
+                  <td data-label="Probability">
+                    <ProbabilityBadge probability={item.probability} />
+                  </td>
+                  <td data-label="Status">
+                    <StatusPill status={item.status} />
+                  </td>
+                  <td data-label="Actions" onClick={(e) => e.stopPropagation()}>
+                    {item.status === 'pending' ? (
+                      <div className="tt-actions">
+                        <button
+                          className="tt-btn tt-btn--success"
+                          onClick={() => setExecuteItem(item)}
+                          aria-label="Execute"
+                          data-tooltip="Execute"
+                        >
+                          <IconCheck />
+                        </button>
+                        <button
+                          className="tt-btn"
+                          onClick={() => setEditItem(item)}
+                          aria-label="Edit"
+                          data-tooltip="Edit"
+                        >
+                          <IconEdit />
+                        </button>
+                        <button
+                          className="tt-btn"
+                          onClick={() => handleSkip(item.id)}
+                          aria-label="Skip"
+                          data-tooltip="Skip"
+                        >
+                          <IconSkip />
+                        </button>
+                        <button
+                          className="tt-btn tt-btn--danger"
+                          onClick={() => handleDelete(item.id)}
+                          aria-label="Delete"
+                          data-tooltip="Delete"
+                        >
+                          <IconTrash />
+                        </button>
+                      </div>
+                    ) : item.status === 'executed' ? (
+                      <span className="tt-muted" style={{ fontSize: '0.82rem' }}>
+                        {item.executedPrice != null ? formatUsd(item.executedPrice) : '—'}
+                      </span>
+                    ) : (
+                      <span className="tt-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+                {expandedIds.has(item.id) && item.note && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      style={{
+                        padding: '0.5rem 1rem 0.75rem',
+                        fontSize: '0.84rem',
+                        color: 'var(--muted)',
+                        lineHeight: 1.65,
+                        background: 'rgba(0,0,0,0.025)',
+                        borderTop: 'none'
+                      }}
+                    >
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        marginRight: 8,
+                        opacity: 0.6
+                      }}>
+                        {item.source === 'llm' ? (item.userModified ? 'llm ✎' : 'llm') : 'user'}
+                      </span>
+                      {item.note}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <button className="btn btn--secondary" onClick={() => setShowAdd(true)}>+ Add item</button>
       </div>
 
       {executeItem && (
@@ -202,13 +256,64 @@ export function PlanItemsTable({ planId, items, coin, onRefresh }: PlanItemsTabl
           onDone={async () => { setExecuteItem(null); await onRefresh(); }}
         />
       )}
-
-      {(editItem || showAdd) && (
+      {editItem && (
         <AddEditItemModal
           item={editItem}
           planId={planId}
-          onClose={() => { setEditItem(null); setShowAdd(false); }}
-          onDone={async () => { setEditItem(null); setShowAdd(false); await onRefresh(); }}
+          onClose={() => setEditItem(null)}
+          onDone={async () => { setEditItem(null); await onRefresh(); }}
+        />
+      )}
+    </>
+  );
+}
+
+export function PlanItemsTable({ planId, items, coin, onRefresh }: PlanItemsTableProps) {
+  const [showAdd, setShowAdd] = useState(false);
+
+  const buyItems = items.filter((i) => i.type === 'buy');
+  const sellItems = items.filter((i) => i.type === 'sell');
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: '#16a34a',
+          marginBottom: '0.6rem'
+        }}>
+          Buy Zones ({buyItems.length})
+        </div>
+        <ZoneTable items={buyItems} coin={coin} planId={planId} type="buy" onRefresh={onRefresh} />
+      </div>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: '#dc2626',
+          marginBottom: '0.6rem'
+        }}>
+          Sell Zones ({sellItems.length})
+        </div>
+        <ZoneTable items={sellItems} coin={coin} planId={planId} type="sell" onRefresh={onRefresh} />
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <button className="btn btn--secondary" onClick={() => setShowAdd(true)}>+ Add item</button>
+      </div>
+
+      {showAdd && (
+        <AddEditItemModal
+          item={null}
+          planId={planId}
+          onClose={() => setShowAdd(false)}
+          onDone={async () => { setShowAdd(false); await onRefresh(); }}
         />
       )}
     </div>
