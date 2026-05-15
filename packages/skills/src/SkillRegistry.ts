@@ -4,13 +4,15 @@ import { breakoutSkill } from './breakout';
 import { swingSkill } from './swing';
 import { dcaSkill } from './dca';
 import { riskManagementSkill } from './risk-management';
+import { shortBtcDailySkill } from './short-btc-daily';
 
 export const SKILLS: SkillDefinition[] = [
   priceActionSkill,
   breakoutSkill,
   swingSkill,
   dcaSkill,
-  riskManagementSkill
+  riskManagementSkill,
+  shortBtcDailySkill,
 ];
 
 export function getSkillById(id: string): SkillDefinition | undefined {

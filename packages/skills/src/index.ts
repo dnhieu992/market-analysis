@@ -5,3 +5,4 @@ export { breakoutSkill } from './breakout';
 export { swingSkill } from './swing';
 export { dcaSkill } from './dca';
 export { riskManagementSkill } from './risk-management';
+export { shortBtcDailySkill } from './short-btc-daily';
