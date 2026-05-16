@@ -81,7 +81,7 @@ export function CreateMultipleTradesForm({ onSubmitted }: CreateMultipleTradesFo
     try {
       const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol.toUpperCase()}`);
       const data = await res.json() as { price?: string };
-      if (data.price) updateRow(rowId, 'entryPrice', data.price);
+      if (data.price) updateRow(rowId, 'entryPrice', parseFloat(data.price).toString());
     } catch {/* ignore */}
   }
 
