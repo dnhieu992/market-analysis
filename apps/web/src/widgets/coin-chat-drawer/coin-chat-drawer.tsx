@@ -42,6 +42,11 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
   const [initializing, setInitializing] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pollingRef = useRef(false);
+
+  useEffect(() => {
+    return () => { pollingRef.current = false; };
+  }, []);
 
   useEffect(() => {
     void initConversation();
@@ -52,7 +57,32 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  async function pollForReply(convId: string, afterIso: string): Promise<void> {
+    const TIMEOUT = 5 * 60 * 1000;
+    const start = Date.now();
+
+    while (pollingRef.current && Date.now() - start < TIMEOUT) {
+      await new Promise<void>((res) => setTimeout(res, 2000));
+      if (!pollingRef.current) break;
+
+      try {
+        const msgs = await createApiClient().getMessages(convId);
+        const hasReply = msgs.some((m) => m.role === 'assistant' && m.createdAt >= afterIso);
+        setMessages(msgs);
+        if (hasReply) {
+          pollingRef.current = false;
+          setLoading(false);
+          return;
+        }
+      } catch { /* ignore transient errors */ }
+    }
+
+    pollingRef.current = false;
+    setLoading(false);
+  }
+
   async function initConversation() {
+    pollingRef.current = false; // stop any in-flight poll
     setInitializing(true);
     const api = createApiClient();
     const storageKey = STORAGE_KEY(portfolioId, coinId);
@@ -64,6 +94,17 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
         setConversationId(cachedId);
         setMessages(existing);
         setInitializing(false);
+
+        // Auto-poll if last message is a recent user message with no assistant reply yet
+        const lastMsg = existing[existing.length - 1];
+        if (lastMsg?.role === 'user') {
+          const age = Date.now() - new Date(lastMsg.createdAt).getTime();
+          if (age < 10 * 60 * 1000) {
+            setLoading(true);
+            pollingRef.current = true;
+            void pollForReply(cachedId, lastMsg.createdAt);
+          }
+        }
         return;
       } catch {
         localStorage.removeItem(storageKey);
@@ -98,24 +139,29 @@ export function CoinChatDrawer({ coinId, portfolioId, holding, currentPrice, onC
     if (!content || !conversationId || loading) return;
 
     setInput('');
+    const sentAt = new Date().toISOString();
     const optimistic: ChatMessage = {
       id: `optimistic-${Date.now()}`,
       conversationId,
       role: 'user',
       content,
-      createdAt: new Date().toISOString(),
+      createdAt: sentAt,
     };
     setMessages((prev) => [...prev, optimistic]);
     setLoading(true);
 
     try {
-      const reply = await createApiClient().sendMessage(conversationId, content);
-      setMessages((prev) => [...prev.filter((m) => m.id !== optimistic.id), optimistic, reply]);
+      // sendMessage returns fast (user msg saved, LLM runs in background)
+      await createApiClient().sendMessage(conversationId, content);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-    } finally {
       setLoading(false);
+      return;
     }
+
+    // Poll until assistant reply arrives
+    pollingRef.current = true;
+    void pollForReply(conversationId, sentAt);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

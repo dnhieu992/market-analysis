@@ -148,6 +148,7 @@ export function SkillChatClient({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const pollingRef = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -161,8 +162,60 @@ export function SkillChatClient({
     setSidebarOpen(false);
   }, [conversationId]);
 
+  // Stop polling on unmount
+  useEffect(() => {
+    return () => { pollingRef.current = false; };
+  }, []);
+
+  // Auto-poll when navigating to a conversation with a pending assistant reply
+  useEffect(() => {
+    if (isNew) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role === 'user' && !pollingRef.current) {
+      const age = Date.now() - new Date(lastMsg.createdAt).getTime();
+      if (age < 10 * 60 * 1000) {
+        setSending(true);
+        pollingRef.current = true;
+        void pollForReply(conversationId, lastMsg.createdAt);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
   function handleNewConversation() {
     router.push(`/skills/${skillId}/chat/new`);
+  }
+
+  async function pollForReply(convId: string, afterIso: string): Promise<void> {
+    const TIMEOUT = 5 * 60 * 1000;
+    const start = Date.now();
+
+    while (pollingRef.current && Date.now() - start < TIMEOUT) {
+      await new Promise<void>((res) => setTimeout(res, 2000));
+      if (!pollingRef.current) break;
+
+      try {
+        const msgs = await api.getMessages(convId);
+        const hasReply = msgs.some((m) => m.role === 'assistant' && m.createdAt >= afterIso);
+        setMessages(msgs);
+        if (hasReply) {
+          pollingRef.current = false;
+          setSending(false);
+          setConversations((prev) =>
+            prev.map((c) => c.id === convId ? { ...c, updatedAt: new Date().toISOString() } : c)
+          );
+          setTimeout(() => inputRef.current?.focus(), 50);
+          return;
+        }
+      } catch { /* ignore transient errors */ }
+    }
+
+    pollingRef.current = false;
+    setSending(false);
+    if (Date.now() - start >= TIMEOUT) {
+      setError('Phản hồi AI mất quá nhiều thời gian. Hãy thử làm mới trang.');
+    }
+    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   async function handleSend() {
@@ -178,18 +231,18 @@ export function SkillChatClient({
         const conv = await api.createConversation(skill?.name ?? 'New Chat', skillId);
         setConversations((prev) => [conv, ...prev]);
 
+        const sentAt = new Date().toISOString();
         const tempMsg: ChatMessage = {
           id: `temp-${Date.now()}`,
           conversationId: conv.id,
           role: 'user',
           content,
-          createdAt: new Date().toISOString(),
+          createdAt: sentAt,
         };
         setMessages([tempMsg]);
 
+        // sendMessage now returns fast (user msg saved, LLM runs in background)
         await api.sendMessage(conv.id, content);
-        const allMsgs = await api.getMessages(conv.id);
-        setMessages(allMsgs);
 
         // Generate AI title in background
         api.generateTitle(conv.id)
@@ -198,43 +251,44 @@ export function SkillChatClient({
           })
           .catch(() => { /* ignore */ });
 
+        // Navigate — server component fetches initial messages, auto-poll kicks in
         router.replace(`/skills/${skillId}/chat/${conv.id}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Gửi thất bại. Vui lòng thử lại.';
         setError(msg);
         setMessages([]);
-      } finally {
         setSending(false);
         setTimeout(() => inputRef.current?.focus(), 50);
       }
       return;
     }
 
-    // Existing conversation
+    // Existing conversation — add optimistic user message, send, then poll for reply
+    const sentAt = new Date().toISOString();
     const tempMsg: ChatMessage = {
       id: `temp-${Date.now()}`,
       conversationId,
       role: 'user',
       content,
-      createdAt: new Date().toISOString(),
+      createdAt: sentAt,
     };
     setMessages((prev) => [...prev, tempMsg]);
 
     try {
+      // sendMessage returns fast (user msg saved, LLM runs in background)
       await api.sendMessage(conversationId, content);
-      const allMsgs = await api.getMessages(conversationId);
-      setMessages(allMsgs);
-      setConversations((prev) =>
-        prev.map((c) => c.id === conversationId ? { ...c, updatedAt: new Date().toISOString() } : c)
-      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Gửi thất bại. Vui lòng thử lại.';
       setError(msg);
       setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
-    } finally {
       setSending(false);
       setTimeout(() => inputRef.current?.focus(), 50);
+      return;
     }
+
+    // Poll until assistant reply arrives
+    pollingRef.current = true;
+    await pollForReply(conversationId, sentAt);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

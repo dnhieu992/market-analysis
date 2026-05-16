@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { getSkillById } from '@app/skills';
 
 import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
@@ -12,6 +12,8 @@ type CoinTransactionRepo = ReturnType<typeof import('@app/db').createCoinTransac
 
 @Injectable()
 export class ConversationService {
+  private readonly logger = new Logger(ConversationService.name);
+
   constructor(
     @Inject(CONVERSATION_REPOSITORY)
     private readonly convRepo: ConversationRepo,
@@ -60,55 +62,60 @@ export class ConversationService {
     const conv = await this.convRepo.findById(conversationId);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
 
-    // Save user message
-    await this.convRepo.addMessage(conversationId, 'user', content);
+    // Save user message immediately and return — LLM runs in background
+    const userMsg = await this.convRepo.addMessage(conversationId, 'user', content);
 
     // Auto-update title from first message
     if (conv.title === 'Cuộc trò chuyện mới') {
       const title = content.slice(0, 80).trim();
-      await this.convRepo.updateTitle(conversationId, title);
+      void this.convRepo.updateTitle(conversationId, title);
     }
 
-    // Load full history (includes just-saved user message)
-    const history = await this.convRepo.listMessages(conversationId);
-
-    // Resolve skill (if any)
-    const skill = conv.skillId ? getSkillById(conv.skillId) : undefined;
-
-    // Extract coin context from conversation metadata (if any)
-    const meta = conv.metadata as Record<string, string> | null;
-    const coinId = meta?.coinId;
-    const portfolioId = meta?.portfolioId;
-
-    // Build system prompt — skill-specific or general
-    const systemPrompt = await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
-
-    // Filter tools to skill's allowed list, or use all tools for general chat
-    const allTools = this.toolRegistry.listTools();
-    const tools = skill
-      ? allTools.filter((t) => skill.tools.includes(t.name))
-      : allTools;
-
-    // Call Claude with agentic tool loop
-    const reply = await this.claude.chatAgentLoop(
-      systemPrompt,
-      history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-      tools,
-      async (name, input) => {
-        const tool = this.toolRegistry.getTool(name);
-        if (!tool) return `Tool "${name}" not found`;
-        const result = await tool.execute(input);
-        return typeof result === 'string' ? result : JSON.stringify(result);
-      }
+    // Kick off LLM processing without blocking the HTTP response
+    void this.processLlmResponse(
+      conversationId,
+      conv.userId,
+      conv.skillId ?? undefined,
+      conv.metadata as Record<string, string> | null
     );
 
-    // Save assistant response
-    const assistantMsg = await this.convRepo.addMessage(conversationId, 'assistant', reply);
+    return userMsg;
+  }
 
-    // Touch conversation updatedAt
-    await this.convRepo.touch(conversationId);
+  private async processLlmResponse(
+    conversationId: string,
+    userId: string,
+    skillId: string | undefined,
+    meta: Record<string, string> | null
+  ): Promise<void> {
+    try {
+      const history = await this.convRepo.listMessages(conversationId);
+      const skill = skillId ? getSkillById(skillId) : undefined;
+      const coinId = meta?.coinId;
+      const portfolioId = meta?.portfolioId;
+      const systemPrompt = await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
+      const allTools = this.toolRegistry.listTools();
+      const tools = skill
+        ? allTools.filter((t) => skill.tools.includes(t.name))
+        : allTools;
 
-    return assistantMsg;
+      const reply = await this.claude.chatAgentLoop(
+        systemPrompt,
+        history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        tools,
+        async (name, input) => {
+          const tool = this.toolRegistry.getTool(name);
+          if (!tool) return `Tool "${name}" not found`;
+          const result = await tool.execute(input);
+          return typeof result === 'string' ? result : JSON.stringify(result);
+        }
+      );
+
+      await this.convRepo.addMessage(conversationId, 'assistant', reply);
+      await this.convRepo.touch(conversationId);
+    } catch (error) {
+      this.logger.error(`LLM processing failed for conversation ${conversationId}: ${String(error)}`);
+    }
   }
 
   async generateTitle(id: string, userId: string): Promise<{ title: string }> {
