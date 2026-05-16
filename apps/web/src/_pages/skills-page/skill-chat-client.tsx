@@ -6,21 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
 import type { Skill, Conversation, ChatMessage } from '@web/shared/api/types';
 
-// ── Markdown renderer ──────────────────────────────────────────────────────────
-function renderMarkdown(text: string): string {
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/^#{3} (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^#{2} (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^#{1} (.+)$/gm, '<h1>$1</h1>')
-    .replace(/^[-•] (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-    .replace(/\n{2,}/g, '</p><p>')
-    .replace(/\n/g, '<br/>');
-}
+import { renderMarkdown } from '@web/shared/lib/markdown';
 
 function TypingIndicator() {
   return <div className="chat-typing"><span /><span /><span /></div>;
