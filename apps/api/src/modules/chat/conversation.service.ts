@@ -145,19 +145,25 @@ export class ConversationService {
       const totalInvested = Number(holding.totalCost);
       const realizedPnl = Number(holding.realizedPnl);
 
-      const recentTxLines = transactions.slice(0, 10).map((tx) => {
-        const date = new Date(tx.transactedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        return `  - ${tx.type.toUpperCase()} ${Number(tx.amount)} ${coinId} @ $${Number(tx.price).toLocaleString()} on ${date}`;
-      }).join('\n');
+      // Separate and sort chronologically
+      const buys  = transactions.filter((tx) => tx.type === 'buy').sort((a, b) => new Date(a.transactedAt).getTime() - new Date(b.transactedAt).getTime());
+      const sells = transactions.filter((tx) => tx.type === 'sell').sort((a, b) => new Date(a.transactedAt).getTime() - new Date(b.transactedAt).getTime());
 
-      return `
-=== Portfolio Context: ${coinId} ===
-Holdings: ${totalAmount} ${coinId} | Avg buy price: $${avgCost.toLocaleString()} | Total invested: $${totalInvested.toLocaleString()}
-Realized P&L: ${realizedPnl >= 0 ? '+' : ''}$${realizedPnl.toLocaleString()}
+      const buyPrices = buys.map((tx) => Number(tx.price));
+      const minBuy    = buyPrices.length > 0 ? Math.min(...buyPrices) : 0;
+      const maxBuy    = buyPrices.length > 0 ? Math.max(...buyPrices) : 0;
 
-Recent transactions (last ${Math.min(transactions.length, 10)}):
-${recentTxLines || '  (none)'}
-===========================`;
+      const fmtDate = (d: Date | string) =>
+        new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+      const buyLinesCmp  = buys.map((tx) => `${Number(tx.amount).toFixed(6)}@$${Number(tx.price).toLocaleString()}(${fmtDate(tx.transactedAt)})`).join(', ');
+      const sellLinesCmp = sells.map((tx) => `${Number(tx.amount).toFixed(6)}@$${Number(tx.price).toLocaleString()}(${fmtDate(tx.transactedAt)})`).join(', ');
+
+      return `[${coinId} Portfolio]
+Giữ: ${totalAmount} ${coinId} | Avg: $${avgCost.toLocaleString()} | Vốn: $${totalInvested.toLocaleString()} | PnL: ${realizedPnl >= 0 ? '+' : ''}$${realizedPnl.toLocaleString()}
+Mua(${buys.length}, min$${minBuy.toLocaleString()}/max$${maxBuy.toLocaleString()}): ${buyLinesCmp || 'none'}
+${sells.length > 0 ? `Bán(${sells.length}): ${sellLinesCmp}` : 'Chưa bán.'}
+DCA formula: new_avg=(${totalInvested.toFixed(2)}+B)/(${totalAmount}+B/P) với B=budget, P=dcaPrice`;
     } catch {
       return '';
     }
@@ -223,35 +229,40 @@ ${recent}`;
 
     const coinContext = coinId && portfolioId ? await this.buildCoinContext(coinId, portfolioId) : '';
 
-    const generalPrompt = `Bạn là trợ lý giao dịch crypto chuyên nghiệp tích hợp trực tiếp vào dashboard của trader.
-
-Thời gian hiện tại: ${now} (GMT+7)
-
-Hồ sơ giao dịch của người dùng:
+    const generalPrompt = `Crypto trading assistant. ${now} GMT+7.
 ${tradeContext}
-
-Bạn có thể sử dụng các công cụ sau để lấy dữ liệu thị trường thực từ Binance:
-- get_klines: lấy nến OHLCV theo khung thời gian
-- get_ticker_price: lấy giá hiện tại
-- get_24h_ticker: thống kê 24h (high, low, volume, % thay đổi)
-- analyze_market_structure: phân tích cấu trúc thị trường đa khung thời gian (1W/1D/4H)
-
-Hướng dẫn:
-1. Dùng công cụ khi cần phân tích kỹ thuật hoặc người dùng hỏi về giá/biểu đồ hiện tại.
-2. Khi phân tích nến, hãy xem xét: xu hướng, hỗ trợ/kháng cự, momentum, volume.
-3. Khi đưa ra điểm vào lệnh, luôn kèm: entry zone, stop loss, take profit, lý do.
-4. Ngắn gọn, thực tế, có thể hành động được.
-5. Phản hồi bằng ngôn ngữ người dùng đang dùng (Tiếng Việt hoặc English).
-6. Không đưa ra lời khuyên tài chính tuyệt đối — luôn nhắc quản lý rủi ro.`;
+Tools: get_klines, get_ticker_price, get_24h_ticker, analyze_market_structure(1W/1D/4H).
+Dùng tool khi cần số liệu thực. Mỗi đề xuất lệnh kèm entry/SL/TP/lý do. Ngắn gọn, có thể hành động. Reply cùng ngôn ngữ user. Không tư vấn tài chính tuyệt đối.`;
 
     if (skillSystemPrompt) {
       return `${skillSystemPrompt}\n\n---\n\nThời gian hiện tại: ${now} (GMT+7)\n\nHồ sơ giao dịch của người dùng:\n${tradeContext}`;
     }
 
-    if (coinContext) {
-      return `${generalPrompt}\n\n${coinContext}`;
+    if (coinContext && coinId) {
+      return this.buildCoinSwingPaPrompt(coinId, coinContext, now);
     }
 
     return generalPrompt;
+  }
+
+  private buildCoinSwingPaPrompt(coinId: string, coinContext: string, now: string): string {
+    const symbol = coinId.endsWith('USDT') ? coinId : `${coinId}USDT`;
+
+    return `Swing PA analyst – ${coinId} portfolio. ${now} GMT+7.
+${coinContext}
+
+Khi phân tích DCA/chốt lời: gọi analyze_market_structure("${symbol}") trước, sau đó:
+- Trend: 1W→1D→4H (HH/HL structure, CHoCH). Chỉ DCA chiều weekly.
+- DCA zones (ưu tiên cao→thấp): Fib0.618+SR≥2touch > Fib0.5+SR > Fib0.382+SR > SR độc lập > last HL. Chỉ R:R≥2.
+- TP: nearest resistance(TP1 50-60%), next resistance(TP2 30-40%), Fib1.618ext(TP3 10-20%).
+- Tính new_avg bằng DCA formula cho mỗi vùng DCA, giả định budget = lần mua lớn nhất.
+
+Output (tiếng Việt, số thực):
+📊 Trend: 1W/1D/4H | CHoCH | Fib pivot
+🎯 DCA: bảng [vùng | lý do | new_avg | Δavg% | SL | R:R]
+💰 TP1/TP2/TP3: giá + %profit từ new_avg + locked$
+📊 So sánh: không DCA vs DCA#1 vs DCA#1+2 (avg_cost, profit@TP1, profit@TP2)
+⛔ Invalidation level
+📌 Nhận xét vị thế (lãi/lỗ%, nên DCA vùng nào, cảnh báo CHoCH nếu có)`;
   }
 }

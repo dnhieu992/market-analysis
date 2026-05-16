@@ -19,6 +19,14 @@ Thêm nút "Ask AI" vào trang chi tiết coin trong portfolio. Khi click, một
 - Lỗi khi gửi tin → optimistic message bị xóa khỏi list, user thấy input không đổi để thử lại.
 - Drawer đóng khi click backdrop (overlay đen phía sau).
 
+## Swing PA System Prompt (cập nhật)
+Khi `coinId` có trong conversation metadata, `buildSystemPrompt()` tạo prompt chuyên biệt thay vì prompt chung:
+- **Framework**: Swing PA thuần price action (HH/HL structure, CHoCH, S/R zones từ weekly, Fibonacci 0.382/0.5/0.618)
+- **Mục tiêu chính**: tìm điểm DCA và vùng chốt lời, không phải trading chung
+- **Bắt buộc dùng tool**: Claude phải gọi `analyze_market_structure` trước rồi mới phân tích
+- **Định dạng output cố định**: Xu hướng → DCA table (ưu tiên + RR) → TP1/TP2/TP3 → Invalidation → Nhận xét vị thế
+- **Ràng buộc R:R**: chỉ đề xuất DCA khi R:R ≥ 2:1; chỉ DCA theo chiều weekly trend
+
 ## Related Files (FE / BE / Worker)
 
 ### Frontend
