@@ -21,8 +21,9 @@ function formatUsd(value: number): string {
 }
 
 function formatPrice(value: number): string {
-  const decimals = value >= 1 ? 3 : 5;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
+  const maxDecimals = value >= 1 ? 3 : 10;
+  const minDecimals = value >= 1 ? 3 : 0;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: minDecimals, maximumFractionDigits: maxDecimals }).format(value);
 }
 
 function formatCrypto(value: number, coin: string): string {
