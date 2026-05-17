@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 type HoldingEntry = {
@@ -8,6 +9,7 @@ type HoldingEntry = {
   totalAmount: number;
   totalCost: number;
   realizedPnl: number;
+  portfolioId: string;
 };
 
 type ChartEntry = {
@@ -22,6 +24,13 @@ type TopHolding = {
   change24h: number;
 };
 
+type PnlEntry = {
+  coinId: string;
+  pnl: number;
+  pnlPct: number;
+  portfolioId: string;
+};
+
 type ComputedData = {
   totalValue: number;
   totalCost: number;
@@ -30,6 +39,8 @@ type ComputedData = {
   change24hPct: number;
   chart: ChartEntry[];
   topHoldings: TopHolding[];
+  topGainers: PnlEntry[];
+  topLosers: PnlEntry[];
   holdingCount: number;
   cashValue: number;
 };
@@ -88,12 +99,13 @@ type Props = {
 
 export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
   const [computed, setComputed] = useState<ComputedData | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (holdings.length === 0) {
       setComputed({
         totalValue: 0, totalCost: 0, totalRealizedPnl: 0, change24hUsd: 0, change24hPct: 0,
-        chart: [], topHoldings: [], holdingCount: 0, cashValue: 0,
+        chart: [], topHoldings: [], topGainers: [], topLosers: [], holdingCount: 0, cashValue: 0,
       });
       return;
     }
@@ -114,7 +126,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
           if (isStable) cashValue += value;
 
-          return { coinId: h.coinId, value, change24h, change24hUsd };
+          return { coinId: h.coinId, value, change24h, change24hUsd, totalCost: h.totalCost, portfolioId: h.portfolioId };
         });
 
         const totalValue = entries.reduce((s, e) => s + e.value, 0);
@@ -145,6 +157,22 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
           });
         }
 
+        const nonStable = entries.filter((e) => !STABLE_COINS.has(e.coinId));
+        const byPnl = nonStable
+          .map((e) => ({ ...e, pnl: e.value - e.totalCost, pnlPct: e.totalCost > 0 ? ((e.value - e.totalCost) / e.totalCost) * 100 : 0 }))
+          .sort((a, b) => b.pnl - a.pnl);
+
+        const topGainers = byPnl
+          .filter((e) => e.pnl > 0)
+          .slice(0, 3)
+          .map((e) => ({ coinId: e.coinId, pnl: e.pnl, pnlPct: e.pnlPct, portfolioId: e.portfolioId }));
+
+        const topLosers = byPnl
+          .filter((e) => e.pnl < 0)
+          .slice(-3)
+          .reverse()
+          .map((e) => ({ coinId: e.coinId, pnl: e.pnl, pnlPct: e.pnlPct, portfolioId: e.portfolioId }));
+
         setComputed({
           totalValue,
           totalCost,
@@ -157,6 +185,8 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
             value: e.value,
             change24h: e.change24h,
           })),
+          topGainers,
+          topLosers,
           holdingCount: holdings.length,
           cashValue,
         });
@@ -279,6 +309,51 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
             );
           })}
         </div>
+
+        {/* Gainers & Losers */}
+        {d && (d.topGainers.length > 0 || d.topLosers.length > 0) && (
+          <>
+            <div className="ps-divider" />
+            <div className="ps-gl-grid">
+              {d.topGainers.length > 0 && (
+                <div>
+                  <h3 className="ps-section-title ps-section-title--up">▲ Top Gainers</h3>
+                  <div className="ps-top-list">
+                    {d.topGainers.map((h) => (
+                      <div
+                        key={h.coinId}
+                        className="ps-top-row ps-top-row--clickable"
+                        onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
+                      >
+                        <span className="ps-top-coin">{h.coinId}</span>
+                        <span className="ps-top-change ps-top-change--up">+{formatUsd(h.pnl, 0)}</span>
+                        <span className="ps-top-change ps-top-change--up">+{h.pnlPct.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {d.topLosers.length > 0 && (
+                <div>
+                  <h3 className="ps-section-title ps-section-title--down">▼ Top Losers</h3>
+                  <div className="ps-top-list">
+                    {d.topLosers.map((h) => (
+                      <div
+                        key={h.coinId}
+                        className="ps-top-row ps-top-row--clickable"
+                        onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
+                      >
+                        <span className="ps-top-coin">{h.coinId}</span>
+                        <span className="ps-top-change ps-top-change--down">{formatUsd(h.pnl, 0)}</span>
+                        <span className="ps-top-change ps-top-change--down">{h.pnlPct.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </section>
   );

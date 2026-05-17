@@ -17,9 +17,10 @@ async function loadDashboardData() {
       portfolios.map((p) => client.fetchHoldings(p.id).catch(() => []))
     );
 
-    // aggregate by coinId across all portfolios
-    const map = new Map<string, { totalAmount: number; totalCost: number; realizedPnl: number }>();
-    for (const holdings of holdingsByPortfolio) {
+    // aggregate by coinId across all portfolios; keep first portfolioId per coin for navigation
+    const map = new Map<string, { totalAmount: number; totalCost: number; realizedPnl: number; portfolioId: string }>();
+    portfolios.forEach((portfolio, i) => {
+      const holdings = holdingsByPortfolio[i] ?? [];
       for (const h of holdings) {
         const existing = map.get(h.coinId);
         if (existing) {
@@ -27,16 +28,17 @@ async function loadDashboardData() {
           existing.totalCost += h.totalInvested;
           existing.realizedPnl += h.realizedPnl;
         } else {
-          map.set(h.coinId, { totalAmount: h.totalAmount, totalCost: h.totalInvested, realizedPnl: h.realizedPnl });
+          map.set(h.coinId, { totalAmount: h.totalAmount, totalCost: h.totalInvested, realizedPnl: h.realizedPnl, portfolioId: portfolio.id });
         }
       }
-    }
+    });
 
     const allHoldings = Array.from(map.entries()).map(([coinId, v]) => ({
       coinId,
       totalAmount: v.totalAmount,
       totalCost: v.totalCost,
       realizedPnl: v.realizedPnl,
+      portfolioId: v.portfolioId,
     }));
 
     return {

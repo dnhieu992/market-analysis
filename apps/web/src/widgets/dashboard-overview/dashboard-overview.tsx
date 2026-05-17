@@ -14,6 +14,7 @@ type HoldingEntry = {
   totalAmount: number;
   totalCost: number;
   realizedPnl: number;
+  portfolioId: string;
 };
 
 type DashboardOverviewProps = Readonly<{

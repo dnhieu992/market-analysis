@@ -468,6 +468,29 @@ a {
 .ps-top-change--up { color: #22c55e; }
 .ps-top-change--down { color: #ef4444; }
 
+.ps-top-row--clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+  padding-left: 6px;
+  padding-right: 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+}
+
+.ps-top-row--clickable:hover {
+  background: var(--border);
+}
+
+.ps-gl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 20px;
+}
+
+.ps-section-title--up { color: #22c55e; }
+.ps-section-title--down { color: #ef4444; }
+
 /* ── Mobile ── */
 @media (max-width: 700px) {
   .ps-card {
