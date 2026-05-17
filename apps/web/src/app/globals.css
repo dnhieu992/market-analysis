@@ -468,6 +468,13 @@ a {
 .ps-top-change--up { color: #22c55e; }
 .ps-top-change--down { color: #ef4444; }
 
+.ps-top-amount {
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+  text-align: right;
+  min-width: 48px;
+}
+
 .ps-top-row--clickable {
   cursor: pointer;
   border-radius: 6px;

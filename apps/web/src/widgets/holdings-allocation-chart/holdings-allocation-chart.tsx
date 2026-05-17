@@ -29,6 +29,7 @@ type PnlEntry = {
   coinId: string;
   pnl: number;
   value: number;
+  totalAmount: number;
   portfolioId: string;
 };
 
@@ -93,6 +94,13 @@ function formatUsd(value: number, decimals = 2): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: decimals }).format(value);
 }
 
+function formatAmount(amount: number): string {
+  if (amount === 0) return '0';
+  if (amount >= 1000) return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(amount);
+  if (amount >= 1) return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(amount);
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(amount);
+}
+
 type Props = {
   holdings: HoldingEntry[];
   portfolioCount: number;
@@ -127,7 +135,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
           if (isStable) cashValue += value;
 
-          return { coinId: h.coinId, value, change24h, change24hUsd, totalCost: h.totalCost, realizedPnl: h.realizedPnl, portfolioId: h.portfolioId };
+          return { coinId: h.coinId, value, change24h, change24hUsd, totalCost: h.totalCost, realizedPnl: h.realizedPnl, totalAmount: h.totalAmount, portfolioId: h.portfolioId };
         });
 
         const totalValue = entries.reduce((s, e) => s + e.value, 0);
@@ -166,13 +174,13 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
         const topGainers = byPnl
           .filter((e) => e.pnl > 0)
           .slice(0, 3)
-          .map((e) => ({ coinId: e.coinId, pnl: e.pnl, value: e.value, portfolioId: e.portfolioId }));
+          .map((e) => ({ coinId: e.coinId, pnl: e.pnl, value: e.value, totalAmount: e.totalAmount, portfolioId: e.portfolioId }));
 
         const topLosers = byPnl
           .filter((e) => e.pnl < 0)
           .slice(-3)
           .reverse()
-          .map((e) => ({ coinId: e.coinId, pnl: e.pnl, value: e.value, portfolioId: e.portfolioId }));
+          .map((e) => ({ coinId: e.coinId, pnl: e.pnl, value: e.value, totalAmount: e.totalAmount, portfolioId: e.portfolioId }));
 
         setComputed({
           totalValue,
@@ -329,8 +337,8 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
                   onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
                 >
                   <span className="ps-top-coin">{h.coinId}</span>
-                  <span className="ps-top-value">{formatUsd(h.value)}</span>
                   <span className="ps-top-value ps-top-change--up">+{formatUsd(h.pnl)}</span>
+                  <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
                 </div>
               ))}
             </div>
@@ -348,8 +356,8 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
                   onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
                 >
                   <span className="ps-top-coin">{h.coinId}</span>
-                  <span className="ps-top-value">{formatUsd(h.value)}</span>
                   <span className="ps-top-value ps-top-change--down">{formatUsd(h.pnl)}</span>
+                  <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
                 </div>
               ))}
             </div>
