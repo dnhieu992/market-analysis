@@ -482,12 +482,6 @@ a {
   background: var(--border);
 }
 
-.ps-gl-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 20px;
-}
-
 .ps-section-title--up { color: #22c55e; }
 .ps-section-title--down { color: #ef4444; }
 
