@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
@@ -6,6 +6,7 @@ import { PortfolioService } from '../portfolio/portfolio.service';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 @ApiTags('Transactions')
 @ApiCookieAuth('market_analysis_session')
@@ -38,6 +39,19 @@ export class TransactionController {
   ) {
     await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
     return this.transactionService.createTransaction(portfolioId, body);
+  }
+
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update a transaction and recalculate holdings' })
+  async updateTransaction(
+    @Param('portfolioId') portfolioId: string,
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() body: UpdateTransactionDto
+  ) {
+    await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
+    return this.transactionService.updateTransaction(id, portfolioId, body);
   }
 
   @Delete(':id')

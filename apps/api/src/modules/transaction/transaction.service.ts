@@ -7,6 +7,7 @@ import { COIN_TRANSACTION_REPOSITORY, HOLDING_REPOSITORY } from '../database/dat
 import { HoldingsService } from '../holdings/holdings.service';
 import type { CreateTransactionDto } from './dto/create-transaction.dto';
 import type { QueryTransactionsDto } from './dto/query-transactions.dto';
+import type { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 type CoinTransactionRepository = ReturnType<typeof import('@app/db').createCoinTransactionRepository>;
 type HoldingRepository = ReturnType<typeof import('@app/db').createHoldingRepository>;
@@ -68,6 +69,29 @@ export class TransactionService {
 
       return tx;
     });
+  }
+
+  async updateTransaction(id: string, portfolioId: string, input: UpdateTransactionDto) {
+    const tx = await this.txRepository.findById(id);
+    if (!tx || (tx as { portfolioId: string }).portfolioId !== portfolioId || (tx as { deletedAt: Date | null }).deletedAt !== null) {
+      throw new NotFoundException(`Transaction ${id} not found`);
+    }
+
+    await prisma.coinTransaction.update({
+      where: { id },
+      data: {
+        ...(input.type !== undefined && { type: input.type }),
+        ...(input.price !== undefined && { price: new Decimal(input.price) }),
+        ...(input.amount !== undefined && { amount: new Decimal(input.amount) }),
+        ...(input.amount !== undefined && input.price !== undefined && { totalValue: new Decimal(input.amount * input.price) }),
+        ...(input.fee !== undefined && { fee: new Decimal(input.fee) }),
+        ...(input.transactedAt !== undefined && { transactedAt: new Date(input.transactedAt) }),
+        ...('note' in input && { note: input.note ?? null }),
+      }
+    });
+
+    await this.holdingsService.recalculate(portfolioId, (tx as { coinId: string }).coinId);
+    return { message: 'Transaction updated and holdings recalculated' };
   }
 
   async removeTransaction(id: string, portfolioId: string) {

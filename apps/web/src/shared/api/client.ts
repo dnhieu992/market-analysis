@@ -647,6 +647,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${portfolioId}/transactions: ${response.status}`);
       return mapTransaction((await response.json()) as JsonRecord);
     },
+    async updateTransaction(portfolioId: string, id: string, input: { type?: 'buy' | 'sell'; price?: number; amount?: number; fee?: number; note?: string | null; transactedAt?: string }): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/transactions/${id}`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) throw new Error(`Failed to update transaction: ${response.status}`);
+    },
     async deleteTransaction(portfolioId: string, id: string): Promise<void> {
       const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/transactions/${id}`, withDefaults({ method: 'DELETE' }));
       if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${portfolioId}/transactions/${id}: ${response.status}`);
