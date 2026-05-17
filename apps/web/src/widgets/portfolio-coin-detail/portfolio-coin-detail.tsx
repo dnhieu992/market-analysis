@@ -76,11 +76,112 @@ function IconTrash() {
   );
 }
 
+function toDateInputValue(dateStr: string): string {
+  const d = new Date(dateStr);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
+  tx: CoinTransaction;
+  portfolioId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [type, setType] = useState<'buy' | 'sell'>(tx.type);
+  const [price, setPrice] = useState(String(tx.price));
+  const [amount, setAmount] = useState(String(tx.amount));
+  const [fee, setFee] = useState(String(tx.fee ?? 0));
+  const [note, setNote] = useState(tx.note ?? '');
+  const [date, setDate] = useState(toDateInputValue(tx.transactedAt));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setError(null);
+    const p = Number(price);
+    const a = Number(amount);
+    if (!p || !a || p <= 0 || a <= 0) {
+      setError('Price and amount must be positive numbers.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await createApiClient().updateTransaction(portfolioId, tx.id, {
+        type, price: p, amount: a,
+        fee: Number(fee) || 0,
+        note: note.trim() || null,
+        transactedAt: new Date(date).toISOString(),
+      });
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update transaction.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const total = Number(price) * Number(amount);
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Edit Transaction — {tx.coinId}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body">
+          <div className="tx-type-tabs" style={{ marginBottom: '1rem' }}>
+            <button type="button" className={`tx-type-tab${type === 'buy' ? ' tx-type-tab--buy' : ''}`} onClick={() => setType('buy')}>Buy</button>
+            <button type="button" className={`tx-type-tab${type === 'sell' ? ' tx-type-tab--sell' : ''}`} onClick={() => setType('sell')}>Sell</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <label className="trade-field">
+              <span>Amount</span>
+              <input type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </label>
+            <label className="trade-field">
+              <span>Price (USD)</span>
+              <input type="number" min="0" step="any" value={price} onChange={(e) => setPrice(e.target.value)} />
+            </label>
+            <label className="trade-field">
+              <span>Fee</span>
+              <input type="number" min="0" step="any" value={fee} onChange={(e) => setFee(e.target.value)} />
+            </label>
+            <label className="trade-field">
+              <span>Date</span>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </label>
+          </div>
+          <label className="trade-field" style={{ marginTop: '0.75rem' }}>
+            <span>Note</span>
+            <input type="text" placeholder="Optional note" value={note} onChange={(e) => setNote(e.target.value)} />
+          </label>
+          {total > 0 && (
+            <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
+              Total: {formatUsd(total)}
+            </p>
+          )}
+          {error && <p className="trade-form-error" style={{ marginTop: '0.5rem' }}>{error}</p>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
+            <button className="btn btn--secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions }: PortfolioCoinDetailProps) {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editTx, setEditTx] = useState<CoinTransaction | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -214,6 +315,13 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                       <td data-label="Actions">
                         <div className="tt-actions">
                           <button
+                            className="tt-btn"
+                            aria-label="Edit transaction"
+                            onClick={() => setEditTx(tx)}
+                          >
+                            Edit
+                          </button>
+                          <button
                             className="tt-btn tt-btn--danger"
                             aria-label="Delete transaction"
                             data-tooltip="Delete"
@@ -247,6 +355,16 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit transaction dialog */}
+      {editTx && (
+        <EditTransactionModal
+          tx={editTx}
+          portfolioId={portfolioId}
+          onClose={() => setEditTx(null)}
+          onSaved={() => startTransition(() => { window.location.reload(); })}
+        />
       )}
 
       {/* AI Chat Drawer */}
