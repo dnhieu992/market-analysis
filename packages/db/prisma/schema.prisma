@@ -264,6 +264,7 @@ model Holding {
   totalCost   Decimal   @db.Decimal(20, 8)
   avgCost     Decimal   @db.Decimal(20, 8)
   realizedPnl Decimal   @default(0) @db.Decimal(20, 8)
+  note        String?   @db.Text
   updatedAt   DateTime  @updatedAt
   portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
 

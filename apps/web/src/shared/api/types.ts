@@ -259,6 +259,7 @@ export type Holding = {
   avgCost: number;
   totalInvested: number;
   realizedPnl: number;
+  note: string | null;
 };
 
 export type PnlSnapshot = {

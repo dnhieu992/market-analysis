@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
@@ -32,6 +32,18 @@ export class HoldingsController {
 
     const currentPrices: Record<string, number> = pricesJson ? JSON.parse(pricesJson) : {};
     return this.holdingsService.getByPortfolio(portfolioId, currentPrices);
+  }
+
+  @Patch(':coinId/note')
+  @ApiOperation({ summary: 'Update note for a holding' })
+  async updateNote(
+    @Param('portfolioId') portfolioId: string,
+    @Param('coinId') coinId: string,
+    @Body() body: { note: string | null },
+    @Req() req: AuthenticatedRequest
+  ) {
+    await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
+    return this.holdingsService.updateNote(portfolioId, coinId, body.note ?? null);
   }
 
   @Post('recalculate')

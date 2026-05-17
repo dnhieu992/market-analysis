@@ -281,7 +281,8 @@ function mapHolding(row: JsonRecord): Holding {
     totalAmount: Number(row.totalAmount),
     avgCost: Number(row.avgCost),
     totalInvested: Number(row.totalCost ?? row.totalInvested),
-    realizedPnl: Number(row.realizedPnl)
+    realizedPnl: Number(row.realizedPnl),
+    note: row.note == null ? null : String(row.note)
   };
 }
 
@@ -656,6 +657,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const qs = params.toString() ? `?${params.toString()}` : '';
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/holdings${qs}`, withDefaults());
       return rows.map(mapHolding);
+    },
+    async updateHoldingNote(portfolioId: string, coinId: string, note: string | null): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/holdings/${coinId}/note`, withDefaults({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) }));
+      if (!response.ok) throw new Error(`Failed to update holding note: ${response.status}`);
     },
     async recalculateHoldings(portfolioId: string): Promise<void> {
       const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/holdings/recalculate`, withDefaults({ method: 'POST' }));

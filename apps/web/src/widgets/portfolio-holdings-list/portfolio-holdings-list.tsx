@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
+import { createApiClient } from '@web/shared/api/client';
 import type { Holding } from '@web/shared/api/types';
 
 type PortfolioHoldingsListProps = Readonly<{
@@ -191,11 +192,76 @@ function SortToggle({ sortBy, onChange }: { sortBy: SortKey; onChange: (k: SortK
   );
 }
 
+type EditNoteState = { coinId: string; current: string | null };
+
+function EditNoteModal({ portfolioId, coinId, current, onClose, onSaved }: {
+  portfolioId: string;
+  coinId: string;
+  current: string | null;
+  onClose: () => void;
+  onSaved: (coinId: string, note: string | null) => void;
+}) {
+  const [value, setValue] = useState(current ?? '');
+  const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const client = createApiClient();
+      await client.updateHoldingNote(portfolioId, coinId, value.trim() || null);
+      onSaved(coinId, value.trim() || null);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Edit note — {coinId}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body">
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            rows={5}
+            placeholder="Add a note for this holding…"
+            style={{
+              width: '100%', resize: 'vertical', padding: '0.65rem 0.75rem',
+              background: 'var(--input-bg, rgba(255,255,255,0.06))',
+              border: '1px solid var(--border)', borderRadius: '8px',
+              color: 'inherit', fontSize: '0.9rem', lineHeight: 1.5,
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+            <button className="btn" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('pnl');
+  const [notes, setNotes] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(holdings.map((h) => [h.coinId, h.note]))
+  );
+  const [editNote, setEditNote] = useState<EditNoteState | null>(null);
 
   useEffect(() => {
     if (holdings.length === 0) { setPricesLoaded(true); return; }
@@ -268,13 +334,26 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 const unrealizedPnl = currentPrice != null ? (currentPrice - h.avgCost) * h.totalAmount : 0;
                 const totalPnl = unrealizedPnl + h.realizedPnl;
 
+                const note = notes[h.coinId] ?? null;
                 return (
                   <tr key={h.coinId}>
                     {/* Full-width on mobile */}
                     <td data-label="Coin" data-full="">
-                      <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
-                        <strong>{h.coinId}</strong>
-                      </Link>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
+                          <strong>{h.coinId}</strong>
+                        </Link>
+                        <button
+                          title={note ? 'Edit note' : 'Add note'}
+                          onClick={() => setEditNote({ coinId: h.coinId, current: note })}
+                          className={`holding-note-btn${note ? ' holding-note-btn--active' : ''}`}
+                        >
+                          ✎ {note ? 'Note' : 'Add note'}
+                        </button>
+                      </div>
+                      {note && (
+                        <div className="holding-note-preview" title={note}>{note}</div>
+                      )}
                     </td>
                     <td data-label="Current Price">
                       {!pricesLoaded
@@ -319,6 +398,15 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
         </div>
       )}
     </article>
+    {editNote && (
+      <EditNoteModal
+        portfolioId={portfolioId}
+        coinId={editNote.coinId}
+        current={editNote.current}
+        onClose={() => setEditNote(null)}
+        onSaved={(coinId, note) => setNotes((prev) => ({ ...prev, [coinId]: note }))}
+      />
+    )}
     </>
   );
 }

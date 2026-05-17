@@ -144,6 +144,7 @@ export class ConversationService {
       const avgCost = Number(holding.avgCost);
       const totalInvested = Number(holding.totalCost);
       const realizedPnl = Number(holding.realizedPnl);
+      const note = holding.note?.trim() || null;
 
       // Separate and sort chronologically
       const buys  = transactions.filter((tx) => tx.type === 'buy').sort((a, b) => new Date(a.transactedAt).getTime() - new Date(b.transactedAt).getTime());
@@ -161,6 +162,7 @@ export class ConversationService {
 
       return `[${coinId} Portfolio]
 Giữ: ${totalAmount} ${coinId} | Avg: $${avgCost.toLocaleString()} | Vốn: $${totalInvested.toLocaleString()} | PnL: ${realizedPnl >= 0 ? '+' : ''}$${realizedPnl.toLocaleString()}
+${note ? `Mục tiêu: ${note}` : ''}
 Mua(${buys.length}, min$${minBuy.toLocaleString()}/max$${maxBuy.toLocaleString()}): ${buyLinesCmp || 'none'}
 ${sells.length > 0 ? `Bán(${sells.length}): ${sellLinesCmp}` : 'Chưa bán.'}
 DCA formula: new_avg=(${totalInvested.toFixed(2)}+B)/(${totalAmount}+B/P) với B=budget, P=dcaPrice`;

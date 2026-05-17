@@ -475,6 +475,45 @@ a {
   min-width: 48px;
 }
 
+.holding-note-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.holding-note-btn:hover {
+  color: var(--foreground);
+  border-color: var(--accent, #1f6f5b);
+  background: rgba(31, 111, 91, 0.08);
+}
+.holding-note-btn--active {
+  color: var(--accent, #1f6f5b);
+  border-color: var(--accent, #1f6f5b);
+}
+.holding-note-btn--active:hover {
+  background: rgba(31, 111, 91, 0.12);
+}
+
+.holding-note-preview {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .ps-top-row--clickable {
   cursor: pointer;
   border-radius: 6px;

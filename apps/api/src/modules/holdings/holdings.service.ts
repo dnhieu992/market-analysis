@@ -15,6 +15,7 @@ export type HoldingWithPnl = {
   totalCost: Decimal;
   avgCost: Decimal;
   realizedPnl: Decimal;
+  note: string | null;
   updatedAt: Date;
   unrealizedPnl: number | null;
   currentValue: number | null;
@@ -40,6 +41,10 @@ export class HoldingsService {
 
       return { ...h, unrealizedPnl, currentValue };
     });
+  }
+
+  async updateNote(portfolioId: string, coinId: string, note: string | null): Promise<void> {
+    await this.holdingRepository.update(portfolioId, coinId, { note });
   }
 
   async updateOnBuy(
