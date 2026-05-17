@@ -31,9 +31,15 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
   const [type, setType] = useState<'buy' | 'sell'>('buy');
   const [coinId, setCoinId] = useState(defaultCoinId ?? '');
   const [price, setPrice] = useState<string>(defaultPrice != null ? String(defaultPrice) : '');
+  const [amount, setAmount] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const priceRef = useRef<HTMLInputElement>(null);
+
+  const total = Number(price) > 0 && Number(amount) > 0 ? Number(price) * Number(amount) : null;
+  const totalStr = total != null
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(total)
+    : null;
 
   async function handleCoinBlur() {
     if (!coinId.trim()) return;
@@ -53,6 +59,7 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
       setType('buy');
       setCoinId(defaultCoinId ?? '');
       setPrice('');
+      setAmount('');
       startTransition(() => {
         onSubmitted?.();
         window.location.reload();
@@ -100,7 +107,16 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
 
       <label className="trade-field">
         <span>Amount</span>
-        <input name="amount" type="number" min="0" step="any" placeholder="0.5" required />
+        <input
+          name="amount"
+          type="number"
+          min="0"
+          step="any"
+          placeholder="0.5"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          required
+        />
       </label>
 
       <label className="trade-field">
@@ -117,6 +133,21 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
           required
         />
       </label>
+
+      {totalStr && (
+        <div style={{
+          padding: '0.5rem 0.75rem',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid var(--border)',
+          borderRadius: '8px',
+          fontSize: '0.85rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+        }}>
+          <span style={{ color: 'var(--muted)' }}>Estimated total</span>
+          <strong>{totalStr}</strong>
+        </div>
+      )}
 
       <label className="trade-field">
         <span>Date</span>
