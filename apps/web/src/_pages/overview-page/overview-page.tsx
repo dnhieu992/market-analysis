@@ -70,11 +70,13 @@ function buildOverviewCards(
   closedOrderCount: number,
   closedPnlSum: number,
   btcAmount: number,
+  btcCost: number,
 ) {
   const totalPnlStr =
     (closedPnlSum >= 0 ? '+' : '') +
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(closedPnlSum);
 
+  const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
   const btcStr = btcAmount > 0
     ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(btcAmount) + ' BTC'
     : '--';
@@ -82,6 +84,7 @@ function buildOverviewCards(
   const btcPct = btcProgress.toFixed(2);
   const btcRemaining = Math.max(BTC_TARGET - btcAmount, 0);
   const btcRemainingStr = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(btcRemaining);
+  const btcCostStr = btcCost > 0 ? usdFormatter.format(btcCost) : null;
 
   const totalOrders = openOrderCount + closedOrderCount;
 
@@ -89,7 +92,7 @@ function buildOverviewCards(
     {
       label: 'BTC Accumulated',
       value: btcStr,
-      detail: `${btcPct}% toward ${BTC_TARGET} BTC goal`,
+      detail: btcCostStr ? `${btcPct}% toward ${BTC_TARGET} BTC · ${btcCostStr} invested` : `${btcPct}% toward ${BTC_TARGET} BTC goal`,
       progress: btcProgress,
       progressLabel: btcRemaining > 0 ? `${btcRemainingStr} BTC remaining` : 'Goal reached!',
     },
@@ -112,7 +115,7 @@ export default async function OverviewPage() {
   const { recentOrders, openOrderCount, closedOrderCount, closedPnlSum, analysisRuns, allHoldings, portfolioCount } =
     await loadDashboardData();
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
-  const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum, btcHolding?.totalAmount ?? 0);
+  const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum, btcHolding?.totalAmount ?? 0, btcHolding?.totalCost ?? 0);
   const lastUpdated =
     analysisRuns[0]?.createdAt instanceof Date
       ? formatDateTime(analysisRuns[0].createdAt)
