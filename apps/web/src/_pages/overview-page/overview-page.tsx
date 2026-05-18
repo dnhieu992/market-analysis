@@ -63,12 +63,26 @@ async function loadDashboardData() {
   }
 }
 
-function buildOverviewCards(openOrderCount: number, closedOrderCount: number, closedPnlSum: number) {
+function buildOverviewCards(
+  openOrderCount: number,
+  closedOrderCount: number,
+  closedPnlSum: number,
+  btcAmount: number,
+) {
   const totalPnlStr =
     (closedPnlSum >= 0 ? '+' : '') +
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(closedPnlSum);
 
+  const btcStr = btcAmount > 0
+    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 }).format(btcAmount) + ' BTC'
+    : '--';
+
   return [
+    {
+      label: 'BTC Accumulated',
+      value: btcStr,
+      detail: 'Total BTC held across all portfolios.',
+    },
     {
       label: 'Open Orders',
       value: String(openOrderCount),
@@ -92,7 +106,8 @@ function buildOverviewCards(openOrderCount: number, closedOrderCount: number, cl
 export default async function OverviewPage() {
   const { recentOrders, openOrderCount, closedOrderCount, closedPnlSum, analysisRuns, allHoldings, portfolioCount } =
     await loadDashboardData();
-  const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum);
+  const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
+  const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum, btcHolding?.totalAmount ?? 0);
   const lastUpdated =
     analysisRuns[0]?.createdAt instanceof Date
       ? formatDateTime(analysisRuns[0].createdAt)
