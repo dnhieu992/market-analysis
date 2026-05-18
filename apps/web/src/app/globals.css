@@ -3338,6 +3338,30 @@ a {
 
 .multi-trade-result--ok  { color: var(--accent); }
 
+/* ── metric-card progress bar ── */
+.metric-progress {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.metric-progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.metric-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.metric-progress-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 /* ── metric-card link variant ── */
 a.metric-card--link {
   display: block;

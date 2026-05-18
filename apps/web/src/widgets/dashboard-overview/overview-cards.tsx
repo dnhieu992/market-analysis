@@ -6,6 +6,8 @@ type OverviewCard = Readonly<{
   detail: string;
   positive?: boolean;
   href?: string;
+  progress?: number; // 0–100
+  progressLabel?: string;
 }>;
 
 type OverviewCardsProps = Readonly<{
@@ -32,6 +34,19 @@ export function OverviewCards({ cards }: OverviewCardsProps) {
               {card.value}
             </strong>
             <p className="metric-detail">{card.detail}</p>
+            {card.progress !== undefined && (
+              <div className="metric-progress">
+                <div className="metric-progress-bar">
+                  <div
+                    className="metric-progress-fill"
+                    style={{ width: `${Math.min(card.progress, 100)}%` }}
+                  />
+                </div>
+                {card.progressLabel && (
+                  <span className="metric-progress-label">{card.progressLabel}</span>
+                )}
+              </div>
+            )}
           </>
         );
         return card.href ? (

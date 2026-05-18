@@ -63,6 +63,8 @@ async function loadDashboardData() {
   }
 }
 
+const BTC_TARGET = 1;
+
 function buildOverviewCards(
   openOrderCount: number,
   closedOrderCount: number,
@@ -74,24 +76,27 @@ function buildOverviewCards(
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(closedPnlSum);
 
   const btcStr = btcAmount > 0
-    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 }).format(btcAmount) + ' BTC'
+    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(btcAmount) + ' BTC'
     : '--';
+  const btcProgress = Math.min((btcAmount / BTC_TARGET) * 100, 100);
+  const btcPct = btcProgress.toFixed(2);
+  const btcRemaining = Math.max(BTC_TARGET - btcAmount, 0);
+  const btcRemainingStr = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(btcRemaining);
+
+  const totalOrders = openOrderCount + closedOrderCount;
 
   return [
     {
       label: 'BTC Accumulated',
       value: btcStr,
-      detail: 'Total BTC held across all portfolios.',
+      detail: `${btcPct}% toward ${BTC_TARGET} BTC goal`,
+      progress: btcProgress,
+      progressLabel: btcRemaining > 0 ? `${btcRemainingStr} BTC remaining` : 'Goal reached!',
     },
     {
-      label: 'Open Orders',
-      value: String(openOrderCount),
-      detail: 'Manual positions currently active.'
-    },
-    {
-      label: 'Closed Orders',
-      value: String(closedOrderCount),
-      detail: 'Finished trades kept in history.'
+      label: 'Orders',
+      value: String(totalOrders),
+      detail: `${openOrderCount} open · ${closedOrderCount} closed`,
     },
     {
       label: 'Total Profit / Loss',
