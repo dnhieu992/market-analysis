@@ -71,6 +71,7 @@ function buildOverviewCards(
   closedPnlSum: number,
   btcAmount: number,
   btcCost: number,
+  btcHref?: string,
 ) {
   const totalPnlStr =
     (closedPnlSum >= 0 ? '+' : '') +
@@ -95,6 +96,7 @@ function buildOverviewCards(
       detail: btcCostStr ? `${btcPct}% toward ${BTC_TARGET} BTC · ${btcCostStr} invested` : `${btcPct}% toward ${BTC_TARGET} BTC goal`,
       progress: btcProgress,
       progressLabel: btcRemaining > 0 ? `${btcRemainingStr} BTC remaining` : 'Goal reached!',
+      href: btcHref,
     },
     {
       label: 'Orders',
@@ -115,7 +117,8 @@ export default async function OverviewPage() {
   const { recentOrders, openOrderCount, closedOrderCount, closedPnlSum, analysisRuns, allHoldings, portfolioCount } =
     await loadDashboardData();
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
-  const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum, btcHolding?.totalAmount ?? 0, btcHolding?.totalCost ?? 0);
+  const btcHref = btcHolding ? `/portfolio/${btcHolding.portfolioId}/${btcHolding.coinId}` : undefined;
+  const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum, btcHolding?.totalAmount ?? 0, btcHolding?.totalCost ?? 0, btcHref);
   const lastUpdated =
     analysisRuns[0]?.createdAt instanceof Date
       ? formatDateTime(analysisRuns[0].createdAt)
