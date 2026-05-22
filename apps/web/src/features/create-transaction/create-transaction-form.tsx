@@ -2,6 +2,8 @@
 
 import { useState, useTransition, useRef, type FormEvent } from 'react';
 
+import { createApiClient } from '@web/shared/api/client';
+import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 import { parseCreateTransactionFormData, submitCreateTransaction } from './create-transaction.model';
 
 type CreateTransactionFormProps = Readonly<{
@@ -32,8 +34,11 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
   const [coinId, setCoinId] = useState(defaultCoinId ?? '');
   const [price, setPrice] = useState<string>(defaultPrice != null ? String(defaultPrice) : '');
   const [amount, setAmount] = useState<string>('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
   const total = Number(price) > 0 && Number(amount) > 0 ? Number(price) * Number(amount) : null;
@@ -47,19 +52,34 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
     if (fetched != null) setPrice(String(fetched));
   }
 
+  function handleImageChange({ newFiles }: ImageUploadValue) {
+    setPendingFiles(newFiles);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     try {
-      const form = event.currentTarget;
+      let imageUrls: string[] = [];
+      if (pendingFiles.length > 0) {
+        setIsUploading(true);
+        try {
+          imageUrls = await createApiClient().uploadImages(pendingFiles, coinId);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      const form = formRef.current!;
       const formData = new FormData(form);
       const parsed = parseCreateTransactionFormData(formData);
-      await submitCreateTransaction(portfolioId, parsed);
+      await submitCreateTransaction(portfolioId, parsed, imageUrls);
       form.reset();
       setType('buy');
       setCoinId(defaultCoinId ?? '');
       setPrice('');
       setAmount('');
+      setPendingFiles([]);
       startTransition(() => {
         onSubmitted?.();
         window.location.reload();
@@ -70,7 +90,7 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
   }
 
   return (
-    <form className="trade-form" onSubmit={handleSubmit}>
+    <form ref={formRef} className="trade-form" onSubmit={handleSubmit}>
       {/* Type tabs */}
       <div className="tx-type-tabs">
         <button
@@ -154,10 +174,23 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
         <input name="transactedAt" type="date" defaultValue={toDateInputValue(new Date())} />
       </label>
 
+      <label className="trade-field trade-field-wide">
+        <span>Description</span>
+        <textarea name="note" rows={2} placeholder="DCA buy, rationale, or context" />
+      </label>
+
+      <div className="trade-field trade-field-wide">
+        <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Reference Images</span>
+        <ImageUpload
+          onChange={handleImageChange}
+          uploading={isUploading}
+        />
+      </div>
+
       {error ? <p className="trade-form-error">{error}</p> : null}
 
-      <button type="submit" className="trade-submit" disabled={isPending}>
-        {isPending ? 'Adding...' : `Add ${type.toUpperCase()} Transaction`}
+      <button type="submit" className="trade-submit" disabled={isPending || isUploading}>
+        {isUploading ? 'Uploading images...' : isPending ? 'Adding...' : `Add ${type.toUpperCase()} Transaction`}
       </button>
     </form>
   );

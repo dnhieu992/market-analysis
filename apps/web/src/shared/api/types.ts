@@ -247,6 +247,7 @@ export type CoinTransaction = {
   totalValue: number;
   fee: number;
   note: string | null;
+  images: string[];
   transactedAt: string;
   deletedAt: string | null;
   createdAt: string;
@@ -289,6 +290,8 @@ export type CreateTransactionInput = {
   amount: number;
   price: number;
   transactedAt?: string;
+  note?: string;
+  images?: string[];
 };
 
 export type QueryTransactionsInput = {

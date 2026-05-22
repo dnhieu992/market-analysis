@@ -57,6 +57,7 @@ export class TransactionService {
           totalValue: new Decimal(totalValue),
           fee: new Decimal(input.fee ?? 0),
           note: input.note,
+          images: input.images ?? [],
           transactedAt: input.transactedAt ? new Date(input.transactedAt) : new Date()
         }
       });
@@ -87,6 +88,7 @@ export class TransactionService {
         ...(input.fee !== undefined && { fee: new Decimal(input.fee) }),
         ...(input.transactedAt !== undefined && { transactedAt: new Date(input.transactedAt) }),
         ...('note' in input && { note: input.note ?? null }),
+        ...('images' in input && { images: input.images ?? [] }),
       }
     });
 

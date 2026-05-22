@@ -246,6 +246,7 @@ model CoinTransaction {
   totalValue   Decimal   @db.Decimal(20, 8)
   fee          Decimal   @default(0) @db.Decimal(20, 8)
   note         String?   @db.Text
+  images       Json      @default("[]")
   transactedAt DateTime
   createdAt    DateTime  @default(now())
   deletedAt    DateTime?

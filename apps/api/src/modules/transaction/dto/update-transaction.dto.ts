@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateTransactionDto {
   @ApiPropertyOptional({ enum: ['buy', 'sell'] })
@@ -34,4 +34,10 @@ export class UpdateTransactionDto {
   @IsOptional()
   @IsString()
   note?: string | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[] | null;
 }

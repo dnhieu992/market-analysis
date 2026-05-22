@@ -268,6 +268,7 @@ function mapTransaction(row: JsonRecord): CoinTransaction {
     totalValue: Number(row.totalValue),
     fee: row.fee == null ? 0 : Number(row.fee),
     note: row.note == null ? null : String(row.note),
+    images: Array.isArray(row.images) ? (row.images as unknown[]).map(String) : [],
     transactedAt: String(row.transactedAt),
     deletedAt: row.deletedAt == null ? null : String(row.deletedAt),
     createdAt: String(row.createdAt)
@@ -647,7 +648,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${portfolioId}/transactions: ${response.status}`);
       return mapTransaction((await response.json()) as JsonRecord);
     },
-    async updateTransaction(portfolioId: string, id: string, input: { type?: 'buy' | 'sell'; price?: number; amount?: number; fee?: number; note?: string | null; transactedAt?: string }): Promise<void> {
+    async updateTransaction(portfolioId: string, id: string, input: { type?: 'buy' | 'sell'; price?: number; amount?: number; fee?: number; note?: string | null; images?: string[] | null; transactedAt?: string }): Promise<void> {
       const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/transactions/${id}`, withDefaults({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

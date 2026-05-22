@@ -7,6 +7,7 @@ type TransactionFormInput = {
   amount: string;
   price: string;
   transactedAt?: string;
+  note?: string;
 };
 
 function requireText(value: FormDataEntryValue | null, fieldName: string): string {
@@ -30,17 +31,20 @@ export function parseCreateTransactionFormData(formData: FormData): TransactionF
     type,
     amount: requireText(formData.get('amount'), 'Amount'),
     price: requireText(formData.get('price'), 'Price'),
-    transactedAt: formData.get('transactedAt')?.toString().trim() || undefined
+    transactedAt: formData.get('transactedAt')?.toString().trim() || undefined,
+    note: formData.get('note')?.toString().trim() || undefined
   };
 }
 
-export async function submitCreateTransaction(portfolioId: string, input: TransactionFormInput): Promise<CoinTransaction> {
+export async function submitCreateTransaction(portfolioId: string, input: TransactionFormInput, imageUrls: string[] = []): Promise<CoinTransaction> {
   const payload: CreateTransactionInput = {
     coinId: input.coinId,
     type: input.type,
     amount: toPositiveNumber(input.amount, 'Amount'),
     price: toPositiveNumber(input.price, 'Price'),
-    transactedAt: input.transactedAt
+    transactedAt: input.transactedAt,
+    note: input.note,
+    images: imageUrls.length > 0 ? imageUrls : undefined
   };
   return createApiClient().createTransaction(portfolioId, payload);
 }

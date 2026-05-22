@@ -84,7 +84,10 @@
       "Bash(/Users/dnhieu92/Documents/personal/new-account/market-analysis/node_modules/.bin/jest --config apps/web/jest.config.cjs --testPathPatterns=trades-table)",
       "Bash(/Users/dnhieu92/Documents/personal/new-account/market-analysis/node_modules/.bin/jest --config jest.config.cjs --testPathPatterns=trades-table)",
       "Bash(/Users/dnhieu92/Documents/personal/new-account/market-analysis/node_modules/.bin/jest --config jest.config.cjs)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(python3 *)",
+      "Bash(./deploy.sh *)",
+      "Bash(xargs cat)"
     ]
   }
 }

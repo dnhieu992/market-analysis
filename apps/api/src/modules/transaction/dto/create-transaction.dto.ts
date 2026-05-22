@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateTransactionDto {
   @ApiProperty({ example: 'BTC' })
@@ -35,4 +35,10 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @ApiPropertyOptional({ type: [String], example: ['https://res.cloudinary.com/...'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
 }
