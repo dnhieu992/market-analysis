@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { CoinTransaction } from '@web/shared/api/types';
+import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
 type PortfolioTransactionsProps = Readonly<{
   portfolioId: string;
@@ -44,6 +45,8 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
   const [fee, setFee] = useState(String(tx.fee ?? 0));
   const [note, setNote] = useState(tx.note ?? '');
   const [date, setDate] = useState(toDateInputValue(tx.transactedAt));
+  const [imageValue, setImageValue] = useState<ImageUploadValue>({ existingUrls: tx.images ?? [], newFiles: [] });
+  const [isUploading, setIsUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const firstRef = useRef<HTMLDivElement>(null);
@@ -58,6 +61,16 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
     }
     setSaving(true);
     try {
+      let uploadedUrls: string[] = [];
+      if (imageValue.newFiles.length > 0) {
+        setIsUploading(true);
+        try {
+          uploadedUrls = await createApiClient().uploadImages(imageValue.newFiles, tx.coinId);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+      const images = [...imageValue.existingUrls, ...uploadedUrls];
       await createApiClient().updateTransaction(portfolioId, tx.id, {
         type,
         price: p,
@@ -65,6 +78,7 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
         fee: Number(fee) || 0,
         note: note.trim() || null,
         transactedAt: new Date(date).toISOString(),
+        images,
       });
       onSaved();
       onClose();
@@ -77,7 +91,7 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()} ref={firstRef}>
+      <div className="dialog" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()} ref={firstRef}>
         <div className="dialog-header">
           <span className="dialog-title">Edit Transaction — {tx.coinId}</span>
           <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
@@ -121,6 +135,15 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
             <input type="text" placeholder="Optional note" value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
 
+          <div className="trade-field" style={{ marginTop: '0.75rem' }}>
+            <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Reference Images</span>
+            <ImageUpload
+              existingUrls={tx.images ?? []}
+              onChange={setImageValue}
+              uploading={isUploading}
+            />
+          </div>
+
           {/* Total preview */}
           {Number(price) > 0 && Number(amount) > 0 && (
             <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
@@ -131,9 +154,9 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
           {error && <p className="trade-form-error" style={{ marginTop: '0.5rem' }}>{error}</p>}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
-            <button className="btn btn--secondary" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : 'Save changes'}
+            <button className="btn btn--secondary" onClick={onClose} disabled={saving || isUploading}>Cancel</button>
+            <button className="btn btn--primary" onClick={handleSave} disabled={saving || isUploading}>
+              {isUploading ? 'Uploading…' : saving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
         </div>
