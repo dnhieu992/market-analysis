@@ -42,7 +42,7 @@ export class ScannerService {
     const results = await Promise.all(
       symbols.map(async (symbol): Promise<ScanResult> => {
         try {
-          const candles = await this.marketDataService.getCandles(symbol, '1d', 100);
+          const candles = await this.marketDataService.getCandles(symbol, '1d', 500);
           const result = calcUtBotResult(candles);
           if (!result) {
             return { symbol, trend: 'downtrend', price: 0, stopLevel: 0, error: 'Not enough candles' };
