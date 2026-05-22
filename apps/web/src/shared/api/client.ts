@@ -40,7 +40,8 @@ import type {
   UpsertSettingsInput,
   UserProfile,
   Conversation,
-  ChatMessage
+  ChatMessage,
+  ScanResult
 } from './types';
 
 
@@ -884,6 +885,26 @@ export function createApiClient(options: ApiClientOptions = {}) {
     async deleteDcaActivePlan(configId: string): Promise<void> {
       const response = await fetchImpl(`${baseUrl}/dca/config/${configId}/plan/active`, withDefaults({ method: 'DELETE' }));
       if (!response.ok) throw new Error(`Request failed for DELETE plan: ${response.status}`);
+    },
+
+    async fetchScannerWatchlist(): Promise<string[]> {
+      return fetchJson<string[]>(fetchImpl, `${baseUrl}/scanner/watchlist`, withDefaults());
+    },
+
+    async updateScannerWatchlist(symbols: string[]): Promise<string[]> {
+      return fetchJson<string[]>(fetchImpl, `${baseUrl}/scanner/watchlist`, withDefaults({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols })
+      }));
+    },
+
+    async scanUtBot(symbols: string[]): Promise<ScanResult[]> {
+      return fetchJson<ScanResult[]>(fetchImpl, `${baseUrl}/scanner/scan`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols })
+      }));
     },
   };
 }

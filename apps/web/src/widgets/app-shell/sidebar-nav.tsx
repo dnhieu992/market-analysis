@@ -53,6 +53,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Back-test trading strategies'
   },
   {
+    href: '/scanner',
+    label: 'Scanner',
+    description: 'UT Bot coin scanner'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

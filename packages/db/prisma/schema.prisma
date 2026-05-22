@@ -123,6 +123,7 @@ model Settings {
   id               String   @id @default("singleton")
   name             String
   trackingSymbols  Json     @default("[]")
+  utbotWatchlist   Json     @default("[]")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

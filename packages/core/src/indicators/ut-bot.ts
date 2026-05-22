@@ -71,3 +71,25 @@ export function isUtBotUptrend(
   const last = candles.length - 1;
   return candles[last]!.close > stop[last]!;
 }
+
+export type UtBotResult = {
+  uptrend: boolean;
+  price: number;
+  stopLevel: number;
+};
+
+/**
+ * Returns uptrend flag, last close price, and UT Bot trailing stop level for the last candle.
+ */
+export function calcUtBotResult(
+  candles: Candle[],
+  period = 10,
+  multiplier = 1
+): UtBotResult | null {
+  if (candles.length < period + 1) return null;
+  const stop = calcUtBotTrailingStop(candles, period, multiplier);
+  const last = candles.length - 1;
+  const price = candles[last]!.close;
+  const stopLevel = stop[last]!;
+  return { uptrend: price > stopLevel, price, stopLevel };
+}

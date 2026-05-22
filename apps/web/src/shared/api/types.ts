@@ -463,3 +463,11 @@ export type ExecuteDcaPlanItemInput = {
   executedAmount: number;
   executedAt?: string;
 };
+
+export type ScanResult = {
+  symbol: string;
+  trend: 'uptrend' | 'downtrend';
+  price: number;
+  stopLevel: number;
+  error?: string;
+};

@@ -13,6 +13,13 @@ export function createSettingsRepository(client = prisma) {
         create: { id: 'singleton', name: data.name, trackingSymbols: data.trackingSymbols },
         update: { name: data.name, trackingSymbols: data.trackingSymbols }
       });
+    },
+    upsertUtbotWatchlist(symbols: Prisma.InputJsonValue) {
+      return client.settings.upsert({
+        where: { id: 'singleton' },
+        create: { id: 'singleton', name: '', utbotWatchlist: symbols },
+        update: { utbotWatchlist: symbols }
+      });
     }
   };
 }
