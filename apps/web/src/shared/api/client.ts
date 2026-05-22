@@ -899,11 +899,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }));
     },
 
-    async scanUtBot(symbols: string[]): Promise<ScanResult[]> {
+    async scanUtBot(symbols: string[], timeframe: '1d' | '4h' | '1w' = '1d'): Promise<ScanResult[]> {
       return fetchJson<ScanResult[]>(fetchImpl, `${baseUrl}/scanner/scan`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols })
+        body: JSON.stringify({ symbols, timeframe })
       }));
     },
   };

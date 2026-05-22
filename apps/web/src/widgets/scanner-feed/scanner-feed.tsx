@@ -7,6 +7,14 @@ import type { ScanResult } from '@web/shared/api/types';
 
 const apiClient = createApiClient();
 
+type Timeframe = '1d' | '4h' | '1w';
+
+const TIMEFRAMES: { value: Timeframe; label: string }[] = [
+  { value: '1w', label: '1W' },
+  { value: '1d', label: '1D' },
+  { value: '4h', label: '4H' },
+];
+
 type ScannerFeedProps = Readonly<{
   initialWatchlist: string[];
 }>;
@@ -50,6 +58,7 @@ function ScanRow({ result }: { result: ScanResult }) {
 export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
   const [watchlist, setWatchlist] = useState<string[]>(initialWatchlist);
   const [symbolInput, setSymbolInput] = useState('');
+  const [timeframe, setTimeframe] = useState<Timeframe>('1d');
   const [results, setResults] = useState<ScanResult[]>([]);
   const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -86,7 +95,7 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
     setScanStatus('scanning');
     setResults([]);
     try {
-      const data = await apiClient.scanUtBot(watchlist);
+      const data = await apiClient.scanUtBot(watchlist, timeframe);
       setResults(data);
       setScanStatus('done');
     } catch {
@@ -103,7 +112,7 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
         <div className="hero-copy">
           <p className="eyebrow">Scanner</p>
           <h1>UT Bot Scanner</h1>
-          <p className="lead">Scan your watchlist for uptrend/downtrend signals using the UT Bot trailing stop indicator on the daily chart.</p>
+          <p className="lead">Scan your watchlist for uptrend/downtrend signals using the UT Bot trailing stop indicator.</p>
         </div>
         {results.length > 0 && (
           <div className="scanner-hero-stats">
@@ -170,6 +179,17 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
       </section>
 
       <section className="scanner-actions-bar">
+        <div className="scanner-tf-selector">
+          {TIMEFRAMES.map((tf) => (
+            <button
+              key={tf.value}
+              className={`scanner-tf-btn${timeframe === tf.value ? ' scanner-tf-btn--active' : ''}`}
+              onClick={() => setTimeframe(tf.value)}
+            >
+              {tf.label}
+            </button>
+          ))}
+        </div>
         <button
           className="scanner-btn scanner-btn--scan"
           onClick={handleScan}
@@ -183,7 +203,7 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
       {scanStatus === 'scanning' && (
         <section className="scanner-loading">
           <div className="scanner-loading-spinner" />
-          <p>Fetching candles and computing UT Bot trailing stop…</p>
+          <p>Fetching candles and computing UT Bot trailing stop ({timeframe.toUpperCase()})…</p>
         </section>
       )}
 

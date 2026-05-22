@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Inject, Post, Put } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { UpdateScannerWatchlistDto } from './dto/update-scanner-watchlist.dto';
+import { ScanRequestDto, UpdateScannerWatchlistDto } from './dto/update-scanner-watchlist.dto';
 import { ScannerService } from './scanner.service';
 import type { ScanResult } from './scanner.service';
 
@@ -27,8 +27,8 @@ export class ScannerController {
   }
 
   @Post('scan')
-  @ApiOperation({ summary: 'Scan watchlist coins with UT Bot indicator on 1D' })
-  async scan(@Body() body: UpdateScannerWatchlistDto): Promise<ScanResult[]> {
-    return this.scannerService.scan(body.symbols);
+  @ApiOperation({ summary: 'Scan watchlist coins with UT Bot indicator' })
+  async scan(@Body() body: ScanRequestDto): Promise<ScanResult[]> {
+    return this.scannerService.scan(body.symbols, body.timeframe ?? '1d');
   }
 }
