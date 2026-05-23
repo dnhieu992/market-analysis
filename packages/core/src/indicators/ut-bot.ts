@@ -35,13 +35,13 @@ function calcUtBotTrailingStop(candles: Candle[], period: number, multiplier: nu
     const close = candles[i]!.close;
     const nLoss = atr[i]! * multiplier;
 
-    if (i === 0) {
-      stop[i] = close - nLoss;
-      continue;
-    }
+    // ATR not valid yet — leave stop at 0, equivalent to TradingView's `na` state.
+    // When prevStop is 0, the comparison below mirrors nz(xATRTrailingStop[1], 0) in Pine Script,
+    // ensuring the first valid bar always initialises to close - nLoss (bullish), matching TV.
+    if (nLoss === 0) continue;
 
-    const prevClose = candles[i - 1]!.close;
-    const prevStop = stop[i - 1]!;
+    const prevStop = i > 0 ? stop[i - 1]! : 0;
+    const prevClose = i > 0 ? candles[i - 1]!.close : 0;
 
     if (close > prevStop && prevClose > prevStop) {
       stop[i] = Math.max(prevStop, close - nLoss);
