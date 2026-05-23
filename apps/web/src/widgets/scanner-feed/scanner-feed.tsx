@@ -155,7 +155,7 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
               className="settings-input"
               type="text"
               value={symbolInput}
-              onChange={(e) => setSymbolInput(e.target.value)}
+              onChange={(e) => setSymbolInput(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
               placeholder="e.g. BTCUSDT"
             />
