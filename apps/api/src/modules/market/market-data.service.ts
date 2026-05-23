@@ -23,7 +23,10 @@ export class MarketDataService {
           limit
         });
 
-        return klines.map((kline) => this.mapKlineToCandle(kline));
+        const now = Date.now();
+        return klines
+          .map((kline) => this.mapKlineToCandle(kline))
+          .filter((c) => !c.closeTime || c.closeTime.getTime() <= now);
       } catch (error) {
         lastError = error;
         this.logger.warn(
