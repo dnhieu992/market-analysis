@@ -70,6 +70,76 @@ a {
   backdrop-filter: blur(20px);
 }
 
+/* ── Mobile topbar (hamburger row) ─────────────────────────── */
+.mobile-topbar {
+  display: none;
+}
+
+/* ── Hamburger button ───────────────────────────────────────── */
+.hamburger-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 10px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.hamburger-btn:hover {
+  background: rgba(23, 18, 13, 0.06);
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: #3d3530;
+  border-radius: 2px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+/* ── Sidebar backdrop overlay ───────────────────────────────── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 199;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.sidebar-backdrop.is-open {
+  opacity: 1;
+}
+
+/* ── Close button inside drawer (hidden on desktop) ─────────── */
+.sidebar-close-btn {
+  display: none;
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #7a6f67;
+  padding: 4px;
+  border-radius: 8px;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-close-btn:hover {
+  background: rgba(23, 18, 13, 0.06);
+  color: #3d3530;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -2451,61 +2521,11 @@ a {
 }
 
 @media (max-width: 860px) {
+  /* ── App shell: single column, content below topbar ── */
   .app-shell {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sidebar-nav {
-    position: static;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(23, 18, 13, 0.08);
-    padding: 14px 16px;
-    gap: 10px;
-    min-width: 0;
-    width: 100%;
-  }
-
-  .sidebar-brand-mark {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    font-size: 0.85rem;
-  }
-
-  .sidebar-nav-link-description,
-  .sidebar-footnote,
-  .sidebar-user-info {
-    display: none;
-  }
-
-  .sidebar-nav-links {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-    min-width: 0;
-  }
-
-  .sidebar-nav-links::-webkit-scrollbar {
-    display: none;
-  }
-
-  .sidebar-nav-link {
-    padding: 10px 16px;
-    border-radius: 12px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .sidebar-nav-link:hover {
-    transform: none;
-  }
-
-  .app-shell {
     grid-template-rows: auto 1fr;
+    height: 100vh;
   }
 
   .app-shell-main {
@@ -2515,6 +2535,85 @@ a {
     overflow-y: auto;
   }
 
+  /* ── Mobile topbar ── */
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(245, 239, 231, 0.95));
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(23, 18, 13, 0.08);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .mobile-topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobile-topbar-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #3d3530;
+    margin: 0;
+  }
+
+  /* ── Sidebar: fixed left drawer ── */
+  .sidebar-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px;
+    max-width: 85vw;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: 1px solid rgba(23, 18, 13, 0.1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+    overflow-y: auto;
+  }
+
+  .sidebar-nav.is-open {
+    transform: translateX(0);
+  }
+
+  /* ── Backdrop ── */
+  .sidebar-backdrop {
+    display: block;
+    pointer-events: none;
+  }
+
+  .sidebar-backdrop.is-open {
+    pointer-events: auto;
+  }
+
+  /* ── Close button inside drawer ── */
+  .sidebar-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Sidebar brand mark slightly smaller ── */
+  .sidebar-brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+
+  /* ── Nav links: vertical stack (unchanged from desktop) ── */
+  .sidebar-nav-link:hover {
+    transform: none;
+  }
+
+  /* ── Rest of mobile layout adjustments ── */
   .topbar {
     flex-direction: column;
   }

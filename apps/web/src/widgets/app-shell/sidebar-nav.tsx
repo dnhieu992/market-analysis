@@ -63,8 +63,9 @@ function NavLink({
   currentPath,
   href,
   label,
-  description
-}: SidebarNavProps & NavItem): ReactNode {
+  description,
+  onClick
+}: SidebarNavProps & NavItem & { onClick?: () => void }): ReactNode {
   const isActive = currentPath === href;
 
   return (
@@ -72,6 +73,7 @@ function NavLink({
       className={`sidebar-nav-link${isActive ? ' is-active' : ''}`}
       href={href}
       aria-current={isActive ? 'page' : undefined}
+      onClick={onClick}
     >
       <span className="sidebar-nav-link-label">{label}</span>
       <span className="sidebar-nav-link-description">{description}</span>
@@ -83,38 +85,90 @@ const apiClient = createApiClient();
 
 export function SidebarNav({ currentPath }: SidebarNavProps) {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     apiClient.fetchUserProfile().then(setUser).catch(() => setUser(null));
   }, []);
 
+  // Close drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [currentPath]);
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
   const initials = user
     ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
     : '?';
 
+  const close = () => setMobileOpen(false);
+
   return (
-    <aside className="sidebar-nav">
-      <div className="sidebar-brand">
-        <span className="sidebar-brand-mark">MA</span>
-        <div>
-          <p className="sidebar-brand-eyebrow">Market Analysis</p>
-          <p className="sidebar-brand-title">Dashboard</p>
+    <>
+      {/* Mobile topbar — only visible on small screens via CSS */}
+      <div className="mobile-topbar">
+        <button
+          className="hamburger-btn"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation"
+          aria-expanded={mobileOpen}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+        <div className="mobile-topbar-brand">
+          <span className="sidebar-brand-mark">MA</span>
+          <p className="mobile-topbar-title">Market Analysis</p>
         </div>
       </div>
 
-      <nav aria-label="Primary" className="sidebar-nav-links">
-        {NAV_ITEMS.map((item) => (
-          <NavLink key={item.href} currentPath={currentPath} {...item} />
-        ))}
-      </nav>
+      {/* Backdrop overlay */}
+      <div
+        className={`sidebar-backdrop${mobileOpen ? ' is-open' : ''}`}
+        onClick={close}
+        aria-hidden="true"
+      />
 
-      <Link href="/profile" className="sidebar-user">
-        <span className="sidebar-user-avatar">{initials}</span>
-        <div className="sidebar-user-info">
-          <p className="sidebar-user-name">{user?.name ?? '…'}</p>
-          <p className="sidebar-user-email">{user?.email ?? ''}</p>
+      {/* Sidebar / drawer */}
+      <aside className={`sidebar-nav${mobileOpen ? ' is-open' : ''}`}>
+        <div className="sidebar-brand">
+          <span className="sidebar-brand-mark">MA</span>
+          <div>
+            <p className="sidebar-brand-eyebrow">Market Analysis</p>
+            <p className="sidebar-brand-title">Dashboard</p>
+          </div>
+          {/* Close button inside drawer (mobile only) */}
+          <button
+            className="sidebar-close-btn"
+            onClick={close}
+            aria-label="Close navigation"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path d="M2 2l14 14M16 2L2 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
-      </Link>
-    </aside>
+
+        <nav aria-label="Primary" className="sidebar-nav-links">
+          {NAV_ITEMS.map((item) => (
+            <NavLink key={item.href} currentPath={currentPath} {...item} onClick={close} />
+          ))}
+        </nav>
+
+        <Link href="/profile" className="sidebar-user" onClick={close}>
+          <span className="sidebar-user-avatar">{initials}</span>
+          <div className="sidebar-user-info">
+            <p className="sidebar-user-name">{user?.name ?? '…'}</p>
+            <p className="sidebar-user-email">{user?.email ?? ''}</p>
+          </div>
+        </Link>
+      </aside>
+    </>
   );
 }
