@@ -1,0 +1,13 @@
+{
+  "eval_id": 3,
+  "eval_name": "btc-entry-sl-tp",
+  "prompt": "phân tích setup short btc daily, tôi muốn biết entry, SL, TP và confidence",
+  "assertions": [
+    "The output includes an entry zone (two price levels) or a single limit entry price",
+    "The output includes a stop loss price",
+    "The output includes at least TP1, ideally also TP2",
+    "The output rates confidence as high, medium, or low",
+    "The output provides at least 2 reasoning bullet points explaining the setup",
+    "The output fetches fresh live data from Binance rather than using assumed prices"
+  ]
+}

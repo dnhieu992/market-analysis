@@ -87,7 +87,8 @@
       "Bash(curl:*)",
       "Bash(python3 *)",
       "Bash(./deploy.sh *)",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(pm2 restart *)"
     ]
   }
 }

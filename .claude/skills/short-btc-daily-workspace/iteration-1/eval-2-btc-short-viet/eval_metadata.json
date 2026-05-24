@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "btc-short-viet",
+  "prompt": "btc có thể short không hôm nay? tôi đang nhìn daily chart",
+  "assertions": [
+    "The output fetches live BTC price data (not hardcoded or assumed)",
+    "The output clearly states whether a short setup is currently active or not",
+    "The output includes stop loss and at least one take profit if a setup exists",
+    "The output mentions the weekly trend direction for higher-timeframe context",
+    "The output includes an invalidation level for the short thesis"
+  ]
+}

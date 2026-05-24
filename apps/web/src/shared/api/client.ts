@@ -5,8 +5,6 @@ import type {
   CloseDashboardOrderInput,
   CoinTransaction,
   CreateDashboardOrderInput,
-  CreateDcaConfigInput,
-  CreateDcaPlanItemInput,
   CreatePortfolioInput,
   CreateTransactionInput,
   CreateTradingStrategyInput,
@@ -15,12 +13,6 @@ import type {
   DashboardHealth,
   DashboardOrder,
   DashboardSignal,
-  DcaActivePlanResponse,
-  DcaConfig,
-  DcaConfigSummary,
-  DcaPlan,
-  DcaPlanItem,
-  ExecuteDcaPlanItemInput,
   Holding,
   OrderFilterParams,
   PaginatedOrders,
@@ -33,8 +25,6 @@ import type {
   TrackingSettings,
   TradingStrategy,
   UpdateDashboardOrderInput,
-  UpdateDcaConfigInput,
-  UpdateDcaPlanItemInput,
   UpdatePortfolioInput,
   UpdateTradingStrategyInput,
   UpsertSettingsInput,
@@ -296,83 +286,6 @@ function mapPnlSnapshot(row: JsonRecord): PnlSnapshot {
     date: String(row.date),
     unrealizedPnl: Number(row.unrealizedPnl),
     totalValue: Number(row.totalValue)
-  };
-}
-
-function mapDcaConfig(row: JsonRecord): DcaConfig {
-  return {
-    id: String(row.id),
-    userId: String(row.userId),
-    coin: String(row.coin) as 'BTC' | 'ETH',
-    totalBudget: Number(row.totalBudget),
-    portfolioId: String(row.portfolioId),
-    createdAt: String(row.createdAt),
-    updatedAt: String(row.updatedAt)
-  };
-}
-
-function mapDcaConfigSummary(row: JsonRecord): DcaConfigSummary {
-  const capitalRow = row.capital as JsonRecord;
-  return {
-    ...mapDcaConfig(row),
-    planId: row.planId == null ? null : String(row.planId),
-    pendingBuyCount: Number(row.pendingBuyCount ?? 0),
-    pendingSellCount: Number(row.pendingSellCount ?? 0),
-    capital: {
-      totalBudget: Number(capitalRow.totalBudget),
-      deployedAmount: Number(capitalRow.deployedAmount),
-      remaining: Number(capitalRow.remaining),
-      runnerAmount: Number(capitalRow.runnerAmount),
-      runnerAvgCost: Number(capitalRow.runnerAvgCost)
-    }
-  };
-}
-
-function mapDcaPlanItem(row: JsonRecord): DcaPlanItem {
-  return {
-    id: String(row.id),
-    dcaPlanId: String(row.dcaPlanId),
-    type: String(row.type) as 'buy' | 'sell',
-    targetPrice: Number(row.targetPrice),
-    suggestedAmount: Number(row.suggestedAmount),
-    note: row.note == null ? null : String(row.note),
-    source: String(row.source) as 'llm' | 'user',
-    userModified: Boolean(row.userModified),
-    deletedByUser: Boolean(row.deletedByUser),
-    originalTargetPrice: row.originalTargetPrice == null ? null : Number(row.originalTargetPrice),
-    originalSuggestedAmount: row.originalSuggestedAmount == null ? null : Number(row.originalSuggestedAmount),
-    probability: row.probability == null ? null : Number(row.probability),
-    status: String(row.status) as 'pending' | 'executed' | 'skipped',
-    executedPrice: row.executedPrice == null ? null : Number(row.executedPrice),
-    executedAmount: row.executedAmount == null ? null : Number(row.executedAmount),
-    executedAt: row.executedAt == null ? null : String(row.executedAt),
-    createdAt: String(row.createdAt)
-  };
-}
-
-function mapDcaPlan(row: JsonRecord): DcaPlan {
-  return {
-    id: String(row.id),
-    dcaConfigId: String(row.dcaConfigId),
-    status: String(row.status) as 'active' | 'archived',
-    llmAnalysis: row.llmAnalysis == null ? null : String(row.llmAnalysis),
-    createdAt: String(row.createdAt),
-    archivedAt: row.archivedAt == null ? null : String(row.archivedAt),
-    items: Array.isArray(row.items) ? (row.items as JsonRecord[]).map(mapDcaPlanItem) : []
-  };
-}
-
-function mapDcaActivePlanResponse(row: JsonRecord): DcaActivePlanResponse {
-  return {
-    config: mapDcaConfig(row.config as JsonRecord),
-    plan: row.plan ? mapDcaPlan(row.plan as JsonRecord) : null,
-    capital: {
-      totalBudget: Number((row.capital as JsonRecord).totalBudget),
-      deployedAmount: Number((row.capital as JsonRecord).deployedAmount),
-      remaining: Number((row.capital as JsonRecord).remaining),
-      runnerAmount: Number((row.capital as JsonRecord).runnerAmount),
-      runnerAvgCost: Number((row.capital as JsonRecord).runnerAvgCost)
-    }
   };
 }
 
@@ -779,112 +692,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(body?.message ?? `sendMessage failed: ${res.status}`);
       }
       return res.json() as Promise<ChatMessage>;
-    },
-
-    // --- DCA ---
-
-    async fetchDcaConfigs(): Promise<DcaConfigSummary[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/dca/config`, withDefaults());
-      return rows.map(mapDcaConfigSummary);
-    },
-
-    async createDcaConfig(input: CreateDcaConfigInput): Promise<DcaConfig> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config`, withDefaults({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      return mapDcaConfig(row);
-    },
-
-    async updateDcaConfig(id: string, input: UpdateDcaConfigInput): Promise<DcaConfig> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config/${id}`, withDefaults({
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      return mapDcaConfig(row);
-    },
-
-    async fetchDcaActivePlan(configId: string): Promise<DcaActivePlanResponse> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config/${configId}/plan/active`, withDefaults());
-      return mapDcaActivePlanResponse(row);
-    },
-
-    async fetchDcaPlanHistory(configId: string): Promise<DcaPlan[]> {
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/dca/config/${configId}/plan/history`, withDefaults());
-      return rows.map(mapDcaPlan);
-    },
-
-    async generateDcaPlan(configId: string): Promise<DcaPlan | { error: string }> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config/${configId}/plan/generate`, withDefaults({
-        method: 'POST'
-      }));
-      if (row.error) return { error: String(row.error) };
-      return mapDcaPlan(row);
-    },
-
-    async replanDca(configId: string): Promise<DcaPlan | { error: string }> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config/${configId}/plan/replan`, withDefaults({
-        method: 'POST'
-      }));
-      if (row == null) return { error: 'No plan returned' };
-      if (row.error) return { error: String(row.error) };
-      return mapDcaPlan(row);
-    },
-
-    async reanalyzeDca(configId: string): Promise<DcaPlan | { error: string }> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/config/${configId}/plan/reanalyze`, withDefaults({
-        method: 'POST'
-      }));
-      if (row == null) return { error: 'No active plan returned' };
-      if (row.error) return { error: String(row.error) };
-      return mapDcaPlan(row);
-    },
-
-    async addDcaPlanItem(planId: string, input: CreateDcaPlanItemInput): Promise<DcaPlanItem> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/plan/${planId}/items`, withDefaults({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      return mapDcaPlanItem(row);
-    },
-
-    async editDcaPlanItem(planId: string, itemId: string, input: UpdateDcaPlanItemInput): Promise<DcaPlanItem> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/plan/${planId}/items/${itemId}`, withDefaults({
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      return mapDcaPlanItem(row);
-    },
-
-    async deleteDcaPlanItem(planId: string, itemId: string): Promise<void> {
-      await fetchJson<unknown>(fetchImpl, `${baseUrl}/dca/plan/${planId}/items/${itemId}`, withDefaults({
-        method: 'DELETE'
-      }));
-    },
-
-    async executeDcaPlanItem(planId: string, itemId: string, input: ExecuteDcaPlanItemInput): Promise<DcaPlanItem> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/plan/${planId}/items/${itemId}/execute`, withDefaults({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input)
-      }));
-      return mapDcaPlanItem(row);
-    },
-
-    async skipDcaPlanItem(planId: string, itemId: string): Promise<DcaPlanItem> {
-      const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/dca/plan/${planId}/items/${itemId}/skip`, withDefaults({
-        method: 'PATCH'
-      }));
-      return mapDcaPlanItem(row);
-    },
-
-    async deleteDcaActivePlan(configId: string): Promise<void> {
-      const response = await fetchImpl(`${baseUrl}/dca/config/${configId}/plan/active`, withDefaults({ method: 'DELETE' }));
-      if (!response.ok) throw new Error(`Request failed for DELETE plan: ${response.status}`);
     },
 
     async fetchScannerWatchlist(): Promise<string[]> {

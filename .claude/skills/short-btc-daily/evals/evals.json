@@ -1,0 +1,46 @@
+{
+  "skill_name": "short-btc-daily",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "short btc daily",
+      "expected_output": "A structured bearish price action report for BTCUSDT fetched live from Binance. Should include trend structure (daily + weekly), S/R zones from weekly candles, Fibonacci levels, an active short setup or pending limit shorts, and an invalidation level.",
+      "files": [],
+      "expectations": [
+        "The output includes the current BTCUSDT price fetched live from Binance",
+        "The output identifies daily trend as uptrend, downtrend, or sideway",
+        "The output lists at least 3 weekly S/R zones (resistance or support)",
+        "The output includes Fibonacci levels with at least 4 ratios (0.236, 0.382, 0.5, 0.618)",
+        "The output includes either an active short setup with entry zone + stop loss + TP1 or a list of pending limit short setups",
+        "The output includes an invalidation level (price at which short thesis is off)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "btc có thể short không hôm nay? tôi đang nhìn daily chart",
+      "expected_output": "Same as eval 1 — a full bearish PA report in Vietnamese or mixed Vietnamese/English. Should directly answer whether a short setup exists today.",
+      "files": [],
+      "expectations": [
+        "The output fetches live BTC price data (not a hardcoded or assumed price)",
+        "The output clearly states whether a short setup is currently active or not",
+        "The output includes stop loss and at least one take profit level if a setup exists",
+        "The output mentions the weekly trend direction to provide higher-timeframe context",
+        "The output includes an invalidation level for the short thesis"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "phân tích setup short btc daily, tôi muốn biết entry, SL, TP và confidence",
+      "expected_output": "A detailed short-focused analysis with specific entry zone, stop loss, TP1/TP2, confidence rating, and reasoning bullets. Should also cover pending limit setups if no active setup.",
+      "files": [],
+      "expectations": [
+        "The output includes an entry zone (two price levels) or a limit entry price",
+        "The output includes a stop loss price",
+        "The output includes at least TP1, ideally TP2 as well",
+        "The output rates confidence as high, medium, or low",
+        "The output provides reasoning for the setup (at least 2 bullet points explaining why)",
+        "The output fetches fresh data from Binance rather than using assumed prices"
+      ]
+    }
+  ]
+}

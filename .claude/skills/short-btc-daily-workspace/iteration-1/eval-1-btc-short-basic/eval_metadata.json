@@ -1,0 +1,13 @@
+{
+  "eval_id": 1,
+  "eval_name": "btc-short-basic",
+  "prompt": "short btc daily",
+  "assertions": [
+    "The output includes a BTCUSDT price that appears to have been fetched live (not assumed or hardcoded)",
+    "The output identifies daily trend as uptrend, downtrend, or sideway",
+    "The output lists at least 3 S/R zones (resistance or support)",
+    "The output includes Fibonacci levels showing at least 4 ratios (0.236, 0.382, 0.5, 0.618)",
+    "The output includes either an active short setup with entry + SL + TP, or a list of pending limit short setups",
+    "The output includes an invalidation level for the short thesis"
+  ]
+}
