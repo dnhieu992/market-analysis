@@ -122,10 +122,10 @@ export function SidebarNav({ currentPath }: SidebarNavProps) {
           <span />
           <span />
         </button>
-        <div className="mobile-topbar-brand">
+        <Link href="/" className="mobile-topbar-brand">
           <span className="sidebar-brand-mark">MA</span>
           <p className="mobile-topbar-title">Market Analysis</p>
-        </div>
+        </Link>
       </div>
 
       {/* Backdrop overlay */}
