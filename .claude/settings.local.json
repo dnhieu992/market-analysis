@@ -88,7 +88,9 @@
       "Bash(python3 *)",
       "Bash(./deploy.sh *)",
       "Bash(xargs cat)",
-      "Bash(pm2 restart *)"
+      "Bash(pm2 restart *)",
+      "Bash(sed -n '447,455p' /root/market-analysis/apps/web/src/app/globals.css)",
+      "Bash(sed -n '650,657p' /root/market-analysis/apps/web/src/app/globals.css)"
     ]
   }
 }

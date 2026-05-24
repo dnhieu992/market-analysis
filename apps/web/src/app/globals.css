@@ -445,9 +445,19 @@ a {
 }
 
 .ps-chart-wrap {
-  width: 140px;
-  height: 140px;
+  width: 160px;
+  height: 160px;
   flex-shrink: 0;
+  overflow: visible;
+}
+
+/* recharts ResponsiveContainer sets overflow:hidden internally — override it */
+.ps-chart-wrap > div {
+  overflow: visible !important;
+}
+
+.ps-chart-wrap svg {
+  overflow: visible;
 }
 
 .ps-legend {
@@ -647,8 +657,9 @@ a {
   }
 
   .ps-chart-wrap {
-    width: 120px;
-    height: 120px;
+    width: 160px;
+    height: 160px;
+    overflow: visible;
   }
 
   .ps-legend {
