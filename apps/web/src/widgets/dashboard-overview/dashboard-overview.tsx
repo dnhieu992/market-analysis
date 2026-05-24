@@ -19,30 +19,14 @@ type HoldingEntry = {
 
 type DashboardOverviewProps = Readonly<{
   cards: readonly OverviewCard[];
-  lastUpdatedLabel: string;
   allHoldings: HoldingEntry[];
   portfolioCount: number;
   orders: DashboardOrder[];
 }>;
 
-export function DashboardOverview({ cards, lastUpdatedLabel, allHoldings, portfolioCount }: DashboardOverviewProps) {
+export function DashboardOverview({ cards, allHoldings, portfolioCount }: DashboardOverviewProps) {
   return (
     <main className="dashboard-shell">
-      <section className="hero-card">
-        <div className="hero-copy">
-          <p className="eyebrow">Market Analysis Bot</p>
-          <h1>Overview Dashboard</h1>
-          <p className="lead">
-            Track manual trades, review worker-generated analysis, and keep the full trading
-            history in one place.
-          </p>
-        </div>
-        <div className="hero-status">
-          <span className="status-dot" />
-          <span>Last refresh {lastUpdatedLabel}</span>
-        </div>
-      </section>
-
       <OverviewCards cards={cards} />
 
       <HoldingsAllocationChart holdings={allHoldings} portfolioCount={portfolioCount} />

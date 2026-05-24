@@ -1,6 +1,5 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DashboardOrder } from '@web/shared/api/types';
-import { formatDateTime } from '@web/shared/lib/format';
 import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-overview';
 
 async function loadDashboardData() {
@@ -114,20 +113,15 @@ function buildOverviewCards(
 }
 
 export default async function OverviewPage() {
-  const { recentOrders, openOrderCount, closedOrderCount, closedPnlSum, analysisRuns, allHoldings, portfolioCount } =
+  const { recentOrders, openOrderCount, closedOrderCount, closedPnlSum, allHoldings, portfolioCount } =
     await loadDashboardData();
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
   const btcHref = btcHolding ? `/portfolio/${btcHolding.portfolioId}/${btcHolding.coinId}` : undefined;
   const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum, btcHolding?.totalAmount ?? 0, btcHolding?.totalCost ?? 0, btcHref);
-  const lastUpdated =
-    analysisRuns[0]?.createdAt instanceof Date
-      ? formatDateTime(analysisRuns[0].createdAt)
-      : 'just now';
 
   return (
     <DashboardOverview
       cards={cards}
-      lastUpdatedLabel={lastUpdated}
       allHoldings={allHoldings}
       portfolioCount={portfolioCount}
       orders={recentOrders}
