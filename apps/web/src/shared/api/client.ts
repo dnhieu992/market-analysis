@@ -706,11 +706,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }));
     },
 
-    async scanUtBot(symbols: string[], timeframe: '1d' | '4h' | '1w' = '1d'): Promise<ScanResult[]> {
+    async scanUtBot(
+      symbols: string[],
+      timeframe: '1d' | '4h' | '1w' = '1d',
+      atrPeriod = 10,
+      keyValue = 1
+    ): Promise<ScanResult[]> {
       return fetchJson<ScanResult[]>(fetchImpl, `${baseUrl}/scanner/scan`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols, timeframe })
+        body: JSON.stringify({ symbols, timeframe, atrPeriod, keyValue })
       }));
     },
   };

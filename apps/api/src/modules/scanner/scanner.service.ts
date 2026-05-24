@@ -38,12 +38,17 @@ export class ScannerService {
     return upper;
   }
 
-  async scan(symbols: string[], timeframe: '1d' | '4h' | '1w' = '1d'): Promise<ScanResult[]> {
+  async scan(
+    symbols: string[],
+    timeframe: '1d' | '4h' | '1w' = '1d',
+    atrPeriod = 10,
+    keyValue = 1
+  ): Promise<ScanResult[]> {
     const results = await Promise.all(
       symbols.map(async (symbol): Promise<ScanResult> => {
         try {
           const candles = await this.marketDataService.getCandles(symbol, timeframe, 1000);
-          const result = calcUtBotResult(candles);
+          const result = calcUtBotResult(candles, atrPeriod, keyValue);
           if (!result) {
             return { symbol, trend: 'downtrend', price: 0, stopLevel: 0, error: 'Not enough candles' };
           }

@@ -21,6 +21,9 @@ type ScannerFeedProps = Readonly<{
 
 type ScanStatus = 'idle' | 'scanning' | 'done' | 'error';
 
+const DEFAULT_KEY_VALUE = 3;
+const DEFAULT_ATR_PERIOD = 10;
+
 function TrendBadge({ trend }: { trend: 'uptrend' | 'downtrend' }) {
   return (
     <span className={`scanner-trend-badge scanner-trend-badge--${trend}`}>
@@ -59,6 +62,8 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
   const [watchlist, setWatchlist] = useState<string[]>(initialWatchlist);
   const [symbolInput, setSymbolInput] = useState('');
   const [timeframe, setTimeframe] = useState<Timeframe>('1d');
+  const [keyValue, setKeyValue] = useState<number>(DEFAULT_KEY_VALUE);
+  const [atrPeriod, setAtrPeriod] = useState<number>(DEFAULT_ATR_PERIOD);
   const [results, setResults] = useState<ScanResult[]>([]);
   const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -95,7 +100,7 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
     setScanStatus('scanning');
     setResults([]);
     try {
-      const data = await apiClient.scanUtBot(watchlist, timeframe);
+      const data = await apiClient.scanUtBot(watchlist, timeframe, atrPeriod, keyValue);
       setResults(data);
       setScanStatus('done');
     } catch {
@@ -190,6 +195,36 @@ export function ScannerFeed({ initialWatchlist }: ScannerFeedProps) {
             </button>
           ))}
         </div>
+
+        <div className="scanner-utbot-params">
+          <label className="scanner-param-label">
+            Key Value
+            <input
+              className="scanner-param-input"
+              type="number"
+              min={0.1}
+              max={20}
+              step={0.5}
+              value={keyValue}
+              onChange={(e) => setKeyValue(Number(e.target.value))}
+              title="UT Bot Key Value (ATR multiplier)"
+            />
+          </label>
+          <label className="scanner-param-label">
+            ATR Period
+            <input
+              className="scanner-param-input"
+              type="number"
+              min={1}
+              max={200}
+              step={1}
+              value={atrPeriod}
+              onChange={(e) => setAtrPeriod(Number(e.target.value))}
+              title="UT Bot ATR Period"
+            />
+          </label>
+        </div>
+
         <button
           className="scanner-btn scanner-btn--scan"
           onClick={handleScan}

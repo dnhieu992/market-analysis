@@ -29,6 +29,11 @@ export class ScannerController {
   @Post('scan')
   @ApiOperation({ summary: 'Scan watchlist coins with UT Bot indicator' })
   async scan(@Body() body: ScanRequestDto): Promise<ScanResult[]> {
-    return this.scannerService.scan(body.symbols, body.timeframe ?? '1d');
+    return this.scannerService.scan(
+      body.symbols,
+      body.timeframe ?? '1d',
+      body.atrPeriod ?? 10,
+      body.keyValue ?? 1
+    );
   }
 }
