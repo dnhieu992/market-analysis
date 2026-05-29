@@ -256,6 +256,7 @@ function EditNoteModal({ portfolioId, coinId, current, onClose, onSaved }: {
 export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('pnl');
   const [notes, setNotes] = useState<Record<string, string | null>>(() =>
@@ -265,8 +266,22 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
 
   useEffect(() => {
     if (holdings.length === 0) { setPricesLoaded(true); return; }
-    fetchPrices(holdings.map((h) => h.coinId))
-      .then((p) => { setPrices(p); setPricesLoaded(true); });
+    const coinIds = holdings.map((h) => h.coinId);
+
+    fetchPrices(coinIds).then((p) => {
+      setPrices(p);
+      setPricesLoaded(true);
+      setLastUpdated(new Date());
+    });
+
+    const interval = setInterval(() => {
+      fetchPrices(coinIds).then((p) => {
+        setPrices(p);
+        setLastUpdated(new Date());
+      });
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [holdings]);
 
   const sorted = [...holdings].sort((a, b) => {
@@ -309,7 +324,12 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
             <thead>
               <tr>
                 <th>Coin</th>
-                <th>Current Price</th>
+                <th>
+                  Current Price{' '}
+                  {pricesLoaded && lastUpdated && (
+                    <span style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 400 }}>● live</span>
+                  )}
+                </th>
                 <th>Avg. Buy Price</th>
                 <th
                   style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', opacity: sortBy === 'holding' ? 1 : 0.6 }}
