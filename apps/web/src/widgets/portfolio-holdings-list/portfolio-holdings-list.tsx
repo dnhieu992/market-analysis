@@ -383,7 +383,19 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                           : <span className="tt-muted">—</span>
                       }
                     </td>
-                    <td data-label="Avg. Buy">{formatExactPrice(h.avgCost)}</td>
+                    <td data-label="Avg. Buy">
+                      <div>{formatExactPrice(h.avgCost)}</div>
+                      {pricesLoaded && currentPrice != null && (
+                        <div style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          color: currentPrice >= h.avgCost ? '#22c55e' : '#ef4444',
+                        }}>
+                          {currentPrice >= h.avgCost ? '+' : ''}
+                          {(((currentPrice - h.avgCost) / h.avgCost) * 100).toFixed(2)}%
+                        </div>
+                      )}
+                    </td>
                     <td data-label="Holdings">
                       <div>{formatCrypto(h.totalAmount)} {h.coinId}</div>
                       {currentValue != null && (
