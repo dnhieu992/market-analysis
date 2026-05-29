@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
 
+import { formatCryptoPrice } from '@web/shared/lib/format';
+
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import { createApiClient } from '@web/shared/api/client';
 import type { Holding } from '@web/shared/api/types';
@@ -16,10 +18,6 @@ type SortKey = 'pnl' | 'holding';
 
 function formatUsd(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
-}
-
-function formatExactPrice(value: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 8 }).format(value);
 }
 
 function formatCrypto(value: number): string {
@@ -376,12 +374,12 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                       {!pricesLoaded
                         ? <span className="tt-muted">loading…</span>
                         : currentPrice != null
-                          ? formatExactPrice(currentPrice)
+                          ? formatCryptoPrice(currentPrice)
                           : <span className="tt-muted">—</span>
                       }
                     </td>
                     <td data-label="Avg. Buy">
-                      <div>{formatExactPrice(h.avgCost)}</div>
+                      <div>{formatCryptoPrice(h.avgCost)}</div>
                       {pricesLoaded && currentPrice != null && (
                         <div style={{
                           fontSize: '0.78rem',
