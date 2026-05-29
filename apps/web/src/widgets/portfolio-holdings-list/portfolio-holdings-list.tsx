@@ -371,9 +371,6 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                           ✎ {note ? 'Note' : 'Add note'}
                         </button>
                       </div>
-                      {note && (
-                        <div className="holding-note-preview" title={note}>{note}</div>
-                      )}
                     </td>
                     <td data-label="Current Price">
                       {!pricesLoaded
