@@ -14,11 +14,6 @@ const MONTHS_VI     = [
   'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
 ];
 
-const COIN_COLORS: Record<string, string> = {
-  BTC: '#f7931a', ETH: '#627eea', BNB: '#f3ba2f', SOL: '#9945ff',
-  XRP: '#346aa9', ADA: '#0033ad', DOGE: '#c2a633', DOT: '#e6007a',
-};
-
 /* ── helpers ───────────────────────────────────── */
 
 function getDaysInMonth(year: number, month: number) {
@@ -31,10 +26,6 @@ function fmtPnl(v: number) {
   return (v >= 0 ? '+' : '') +
     v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function coinColor(coinId: string): string {
-  return COIN_COLORS[coinId.toUpperCase()] ?? '#1f6f5b';
-}
-
 type ViewMode = 'day' | 'month';
 
 /* ── main page ─────────────────────────────────── */
@@ -106,9 +97,6 @@ export function PortfolioPnlPage({ data }: { data: PortfolioPnlCalendar }) {
   const isCurrentYear  = year === today.getFullYear();
 
   const totalAllTime = data.daily.reduce((s, e) => s + e.realizedPnl, 0);
-  const maxCoinAbs   = data.byCoin.length > 0
-    ? Math.max(...data.byCoin.map((c) => Math.abs(c.realizedPnl)))
-    : 1;
 
   return (
     <main className="pnl-cal-shell">
@@ -266,45 +254,6 @@ export function PortfolioPnlPage({ data }: { data: PortfolioPnlCalendar }) {
         </aside>
       </div>
 
-      {/* P&L by coin */}
-      {data.byCoin.length > 0 && (
-        <section className="perf-section">
-          <div className="perf-section-header">
-            <h2 className="perf-section-title">Realized P&amp;L theo coin</h2>
-          </div>
-          <div className="sym-table">
-            <div className="sym-table-header">
-              <span className="sym-col sym-col--name">Coin</span>
-              <span className="sym-col sym-col--pnl">Realized P&amp;L</span>
-            </div>
-            {data.byCoin.map((row) => {
-              const barW  = maxCoinAbs > 0 ? (Math.abs(row.realizedPnl) / maxCoinAbs) * 100 : 0;
-              const color = coinColor(row.coinId);
-              return (
-                <div key={row.coinId} className="sym-table-row">
-                  <div className="sym-col sym-col--name">
-                    <span className="sym-icon" style={{ background: color }}>
-                      {row.coinId.slice(0, 3).toUpperCase()}
-                    </span>
-                    <span className="sym-name">{row.coinId}</span>
-                  </div>
-                  <div className="sym-col sym-col--pnl" data-label="Realized P&L">
-                    <div className="sym-bar-wrap">
-                      <div
-                        className={`sym-bar ${row.realizedPnl >= 0 ? 'sym-bar--pos' : 'sym-bar--neg'}`}
-                        style={{ width: `${barW}%` }}
-                      />
-                    </div>
-                    <span className={`sym-pnl-val ${row.realizedPnl >= 0 ? 'pnl-positive' : 'pnl-negative'}`}>
-                      {fmtPnl(row.realizedPnl)} USDT
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
     </main>
   );
 }
