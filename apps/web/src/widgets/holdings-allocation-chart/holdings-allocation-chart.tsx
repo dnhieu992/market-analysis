@@ -232,7 +232,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
         <div className="ps-pnl-section">
           <p className="ps-eyebrow">All-Time P&amp;L</p>
-          <Link href="/pnl-calendar" className="ps-pnl-link">
+          <Link href="/portfolio-pnl" className="ps-pnl-link">
             <p className={`ps-pnl-value ${isPnlPositive ? 'ps-pnl--up' : 'ps-pnl--down'}`}>
               {isPnlPositive ? '+' : ''}{formatUsd(allTimePnl)}
               <span className="ps-pnl-pct">

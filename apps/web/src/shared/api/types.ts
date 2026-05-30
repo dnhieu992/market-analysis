@@ -272,6 +272,11 @@ export type PnlSnapshot = {
   totalValue: number;
 };
 
+export type PortfolioPnlCalendar = {
+  daily: { date: string; realizedPnl: number }[];
+  byCoin: { coinId: string; realizedPnl: number }[];
+};
+
 export type CreatePortfolioInput = {
   name: string;
   description?: string;

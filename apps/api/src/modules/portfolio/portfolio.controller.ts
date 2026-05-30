@@ -21,6 +21,12 @@ export class PortfolioController {
     return this.portfolioService.listPortfolios(req.authUser!.id);
   }
 
+  @Get('pnl-calendar')
+  @ApiOperation({ summary: 'Get realized PnL by day and by coin across all portfolios' })
+  getPnlCalendar(@Req() req: AuthenticatedRequest) {
+    return this.portfolioService.getPnlCalendar(req.authUser!.id);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create a new portfolio' })
   createPortfolio(@Req() req: AuthenticatedRequest, @Body() body: CreatePortfolioDto) {

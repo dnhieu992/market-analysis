@@ -18,6 +18,7 @@ import type {
   PaginatedOrders,
   PnlSnapshot,
   Portfolio,
+  PortfolioPnlCalendar,
   QueryPnlInput,
   QueryTransactionsInput,
   RunBackTestInput,
@@ -597,6 +598,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const qs = params.toString() ? `?${params.toString()}` : '';
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/pnl${qs}`, withDefaults());
       return rows.map(mapPnlSnapshot);
+    },
+    async fetchPortfolioPnlCalendar(): Promise<PortfolioPnlCalendar> {
+      const raw = await fetchJson<{ daily: JsonRecord[]; byCoin: JsonRecord[] }>(
+        fetchImpl, `${baseUrl}/portfolios/pnl-calendar`, withDefaults()
+      );
+      return {
+        daily: raw.daily.map((r) => ({ date: String(r['date']), realizedPnl: Number(r['realizedPnl']) })),
+        byCoin: raw.byCoin.map((r) => ({ coinId: String(r['coinId']), realizedPnl: Number(r['realizedPnl']) }))
+      };
     },
     async login(input: { email: string; password: string }) {
       const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({
