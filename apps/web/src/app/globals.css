@@ -391,6 +391,13 @@ a {
 .ps-pnl--up { color: #22c55e; }
 .ps-pnl--down { color: #ef4444; }
 
+.ps-pnl-link {
+  display: inline-block;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+.ps-pnl-link:hover { opacity: 0.75; cursor: pointer; }
+
 .ps-pnl-pct {
   font-size: 0.9rem;
   font-weight: 500;

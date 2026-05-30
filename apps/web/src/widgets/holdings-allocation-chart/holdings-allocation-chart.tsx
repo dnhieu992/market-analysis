@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -231,12 +232,14 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
         <div className="ps-pnl-section">
           <p className="ps-eyebrow">All-Time P&amp;L</p>
-          <p className={`ps-pnl-value ${isPnlPositive ? 'ps-pnl--up' : 'ps-pnl--down'}`}>
-            {isPnlPositive ? '+' : ''}{formatUsd(allTimePnl)}
-            <span className="ps-pnl-pct">
-              ({isPnlPositive ? '+' : ''}{allTimePnlPct.toFixed(1)}%)
-            </span>
-          </p>
+          <Link href="/pnl-calendar" className="ps-pnl-link">
+            <p className={`ps-pnl-value ${isPnlPositive ? 'ps-pnl--up' : 'ps-pnl--down'}`}>
+              {isPnlPositive ? '+' : ''}{formatUsd(allTimePnl)}
+              <span className="ps-pnl-pct">
+                ({isPnlPositive ? '+' : ''}{allTimePnlPct.toFixed(1)}%)
+              </span>
+            </p>
+          </Link>
         </div>
 
         <div className="ps-stat-row">
