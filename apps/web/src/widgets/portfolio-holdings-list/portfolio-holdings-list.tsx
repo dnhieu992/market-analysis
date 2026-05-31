@@ -24,7 +24,24 @@ function formatCrypto(value: number): string {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(value);
 }
 
-function PnlCell({ value }: { value: number }) {
+function EyeIcon({ visible }: { visible: boolean }) {
+  return visible ? (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  );
+}
+
+function PnlCell({ value, visible = true }: { value: number; visible?: boolean }) {
+  if (!visible) {
+    return <div className="tt-muted" style={{ letterSpacing: '0.1em' }}>••••••</div>;
+  }
   const isPositive = value >= 0;
   return (
     <div className={isPositive ? 'tt-pnl-positive' : 'tt-pnl-negative'}>
@@ -63,10 +80,12 @@ function CoinAvatar({ coinId }: { coinId: string }) {
   );
 }
 
-function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
+function PortfolioStatsPanel({ holdings, prices, pricesLoaded, pnlVisible, onTogglePnl }: {
   holdings: Holding[];
   prices: Record<string, number>;
   pricesLoaded: boolean;
+  pnlVisible: boolean;
+  onTogglePnl: () => void;
 }) {
   if (holdings.length === 0) return null;
 
@@ -92,20 +111,32 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
     padding: '1.25rem 1.5rem',
     minWidth: 0,
   };
-  const labelStyle: React.CSSProperties = { fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem' };
+  const labelStyle: React.CSSProperties = { fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' };
   const loading = !pricesLoaded;
+
+  const toggleBtnStyle: React.CSSProperties = {
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: 'var(--muted)', padding: 0, display: 'inline-flex', alignItems: 'center',
+  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
       {/* All-time profit */}
       <div style={cardStyle}>
-        <div style={labelStyle}>All-time profit</div>
+        <div style={labelStyle}>
+          All-time profit
+          <button style={toggleBtnStyle} onClick={onTogglePnl} title={pnlVisible ? 'Hide P/L' : 'Show P/L'} aria-label={pnlVisible ? 'Hide P/L values' : 'Show P/L values'}>
+            <EyeIcon visible={pnlVisible} />
+          </button>
+        </div>
         {loading ? (
           <span className="tt-muted">loading…</span>
-        ) : (
+        ) : pnlVisible ? (
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: isProfitPositive ? '#22c55e' : '#ef4444' }}>
             {isProfitPositive ? '+' : ''}{formatUsd(allTimeProfit)}
           </div>
+        ) : (
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em' }}>••••••</div>
         )}
       </div>
 
@@ -124,9 +155,13 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
               <CoinAvatar coinId={best.coinId} />
               <span style={{ fontWeight: 700 }}>{best.coinId}</span>
             </div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: best.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
-              {best.totalPnl >= 0 ? '+' : ''}{formatUsd(best.totalPnl)}
-            </div>
+            {pnlVisible ? (
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: best.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
+                {best.totalPnl >= 0 ? '+' : ''}{formatUsd(best.totalPnl)}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.1em' }}>••••••</div>
+            )}
           </>
         ) : null}
       </div>
@@ -140,9 +175,13 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
               <CoinAvatar coinId={worst.coinId} />
               <span style={{ fontWeight: 700 }}>{worst.coinId}</span>
             </div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: worst.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
-              {worst.totalPnl >= 0 ? '+' : ''}{formatUsd(worst.totalPnl)}
-            </div>
+            {pnlVisible ? (
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: worst.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
+                {worst.totalPnl >= 0 ? '+' : ''}{formatUsd(worst.totalPnl)}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.1em' }}>••••••</div>
+            )}
           </>
         ) : null}
       </div>
@@ -257,6 +296,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('pnl');
+  const [pnlVisible, setPnlVisible] = useState(false);
   const [notes, setNotes] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(holdings.map((h) => [h.coinId, h.note]))
   );
@@ -296,7 +336,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
 
   return (
     <>
-      <PortfolioStatsPanel holdings={holdings} prices={prices} pricesLoaded={pricesLoaded} />
+      <PortfolioStatsPanel holdings={holdings} prices={prices} pricesLoaded={pricesLoaded} pnlVisible={pnlVisible} onTogglePnl={() => setPnlVisible((v) => !v)} />
     <article className="panel">
       <div className="table-header">
         <div>
@@ -336,12 +376,24 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 >
                   Holdings {sortBy === 'holding' ? '▼' : ''}
                 </th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', opacity: sortBy === 'pnl' ? 1 : 0.6 }}
-                  onClick={() => setSortBy('pnl')}
-                  title="Sort by profit / loss"
-                >
-                  Profit / Loss {sortBy === 'pnl' ? '▼' : ''}
+                <th style={{ whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span
+                      style={{ cursor: 'pointer', userSelect: 'none', opacity: sortBy === 'pnl' ? 1 : 0.6 }}
+                      onClick={() => setSortBy('pnl')}
+                      title="Sort by profit / loss"
+                    >
+                      Profit / Loss {sortBy === 'pnl' ? '▼' : ''}
+                    </span>
+                    <button
+                      onClick={() => setPnlVisible((v) => !v)}
+                      title={pnlVisible ? 'Hide P/L' : 'Show P/L'}
+                      aria-label={pnlVisible ? 'Hide P/L values' : 'Show P/L values'}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      <EyeIcon visible={pnlVisible} />
+                    </button>
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -399,7 +451,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                     </td>
                     <td data-label="P/L">
                       {pricesLoaded
-                        ? <PnlCell value={totalPnl} />
+                        ? <PnlCell value={totalPnl} visible={pnlVisible} />
                         : <span className="tt-muted">loading…</span>
                       }
                     </td>
