@@ -80,12 +80,10 @@ function CoinAvatar({ coinId }: { coinId: string }) {
   );
 }
 
-function PortfolioStatsPanel({ holdings, prices, pricesLoaded, pnlVisible, onTogglePnl }: {
+function PortfolioStatsPanel({ holdings, prices, pricesLoaded }: {
   holdings: Holding[];
   prices: Record<string, number>;
   pricesLoaded: boolean;
-  pnlVisible: boolean;
-  onTogglePnl: () => void;
 }) {
   if (holdings.length === 0) return null;
 
@@ -111,32 +109,20 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded, pnlVisible, onTog
     padding: '1.25rem 1.5rem',
     minWidth: 0,
   };
-  const labelStyle: React.CSSProperties = { fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' };
+  const labelStyle: React.CSSProperties = { fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem' };
   const loading = !pricesLoaded;
-
-  const toggleBtnStyle: React.CSSProperties = {
-    background: 'none', border: 'none', cursor: 'pointer',
-    color: 'var(--muted)', padding: 0, display: 'inline-flex', alignItems: 'center',
-  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
       {/* All-time profit */}
       <div style={cardStyle}>
-        <div style={labelStyle}>
-          All-time profit
-          <button style={toggleBtnStyle} onClick={onTogglePnl} title={pnlVisible ? 'Hide P/L' : 'Show P/L'} aria-label={pnlVisible ? 'Hide P/L values' : 'Show P/L values'}>
-            <EyeIcon visible={pnlVisible} />
-          </button>
-        </div>
+        <div style={labelStyle}>All-time profit</div>
         {loading ? (
           <span className="tt-muted">loading…</span>
-        ) : pnlVisible ? (
+        ) : (
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: isProfitPositive ? '#22c55e' : '#ef4444' }}>
             {isProfitPositive ? '+' : ''}{formatUsd(allTimeProfit)}
           </div>
-        ) : (
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em' }}>••••••</div>
         )}
       </div>
 
@@ -155,13 +141,9 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded, pnlVisible, onTog
               <CoinAvatar coinId={best.coinId} />
               <span style={{ fontWeight: 700 }}>{best.coinId}</span>
             </div>
-            {pnlVisible ? (
-              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: best.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
-                {best.totalPnl >= 0 ? '+' : ''}{formatUsd(best.totalPnl)}
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.1em' }}>••••••</div>
-            )}
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: best.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
+              {best.totalPnl >= 0 ? '+' : ''}{formatUsd(best.totalPnl)}
+            </div>
           </>
         ) : null}
       </div>
@@ -175,13 +157,9 @@ function PortfolioStatsPanel({ holdings, prices, pricesLoaded, pnlVisible, onTog
               <CoinAvatar coinId={worst.coinId} />
               <span style={{ fontWeight: 700 }}>{worst.coinId}</span>
             </div>
-            {pnlVisible ? (
-              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: worst.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
-                {worst.totalPnl >= 0 ? '+' : ''}{formatUsd(worst.totalPnl)}
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.1em' }}>••••••</div>
-            )}
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: worst.totalPnl >= 0 ? '#22c55e' : '#ef4444' }}>
+              {worst.totalPnl >= 0 ? '+' : ''}{formatUsd(worst.totalPnl)}
+            </div>
           </>
         ) : null}
       </div>
@@ -296,7 +274,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('pnl');
-  const [pnlVisible, setPnlVisible] = useState(false);
+  const [pnlVisibleMap, setPnlVisibleMap] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(holdings.map((h) => [h.coinId, h.note]))
   );
@@ -336,7 +314,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
 
   return (
     <>
-      <PortfolioStatsPanel holdings={holdings} prices={prices} pricesLoaded={pricesLoaded} pnlVisible={pnlVisible} onTogglePnl={() => setPnlVisible((v) => !v)} />
+      <PortfolioStatsPanel holdings={holdings} prices={prices} pricesLoaded={pricesLoaded} />
     <article className="panel">
       <div className="table-header">
         <div>
@@ -376,24 +354,12 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 >
                   Holdings {sortBy === 'holding' ? '▼' : ''}
                 </th>
-                <th style={{ whiteSpace: 'nowrap' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span
-                      style={{ cursor: 'pointer', userSelect: 'none', opacity: sortBy === 'pnl' ? 1 : 0.6 }}
-                      onClick={() => setSortBy('pnl')}
-                      title="Sort by profit / loss"
-                    >
-                      Profit / Loss {sortBy === 'pnl' ? '▼' : ''}
-                    </span>
-                    <button
-                      onClick={() => setPnlVisible((v) => !v)}
-                      title={pnlVisible ? 'Hide P/L' : 'Show P/L'}
-                      aria-label={pnlVisible ? 'Hide P/L values' : 'Show P/L values'}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <EyeIcon visible={pnlVisible} />
-                    </button>
-                  </div>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', opacity: sortBy === 'pnl' ? 1 : 0.6 }}
+                  onClick={() => setSortBy('pnl')}
+                  title="Sort by profit / loss"
+                >
+                  Profit / Loss {sortBy === 'pnl' ? '▼' : ''}
                 </th>
               </tr>
             </thead>
@@ -450,10 +416,21 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                       )}
                     </td>
                     <td data-label="P/L">
-                      {pricesLoaded
-                        ? <PnlCell value={totalPnl} visible={pnlVisible} />
-                        : <span className="tt-muted">loading…</span>
-                      }
+                      {pricesLoaded ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <PnlCell value={totalPnl} visible={pnlVisibleMap[h.coinId] ?? false} />
+                          <button
+                            onClick={() => setPnlVisibleMap((prev) => ({ ...prev, [h.coinId]: !(prev[h.coinId] ?? false) }))}
+                            title={pnlVisibleMap[h.coinId] ? 'Hide P/L' : 'Show P/L'}
+                            aria-label={pnlVisibleMap[h.coinId] ? 'Hide P/L' : 'Show P/L'}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}
+                          >
+                            <EyeIcon visible={pnlVisibleMap[h.coinId] ?? false} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="tt-muted">loading…</span>
+                      )}
                     </td>
                   </tr>
                 );
