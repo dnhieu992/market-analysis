@@ -119,6 +119,8 @@ export type DailyAnalysis = {
   llmModel: string;
   pipelineDebugJson: string | null;
   summary: string;
+  feedbackScore: number | null;
+  feedbackNote: string | null;
   createdAt: string;
 };
 

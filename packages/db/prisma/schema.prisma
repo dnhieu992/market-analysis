@@ -113,7 +113,10 @@ model DailyAnalysis {
   aiOutputJson String @db.Text
   pipelineDebugJson String? @db.LongText
   summary   String   @db.Text
+  feedbackScore Int?
+  feedbackNote  String? @db.Text
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([symbol, date])
   @@index([symbol, date])

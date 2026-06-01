@@ -24,6 +24,12 @@ export function createDailyAnalysisRepository(client = prisma) {
         orderBy: { date: 'desc' },
         take: limit
       });
+    },
+    updateFeedback(id: string, score: number, note?: string) {
+      return client.dailyAnalysis.update({
+        where: { id },
+        data: { feedbackScore: score, feedbackNote: note ?? null }
+      });
     }
   };
 }

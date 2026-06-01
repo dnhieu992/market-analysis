@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatPrice } from '@web/shared/lib/format';
+import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { DailyAnalysis } from '@web/shared/api/types';
 import type { DailyAnalysisPlan } from '@app/core';
 
@@ -107,6 +108,67 @@ function ScrollableText({ text }: { text: string }) {
           {expanded ? 'Show less ▲' : 'Show more ▼'}
         </button>
       )}
+    </div>
+  );
+}
+
+/* ── feedback block ────────────────────────────────────────── */
+
+function FeedbackBlock({ record }: { record: DailyAnalysis }) {
+  const [score, setScore] = useState<number>(record.feedbackScore ?? 0);
+  const [note, setNote] = useState<string>(record.feedbackNote ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(!!record.feedbackScore);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (score === 0) return;
+    setSaving(true);
+    try {
+      await fetch(`${resolveApiBaseUrl()}/daily-analysis/${record.id}/feedback`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score, note: note || undefined })
+      });
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="dp-feedback">
+      <span className="dp-feedback-label">Đánh giá plan:</span>
+      <form className="dp-feedback-form" onSubmit={handleSubmit}>
+        <div className="dp-stars">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              type="button"
+              className={`dp-star${score >= n ? ' dp-star--active' : ''}`}
+              onClick={() => { setScore(n); setSaved(false); }}
+              aria-label={`${n} sao`}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+        <textarea
+          className="dp-feedback-note"
+          placeholder="Nhận xét (tuỳ chọn)..."
+          value={note}
+          onChange={e => { setNote(e.target.value); setSaved(false); }}
+          rows={2}
+        />
+        <button
+          type="submit"
+          className="dp-feedback-submit"
+          disabled={score === 0 || saving}
+        >
+          {saving ? 'Đang lưu...' : saved ? 'Đã lưu ✓' : 'Lưu đánh giá'}
+        </button>
+      </form>
     </div>
   );
 }
@@ -233,6 +295,7 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
 
       <footer className="daily-plan-card-footer">
         <span className="daily-plan-meta">{record.llmModel || record.llmProvider}</span>
+        <FeedbackBlock record={record} />
       </footer>
     </article>
   );

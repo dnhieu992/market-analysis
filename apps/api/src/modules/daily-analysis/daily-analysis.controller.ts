@@ -1,9 +1,10 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import type { DailyAnalysisRecord } from './daily-analysis.service';
 import { DailyAnalysisService } from './daily-analysis.service';
 import { QueryDailyAnalysisDto } from './dto/query-daily-analysis.dto';
+import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 
 @ApiTags('Daily Analysis')
 @ApiCookieAuth('market_analysis_session')
@@ -24,5 +25,14 @@ export class DailyAnalysisController {
   @ApiOperation({ summary: 'Get the latest daily analysis for a symbol' })
   getLatest(@Query('symbol') symbol: string): Promise<DailyAnalysisRecord | null> {
     return this.dailyAnalysisService.getLatest(symbol ?? 'BTCUSDT');
+  }
+
+  @Patch(':id/feedback')
+  @ApiOperation({ summary: 'Submit feedback and score for a daily plan' })
+  updateFeedback(
+    @Param('id') id: string,
+    @Body() dto: UpdateFeedbackDto
+  ): Promise<DailyAnalysisRecord> {
+    return this.dailyAnalysisService.updateFeedback(id, dto.score, dto.note);
   }
 }

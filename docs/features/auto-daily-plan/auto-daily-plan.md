@@ -2,28 +2,32 @@
 
 ## Overview
 
-The auto daily plan feature runs once per day and sends a trading analysis for each tracked symbol to Telegram. It generates an H4 candlestick chart image, sends it to Claude Vision with a Vietnamese prompt, and delivers both the chart and the AI analysis text to the user. The result is also persisted to the database.
+The auto daily plan feature runs once per day and sends a multi-timeframe trading analysis for each tracked symbol to Telegram. It generates candlestick chart images for each active timeframe, sends them all to Claude Vision with a Vietnamese prompt, and delivers both the charts and the AI analysis text to the user. The result is also persisted to the database. Users can rate each plan (1–5 stars + note) for future LLM knowledge use.
 
 ---
 
 ## Requirements
 
-- Every day at **00:00 UTC** (07:00 Vietnam time UTC+7), the worker automatically runs a visual analysis for all tracked symbols
+- Every day at **00:30 UTC** (07:30 Vietnam time UTC+7), the worker automatically runs a visual analysis for all tracked symbols
 - On worker boot, if `WORKER_SEND_DAILY_ON_BOOT=true`, the analysis runs immediately
-- For each symbol:
-  - An H4 candlestick chart (last 150 candles) is generated with EMA20/50/200 and support/resistance levels
-  - The chart image and a Vietnamese prompt are sent to Claude Vision
-  - The chart photo is sent to Telegram first, followed by the analysis text
-  - The result is saved to the `DailyAnalysis` database table
-  - If a record already exists for the same symbol + date, the DB save is skipped (dedup)
+- For each symbol, charts are generated for the following timeframes (from large to small):
+  - **MN (monthly)** — only on the **1st day of the month** (48 candles fetched, 36 rendered)
+  - **W1 (weekly)** — only on **Monday** (100 candles fetched, 60 rendered)
+  - **D1 (daily)** — **every day** (200 candles fetched, 150 rendered)
+  - **H4** — **every day** (200 candles fetched, 150 rendered)
+- All charts + a Vietnamese prompt are sent to Claude Vision in a single multi-image call
+- Each chart photo is sent to Telegram in order (large → small), followed by the analysis text
+- The result is saved to the `DailyAnalysis` database table
+- If a record already exists for the same symbol + date, the DB save is skipped (dedup)
 - If the analysis fails for one symbol, the error is logged and the loop continues for the next symbol
+- Users can submit a **feedback score (1–5) and optional note** via the web dashboard; saved to `feedbackScore` / `feedbackNote` fields for future LLM training data
 
 ---
 
 ## Flow
 
 ```
-Worker boot or 00:00 UTC cron
+Worker boot or 00:30 UTC cron
   │
   └─ SchedulerService.runDailyAnalysisForSymbols(symbols)
        │

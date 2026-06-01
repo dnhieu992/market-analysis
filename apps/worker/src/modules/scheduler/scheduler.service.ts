@@ -33,16 +33,15 @@ export class SchedulerService {
     return this.analysisOrchestratorService.runBatch(symbols);
   }
 
-  // Runs every day at 00:00 UTC (07:00 local time UTC+7)
-  @Cron('0 0 * * *', { timeZone: 'UTC' })
+  // Runs every day at 00:30 UTC (07:30 local time UTC+7)
+  @Cron('30 0 * * *', { timeZone: 'UTC' })
   async sendDailySignals() {
     this.logger.log('Running daily signal job');
     await this.runDailyAnalysisForSymbols(this.trackedSymbols);
     await this.dailySignalService.checkAndSend();
   }
 
-  // Runs daily at 00:30 UTC
-  @Cron('30 0 * * *', { timeZone: 'UTC' })
+  // @Cron('0 1 * * *', { timeZone: 'UTC' })
   async runDailySwingScan() {
     this.logger.log('Running daily swing signal scan');
     await this.swingSignalService.checkAll();
@@ -51,10 +50,12 @@ export class SchedulerService {
   async runDailyAnalysisForSymbols(symbols: string[]) {
     for (const symbol of symbols) {
       try {
-        const { chartBuffer, analysisText } = await this.visualAnalysisService.analyze(symbol);
+        const { charts, analysisText } = await this.visualAnalysisService.analyze(symbol);
 
-        const photoResult = await this.telegramService.sendPhoto(chartBuffer, `${symbol} H4`);
-        this.logger.log(`sendPhoto result for ${symbol}: ${JSON.stringify(photoResult)}`);
+        for (const chart of charts) {
+          const photoResult = await this.telegramService.sendPhoto(chart.buffer, chart.caption);
+          this.logger.log(`sendPhoto result for ${symbol} ${chart.caption}: ${JSON.stringify(photoResult)}`);
+        }
 
         const msgResult = await this.telegramService.sendAnalysisMessage({
           content: analysisText,

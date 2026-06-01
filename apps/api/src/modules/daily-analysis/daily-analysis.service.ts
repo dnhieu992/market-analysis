@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { DailyAnalysisPlan } from '@app/core';
 import { createDailyAnalysisRepository } from '@app/db';
 
@@ -27,6 +27,8 @@ export type DailyAnalysisRecord = {
   aiOutputJson: string;
   pipelineDebugJson: string | null;
   summary: string;
+  feedbackScore: number | null;
+  feedbackNote: string | null;
   createdAt: Date;
 };
 
@@ -41,13 +43,19 @@ export class DailyAnalysisService {
     const rows = symbol
       ? await this.dailyAnalysisRepository.listLatest(symbol, 30)
       : await this.dailyAnalysisRepository.listAll(60);
-    return rows.map((row) => this.mapRecord(row as DailyAnalysisRecord));
+    return rows.map((row) => this.mapRecord(row as unknown as DailyAnalysisRecord));
   }
 
   async getLatest(symbol: string): Promise<DailyAnalysisRecord | null> {
     const rows = await this.dailyAnalysisRepository.listLatest(symbol, 1);
-    const record = rows[0] as DailyAnalysisRecord | undefined;
+    const record = rows[0] as unknown as DailyAnalysisRecord | undefined;
     return record ? this.mapRecord(record) : null;
+  }
+
+  async updateFeedback(id: string, score: number, note?: string): Promise<DailyAnalysisRecord> {
+    const updated = await this.dailyAnalysisRepository.updateFeedback(id, score, note).catch(() => null);
+    if (!updated) throw new NotFoundException(`DailyAnalysis ${id} not found`);
+    return this.mapRecord(updated as unknown as DailyAnalysisRecord);
   }
 
   private mapRecord(record: DailyAnalysisRecord): DailyAnalysisRecord {

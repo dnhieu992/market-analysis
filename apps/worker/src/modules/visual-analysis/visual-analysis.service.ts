@@ -13,16 +13,38 @@ type DailyAnalysisRepository = ReturnType<typeof createDailyAnalysisRepository>;
 export type VisualAnalysisResult = {
   symbol: string;
   analysisText: string;
-  chartBuffer: Buffer;
+  charts: Array<{ buffer: Buffer; caption: string }>;
 };
 
 type ClaudeMessagesResponse = {
   content?: Array<{ type: string; text?: string }>;
 };
 
+type ChartSpec = {
+  timeframe: string;
+  label: string;
+  candleLimit: number;
+  displayCandles: number;
+};
+
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
-const CANDLE_LIMIT = 200; // fetch 200, render last 150
-const CHART_CANDLES = 150;
+
+function getChartSpecs(date: Date): ChartSpec[] {
+  const specs: ChartSpec[] = [];
+
+  if (date.getUTCDate() === 1) {
+    specs.push({ timeframe: '1M', label: 'MN', candleLimit: 48, displayCandles: 36 });
+  }
+
+  if (date.getUTCDay() === 1) {
+    specs.push({ timeframe: '1w', label: 'W1', candleLimit: 100, displayCandles: 60 });
+  }
+
+  specs.push({ timeframe: '1d', label: 'D1', candleLimit: 200, displayCandles: 150 });
+  specs.push({ timeframe: '4h', label: 'H4', candleLimit: 200, displayCandles: 150 });
+
+  return specs;
+}
 
 function toOhlcCandle(candle: Candle): OhlcCandle {
   return {
@@ -83,26 +105,52 @@ export class VisualAnalysisService {
   async analyze(symbol: string): Promise<VisualAnalysisResult> {
     this.logger.log(`Starting visual analysis for ${symbol}`);
 
-    const candles = await this.marketDataService.getCandles(symbol, '4h', CANDLE_LIMIT);
-    const chartCandles = candles.slice(-CHART_CANDLES);
+    const now = new Date();
+    const specs = getChartSpecs(now);
+
+    const charts: Array<{ buffer: Buffer; caption: string }> = [];
+    const imageBuffers: Array<{ buffer: Buffer; label: string }> = [];
+
+    for (const spec of specs) {
+      const buf = await this.generateTimeframeChart(symbol, spec);
+      charts.push({ buffer: buf, caption: `${symbol} ${spec.label}` });
+      imageBuffers.push({ buffer: buf, label: spec.label });
+    }
+
+    const analysisText = await this.callClaudeVision(symbol, imageBuffers, now);
+
+    await this.saveToDatabase(symbol, analysisText);
+
+    this.logger.log(`Visual analysis complete for ${symbol}`);
+
+    return { symbol, analysisText, charts };
+  }
+
+  private async generateTimeframeChart(symbol: string, spec: ChartSpec): Promise<Buffer> {
+    const candles = await this.marketDataService.getCandles(
+      symbol,
+      spec.timeframe as Parameters<typeof this.marketDataService.getCandles>[1],
+      spec.candleLimit
+    );
+    const displayCandles = candles.slice(-spec.displayCandles);
 
     const closes = candles.map(c => c.close);
     const ema20Full = computeEmaSeries(closes, 20);
     const ema50Full = computeEmaSeries(closes, 50);
     const ema200Full = computeEmaSeries(closes, 200);
 
-    const startIdx = candles.length - CHART_CANDLES;
+    const startIdx = candles.length - spec.displayCandles;
     const ema20 = ema20Full.slice(startIdx);
     const ema50 = ema50Full.slice(startIdx);
     const ema200 = ema200Full.slice(startIdx);
 
-    const { supportLevels, resistanceLevels } = extractSupportAndResistanceLevels(chartCandles, 2);
-    const currentPrice = chartCandles[chartCandles.length - 1]?.close ?? 0;
+    const { supportLevels, resistanceLevels } = extractSupportAndResistanceLevels(displayCandles, 2);
+    const currentPrice = displayCandles[displayCandles.length - 1]?.close ?? 0;
 
     const { imageBuffer } = await this.chartService.generateChartImage({
       symbol,
-      timeframe: 'H4',
-      candles: chartCandles.map(toOhlcCandle),
+      timeframe: spec.label,
+      candles: displayCandles.map(toOhlcCandle),
       ema20,
       ema50,
       ema200,
@@ -111,13 +159,7 @@ export class VisualAnalysisService {
       currentPrice
     });
 
-    const analysisText = await this.callClaudeVision(symbol, imageBuffer);
-
-    await this.saveToDatabase(symbol, analysisText);
-
-    this.logger.log(`Visual analysis complete for ${symbol}`);
-
-    return { symbol, analysisText, chartBuffer: imageBuffer };
+    return imageBuffer;
   }
 
   private async saveToDatabase(symbol: string, analysisText: string): Promise<void> {
@@ -143,14 +185,33 @@ export class VisualAnalysisService {
 
       this.logger.log(`Daily analysis saved to DB for ${symbol}`);
     } catch (error) {
-      this.logger.error(`Failed to save daily analysis for ${symbol}: ${error instanceof Error ? error.message : 'unknown'}`);
+      this.logger.error(
+        `Failed to save daily analysis for ${symbol}: ${error instanceof Error ? error.message : 'unknown'}`
+      );
     }
   }
 
-  private async callClaudeVision(symbol: string, imageBuffer: Buffer): Promise<string> {
-    const base64Image = imageBuffer.toString('base64');
+  private async callClaudeVision(
+    symbol: string,
+    images: Array<{ buffer: Buffer; label: string }>,
+    date: Date
+  ): Promise<string> {
+    const dateStr = date.toISOString().slice(0, 10);
     const apiKey = process.env.CLAUDE_API_KEY ?? '';
-    this.logger.log(`Calling Claude Vision for ${symbol} — key: ${apiKey || 'MISSING'}`);
+    this.logger.log(`Calling Claude Vision for ${symbol} (${images.length} charts) — key: ${apiKey || 'MISSING'}`);
+
+    const chartList = images
+      .map((img, i) => `- Biểu đồ ${i + 1}: Khung ${img.label}`)
+      .join('\n');
+
+    const imageBlocks = images.map(img => ({
+      type: 'image' as const,
+      source: {
+        type: 'base64' as const,
+        media_type: 'image/png' as const,
+        data: img.buffer.toString('base64')
+      }
+    }));
 
     const response = await this.httpClient.post<ClaudeMessagesResponse>('/v1/messages', {
       model: CLAUDE_MODEL,
@@ -159,17 +220,17 @@ export class VisualAnalysisService {
         {
           role: 'user',
           content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/png',
-                data: base64Image
-              }
-            },
+            ...imageBlocks,
             {
               type: 'text',
-              text: `Phân tích ${symbol} và cho plan giao dịch hôm nay`
+              text: [
+                `Phân tích đa khung thời gian ${symbol} — ${dateStr}`,
+                '',
+                'Biểu đồ đính kèm theo thứ tự từ khung lớn đến nhỏ:',
+                chartList,
+                '',
+                'Phân tích từ khung lớn xuống nhỏ, xác định xu hướng tổng thể rồi đưa ra trading plan cụ thể cho hôm nay (entry, SL, TP, trigger, invalidation).'
+              ].join('\n')
             }
           ]
         }

@@ -205,6 +205,8 @@ function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
     pipelineDebugJson:
       row.pipelineDebugJson == null ? null : String(row.pipelineDebugJson),
     summary: String(row.summary ?? ''),
+    feedbackScore: row.feedbackScore == null ? null : Number(row.feedbackScore),
+    feedbackNote: row.feedbackNote == null ? null : String(row.feedbackNote),
     createdAt: String(row.createdAt)
   };
 }
@@ -382,6 +384,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
         : `${baseUrl}/daily-analysis`;
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
       return rows.map(mapDailyAnalysis);
+    },
+    async updateDailyAnalysisFeedback(id: string, score: number, note?: string): Promise<DailyAnalysis> {
+      const response = await fetchImpl(`${baseUrl}/daily-analysis/${id}/feedback`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score, note })
+      }));
+      if (!response.ok) throw new Error(`Failed to update feedback: ${response.status}`);
+      return mapDailyAnalysis((await response.json()) as JsonRecord);
     },
     async createOrder(input: CreateDashboardOrderInput): Promise<DashboardOrder> {
       const response = await fetchImpl(`${baseUrl}/orders`, withDefaults({
