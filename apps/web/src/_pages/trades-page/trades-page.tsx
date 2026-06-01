@@ -18,9 +18,10 @@ export default async function TradesPage({ searchParams }: Props) {
   const client = createServerApiClient();
 
   const page = Number(getString(searchParams.page) ?? '1') || 1;
+  const rawStatus = getString(searchParams.status);
   const params = {
     symbol: getString(searchParams.symbol),
-    status: getString(searchParams.status),
+    status: rawStatus === 'all' ? undefined : (rawStatus ?? 'open'),
     broker: getString(searchParams.broker),
     dateFrom: getString(searchParams.dateFrom),
     dateTo: getString(searchParams.dateTo),

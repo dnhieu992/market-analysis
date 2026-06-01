@@ -342,7 +342,7 @@ export function TradesTable({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbolDraft]);
 
-  const statusFilter = searchParams.get('status') ?? 'all';
+  const statusFilter = searchParams.get('status') ?? 'open';
   const brokerFilter = searchParams.get('broker') ?? '';
   const dateFilter = searchParams.get('dateFilter') ?? '';
   const customFrom = searchParams.get('dateFrom') ?? '';
@@ -384,7 +384,7 @@ export function TradesTable({
     const hasUrlFilters = PERSISTED_FILTER_KEYS.some(k => searchParams.get(k));
     if (hasUrlFilters) return;
     const saved = loadFiltersFromStorage();
-    const filtersToApply = Object.keys(saved).length > 0 ? saved : { status: 'open' };
+    const filtersToApply = { status: 'open', ...saved };
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(filtersToApply)) params.set(k, v);
     router.replace(`/trades?${params.toString()}`);
@@ -406,8 +406,7 @@ export function TradesTable({
 
   function handleStatusChange(val: string) {
     const params = new URLSearchParams(searchParams.toString());
-    if (val === 'all') params.delete('status');
-    else params.set('status', val);
+    params.set('status', val);
     params.delete('page');
     router.push(`/trades?${params.toString()}`);
   }
