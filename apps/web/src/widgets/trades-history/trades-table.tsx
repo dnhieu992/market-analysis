@@ -73,6 +73,7 @@ type TradesTableProps = Readonly<{
   onEditTrade: (order: DashboardOrder) => void;
   onRemoveTrade: (orderId: string) => void;
   onViewNotes: (order: DashboardOrder) => void;
+  onAnalyzeTrade: (order: DashboardOrder, livePrice?: number) => void;
 }>;
 
 function formatPrice(value: number): string {
@@ -115,6 +116,17 @@ function IconNotes() {
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
       <polyline points="10 9 9 9 8 9" />
+    </svg>
+  );
+}
+
+function IconAnalyze() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
     </svg>
   );
 }
@@ -316,7 +328,7 @@ function Pagination({ page, pageSize, total, onPageChange }: {
 
 export function TradesTable({
   orders, total, page, pageSize, closedPnlSum, openOrders, availableBrokers,
-  onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes,
+  onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes, onAnalyzeTrade,
 }: TradesTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams()!;
@@ -738,6 +750,14 @@ export function TradesTable({
                         )}
                         <button className="tt-btn tt-btn--notes" data-tooltip="View Notes" aria-label="View Notes" onClick={() => onViewNotes(order)}>
                           <IconNotes />
+                        </button>
+                        <button
+                          className="tt-btn tt-btn--analyze"
+                          data-tooltip="Analyze"
+                          aria-label="Analyze Trade"
+                          onClick={() => onAnalyzeTrade(order, livePrices[order.symbol.toUpperCase()])}
+                        >
+                          <IconAnalyze />
                         </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Delete" aria-label="Delete Trade" onClick={() => onRemoveTrade(order.id)}>
                           <IconTrash />

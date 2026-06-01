@@ -1603,6 +1603,17 @@ a {
   background: rgba(99, 102, 241, 0.08);
 }
 
+.tt-btn--analyze {
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.tt-btn--analyze:hover {
+  color: #0891b2;
+  border-color: #0891b2;
+  background: rgba(8, 145, 178, 0.08);
+}
+
 /* ── Notes dialog ────────────────────────────────────────────────────────────── */
 
 .notes-dialog-body {

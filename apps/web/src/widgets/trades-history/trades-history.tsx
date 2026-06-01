@@ -8,6 +8,7 @@ import { CloseTradeForm } from '@web/features/close-trade/close-trade-form';
 import { EditTradeForm } from '@web/features/edit-trade/edit-trade-form';
 import { createApiClient } from '@web/shared/api/client';
 import type { DashboardOrder } from '@web/shared/api/types';
+import { TradeAnalyzeDrawer } from '@web/widgets/trade-analyze-drawer/trade-analyze-drawer';
 
 import { TradesTable, NotesDialog } from './trades-table';
 
@@ -29,6 +30,8 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
   const [editOrder, setEditOrder] = useState<DashboardOrder | null>(null);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [notesOrder, setNotesOrder] = useState<DashboardOrder | null>(null);
+  const [analyzeOrder, setAnalyzeOrder] = useState<DashboardOrder | null>(null);
+  const [analyzeLivePrice, setAnalyzeLivePrice] = useState<number | undefined>(undefined);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
         onEditTrade={(order) => setEditOrder(order)}
         onRemoveTrade={(orderId) => setDeleteOrderId(orderId)}
         onViewNotes={(order) => setNotesOrder(order)}
+        onAnalyzeTrade={(order, livePrice) => { setAnalyzeOrder(order); setAnalyzeLivePrice(livePrice); }}
       />
 
       {/* Single trade dialog */}
@@ -161,6 +165,15 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
               prev ? { ...prev, images: (prev.images ?? []).filter((u) => u !== url) } : null
             )
           }
+        />
+      )}
+
+      {/* Trade analyze drawer */}
+      {analyzeOrder && (
+        <TradeAnalyzeDrawer
+          order={analyzeOrder}
+          livePrice={analyzeLivePrice}
+          onClose={() => { setAnalyzeOrder(null); setAnalyzeLivePrice(undefined); }}
         />
       )}
 
