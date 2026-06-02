@@ -27,10 +27,10 @@ function formatExactPrice(value: number): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 10 }).format(value);
 }
 
-function toDateInputValue(dateStr: string): string {
+function toDateTimeInputValue(dateStr: string): string {
   const d = new Date(dateStr);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
@@ -44,7 +44,7 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
   const [amount, setAmount] = useState(String(tx.amount));
   const [fee, setFee] = useState(String(tx.fee ?? 0));
   const [note, setNote] = useState(tx.note ?? '');
-  const [date, setDate] = useState(toDateInputValue(tx.transactedAt));
+  const [date, setDate] = useState(toDateTimeInputValue(tx.transactedAt));
   const [imageValue, setImageValue] = useState<ImageUploadValue>({ existingUrls: tx.images ?? [], newFiles: [] });
   const [isUploading, setIsUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -125,8 +125,8 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
               <input type="number" min="0" step="any" value={fee} onChange={(e) => setFee(e.target.value)} />
             </label>
             <label className="trade-field">
-              <span>Date</span>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <span>Date &amp; Time</span>
+              <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} />
             </label>
           </div>
 

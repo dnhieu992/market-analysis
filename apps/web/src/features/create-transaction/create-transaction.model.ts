@@ -42,7 +42,7 @@ export async function submitCreateTransaction(portfolioId: string, input: Transa
     type: input.type,
     amount: toPositiveNumber(input.amount, 'Amount'),
     price: toPositiveNumber(input.price, 'Price'),
-    transactedAt: input.transactedAt,
+    transactedAt: input.transactedAt ? new Date(input.transactedAt).toISOString() : undefined,
     note: input.note,
     images: imageUrls.length > 0 ? imageUrls : undefined
   };

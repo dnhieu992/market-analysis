@@ -13,9 +13,9 @@ type CreateTransactionFormProps = Readonly<{
   onSubmitted?: () => void;
 }>;
 
-function toDateInputValue(date: Date): string {
+function toDateTimeInputValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 async function fetchCoinPrice(coinId: string): Promise<number | null> {
@@ -170,8 +170,8 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
       )}
 
       <label className="trade-field">
-        <span>Date</span>
-        <input name="transactedAt" type="date" defaultValue={toDateInputValue(new Date())} />
+        <span>Date &amp; Time</span>
+        <input name="transactedAt" type="datetime-local" defaultValue={toDateTimeInputValue(new Date())} />
       </label>
 
       <label className="trade-field trade-field-wide">
