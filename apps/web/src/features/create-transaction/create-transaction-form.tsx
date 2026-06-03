@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useRef, type FormEvent } from 'react';
+import { useState, useTransition, useRef, useEffect, type FormEvent } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
@@ -10,6 +10,7 @@ type CreateTransactionFormProps = Readonly<{
   portfolioId: string;
   defaultCoinId?: string;
   defaultPrice?: number;
+  holdingsBySymbol?: Record<string, number>;
   onSubmitted?: () => void;
 }>;
 
@@ -29,7 +30,7 @@ async function fetchCoinPrice(coinId: string): Promise<number | null> {
   }
 }
 
-export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice, onSubmitted }: CreateTransactionFormProps) {
+export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice, holdingsBySymbol, onSubmitted }: CreateTransactionFormProps) {
   const [type, setType] = useState<'buy' | 'sell'>('buy');
   const [coinId, setCoinId] = useState(defaultCoinId ?? '');
   const [price, setPrice] = useState<string>(defaultPrice != null ? String(defaultPrice) : '');
@@ -40,6 +41,16 @@ export function CreateTransactionForm({ portfolioId, defaultCoinId, defaultPrice
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (type === 'sell' && amount === '' && holdingsBySymbol) {
+      const holdingQty = holdingsBySymbol[coinId];
+      if (holdingQty != null && holdingQty > 0) {
+        setAmount(String(holdingQty));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, coinId]);
 
   const total = Number(price) > 0 && Number(amount) > 0 ? Number(price) * Number(amount) : null;
   const totalStr = total != null

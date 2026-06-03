@@ -351,7 +351,13 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
               <button className="dialog-close" onClick={() => setAddOpen(false)} aria-label="Close">✕</button>
             </div>
             <div className="dialog-body">
-              <CreateTransactionForm portfolioId={portfolioId} defaultCoinId={coinId} defaultPrice={currentPrice ?? undefined} onSubmitted={() => setAddOpen(false)} />
+              <CreateTransactionForm
+                portfolioId={portfolioId}
+                defaultCoinId={coinId}
+                defaultPrice={currentPrice ?? undefined}
+                holdingsBySymbol={totalAmount > 0 ? { [coinId]: totalAmount } : undefined}
+                onSubmitted={() => setAddOpen(false)}
+              />
             </div>
           </div>
         </div>

@@ -448,7 +448,11 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
               <button className="dialog-close" onClick={() => setAddOpen(false)} aria-label="Close">✕</button>
             </div>
             <div className="dialog-body">
-              <CreateTransactionForm portfolioId={portfolioId} onSubmitted={() => setAddOpen(false)} />
+              <CreateTransactionForm
+                portfolioId={portfolioId}
+                holdingsBySymbol={Object.fromEntries(holdings.map((h) => [h.coinId, h.totalAmount]))}
+                onSubmitted={() => setAddOpen(false)}
+              />
             </div>
           </div>
         </div>
