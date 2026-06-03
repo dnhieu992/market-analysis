@@ -257,7 +257,8 @@ function PnlBySymbol({ orders }: { orders: DashboardOrder[] }) {
   const rows = Array.from(map.entries())
     .map(([symbol, v]) => ({ symbol, ...v }))
     .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
-    .slice(0, 10);
+    .slice(0, 10)
+    .sort((a, b) => b.total - a.total);
 
   const maxAbs = rows.length > 0 ? Math.max(...rows.map((r) => Math.abs(r.total))) : 1;
 
