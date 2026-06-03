@@ -273,7 +273,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
   const [pricesLoaded, setPricesLoaded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<SortKey>('pnl');
+  const [sortBy, setSortBy] = useState<SortKey>('holding');
   const [pnlVisibleMap, setPnlVisibleMap] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(holdings.map((h) => [h.coinId, h.note]))
