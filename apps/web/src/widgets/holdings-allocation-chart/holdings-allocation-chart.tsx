@@ -174,12 +174,12 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
         const topGainers = byPnl
           .filter((e) => e.pnl > 0)
-          .slice(0, 3)
+          .slice(0, 5)
           .map((e) => ({ coinId: e.coinId, pnl: e.pnl, value: e.value, totalAmount: e.totalAmount, portfolioId: e.portfolioId }));
 
         const topLosers = byPnl
           .filter((e) => e.pnl < 0)
-          .slice(-3)
+          .slice(-5)
           .reverse()
           .map((e) => ({ coinId: e.coinId, pnl: e.pnl, value: e.value, totalAmount: e.totalAmount, portfolioId: e.portfolioId }));
 
@@ -190,7 +190,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
           change24hUsd,
           change24hPct,
           chart,
-          topHoldings: sorted.slice(0, 3).map((e) => ({
+          topHoldings: sorted.slice(0, 5).map((e) => ({
             coinId: e.coinId,
             value: e.value,
             change24h: e.change24h,
@@ -308,7 +308,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
         {/* Top Holdings */}
         <h3 className="ps-section-title">Top Holdings</h3>
         <div className="ps-top-list">
-          {d?.topHoldings.map((h, i) => {
+          {d?.topHoldings.map((h) => {
             const up = h.change24h >= 0;
             return (
               <div
@@ -316,7 +316,6 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
                 className="ps-top-row ps-top-row--clickable"
                 onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
               >
-                <span className="ps-top-rank">{i + 1}</span>
                 <span className="ps-top-coin">{h.coinId}</span>
                 <span className="ps-top-value">{formatUsd(h.value)}</span>
                 <span className={`ps-top-change ${up ? 'ps-top-change--up' : 'ps-top-change--down'}`}>
