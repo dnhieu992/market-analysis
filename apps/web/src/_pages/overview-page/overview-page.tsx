@@ -63,6 +63,7 @@ async function loadDashboardData() {
 }
 
 const BTC_TARGET = 1;
+const ETH_TARGET = 10;
 
 function buildOverviewCards(
   openOrderCount: number,
@@ -70,13 +71,17 @@ function buildOverviewCards(
   closedPnlSum: number,
   btcAmount: number,
   btcCost: number,
+  ethAmount: number,
+  ethCost: number,
   btcHref?: string,
+  ethHref?: string,
 ) {
   const totalPnlStr =
     (closedPnlSum >= 0 ? '+' : '') +
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(closedPnlSum);
 
   const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
   const btcStr = btcAmount > 0
     ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(btcAmount) + ' BTC'
     : '--';
@@ -85,6 +90,15 @@ function buildOverviewCards(
   const btcRemaining = Math.max(BTC_TARGET - btcAmount, 0);
   const btcRemainingStr = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(btcRemaining);
   const btcCostStr = btcCost > 0 ? usdFormatter.format(btcCost) : null;
+
+  const ethStr = ethAmount > 0
+    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(ethAmount) + ' ETH'
+    : '--';
+  const ethProgress = Math.min((ethAmount / ETH_TARGET) * 100, 100);
+  const ethPct = ethProgress.toFixed(2);
+  const ethRemaining = Math.max(ETH_TARGET - ethAmount, 0);
+  const ethRemainingStr = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(ethRemaining);
+  const ethCostStr = ethCost > 0 ? usdFormatter.format(ethCost) : null;
 
   const totalOrders = openOrderCount + closedOrderCount;
 
@@ -96,6 +110,14 @@ function buildOverviewCards(
       progress: btcProgress,
       progressLabel: btcRemaining > 0 ? `${btcRemainingStr} BTC remaining` : 'Goal reached!',
       href: btcHref,
+    },
+    {
+      label: 'ETH Accumulated',
+      value: ethStr,
+      detail: ethCostStr ? `${ethPct}% toward ${ETH_TARGET} ETH · ${ethCostStr} invested` : `${ethPct}% toward ${ETH_TARGET} ETH goal`,
+      progress: ethProgress,
+      progressLabel: ethRemaining > 0 ? `${ethRemainingStr} ETH remaining` : 'Goal reached!',
+      href: ethHref,
     },
     {
       label: 'Orders',
@@ -117,7 +139,19 @@ export default async function OverviewPage() {
     await loadDashboardData();
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
   const btcHref = btcHolding ? `/portfolio/${btcHolding.portfolioId}/${btcHolding.coinId}` : undefined;
-  const cards = buildOverviewCards(openOrderCount, closedOrderCount, closedPnlSum, btcHolding?.totalAmount ?? 0, btcHolding?.totalCost ?? 0, btcHref);
+  const ethHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'ETH');
+  const ethHref = ethHolding ? `/portfolio/${ethHolding.portfolioId}/${ethHolding.coinId}` : undefined;
+  const cards = buildOverviewCards(
+    openOrderCount,
+    closedOrderCount,
+    closedPnlSum,
+    btcHolding?.totalAmount ?? 0,
+    btcHolding?.totalCost ?? 0,
+    ethHolding?.totalAmount ?? 0,
+    ethHolding?.totalCost ?? 0,
+    btcHref,
+    ethHref,
+  );
 
   return (
     <DashboardOverview
