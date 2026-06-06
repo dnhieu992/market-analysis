@@ -1,11 +1,5 @@
 import Link from 'next/link';
-
-type PriceInfo = Readonly<{
-  avgPrice: string;
-  currentPrice: string;
-  changePct: string;
-  positive: boolean;
-}>;
+import { LivePriceInfo } from './live-price-info';
 
 type OverviewCard = Readonly<{
   label: string;
@@ -15,7 +9,7 @@ type OverviewCard = Readonly<{
   href?: string;
   progress?: number; // 0–100
   progressLabel?: string;
-  priceInfo?: PriceInfo;
+  livePrice?: { coinId: string; avgCost: number };
 }>;
 
 type OverviewCardsProps = Readonly<{
@@ -41,17 +35,8 @@ export function OverviewCards({ cards }: OverviewCardsProps) {
             >
               {card.value}
             </strong>
-            {card.priceInfo && (
-              <p className="metric-detail" style={{ marginTop: 4, fontSize: '0.8rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Avg </span>
-                <span>{card.priceInfo.avgPrice}</span>
-                <span style={{ color: 'var(--muted)' }}> · Now </span>
-                <span>{card.priceInfo.currentPrice}</span>
-                <span style={{ color: 'var(--muted)' }}> · </span>
-                <span style={{ color: card.priceInfo.positive ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
-                  {card.priceInfo.changePct}
-                </span>
-              </p>
+            {card.livePrice && (
+              <LivePriceInfo coinId={card.livePrice.coinId} avgCost={card.livePrice.avgCost} />
             )}
             <p className="metric-detail">{card.detail}</p>
             {card.progress !== undefined && (
