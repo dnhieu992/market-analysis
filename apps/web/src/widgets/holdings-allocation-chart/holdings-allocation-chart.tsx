@@ -325,8 +325,8 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
         </div>
       </div>
 
-      {/* ── Row 2+: Holdings / Gainers / Losers — 2-col grid ── */}
-      {d && (d.topHoldings.length > 0 || d.topGainers.length > 0 || d.topLosers.length > 0 || d.highProfitHoldings.length > 0) && (
+      {/* ── Row 2+: Holdings / Gainers / Losers / High Profit — 2-col grid ── */}
+      {d && (d.topHoldings.length > 0 || d.topGainers.length > 0 || d.topLosers.length > 0) && (
         <div className="ps-panels-grid">
 
           {d.topHoldings.length > 0 && (
@@ -391,11 +391,13 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
             </div>
           )}
 
-          {d.highProfitHoldings.length > 0 && (
-            <div className="ps-panel ps-panel--full">
-              <h3 className="ps-section-title ps-section-title--up">&#9650; High Profit &gt;30%</h3>
-              <div className="ps-top-list">
-                {d.highProfitHoldings.map((h) => (
+          <div className="ps-panel">
+            <h3 className="ps-section-title ps-section-title--up">&#9650; High Profit &gt;30%</h3>
+            <div className="ps-top-list">
+              {d.highProfitHoldings.length === 0 ? (
+                <p className="ps-empty-note">No holdings above 30% profit</p>
+              ) : (
+                d.highProfitHoldings.map((h) => (
                   <div
                     key={h.coinId}
                     className="ps-top-row ps-top-row--clickable"
@@ -406,10 +408,10 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
                     <span className="ps-top-amount">{formatUsd(h.value)}</span>
                     <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
-          )}
+          </div>
 
         </div>
       )}
