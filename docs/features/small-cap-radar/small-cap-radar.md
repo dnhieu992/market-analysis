@@ -27,7 +27,7 @@ Each coin also stores **market cap** (synced from CoinGecko during Sync Coins) a
 |---|---|---|
 | ↻ Refresh | `GET /small-cap-radar` | Reload coin list + signals from API, update state in place |
 | ⚡ Re-analyze | `POST /small-cap-radar/scan` | Runs full signal scan synchronously, then reloads; shows scanned/failed count |
-| ⟳ Sync Coins | `POST /small-cap-radar/rescan-coins` | Background job: pulls Binance USDT pairs + CoinGecko <$50M market cap, upserts coins + marketCap, prunes delisted coins (skipped if 0 found to protect watchlist) |
+| ⟳ Sync Coins | `POST /small-cap-radar/rescan-coins` | Background job: (1) fetches top-500 large-cap symbols from CoinGecko as a blocklist; (2) pages through CoinGecko `market_cap_asc` to find coins <$50M whose symbol is on Binance but NOT in the blocklist; (3) upserts coins + marketCap; (4) prunes delisted coins (step 4 skipped if 0 coins found, to protect watchlist on API failure) |
 | + Coin | `POST /small-cap-radar/coins` | Add a single coin manually |
 
 ## Stage Definitions
@@ -59,11 +59,13 @@ score = clamp(base + volBonus + rsiFactor + emaBonus + extPenalty, 0, 100)
 - Binance fetch error for one coin: logged as warning, scan continues for remaining coins.
 - `computeSmallCapSignal` returns `null` if `closes.length < 210` — the upsert is skipped.
 - Coins with `signal = null` always appear in the table (not filtered by the Quiet stage chip) so newly synced coins are visible before the first scan runs.
+- **Symbol collision guard**: CoinGecko lists many obscure tokens with symbols identical to large-cap Binance pairs (e.g. a $30K "Bitcoin Base" token with symbol `BTC`). Without the guard, these would be added and then scanned as real Bitcoin via `BTCUSDT`. The fix is to pre-fetch the top-500 CoinGecko coins by market cap and block any matching symbol.
 - **Sync Coins** skips the deletion step if 0 coins are found (prevents wiping the watchlist when CoinGecko is rate-limited or unavailable).
+- CoinGecko rate-limit (HTTP 429) during the large-cap blocklist fetch is retried up to 3× with a 35s delay; if all retries fail the page is skipped (blocklist may be incomplete for that page).
 - `listingDate` is fetched once per coin (non-blocking, non-fatal) and cached; subsequent scans skip the Binance call.
 - `marketCap` shown as `—` for coins added manually or before the first Sync Coins run.
 - Re-analyze runs synchronously; for large watchlists it may take a while (no timeout on the HTTP call).
-- Coin removed from watchlist via `POST /small-cap-radar/coins` (add) — no remove button in UI; to remove, use the API directly.
+- No remove button in the UI — to remove a coin use `DELETE /small-cap-radar/coins/:symbol` directly.
 
 ## Related Files (FE / BE / Worker)
 
