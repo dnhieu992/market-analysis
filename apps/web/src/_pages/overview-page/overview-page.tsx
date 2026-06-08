@@ -67,8 +67,6 @@ const BTC_TARGET = 1;
 const ETH_TARGET = 10;
 
 function buildOverviewCards(
-  openOrderCount: number,
-  closedOrderCount: number,
   closedPnlSum: number,
   btcAmount: number,
   btcCost: number,
@@ -103,8 +101,6 @@ function buildOverviewCards(
   const ethRemainingStr = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 }).format(ethRemaining);
   const ethCostStr = ethCost > 0 ? usdFormatter.format(ethCost) : null;
 
-  const totalOrders = openOrderCount + closedOrderCount;
-
   return [
     {
       label: 'BTC Accumulated',
@@ -125,22 +121,17 @@ function buildOverviewCards(
       href: ethHref,
     },
     {
-      label: 'Orders',
-      value: String(totalOrders),
-      detail: `${openOrderCount} open · ${closedOrderCount} closed`,
-    },
-    {
       label: 'Total Profit / Loss',
-      value: closedOrderCount === 0 ? '--' : totalPnlStr,
+      value: closedPnlSum === 0 ? '--' : totalPnlStr,
       detail: 'All-time realized P/L across closed trades.',
-      positive: closedOrderCount === 0 ? undefined : closedPnlSum >= 0,
+      positive: closedPnlSum === 0 ? undefined : closedPnlSum >= 0,
       href: '/pnl-calendar'
     }
   ];
 }
 
 export default async function OverviewPage() {
-  const { recentOrders, openOrderCount, closedOrderCount, closedPnlSum, allHoldings, portfolioCount } =
+  const { recentOrders, closedPnlSum, allHoldings, portfolioCount } =
     await loadDashboardData();
 
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
@@ -150,8 +141,6 @@ export default async function OverviewPage() {
   const ethHref = ethHolding ? `/portfolio/${ethHolding.portfolioId}/${ethHolding.coinId}` : undefined;
 
   const cards = buildOverviewCards(
-    openOrderCount,
-    closedOrderCount,
     closedPnlSum,
     btcHolding?.totalAmount ?? 0,
     btcHolding?.totalCost ?? 0,
