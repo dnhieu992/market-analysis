@@ -368,6 +368,15 @@ a {
   border-top: 1px solid var(--border);
 }
 
+/* Full-width panel spanning both columns */
+.ps-panel--full {
+  grid-column: 1 / -1;
+  padding-right: 0;
+  padding-left: 0;
+  border-right: none;
+  border-left: none;
+}
+
 .ps-eyebrow {
   margin: 0;
   font-size: 0.7rem;

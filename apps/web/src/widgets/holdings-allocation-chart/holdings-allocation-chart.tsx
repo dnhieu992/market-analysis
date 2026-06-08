@@ -34,6 +34,14 @@ type PnlEntry = {
   portfolioId: string;
 };
 
+type HighProfitEntry = {
+  coinId: string;
+  pnlPct: number;
+  value: number;
+  totalAmount: number;
+  portfolioId: string;
+};
+
 type ComputedData = {
   totalValue: number;
   totalCost: number;
@@ -44,6 +52,7 @@ type ComputedData = {
   topHoldings: TopHolding[];
   topGainers: PnlEntry[];
   topLosers: PnlEntry[];
+  highProfitHoldings: HighProfitEntry[];
   holdingCount: number;
   cashValue: number;
 };
@@ -115,7 +124,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
     if (holdings.length === 0) {
       setComputed({
         totalValue: 0, totalCost: 0, totalRealizedPnl: 0, change24hUsd: 0, change24hPct: 0,
-        chart: [], topHoldings: [], topGainers: [], topLosers: [], holdingCount: 0, cashValue: 0,
+        chart: [], topHoldings: [], topGainers: [], topLosers: [], highProfitHoldings: [], holdingCount: 0, cashValue: 0,
       });
       return;
     }
@@ -183,6 +192,17 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
           .reverse()
           .map((e) => ({ coinId: e.coinId, pnl: e.pnl, value: e.value, totalAmount: e.totalAmount, portfolioId: e.portfolioId }));
 
+        const highProfitHoldings = nonStable
+          .map((e) => ({
+            coinId: e.coinId,
+            pnlPct: e.totalCost > 0 ? ((e.value - e.totalCost) / e.totalCost) * 100 : 0,
+            value: e.value,
+            totalAmount: e.totalAmount,
+            portfolioId: e.portfolioId,
+          }))
+          .filter((e) => e.totalAmount > 0 && e.pnlPct > 30)
+          .sort((a, b) => b.pnlPct - a.pnlPct);
+
         setComputed({
           totalValue,
           totalCost,
@@ -198,6 +218,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
           })),
           topGainers,
           topLosers,
+          highProfitHoldings,
           holdingCount: holdings.length,
           cashValue,
         });
@@ -305,7 +326,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
       </div>
 
       {/* ── Row 2+: Holdings / Gainers / Losers — 2-col grid ── */}
-      {d && (d.topHoldings.length > 0 || d.topGainers.length > 0 || d.topLosers.length > 0) && (
+      {d && (d.topHoldings.length > 0 || d.topGainers.length > 0 || d.topLosers.length > 0 || d.highProfitHoldings.length > 0) && (
         <div className="ps-panels-grid">
 
           {d.topHoldings.length > 0 && (
@@ -363,6 +384,26 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
                   >
                     <span className="ps-top-coin">{h.coinId}</span>
                     <span className="ps-top-value ps-top-change--down">{formatUsd(h.pnl)}</span>
+                    <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {d.highProfitHoldings.length > 0 && (
+            <div className="ps-panel ps-panel--full">
+              <h3 className="ps-section-title ps-section-title--up">&#9650; High Profit &gt;30%</h3>
+              <div className="ps-top-list">
+                {d.highProfitHoldings.map((h) => (
+                  <div
+                    key={h.coinId}
+                    className="ps-top-row ps-top-row--clickable"
+                    onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
+                  >
+                    <span className="ps-top-coin">{h.coinId}</span>
+                    <span className="ps-top-value ps-top-change--up">+{h.pnlPct.toFixed(1)}%</span>
+                    <span className="ps-top-amount">{formatUsd(h.value)}</span>
                     <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
                   </div>
                 ))}
