@@ -4,6 +4,7 @@ import { Cron } from '@nestjs/schedule';
 import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
+import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
@@ -19,6 +20,7 @@ export class SchedulerService {
     private readonly telegramService: TelegramService,
     private readonly swingSignalService: SwingSignalService,
     private readonly dailySignalService: DailySignalService,
+    private readonly smallCapScanService: SmallCapScanService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -39,6 +41,18 @@ export class SchedulerService {
     this.logger.log('Running daily signal job');
     await this.runDailyAnalysisForSymbols(this.trackedSymbols);
     await this.dailySignalService.checkAndSend();
+  }
+
+  // Runs every day at 00:05 UTC — scan all small-cap watchlist coins
+  @Cron('5 0 * * *', { timeZone: 'UTC' })
+  async runSmallCapScan() {
+    this.logger.log('Running small-cap radar scan');
+    try {
+      await this.smallCapScanService.scanAll();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Small-cap scan failed: ${msg}`);
+    }
   }
 
   // @Cron('0 1 * * *', { timeZone: 'UTC' })

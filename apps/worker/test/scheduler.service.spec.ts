@@ -34,6 +34,7 @@ describe('SchedulerService', () => {
         telegramService as never,
         swingSignalService as never,
         dailySignalService as never,
+        { scanAll: jest.fn().mockResolvedValue({ scanned: 0, failed: 0 }) } as never,
         { trackedSymbols: ['BTCUSDT', 'ETHUSDT'] }
       ),
       sonicRSignalService,

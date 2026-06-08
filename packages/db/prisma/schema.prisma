@@ -290,3 +290,33 @@ model PnlHistory {
   @@map("pnl_history")
 }
 
+model SmallCapCoin {
+  id      String           @id @default(cuid())
+  symbol  String           @unique @db.VarChar(30)
+  name    String           @default("") @db.VarChar(100)
+  addedAt DateTime         @default(now())
+  signals SmallCapSignal[]
+
+  @@map("small_cap_coins")
+}
+
+model SmallCapSignal {
+  id            String       @id @default(cuid())
+  coinId        String
+  date          DateTime     @db.Date
+  rsi           Float?
+  volMultiplier Float?
+  ema34Above    Boolean      @default(false)
+  ema89Above    Boolean      @default(false)
+  ema200Above   Boolean      @default(false)
+  stage         String       @default("Quiet") @db.VarChar(20)
+  signalScore   Int          @default(0)
+  sparklineJson String       @db.Text
+  scannedAt     DateTime     @default(now())
+  coin          SmallCapCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@unique([coinId, date])
+  @@index([date, signalScore(sort: Desc)])
+  @@map("small_cap_signals")
+}
+

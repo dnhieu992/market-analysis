@@ -32,7 +32,8 @@ import type {
   UserProfile,
   Conversation,
   ChatMessage,
-  ScanResult
+  ScanResult,
+  SmallCapCoinRow,
 } from './types';
 
 
@@ -738,6 +739,34 @@ export function createApiClient(options: ApiClientOptions = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols, timeframe, atrPeriod, keyValue })
       }));
+    },
+
+    async fetchSmallCapRadar(): Promise<SmallCapCoinRow[]> {
+      return fetchJson<SmallCapCoinRow[]>(fetchImpl, `${baseUrl}/small-cap-radar`, withDefaults());
+    },
+
+    async addSmallCapCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {
+      return fetchJson<{ id: string; symbol: string; name: string }>(
+        fetchImpl,
+        `${baseUrl}/small-cap-radar/coins`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, name }),
+        }),
+      );
+    },
+
+    async removeSmallCapCoin(symbol: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/small-cap-radar/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    async triggerSmallCapScan(): Promise<{ scanned: number; failed: number }> {
+      return fetchJson<{ scanned: number; failed: number }>(
+        fetchImpl,
+        `${baseUrl}/small-cap-radar/scan`,
+        withDefaults({ method: 'POST' }),
+      );
     },
   };
 }
