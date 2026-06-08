@@ -113,7 +113,24 @@ export class SmallCapRadarService {
     }
     this.logger.log(`rescanCoins: ${binanceSymbols.size} Binance USDT pairs`);
 
-    // 2. CoinGecko markets (market_cap_asc) — collect all coins < MARKET_CAP_LIMIT listed on Binance
+    // 2a. CoinGecko top-500 by market cap — build blocklist of large-cap symbols
+    // This prevents symbol collisions (e.g. a $30K "Bitcoin Base" token with symbol BTC
+    // would otherwise map to BTCUSDT on Binance, which is real Bitcoin).
+    const largeCapSymbols = new Set<string>();
+    for (const blockPage of [1, 2]) {
+      const topCoins = await geckoGet<GeckoMarket[]>(
+        'https://api.coingecko.com/api/v3/coins/markets',
+        { vs_currency: 'usd', order: 'market_cap_desc', per_page: 250, page: blockPage, sparkline: false },
+        (s) => this.logger.warn(s),
+      );
+      if (topCoins) {
+        for (const c of topCoins) largeCapSymbols.add(c.symbol.toUpperCase());
+      }
+      await new Promise((r) => setTimeout(r, GECKO_DELAY_MS));
+    }
+    this.logger.log(`rescanCoins: ${largeCapSymbols.size} large-cap symbols blocked`);
+
+    // 2b. CoinGecko markets (market_cap_asc) — collect all coins < MARKET_CAP_LIMIT listed on Binance
     const kept: KeepCoin[] = [];
     let page = 1;
     let consecutiveEmpty = 0;
@@ -140,7 +157,8 @@ export class SmallCapRadarService {
         if (cap > 0 && cap < MARKET_CAP_LIMIT) {
           allOverThreshold = false;
           const base = coin.symbol.toUpperCase();
-          if (binanceSymbols.has(base)) {
+          // Skip if this symbol belongs to a large-cap coin (symbol collision guard)
+          if (binanceSymbols.has(base) && !largeCapSymbols.has(base)) {
             kept.push({ symbol: base, name: coin.name, marketCap: cap });
           }
         }
