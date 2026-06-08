@@ -166,8 +166,8 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: SmallCapCoinRow) => void }) 
 
 export function SmallCapRadarFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<SmallCapCoinRow[]>(initialCoins);
-  const [scanning, setScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<{ scanned: number; failed: number } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('signal');
   const [hiddenStages, setHiddenStages] = useState<Set<SmallCapStage>>(new Set(['Quiet']));
   const [showAddForm, setShowAddForm] = useState(false);
@@ -181,24 +181,29 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
     });
   }
 
-  async function handleScan() {
-    setScanning(true);
-    setScanResult(null);
+  async function handleSyncCoins() {
+    setSyncing(true);
+    setSyncMsg(null);
     try {
-      const res = await fetch(`${resolveApiBaseUrl()}/small-cap-radar/scan`, {
+      await fetch(`${resolveApiBaseUrl()}/small-cap-radar/rescan-coins`, {
         method: 'POST',
         credentials: 'include',
       });
-      const result = await res.json() as { scanned: number; failed: number };
-      setScanResult(result);
-      // Reload list after scan
-      const listRes = await fetch(`${resolveApiBaseUrl()}/small-cap-radar`, { credentials: 'include' });
-      const updated = await listRes.json() as SmallCapCoinRow[];
+      setSyncMsg('Đang sync coin list từ Binance/CoinGecko, có thể mất vài phút. Refresh lại trang để xem kết quả.');
+    } catch {
+      setSyncMsg('Sync thất bại, thử lại sau.');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function reloadCoins() {
+    try {
+      const res = await fetch(`${resolveApiBaseUrl()}/small-cap-radar`, { credentials: 'include' });
+      const updated = await res.json() as SmallCapCoinRow[];
       setCoins(updated);
     } catch {
       // ignore
-    } finally {
-      setScanning(false);
     }
   }
 
@@ -238,10 +243,16 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
         <div className="scr-toolbar-right">
           <button
             className="scr-scan-btn"
-            onClick={handleScan}
-            disabled={scanning}
+            onClick={reloadCoins}
           >
-            {scanning ? 'Scanning…' : '⟳ Re-scan'}
+            ↻ Refresh
+          </button>
+          <button
+            className="scr-scan-btn"
+            onClick={handleSyncCoins}
+            disabled={syncing}
+          >
+            {syncing ? 'Đang sync…' : '⟳ Sync Coins'}
           </button>
           <button
             className="scr-add-toggle"
@@ -252,10 +263,8 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
         </div>
       </div>
 
-      {scanResult && (
-        <p className="scr-scan-result">
-          Scan done — {scanResult.scanned} scanned{scanResult.failed > 0 ? `, ${scanResult.failed} failed` : ''}
-        </p>
+      {syncMsg && (
+        <p className="scr-scan-result">{syncMsg}</p>
       )}
 
       {showAddForm && (

@@ -67,5 +67,12 @@ export function createSmallCapRadarRepository(client = prisma) {
         orderBy: { addedAt: 'asc' },
       });
     },
+
+    deleteCoinsNotInSymbols(symbols: string[]) {
+      if (symbols.length === 0) return client.smallCapCoin.deleteMany({});
+      return client.smallCapCoin.deleteMany({
+        where: { symbol: { notIn: symbols } },
+      });
+    },
   };
 }

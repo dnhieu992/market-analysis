@@ -31,6 +31,12 @@ export class SmallCapRadarController {
     return this.service.removeCoin(symbol);
   }
 
+  @Post('rescan-coins')
+  @ApiOperation({ summary: 'Sync coin list from Binance/CoinGecko (<50M market cap) — runs in background' })
+  rescanCoins() {
+    return this.service.rescanCoins();
+  }
+
   @Post('scan')
   @ApiOperation({ summary: 'Manually trigger a full signal scan for all watchlist coins' })
   triggerScan() {
