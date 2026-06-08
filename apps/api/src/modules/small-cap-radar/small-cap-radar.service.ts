@@ -156,9 +156,15 @@ export class SmallCapRadarService {
     }
 
     // 4. Delete delisted (in DB but not in scan results)
+    // Guard: skip deletion if sync found nothing — CoinGecko may have failed or rate-limited,
+    // and deleteCoinsNotInSymbols([]) would wipe the entire table.
     const keptSymbols = kept.map((c) => c.symbol);
-    const deleted = await this.repo.deleteCoinsNotInSymbols(keptSymbols);
-    this.logger.log(`rescanCoins: upserted ${kept.length}, removed ${deleted.count}`);
+    if (keptSymbols.length > 0) {
+      const deleted = await this.repo.deleteCoinsNotInSymbols(keptSymbols);
+      this.logger.log(`rescanCoins: upserted ${kept.length}, removed ${deleted.count}`);
+    } else {
+      this.logger.warn('rescanCoins: 0 coins found — skipping deletion to protect existing watchlist');
+    }
   }
 
   async addCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {

@@ -221,7 +221,8 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
 
   const sorted = useMemo(() => {
     const filtered = coins.filter((c) => {
-      const stage = (c.signal?.stage ?? 'Quiet') as SmallCapStage;
+      if (c.signal === null) return true; // coins without a signal are always shown
+      const stage = c.signal.stage as SmallCapStage;
       return !hiddenStages.has(stage);
     });
     return [...filtered].sort((a, b) => {
