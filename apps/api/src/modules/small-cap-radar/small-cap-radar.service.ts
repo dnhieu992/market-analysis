@@ -10,6 +10,7 @@ const GECKO_DELAY_MS = 6_500;
 const GECKO_RETRY_MS = 35_000;
 
 type GeckoMarket = { id: string; symbol: string; name: string; market_cap: number | null };
+type KeepCoin = { symbol: string; name: string; marketCap: number | null };
 type BinanceSymbolInfo = { symbol: string; status: string; quoteAsset: string };
 
 async function geckoGet<T>(url: string, params: Record<string, unknown>, warn: (s: string) => void): Promise<T | null> {
@@ -34,6 +35,8 @@ export type SmallCapCoinWithSignal = {
   id: string;
   symbol: string;
   name: string;
+  marketCap: number | null;
+  listingDate: Date | null;
   addedAt: Date;
   signal: {
     rsi: number | null;
@@ -65,6 +68,8 @@ export class SmallCapRadarService {
         id: coin.id,
         symbol: coin.symbol,
         name: coin.name,
+        marketCap: coin.marketCap,
+        listingDate: coin.listingDate,
         addedAt: coin.addedAt,
         signal: sig
           ? {
@@ -109,7 +114,7 @@ export class SmallCapRadarService {
     this.logger.log(`rescanCoins: ${binanceSymbols.size} Binance USDT pairs`);
 
     // 2. CoinGecko markets (market_cap_asc) — collect all coins < MARKET_CAP_LIMIT listed on Binance
-    const kept: { symbol: string; name: string }[] = [];
+    const kept: KeepCoin[] = [];
     let page = 1;
     let consecutiveEmpty = 0;
 
@@ -136,7 +141,7 @@ export class SmallCapRadarService {
           allOverThreshold = false;
           const base = coin.symbol.toUpperCase();
           if (binanceSymbols.has(base)) {
-            kept.push({ symbol: base, name: coin.name });
+            kept.push({ symbol: base, name: coin.name, marketCap: cap });
           }
         }
       }
@@ -150,9 +155,9 @@ export class SmallCapRadarService {
 
     this.logger.log(`rescanCoins: ${kept.length} small-cap coins found on Binance`);
 
-    // 3. Upsert new / update name
+    // 3. Upsert new / update name + marketCap
     for (const coin of kept) {
-      await this.repo.addCoin(coin.symbol, coin.name);
+      await this.repo.addCoin(coin.symbol, coin.name, coin.marketCap);
     }
 
     // 4. Delete delisted (in DB but not in scan results)
@@ -187,7 +192,7 @@ export class SmallCapRadarService {
 
     for (const coin of coins) {
       try {
-        await this.scanOneCoin(coin.id, coin.symbol);
+        await this.scanOneCoin(coin.id, coin.symbol, coin.listingDate);
         scanned++;
       } catch (err) {
         failed++;
@@ -199,7 +204,7 @@ export class SmallCapRadarService {
     return { scanned, failed };
   }
 
-  private async scanOneCoin(coinId: string, symbol: string): Promise<void> {
+  private async scanOneCoin(coinId: string, symbol: string, currentListingDate?: Date | null): Promise<void> {
     const klines = await this.binance.fetchKlines({
       symbol: `${symbol}USDT`,
       timeframe: '1d',
@@ -207,6 +212,10 @@ export class SmallCapRadarService {
     });
 
     if (klines.length < 210) return;
+
+    if (!currentListingDate) {
+      void this.fetchAndStoreListingDate(symbol);
+    }
 
     const closes = klines.map((k) => parseFloat(k[4]));
     const volumes = klines.map((k) => parseFloat(k[5]));
@@ -227,6 +236,24 @@ export class SmallCapRadarService {
       signalScore: result.signalScore,
       sparklineJson: JSON.stringify(result.sparkline),
     });
+  }
+
+  private async fetchAndStoreListingDate(symbol: string): Promise<void> {
+    try {
+      const klines = await this.binance.fetchKlinesInRange({
+        symbol: `${symbol}USDT`,
+        timeframe: '1d',
+        startTime: 1483228800000, // 2017-01-01 UTC
+        endTime: Date.now(),
+        limit: 1,
+      });
+      if (klines.length === 0 || klines[0] === undefined) return;
+      const listingDate = new Date(klines[0][0]);
+      listingDate.setUTCHours(0, 0, 0, 0);
+      await this.repo.updateListingDate(symbol, listingDate);
+    } catch {
+      // non-fatal
+    }
   }
 
   private parseSparkline(json: string): number[] {

@@ -291,11 +291,13 @@ model PnlHistory {
 }
 
 model SmallCapCoin {
-  id      String           @id @default(cuid())
-  symbol  String           @unique @db.VarChar(30)
-  name    String           @default("") @db.VarChar(100)
-  addedAt DateTime         @default(now())
-  signals SmallCapSignal[]
+  id          String           @id @default(cuid())
+  symbol      String           @unique @db.VarChar(30)
+  name        String           @default("") @db.VarChar(100)
+  marketCap   Float?
+  listingDate DateTime?        @db.Date
+  addedAt     DateTime         @default(now())
+  signals     SmallCapSignal[]
 
   @@map("small_cap_coins")
 }

@@ -14,11 +14,18 @@ export function createSmallCapRadarRepository(client = prisma) {
       return client.smallCapCoin.findUnique({ where: { symbol } });
     },
 
-    addCoin(symbol: string, name = '') {
+    addCoin(symbol: string, name = '', marketCap?: number | null) {
       return client.smallCapCoin.upsert({
         where: { symbol },
-        create: { symbol, name },
-        update: { name },
+        create: { symbol, name, marketCap: marketCap ?? null },
+        update: { name, ...(marketCap !== undefined ? { marketCap } : {}) },
+      });
+    },
+
+    updateListingDate(symbol: string, listingDate: Date) {
+      return client.smallCapCoin.update({
+        where: { symbol },
+        data: { listingDate },
       });
     },
 

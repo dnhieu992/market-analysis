@@ -20,7 +20,7 @@ export class SmallCapScanService {
 
     for (const coin of coins) {
       try {
-        await this.scanOne(coin.id, coin.symbol);
+        await this.scanOne(coin.id, coin.symbol, coin.listingDate);
         scanned++;
       } catch (err) {
         failed++;
@@ -33,7 +33,7 @@ export class SmallCapScanService {
     return { scanned, failed };
   }
 
-  async scanOne(coinId: string, symbol: string): Promise<void> {
+  async scanOne(coinId: string, symbol: string, currentListingDate?: Date | null): Promise<void> {
     const klines = await this.binance.fetchKlines({
       symbol: `${symbol}USDT`,
       timeframe: '1d',
@@ -43,6 +43,10 @@ export class SmallCapScanService {
     if (klines.length < 210) {
       this.logger.warn(`Not enough candles for ${symbol}: ${klines.length}`);
       return;
+    }
+
+    if (!currentListingDate) {
+      void this.fetchAndStoreListingDate(symbol);
     }
 
     const closes = klines.map((k) => parseFloat(k[4]));
@@ -67,5 +71,23 @@ export class SmallCapScanService {
       signalScore: result.signalScore,
       sparklineJson: JSON.stringify(result.sparkline),
     });
+  }
+
+  private async fetchAndStoreListingDate(symbol: string): Promise<void> {
+    try {
+      // Fetch the very first 1d candle — Binance returns from earliest available data
+      const klines = await this.binance.fetchKlines({
+        symbol: `${symbol}USDT`,
+        timeframe: '1d',
+        limit: 1,
+        startTime: 1483228800000, // 2017-01-01 UTC (before any Binance listing)
+      });
+      if (klines.length === 0 || klines[0] === undefined) return;
+      const listingDate = new Date(klines[0][0]);
+      listingDate.setUTCHours(0, 0, 0, 0);
+      await this.repo.updateListingDate(symbol, listingDate);
+    } catch {
+      // non-fatal
+    }
   }
 }

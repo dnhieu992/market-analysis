@@ -17,6 +17,7 @@ type BinanceKlineParams = {
   symbol: string;
   timeframe: AnalysisTimeframe;
   limit: number;
+  startTime?: number;
 };
 
 @Injectable()
@@ -40,14 +41,16 @@ export class BinanceMarketDataService {
   async fetchKlines({
     symbol,
     timeframe,
-    limit
+    limit,
+    startTime,
   }: BinanceKlineParams): Promise<BinanceKlineDto[]> {
     const response = await this.client.get<BinanceKlineDto[]>('/api/v3/klines', {
       params: {
         symbol,
         interval: BINANCE_INTERVAL[timeframe] ?? timeframe,
-        limit
-      }
+        limit,
+        ...(startTime !== undefined ? { startTime } : {}),
+      },
     });
 
     return response.data;

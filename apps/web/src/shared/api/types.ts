@@ -390,6 +390,8 @@ export type SmallCapCoinRow = {
   id: string;
   symbol: string;
   name: string;
+  marketCap: number | null;
+  listingDate: string | null;
   addedAt: string;
   signal: {
     rsi: number | null;

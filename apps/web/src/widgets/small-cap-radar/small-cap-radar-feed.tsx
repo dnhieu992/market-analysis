@@ -60,6 +60,26 @@ function VolCell({ vol }: { vol: number | null }) {
   return <span className={cls}>{vol.toFixed(1)}×</span>;
 }
 
+/* ── market cap cell ─────────────────────────────────────────── */
+
+function MarketCapCell({ cap }: { cap: number | null }) {
+  if (cap == null) return <span className="scr-muted">—</span>;
+  const fmt =
+    cap >= 1_000_000_000 ? `$${(cap / 1_000_000_000).toFixed(1)}B` :
+    cap >= 1_000_000     ? `$${(cap / 1_000_000).toFixed(1)}M` :
+    `$${cap.toLocaleString()}`;
+  return <span className="scr-muted">{fmt}</span>;
+}
+
+/* ── listing date cell ───────────────────────────────────────── */
+
+function ListingDateCell({ date }: { date: string | null }) {
+  if (!date) return <span className="scr-muted">—</span>;
+  const d = new Date(date);
+  const label = d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
+  return <span className="scr-muted">{label}</span>;
+}
+
 /* ── EMA pips ────────────────────────────────────────────────── */
 
 function EmaPips({
@@ -130,7 +150,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: SmallCapCoinRow) => void }) 
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as { id: string; symbol: string; name: string };
-      onAdded({ ...data, addedAt: new Date().toISOString(), signal: null });
+      onAdded({ ...data, marketCap: null, listingDate: null, addedAt: new Date().toISOString(), signal: null });
       setSymbol('');
       setName('');
     } catch {
@@ -167,6 +187,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: SmallCapCoinRow) => void }) 
 export function SmallCapRadarFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<SmallCapCoinRow[]>(initialCoins);
   const [syncing, setSyncing] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('signal');
   const [hiddenStages, setHiddenStages] = useState<Set<SmallCapStage>>(new Set(['Quiet']));
@@ -200,6 +221,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
   async function reloadCoins() {
     try {
       const res = await fetch(`${resolveApiBaseUrl()}/small-cap-radar`, { credentials: 'include' });
+      if (!res.ok) return;
       const updated = await res.json() as SmallCapCoinRow[];
       setCoins(updated);
     } catch {
@@ -207,15 +229,23 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
     }
   }
 
-  async function handleRemove(symbol: string) {
+  async function handleReanalyze() {
+    setReanalyzing(true);
+    setSyncMsg(null);
     try {
-      await fetch(`${resolveApiBaseUrl()}/small-cap-radar/coins/${encodeURIComponent(symbol)}`, {
-        method: 'DELETE',
+      const res = await fetch(`${resolveApiBaseUrl()}/small-cap-radar/scan`, {
+        method: 'POST',
         credentials: 'include',
       });
-      setCoins((prev) => prev.filter((c) => c.symbol !== symbol));
+      if (res.ok) {
+        const data = await res.json() as { scanned: number; failed: number };
+        setSyncMsg(`Re-analyze xong: ${data.scanned} coins scanned, ${data.failed} failed.`);
+        await reloadCoins();
+      }
     } catch {
-      // ignore
+      setSyncMsg('Re-analyze thất bại, thử lại sau.');
+    } finally {
+      setReanalyzing(false);
     }
   }
 
@@ -242,11 +272,15 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
           <span className="scr-count">{coins.length} coins</span>
         </div>
         <div className="scr-toolbar-right">
+          <button className="scr-scan-btn" onClick={reloadCoins}>
+            ↻ Refresh
+          </button>
           <button
             className="scr-scan-btn"
-            onClick={reloadCoins}
+            onClick={handleReanalyze}
+            disabled={reanalyzing}
           >
-            ↻ Refresh
+            {reanalyzing ? 'Đang scan…' : '⚡ Re-analyze'}
           </button>
           <button
             className="scr-scan-btn"
@@ -313,13 +347,14 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
               </th>
               <th className="scr-th">vs EMA</th>
               <th className="scr-th">30d</th>
-              <th className="scr-th scr-th--actions" />
+              <th className="scr-th scr-th--num">Mkt Cap</th>
+              <th className="scr-th scr-th--num">Listed</th>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="scr-empty">
+                <td colSpan={9} className="scr-empty">
                   {coins.length === 0 ? 'Add coins to start tracking.' : 'All coins are hidden by stage filter.'}
                 </td>
               </tr>
@@ -365,17 +400,11 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
                   <td className="scr-td scr-td--sparkline">
                     <Sparkline prices={sig?.sparkline ?? []} />
                   </td>
-                  <td
-                    className="scr-td scr-td--actions"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      className="scr-remove-btn"
-                      onClick={() => handleRemove(coin.symbol)}
-                      aria-label={`Remove ${coin.symbol}`}
-                    >
-                      ✕
-                    </button>
+                  <td className="scr-td scr-td--num">
+                    <MarketCapCell cap={coin.marketCap} />
+                  </td>
+                  <td className="scr-td scr-td--num">
+                    <ListingDateCell date={coin.listingDate} />
                   </td>
                 </tr>
               );
