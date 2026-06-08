@@ -173,9 +173,41 @@ function FeedbackBlock({ record }: { record: DailyAnalysis }) {
   );
 }
 
+/* ── feedback dialog ───────────────────────────────────────── */
+
+function FeedbackDialog({
+  record,
+  dateLabel,
+  onClose,
+}: {
+  record: DailyAnalysis;
+  dateLabel: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            Đánh giá — {record.symbol} · {dateLabel}
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body">
+          <FeedbackBlock record={record} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── card ──────────────────────────────────────────────────── */
 
 function DailyPlanCard({ record }: { record: DailyAnalysis }) {
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+
   const dateLabel = new Date(record.date).toLocaleDateString('en-US', {
     year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
   });
@@ -193,13 +225,24 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
   return (
     <article className="daily-plan-card">
 
-      {/* ── header row ── */}
-      <div className="dp-card-header">
+      {/* ── header row – click to open feedback dialog ── */}
+      <div
+        className="dp-card-header dp-card-header--clickable"
+        onClick={() => setFeedbackOpen(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && setFeedbackOpen(true)}
+      >
         <div className="dp-card-title">
           <span className="daily-plan-card-symbol">{record.symbol}</span>
           <StatusBadge status={record.status} />
         </div>
         <span className="daily-plan-card-date">{dateLabel}</span>
+        {record.feedbackScore != null && (
+          <span className="dp-header-stars" aria-label={`${record.feedbackScore} sao`}>
+            {'★'.repeat(record.feedbackScore)}{'☆'.repeat(5 - record.feedbackScore)}
+          </span>
+        )}
       </div>
 
       {/* ── 2-col grid of fields ── */}
@@ -295,8 +338,15 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
 
       <footer className="daily-plan-card-footer">
         <span className="daily-plan-meta">{record.llmModel || record.llmProvider}</span>
-        <FeedbackBlock record={record} />
       </footer>
+
+      {feedbackOpen && (
+        <FeedbackDialog
+          record={record}
+          dateLabel={dateLabel}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
     </article>
   );
 }
