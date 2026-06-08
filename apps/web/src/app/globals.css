@@ -310,6 +310,7 @@ a {
 /* ── Portfolio Summary Card ── */
 .ps-card {
   display: flex;
+  flex-direction: column;
   gap: 0;
   border: 1px solid var(--border);
   background: var(--background-elevated);
@@ -318,6 +319,11 @@ a {
   border-radius: 24px;
   padding: 32px;
   margin-top: 18px;
+}
+
+.ps-top-section {
+  display: flex;
+  gap: 0;
 }
 
 .ps-left {
@@ -331,6 +337,35 @@ a {
   flex: 1;
   min-width: 0;
   padding-left: 32px;
+}
+
+.ps-panels-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid var(--border);
+  margin-top: 28px;
+  padding-top: 28px;
+}
+
+.ps-panel {
+  padding: 0;
+}
+
+.ps-panel:nth-child(odd) {
+  padding-right: 32px;
+  border-right: 1px solid var(--border);
+}
+
+.ps-panel:nth-child(even) {
+  padding-left: 32px;
+}
+
+/* Panels in the 2nd row and beyond get a top separator */
+.ps-panel:nth-child(n+3) {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
 }
 
 .ps-eyebrow {
@@ -626,6 +661,11 @@ a {
     gap: 24px;
   }
 
+  .ps-top-section {
+    flex-direction: column;
+    gap: 0;
+  }
+
   .ps-left {
     padding-right: 0;
     border-right: none;
@@ -635,6 +675,35 @@ a {
 
   .ps-right {
     padding-left: 0;
+  }
+
+  .ps-panels-grid {
+    grid-template-columns: 1fr;
+    margin-top: 0;
+    padding-top: 20px;
+  }
+
+  .ps-panel:nth-child(odd) {
+    padding-right: 0;
+    border-right: none;
+  }
+
+  .ps-panel:nth-child(even) {
+    padding-left: 0;
+  }
+
+  /* On mobile single-column, every panel after first gets separator */
+  .ps-panel:nth-child(n+2) {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Reset the desktop row-2 rule */
+  .ps-panel:nth-child(n+3) {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
   }
 
   .ps-net-worth {

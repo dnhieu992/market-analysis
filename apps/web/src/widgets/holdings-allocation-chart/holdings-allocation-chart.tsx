@@ -212,160 +212,166 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
   return (
     <section className="ps-card">
-      {/* ── Left: Portfolio Summary ── */}
-      <div className="ps-left">
-        <p className="ps-eyebrow">Total Net Worth · All Portfolios</p>
-        <h2 className="ps-net-worth">
-          {d ? formatUsd(d.totalValue) : '—'}
-        </h2>
 
-        {d && (
-          <div className="ps-badges">
-            <span className={`ps-badge ${is24hPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
-              {is24hPositive ? '▲' : '▼'} {is24hPositive ? '+' : ''}{formatUsd(d.change24hUsd)}
-            </span>
-            <span className={`ps-badge ${is24hPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
-              {is24hPositive ? '+' : ''}{d.change24hPct.toFixed(2)}% · 24h
-            </span>
-          </div>
-        )}
+      {/* ── Row 1: Net Worth + Asset Allocation ── */}
+      <div className="ps-top-section">
+        <div className="ps-left">
+          <p className="ps-eyebrow">Total Net Worth · All Portfolios</p>
+          <h2 className="ps-net-worth">
+            {d ? formatUsd(d.totalValue) : '—'}
+          </h2>
 
-        <div className="ps-pnl-section">
-          <p className="ps-eyebrow">All-Time P&amp;L</p>
-          <Link href="/portfolio-pnl" className="ps-pnl-link">
-            <p className={`ps-pnl-value ${isPnlPositive ? 'ps-pnl--up' : 'ps-pnl--down'}`}>
-              {isPnlPositive ? '+' : ''}{formatUsd(allTimePnl)}
-              <span className="ps-pnl-pct">
-                ({isPnlPositive ? '+' : ''}{allTimePnlPct.toFixed(1)}%)
+          {d && (
+            <div className="ps-badges">
+              <span className={`ps-badge ${is24hPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
+                {is24hPositive ? '▲' : '▼'} {is24hPositive ? '+' : ''}{formatUsd(d.change24hUsd)}
               </span>
-            </p>
-          </Link>
-        </div>
-
-        <div className="ps-stat-row">
-          <div className="ps-stat-box">
-            <span className="ps-stat-label">Portfolios</span>
-            <span className="ps-stat-value">{portfolioCount}</span>
-          </div>
-          <div className="ps-stat-box">
-            <span className="ps-stat-label">Holdings</span>
-            <span className="ps-stat-value">{d?.holdingCount ?? 0}</span>
-          </div>
-          <div className="ps-stat-box">
-            <span className="ps-stat-label">Cash</span>
-            <span className="ps-stat-value">{d ? formatUsd(d.cashValue, 0) : '—'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Right: Allocation + Top Holdings ── */}
-      <div className="ps-right">
-        {/* Asset Allocation */}
-        <h3 className="ps-section-title">Asset Allocation</h3>
-        <div className="ps-donut-row">
-          <div className="ps-chart-wrap">
-            {d && d.chart.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={d.chart}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={72}
-                    dataKey="value"
-                    strokeWidth={2}
-                    stroke="var(--background-elevated, #1a1a2e)"
-                  >
-                    {d.chart.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => [formatUsd(Number(v)), '']} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <span className="tt-muted" style={{ fontSize: '0.8rem' }}>
-                {d ? 'No data' : 'loading…'}
+              <span className={`ps-badge ${is24hPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
+                {is24hPositive ? '+' : ''}{d.change24hPct.toFixed(2)}% · 24h
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="ps-legend">
-            {d?.chart.map((entry, i) => (
-              <div key={entry.name} className="ps-legend-item">
-                <span className="ps-legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
-                <span className="ps-legend-name">{entry.name}</span>
-                <span className="ps-legend-pct">{Math.round(entry.pct)}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="ps-divider" />
-
-        {/* Top Holdings */}
-        <h3 className="ps-section-title">Top Holdings</h3>
-        <div className="ps-top-list">
-          {d?.topHoldings.map((h) => {
-            const up = h.change24h >= 0;
-            return (
-              <div
-                key={h.coinId}
-                className="ps-top-row ps-top-row--clickable"
-                onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
-              >
-                <span className="ps-top-coin">{h.coinId}</span>
-                <span className="ps-top-value">{formatUsd(h.value)}</span>
-                <span className={`ps-top-change ${up ? 'ps-top-change--up' : 'ps-top-change--down'}`}>
-                  {up ? '+' : ''}{h.change24h.toFixed(1)}%
+          <div className="ps-pnl-section">
+            <p className="ps-eyebrow">All-Time P&amp;L</p>
+            <Link href="/portfolio-pnl" className="ps-pnl-link">
+              <p className={`ps-pnl-value ${isPnlPositive ? 'ps-pnl--up' : 'ps-pnl--down'}`}>
+                {isPnlPositive ? '+' : ''}{formatUsd(allTimePnl)}
+                <span className="ps-pnl-pct">
+                  ({isPnlPositive ? '+' : ''}{allTimePnlPct.toFixed(1)}%)
                 </span>
-              </div>
-            );
-          })}
+              </p>
+            </Link>
+          </div>
+
+          <div className="ps-stat-row">
+            <div className="ps-stat-box">
+              <span className="ps-stat-label">Portfolios</span>
+              <span className="ps-stat-value">{portfolioCount}</span>
+            </div>
+            <div className="ps-stat-box">
+              <span className="ps-stat-label">Holdings</span>
+              <span className="ps-stat-value">{d?.holdingCount ?? 0}</span>
+            </div>
+            <div className="ps-stat-box">
+              <span className="ps-stat-label">Cash</span>
+              <span className="ps-stat-value">{d ? formatUsd(d.cashValue, 0) : '—'}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Gainers & Losers */}
-        {d && d.topGainers.length > 0 && (
-          <>
-            <div className="ps-divider" />
-            <h3 className="ps-section-title ps-section-title--up">▲ Top Gainers</h3>
-            <div className="ps-top-list">
-              {d.topGainers.map((h) => (
-                <div
-                  key={h.coinId}
-                  className="ps-top-row ps-top-row--clickable"
-                  onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
-                >
-                  <span className="ps-top-coin">{h.coinId}</span>
-                  <span className="ps-top-value ps-top-change--up">+{formatUsd(h.pnl)}</span>
-                  <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
+        <div className="ps-right">
+          <h3 className="ps-section-title">Asset Allocation</h3>
+          <div className="ps-donut-row">
+            <div className="ps-chart-wrap">
+              {d && d.chart.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={d.chart}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={72}
+                      dataKey="value"
+                      strokeWidth={2}
+                      stroke="var(--background-elevated, #1a1a2e)"
+                    >
+                      {d.chart.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => [formatUsd(Number(v)), '']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <span className="tt-muted" style={{ fontSize: '0.8rem' }}>
+                  {d ? 'No data' : 'loading…'}
+                </span>
+              )}
+            </div>
+
+            <div className="ps-legend">
+              {d?.chart.map((entry, i) => (
+                <div key={entry.name} className="ps-legend-item">
+                  <span className="ps-legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                  <span className="ps-legend-name">{entry.name}</span>
+                  <span className="ps-legend-pct">{Math.round(entry.pct)}%</span>
                 </div>
               ))}
             </div>
-          </>
-        )}
-        {d && d.topLosers.length > 0 && (
-          <>
-            <div className="ps-divider" />
-            <h3 className="ps-section-title ps-section-title--down">▼ Top Losers</h3>
-            <div className="ps-top-list">
-              {d.topLosers.map((h) => (
-                <div
-                  key={h.coinId}
-                  className="ps-top-row ps-top-row--clickable"
-                  onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
-                >
-                  <span className="ps-top-coin">{h.coinId}</span>
-                  <span className="ps-top-value ps-top-change--down">{formatUsd(h.pnl)}</span>
-                  <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
+
+      {/* ── Row 2+: Holdings / Gainers / Losers — 2-col grid ── */}
+      {d && (d.topHoldings.length > 0 || d.topGainers.length > 0 || d.topLosers.length > 0) && (
+        <div className="ps-panels-grid">
+
+          {d.topHoldings.length > 0 && (
+            <div className="ps-panel">
+              <h3 className="ps-section-title">Top Holdings</h3>
+              <div className="ps-top-list">
+                {d.topHoldings.map((h) => {
+                  const up = h.change24h >= 0;
+                  return (
+                    <div
+                      key={h.coinId}
+                      className="ps-top-row ps-top-row--clickable"
+                      onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
+                    >
+                      <span className="ps-top-coin">{h.coinId}</span>
+                      <span className="ps-top-value">{formatUsd(h.value)}</span>
+                      <span className={`ps-top-change ${up ? 'ps-top-change--up' : 'ps-top-change--down'}`}>
+                        {up ? '+' : ''}{h.change24h.toFixed(1)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {d.topGainers.length > 0 && (
+            <div className="ps-panel">
+              <h3 className="ps-section-title ps-section-title--up">▲ Top Gainers</h3>
+              <div className="ps-top-list">
+                {d.topGainers.map((h) => (
+                  <div
+                    key={h.coinId}
+                    className="ps-top-row ps-top-row--clickable"
+                    onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
+                  >
+                    <span className="ps-top-coin">{h.coinId}</span>
+                    <span className="ps-top-value ps-top-change--up">+{formatUsd(h.pnl)}</span>
+                    <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {d.topLosers.length > 0 && (
+            <div className="ps-panel">
+              <h3 className="ps-section-title ps-section-title--down">▼ Top Losers</h3>
+              <div className="ps-top-list">
+                {d.topLosers.map((h) => (
+                  <div
+                    key={h.coinId}
+                    className="ps-top-row ps-top-row--clickable"
+                    onClick={() => router.push(`/portfolio/${h.portfolioId}/${h.coinId}`)}
+                  >
+                    <span className="ps-top-coin">{h.coinId}</span>
+                    <span className="ps-top-value ps-top-change--down">{formatUsd(h.pnl)}</span>
+                    <span className="ps-top-amount">{formatAmount(h.totalAmount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
     </section>
   );
 }
