@@ -3482,6 +3482,88 @@ a {
 
 .dialog--wide { max-width: 780px; }
 
+.dialog--fullscreen {
+  max-width: calc(100vw - 32px);
+  width: 100%;
+  height: calc(100vh - 32px);
+  max-height: calc(100vh - 32px);
+}
+
+.dialog-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dialog-body--split {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
+.dp-dialog-plan {
+  overflow-y: auto;
+  padding: 20px 24px;
+  border-right: 1px solid var(--border);
+}
+
+.dp-dialog-feedback {
+  overflow-y: auto;
+  padding: 20px 24px;
+  background: rgba(23, 18, 13, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.dp-dialog-feedback-heading {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 12px 0;
+}
+
+.dp-section-divider {
+  padding-top: 4px;
+  padding-bottom: 0;
+}
+
+.dp-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--border);
+  display: block;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .dialog-body--split {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .dp-dialog-plan {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+  }
+
+  .dp-dialog-feedback {
+    overflow-y: visible;
+  }
+}
+
 /* ── Multi-trade form ────────────────────────────────────────────────────────── */
 
 .multi-trade-form {

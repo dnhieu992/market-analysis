@@ -173,7 +173,97 @@ function FeedbackBlock({ record }: { record: DailyAnalysis }) {
   );
 }
 
-/* ── feedback dialog ───────────────────────────────────────── */
+/* ── plan detail panel (used inside fullscreen dialog) ─────── */
+
+function PlanDetailPanel({ record }: { record: DailyAnalysis }) {
+  const plan: DailyAnalysisPlan | null = record.aiOutput ?? null;
+  const setup: DailyAnalysisSetup | null =
+    plan?.primarySetup?.direction && plan.primarySetup.direction !== 'none'
+      ? plan.primarySetup
+      : null;
+  const secondarySetup: DailyAnalysisSetup | null =
+    plan?.secondarySetup?.direction && plan.secondarySetup.direction !== 'none'
+      ? plan.secondarySetup
+      : null;
+  const summaryText = plan?.summary || record.summary || '';
+  const hasLevels =
+    record.d1S1 != null || record.d1R1 != null ||
+    record.h4S1 != null || record.h4R1 != null;
+
+  return (
+    <div className="dp-card-grid">
+      {plan?.bias && (
+        <Field label="Bias"><BiasBadge bias={plan.bias} /></Field>
+      )}
+      {plan?.confidence != null && (
+        <Field label="Confidence"><strong>{plan.confidence}%</strong></Field>
+      )}
+      {record.d1Trend && (
+        <Field label="D1 Trend"><TrendBadge trend={record.d1Trend} /></Field>
+      )}
+      {record.h4Trend && (
+        <Field label="H4 Trend"><TrendBadge trend={record.h4Trend} /></Field>
+      )}
+      {plan?.setupType && (
+        <Field label="Setup Type">
+          <span className="dp-setup-type">{plan.setupType}</span>
+        </Field>
+      )}
+      {hasLevels && (
+        <>
+          <LevelsBlock label="D1" r2={record.d1R2} r1={record.d1R1} s1={record.d1S1} s2={record.d1S2} />
+          <LevelsBlock label="H4" r2={record.h4R2} r1={record.h4R1} s1={record.h4S1} s2={record.h4S2} />
+        </>
+      )}
+      {setup && (
+        <>
+          <Field label="Direction" full><DirectionBadge direction={setup.direction} /></Field>
+          <Field label="Entry" full>{setup.entry}</Field>
+          <Field label="Stop Loss">{setup.stopLoss}</Field>
+          <Field label="Take Profit 1">{setup.takeProfit1}</Field>
+          <Field label="Take Profit 2">{setup.takeProfit2}</Field>
+          <Field label="Risk : Reward">{setup.riskReward}</Field>
+          <Field label="Trigger" full>{setup.trigger}</Field>
+          <Field label="Invalidation" full>{setup.invalidation}</Field>
+        </>
+      )}
+      {secondarySetup && (
+        <>
+          <div className="dp-field dp-field--full dp-section-divider">
+            <span className="dp-section-label">Secondary Setup</span>
+          </div>
+          <Field label="Direction" full><DirectionBadge direction={secondarySetup.direction} /></Field>
+          <Field label="Entry" full>{secondarySetup.entry}</Field>
+          <Field label="Stop Loss">{secondarySetup.stopLoss}</Field>
+          <Field label="Take Profit 1">{secondarySetup.takeProfit1}</Field>
+          <Field label="Take Profit 2">{secondarySetup.takeProfit2}</Field>
+          <Field label="Risk : Reward">{secondarySetup.riskReward}</Field>
+          <Field label="Trigger" full>{secondarySetup.trigger}</Field>
+          <Field label="Invalidation" full>{secondarySetup.invalidation}</Field>
+        </>
+      )}
+      {plan?.finalAction && (
+        <Field label="Final Action" full>{plan.finalAction}</Field>
+      )}
+      {Array.isArray(plan?.reasoning) && plan.reasoning.length > 0 && (
+        <Field label="Reasoning" full>
+          <ul className="dp-reasoning-list">
+            {plan.reasoning.map((item, i) => (
+              <li key={i} className="dp-reasoning-item">{item}</li>
+            ))}
+          </ul>
+        </Field>
+      )}
+      {summaryText && (
+        <Field label="Summary" full>
+          <ScrollableText text={summaryText} />
+        </Field>
+      )}
+    </div>
+  );
+}
+
+/* ── feedback dialog (fullscreen) ──────────────────────────── */
 
 function FeedbackDialog({
   record,
@@ -186,17 +276,22 @@ function FeedbackDialog({
 }) {
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+      <div className="dialog dialog--fullscreen" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
-          <span className="dialog-title">
-            Đánh giá — {record.symbol} · {dateLabel}
-          </span>
-          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
-            ✕
-          </button>
+          <div className="dialog-header-meta">
+            <span className="dialog-title">{record.symbol} · {dateLabel}</span>
+            <StatusBadge status={record.status} />
+          </div>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
         </div>
-        <div className="dialog-body">
-          <FeedbackBlock record={record} />
+        <div className="dialog-body dialog-body--split">
+          <div className="dp-dialog-plan">
+            <PlanDetailPanel record={record} />
+          </div>
+          <div className="dp-dialog-feedback">
+            <p className="dp-dialog-feedback-heading">Đánh giá</p>
+            <FeedbackBlock record={record} />
+          </div>
         </div>
       </div>
     </div>
