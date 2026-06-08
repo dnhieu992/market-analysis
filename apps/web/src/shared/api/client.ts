@@ -50,11 +50,14 @@ type ApiClientOptions = {
 const DEFAULT_API_BASE_URL = 'http://localhost:3000';
 
 function readConfiguredBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_API_BASE_URL ??
-    process.env.API_BASE_URL ??
-    DEFAULT_API_BASE_URL
-  );
+  // Server-side (SSR/RSC): talk to API directly on localhost — no browser involved
+  if (typeof window === 'undefined') {
+    return process.env.API_BASE_URL ?? DEFAULT_API_BASE_URL;
+  }
+  // Client-side browser: use the public URL baked in at build time.
+  // In production this points to /api-proxy on the web server (port 3001),
+  // which Next.js rewrites forward to the API on localhost:3000.
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL;
 }
 
 export function resolveApiBaseUrl(path = ''): string {

@@ -10,7 +10,16 @@ const nextConfig = {
   reactStrictMode: true,
   serverRuntimeConfig: {
     port: 3001
-  }
+  },
+  async rewrites() {
+    const apiBase = process.env.API_BASE_URL ?? 'http://localhost:3000';
+    return [
+      {
+        source: '/api-proxy/:path*',
+        destination: `${apiBase}/:path*`,
+      },
+    ];
+  },
 };
 
 process.env.PORT = '3001';

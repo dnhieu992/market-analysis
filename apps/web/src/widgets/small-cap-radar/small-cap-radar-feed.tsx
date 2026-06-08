@@ -206,13 +206,21 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
     setSyncing(true);
     setSyncMsg(null);
     try {
-      await fetch(`${resolveApiBaseUrl()}/small-cap-radar/rescan-coins`, {
+      const res = await fetch(`${resolveApiBaseUrl()}/small-cap-radar/rescan-coins`, {
         method: 'POST',
         credentials: 'include',
       });
-      setSyncMsg('Đang sync coin list từ Binance/CoinGecko, có thể mất vài phút. Refresh lại trang để xem kết quả.');
+      if (res.status === 401) {
+        setSyncMsg('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại.');
+        return;
+      }
+      if (!res.ok) {
+        setSyncMsg(`Sync thất bại (HTTP ${res.status}), thử lại sau.`);
+        return;
+      }
+      setSyncMsg('Đang sync coin list từ Binance/CoinGecko, có thể mất vài phút. Bấm Refresh để xem kết quả.');
     } catch {
-      setSyncMsg('Sync thất bại, thử lại sau.');
+      setSyncMsg('Không thể kết nối tới server, kiểm tra lại mạng và thử lại.');
     } finally {
       setSyncing(false);
     }
