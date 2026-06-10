@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { SmallCapCoinRow, SmallCapStage } from '@web/shared/api/types';
 
@@ -11,6 +11,7 @@ type Props = { initialCoins: SmallCapCoinRow[] };
 type SortKey = 'signal' | 'rsi' | 'vol' | 'coin';
 
 const ALL_STAGES: SmallCapStage[] = ['Breakout', 'Accumulating', 'Waking', 'Extended', 'Quiet'];
+const PAGE_SIZE = 50;
 
 /* ── stage badge ─────────────────────────────────────────────── */
 
@@ -190,8 +191,10 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('signal');
-  const [hiddenStages, setHiddenStages] = useState<Set<SmallCapStage>>(new Set(['Quiet']));
+  const [hiddenStages, setHiddenStages] = useState<Set<SmallCapStage>>(new Set<SmallCapStage>());
   const [showAddForm, setShowAddForm] = useState(false);
+  const [nameFilter, setNameFilter] = useState('');
+  const [page, setPage] = useState(1);
 
   function toggleStage(stage: SmallCapStage) {
     setHiddenStages((prev) => {
@@ -201,6 +204,9 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
       return next;
     });
   }
+
+  // Reset to page 1 whenever filters or sort change
+  useEffect(() => { setPage(1); }, [nameFilter, hiddenStages, sortKey]);
 
   async function handleSyncCoins() {
     setSyncing(true);
@@ -258,8 +264,10 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
   }
 
   const sorted = useMemo(() => {
+    const q = nameFilter.trim().toUpperCase();
     const filtered = coins.filter((c) => {
-      if (c.signal === null) return true; // coins without a signal are always shown
+      if (q && !c.symbol.includes(q) && !c.name.toUpperCase().includes(q)) return false;
+      if (c.signal === null) return true;
       const stage = c.signal.stage as SmallCapStage;
       return !hiddenStages.has(stage);
     });
@@ -269,7 +277,11 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
     });
-  }, [coins, sortKey, hiddenStages]);
+  }, [coins, sortKey, hiddenStages, nameFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <main className="dashboard-shell scr-shell">
@@ -277,7 +289,11 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
       <div className="scr-toolbar">
         <div className="scr-toolbar-left">
           <h1 className="scr-title">Small Cap Radar</h1>
-          <span className="scr-count">{coins.length} coins</span>
+          <span className="scr-count">
+            {sorted.length < coins.length
+              ? `${sorted.length} / ${coins.length} coins`
+              : `${coins.length} coins`}
+          </span>
         </div>
         <div className="scr-toolbar-right">
           <button className="scr-scan-btn" onClick={reloadCoins}>
@@ -322,7 +338,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
         />
       )}
 
-      {/* ── stage filter chips ── */}
+      {/* ── filters row: stage chips + search ── */}
       <div className="scr-filters">
         {ALL_STAGES.map((stage) => (
           <button
@@ -333,6 +349,13 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
             {stage}
           </button>
         ))}
+        <input
+          className="scr-search"
+          type="search"
+          placeholder="Tìm symbol / tên…"
+          value={nameFilter}
+          onChange={(e) => setNameFilter(e.target.value)}
+        />
       </div>
 
       {/* ── table ── */}
@@ -363,11 +386,15 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={9} className="scr-empty">
-                  {coins.length === 0 ? 'Add coins to start tracking.' : 'All coins are hidden by stage filter.'}
+                  {coins.length === 0
+                    ? 'Add coins to start tracking.'
+                    : nameFilter
+                    ? `Không tìm thấy coin khớp với "${nameFilter}".`
+                    : 'All coins are hidden by stage filter.'}
                 </td>
               </tr>
             )}
-            {sorted.map((coin) => {
+            {paginated.map((coin) => {
               const sig = coin.signal;
               const stage = (sig?.stage ?? 'Quiet') as SmallCapStage;
               const tvUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${coin.symbol}USDT`;
@@ -420,6 +447,46 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* ── pagination ── */}
+      {totalPages > 1 && (
+        <div className="scr-pagination">
+          <button
+            className="scr-page-btn"
+            onClick={() => setPage(1)}
+            disabled={safePage === 1}
+          >
+            «
+          </button>
+          <button
+            className="scr-page-btn"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage === 1}
+          >
+            ‹
+          </button>
+          <span className="scr-page-info">
+            Trang {safePage} / {totalPages}
+            <span className="scr-page-sub">
+              &nbsp;({(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, sorted.length)} / {sorted.length})
+            </span>
+          </span>
+          <button
+            className="scr-page-btn"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage === totalPages}
+          >
+            ›
+          </button>
+          <button
+            className="scr-page-btn"
+            onClick={() => setPage(totalPages)}
+            disabled={safePage === totalPages}
+          >
+            »
+          </button>
+        </div>
+      )}
 
       {/* ── legend ── */}
       <div className="scr-legend">

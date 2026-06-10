@@ -6,17 +6,33 @@ import { createSmallCapRadarRepository } from '@app/db';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 const MARKET_CAP_LIMIT = 50_000_000;
-const GECKO_DELAY_MS = 6_500;
-const GECKO_RETRY_MS = 35_000;
+const GECKO_DELAY_MS = 12_000;
+const GECKO_RETRY_MS = 60_000;
 
 type GeckoMarket = { id: string; symbol: string; name: string; market_cap: number | null };
 type KeepCoin = { symbol: string; name: string; marketCap: number | null };
 type BinanceSymbolInfo = { symbol: string; status: string; quoteAsset: string };
 
-async function geckoGet<T>(url: string, params: Record<string, unknown>, warn: (s: string) => void): Promise<T | null> {
+function geckoHeaders(): Record<string, string> {
+  const key = process.env.COINGECKO_API_KEY;
+  if (!key) return {};
+  // Pro keys start with "CG-" and use a different base URL (handled at call site)
+  return key.startsWith('CG-')
+    ? { 'x-cg-pro-api-key': key }
+    : { 'x-cg-demo-api-key': key };
+}
+
+function geckoBaseUrl(): string {
+  const key = process.env.COINGECKO_API_KEY;
+  return key?.startsWith('CG-') ? 'https://pro-api.coingecko.com/api/v3' : 'https://api.coingecko.com/api/v3';
+}
+
+async function geckoGet<T>(path: string, params: Record<string, unknown>, warn: (s: string) => void): Promise<T | null> {
+  const url = `${geckoBaseUrl()}${path}`;
+  const headers = geckoHeaders();
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await axios.get<T>(url, { params, timeout: 15_000 });
+      const res = await axios.get<T>(url, { params, headers, timeout: 15_000 });
       return res.data;
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 429 && attempt < 2) {
@@ -57,6 +73,7 @@ const CANDLE_LIMIT = 220;
 export class SmallCapRadarService {
   private readonly logger = new Logger(SmallCapRadarService.name);
   private readonly repo = createSmallCapRadarRepository();
+  private rescanRunning = false;
 
   constructor(private readonly binance: BinanceMarketDataService) {}
 
@@ -88,14 +105,19 @@ export class SmallCapRadarService {
     });
   }
 
-  rescanCoins(): { started: boolean } {
+  rescanCoins(): { started: boolean; alreadyRunning?: boolean } {
+    if (this.rescanRunning) {
+      this.logger.warn('rescanCoins: already running, skipping duplicate request');
+      return { started: false, alreadyRunning: true };
+    }
     void this.doRescanCoins();
     return { started: true };
   }
 
   private async doRescanCoins(): Promise<void> {
+    this.rescanRunning = true;
     this.logger.log('rescanCoins: start');
-
+    try {
     // 1. Binance USDT spot pairs
     let binanceSymbols: Set<string>;
     try {
@@ -119,7 +141,7 @@ export class SmallCapRadarService {
     const largeCapSymbols = new Set<string>();
     for (const blockPage of [1, 2]) {
       const topCoins = await geckoGet<GeckoMarket[]>(
-        'https://api.coingecko.com/api/v3/coins/markets',
+        '/coins/markets',
         { vs_currency: 'usd', order: 'market_cap_desc', per_page: 250, page: blockPage, sparkline: false },
         (s) => this.logger.warn(s),
       );
@@ -137,7 +159,7 @@ export class SmallCapRadarService {
 
     while (true) {
       const coins = await geckoGet<GeckoMarket[]>(
-        'https://api.coingecko.com/api/v3/coins/markets',
+        '/coins/markets',
         { vs_currency: 'usd', order: 'market_cap_asc', per_page: 250, page, sparkline: false },
         (s) => this.logger.warn(s),
       );
@@ -187,6 +209,9 @@ export class SmallCapRadarService {
       this.logger.log(`rescanCoins: upserted ${kept.length}, removed ${deleted.count}`);
     } else {
       this.logger.warn('rescanCoins: 0 coins found — skipping deletion to protect existing watchlist');
+    }
+    } finally {
+      this.rescanRunning = false;
     }
   }
 
