@@ -6844,6 +6844,95 @@ a.metric-card--link:hover {
 }
 .scr-remove-btn:hover { opacity: 1; color: #ef4444; }
 
+/* ── tracking coins: row action buttons ── */
+.tc-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.tc-view-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  opacity: 0.45;
+  transition: opacity 0.15s, color 0.15s;
+  line-height: 1;
+}
+.tc-view-btn:hover { opacity: 1; color: var(--accent, #1f6f5b); }
+
+/* ── tracking coins: detail modal ── */
+.tc-detail-dialog { max-width: 400px; }
+.tc-detail-header-coin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tc-detail-body { display: flex; flex-direction: column; gap: 18px; }
+.tc-detail-section { display: flex; flex-direction: column; gap: 6px; }
+.tc-detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.tc-detail-score-row { display: flex; align-items: center; gap: 10px; }
+.tc-detail-bar { flex: 1; }
+.tc-detail-score-num {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: right;
+}
+.tc-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.tc-detail-stat {
+  background: var(--background, #f5efe7);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tc-detail-value { font-size: 1rem; font-weight: 600; }
+.tc-detail-sparkline { padding: 4px 0; }
+.tc-detail-spark-svg { display: block; width: 100%; }
+.tc-detail-spark-pct {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 4px;
+  text-align: right;
+}
+.tc-detail-footer {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: right;
+  margin-top: -6px;
+}
+.tc-detail-tv-btn {
+  display: block;
+  text-align: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent, #1f6f5b);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.tc-detail-tv-btn:hover { background: var(--accent-soft, rgba(31,111,91,0.1)); }
+
 /* ── search input ── */
 .scr-search {
   margin-left: auto;

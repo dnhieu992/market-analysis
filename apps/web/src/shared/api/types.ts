@@ -386,6 +386,24 @@ export type ScanResult = {
 
 export type SmallCapStage = 'Breakout' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
 
+export type TrackingCoinRow = {
+  id: string;
+  symbol: string;
+  name: string;
+  addedAt: string;
+  signal: {
+    rsi: number | null;
+    volMultiplier: number | null;
+    ema34Above: boolean;
+    ema89Above: boolean;
+    ema200Above: boolean;
+    stage: SmallCapStage;
+    signalScore: number;
+    sparkline: number[];
+    scannedAt: string;
+  } | null;
+};
+
 export type SmallCapCoinRow = {
   id: string;
   symbol: string;

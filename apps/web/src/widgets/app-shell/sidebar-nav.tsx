@@ -58,6 +58,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Daily signal scan for small-cap watchlist'
   },
   {
+    href: '/tracking-coins',
+    label: 'Tracking Coins',
+    description: 'Theo dõi coin tự nhập tay'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

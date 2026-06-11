@@ -34,6 +34,7 @@ import type {
   ChatMessage,
   ScanResult,
   SmallCapCoinRow,
+  TrackingCoinRow,
 } from './types';
 
 
@@ -768,6 +769,34 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<{ scanned: number; failed: number }>(
         fetchImpl,
         `${baseUrl}/small-cap-radar/scan`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
+    async fetchTrackingCoins(): Promise<TrackingCoinRow[]> {
+      return fetchJson<TrackingCoinRow[]>(fetchImpl, `${baseUrl}/tracking-coins`, withDefaults());
+    },
+
+    async addTrackingCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {
+      return fetchJson<{ id: string; symbol: string; name: string }>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/coins`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, name }),
+        }),
+      );
+    },
+
+    async removeTrackingCoin(symbol: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    async triggerTrackingCoinsScan(): Promise<{ scanned: number; failed: number }> {
+      return fetchJson<{ scanned: number; failed: number }>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/scan`,
         withDefaults({ method: 'POST' }),
       );
     },
