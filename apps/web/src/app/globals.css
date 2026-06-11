@@ -6933,6 +6933,40 @@ a.metric-card--link:hover {
 }
 .tc-detail-tv-btn:hover { background: var(--accent-soft, rgba(31,111,91,0.1)); }
 
+/* ── tracking coins: stage cell (stage + trend inline) ── */
+.tc-stage-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* ── tracking coins: trend badge ── */
+.tc-trend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.tc-trend--strong-up   { background: #dcfce7; color: #15803d; }
+.tc-trend--up          { background: #f0fdf4; color: #16a34a; }
+.tc-trend--neutral     { background: #f1f5f9; color: #64748b; }
+.tc-trend--down        { background: #fff7ed; color: #c2410c; }
+.tc-trend--strong-down { background: #fee2e2; color: #dc2626; }
+
+/* ── swing structure label ── */
+.tc-swing-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--foreground);
+}
+
 /* ── search input ── */
 .scr-search {
   margin-left: auto;

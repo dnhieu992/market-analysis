@@ -386,6 +386,9 @@ export type ScanResult = {
 
 export type SmallCapStage = 'Breakout' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
 
+export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
+export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
+
 export type TrackingCoinRow = {
   id: string;
   symbol: string;
@@ -400,6 +403,8 @@ export type TrackingCoinRow = {
     stage: SmallCapStage;
     signalScore: number;
     sparkline: number[];
+    trend: PaTrend;
+    swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
 };
@@ -420,6 +425,8 @@ export type SmallCapCoinRow = {
     stage: SmallCapStage;
     signalScore: number;
     sparkline: number[];
+    trend: PaTrend;
+    swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
 };

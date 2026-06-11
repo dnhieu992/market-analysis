@@ -63,6 +63,8 @@ export type SmallCapCoinWithSignal = {
     stage: string;
     signalScore: number;
     sparkline: number[];
+    trend: string;
+    swingStructure: string;
     scannedAt: Date;
   } | null;
 };
@@ -98,6 +100,8 @@ export class SmallCapRadarService {
               stage: sig.stage,
               signalScore: sig.signalScore,
               sparkline: this.parseSparkline(sig.sparklineJson),
+              trend: sig.trend,
+              swingStructure: sig.swingStructure,
               scannedAt: sig.scannedAt,
             }
           : null,
@@ -261,9 +265,11 @@ export class SmallCapRadarService {
     }
 
     const closes = klines.map((k) => parseFloat(k[4]));
+    const highs = klines.map((k) => parseFloat(k[2]));
+    const lows = klines.map((k) => parseFloat(k[3]));
     const volumes = klines.map((k) => parseFloat(k[5]));
 
-    const result = computeSmallCapSignal(closes, volumes);
+    const result = computeSmallCapSignal(closes, highs, lows, volumes);
     if (!result) return;
 
     const today = new Date();
@@ -278,6 +284,8 @@ export class SmallCapRadarService {
       stage: result.stage,
       signalScore: result.signalScore,
       sparklineJson: JSON.stringify(result.sparkline),
+      trend: result.trend,
+      swingStructure: result.swingStructure,
     });
   }
 

@@ -50,9 +50,11 @@ export class SmallCapScanService {
     }
 
     const closes = klines.map((k) => parseFloat(k[4]));
+    const highs = klines.map((k) => parseFloat(k[2]));
+    const lows = klines.map((k) => parseFloat(k[3]));
     const volumes = klines.map((k) => parseFloat(k[5]));
 
-    const result = computeSmallCapSignal(closes, volumes);
+    const result = computeSmallCapSignal(closes, highs, lows, volumes);
     if (!result) {
       this.logger.warn(`Signal computation returned null for ${symbol}`);
       return;
@@ -70,6 +72,8 @@ export class SmallCapScanService {
       stage: result.stage,
       signalScore: result.signalScore,
       sparklineJson: JSON.stringify(result.sparkline),
+      trend: result.trend,
+      swingStructure: result.swingStructure,
     });
   }
 

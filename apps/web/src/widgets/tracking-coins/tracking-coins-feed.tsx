@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
-import type { TrackingCoinRow, SmallCapStage } from '@web/shared/api/types';
+import type { TrackingCoinRow, SmallCapStage, PaTrend, SwingStructure } from '@web/shared/api/types';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 type SortKey = 'signal' | 'rsi' | 'vol' | 'coin';
@@ -19,6 +19,33 @@ function StageBadge({ stage }: { stage: SmallCapStage }) {
     Quiet: 'scr-stage scr-stage--quiet',
   };
   return <span className={cls[stage]}>{stage}</span>;
+}
+
+/* ── trend badge ─────────────────────────────────────────────── */
+
+const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> = {
+  StrongUp:   { label: '↑↑', cls: 'tc-trend tc-trend--strong-up',   desc: 'Strong Uptrend' },
+  Up:         { label: '↑',  cls: 'tc-trend tc-trend--up',          desc: 'Uptrend' },
+  Neutral:    { label: '→',  cls: 'tc-trend tc-trend--neutral',     desc: 'Sideways' },
+  Down:       { label: '↓',  cls: 'tc-trend tc-trend--down',        desc: 'Downtrend' },
+  StrongDown: { label: '↓↓', cls: 'tc-trend tc-trend--strong-down', desc: 'Strong Downtrend' },
+};
+
+function TrendBadge({ trend }: { trend: PaTrend }) {
+  const meta = TREND_META[trend];
+  return <span className={meta.cls} title={meta.desc}>{meta.label}</span>;
+}
+
+function SwingStructureLabel({ structure }: { structure: SwingStructure }) {
+  const map: Record<SwingStructure, { label: string; desc: string }> = {
+    HH_HL: { label: 'HH / HL', desc: 'Higher High + Higher Low — bullish structure' },
+    LH_LL: { label: 'LH / LL', desc: 'Lower High + Lower Low — bearish structure' },
+    HH_LL: { label: 'HH / LL', desc: 'Higher High + Lower Low — expanding range' },
+    LH_HL: { label: 'LH / HL', desc: 'Lower High + Higher Low — compression / coil' },
+    Mixed: { label: 'Mixed',   desc: 'Not enough swing points detected' },
+  };
+  const { label, desc } = map[structure];
+  return <span className="tc-swing-label" title={desc}>{label}</span>;
 }
 
 function SignalBar({ score, stage }: { score: number; stage: SmallCapStage }) {
@@ -135,6 +162,19 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
 
               {/* Stats grid */}
               <div className="tc-detail-grid">
+                <div className="tc-detail-stat">
+                  <div className="tc-detail-label">Trend (PA)</div>
+                  <div className="tc-detail-value">
+                    <TrendBadge trend={sig.trend} />
+                    <span style={{ marginLeft: 6, fontSize: '0.85rem', color: 'var(--muted)' }}>
+                      {TREND_META[sig.trend].desc}
+                    </span>
+                  </div>
+                </div>
+                <div className="tc-detail-stat">
+                  <div className="tc-detail-label">Swing Structure</div>
+                  <div className="tc-detail-value"><SwingStructureLabel structure={sig.swingStructure} /></div>
+                </div>
                 <div className="tc-detail-stat">
                   <div className="tc-detail-label">RSI (14)</div>
                   <div className="tc-detail-value"><RsiCell rsi={sig.rsi} /></div>
@@ -485,7 +525,10 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     {coin.name && <span className="scr-name">{coin.name}</span>}
                   </td>
                   <td className="scr-td" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
-                    <StageBadge stage={stage} />
+                    <div className="tc-stage-cell">
+                      <StageBadge stage={stage} />
+                      {sig && <TrendBadge trend={sig.trend} />}
+                    </div>
                   </td>
                   <td className="scr-td scr-td--signal" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
                     <SignalBar score={sig?.signalScore ?? 0} stage={stage} />
