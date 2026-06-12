@@ -47,5 +47,22 @@ export function createTrackingCoinsRepository(client = prisma) {
         orderBy: { addedAt: 'asc' },
       });
     },
+
+    // ── Journal ──────────────────────────────────────────────────────────
+
+    findJournalByCoin(coinId: string) {
+      return client.trackingCoinJournal.findMany({
+        where: { coinId },
+        orderBy: { date: 'desc' },
+      });
+    },
+
+    upsertJournalEntry(coinId: string, date: Date, content: string) {
+      return client.trackingCoinJournal.upsert({
+        where: { coinId_date: { coinId, date } },
+        create: { coinId, date, content },
+        update: { content },
+      });
+    },
   };
 }

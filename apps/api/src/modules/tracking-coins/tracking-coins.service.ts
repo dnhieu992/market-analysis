@@ -95,6 +95,32 @@ export class TrackingCoinsService {
     await this.repo.removeCoin(upper);
   }
 
+  async listJournal(symbol: string) {
+    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
+    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+    const entries = await this.repo.findJournalByCoin(coin.id);
+    return entries.map((e) => ({
+      id: e.id,
+      date: e.date.toISOString().slice(0, 10),
+      content: e.content,
+      updatedAt: e.updatedAt.toISOString(),
+    }));
+  }
+
+  async upsertJournalEntry(symbol: string, date: string, content: string) {
+    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
+    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+    const d = new Date(date);
+    d.setUTCHours(0, 0, 0, 0);
+    const entry = await this.repo.upsertJournalEntry(coin.id, d, content);
+    return {
+      id: entry.id,
+      date: entry.date.toISOString().slice(0, 10),
+      content: entry.content,
+      updatedAt: entry.updatedAt.toISOString(),
+    };
+  }
+
   async triggerScan(): Promise<{ scanned: number; failed: number }> {
     const coins = await this.repo.findAllCoins();
     let scanned = 0;

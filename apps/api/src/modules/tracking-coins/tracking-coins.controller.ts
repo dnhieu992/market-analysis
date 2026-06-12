@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Put } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
+import { UpsertJournalEntryDto } from './dto/upsert-journal-entry.dto';
 import { TrackingCoinsService } from './tracking-coins.service';
 
 @ApiTags('Tracking Coins')
@@ -35,5 +36,17 @@ export class TrackingCoinsController {
   @ApiOperation({ summary: 'Manually trigger a full signal scan for all tracked coins' })
   triggerScan() {
     return this.service.triggerScan();
+  }
+
+  @Get('coins/:symbol/journal')
+  @ApiOperation({ summary: 'List all journal entries for a coin' })
+  listJournal(@Param('symbol') symbol: string) {
+    return this.service.listJournal(symbol);
+  }
+
+  @Put('coins/:symbol/journal')
+  @ApiOperation({ summary: 'Create or update a journal entry for a specific date' })
+  upsertJournalEntry(@Param('symbol') symbol: string, @Body() body: UpsertJournalEntryDto) {
+    return this.service.upsertJournalEntry(symbol, body.date, body.content);
   }
 }

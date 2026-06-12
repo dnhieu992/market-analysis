@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } fro
 import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, SwingStructure } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
+import { TrackingCoinJournal } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 type SortKey = 'rsi' | 'vol' | 'coin';
@@ -224,6 +225,16 @@ function IconAI() {
   );
 }
 
+function IconJournal() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <line x1="9" y1="9" x2="15" y2="9" /><line x1="9" y1="13" x2="13" y2="13" />
+    </svg>
+  );
+}
+
 /* ── detail modal ───────────────────────────────────────────────── */
 
 function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: () => void }) {
@@ -386,6 +397,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
+  const [journalCoin, setJournalCoin] = useState<TrackingCoinRow | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
 
@@ -454,6 +466,13 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           coin={chatCoin}
           livePrice={prices.get(chatCoin.symbol) ?? null}
           onClose={() => setChatCoin(null)}
+        />
+      )}
+      {journalCoin && (
+        <TrackingCoinJournal
+          symbol={journalCoin.symbol}
+          name={journalCoin.name}
+          onClose={() => setJournalCoin(null)}
         />
       )}
       {confirmRemoveSymbol && (
@@ -604,6 +623,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
+                        <button className="tt-btn tt-btn--journal" data-tooltip="Journal" aria-label={`Journal ${coin.symbol}`} onClick={() => setJournalCoin(coin)}>
+                          <IconJournal />
+                        </button>
                         <button className="tt-btn tt-btn--ai" data-tooltip="Ask AI" aria-label={`Ask AI về ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconAI />
                         </button>

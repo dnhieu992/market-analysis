@@ -1707,6 +1707,17 @@ a {
   border-color: #6d28d9;
 }
 
+.tt-btn--journal {
+  color: #b45309;
+  border-color: rgba(180, 83, 9, 0.25);
+  background: rgba(180, 83, 9, 0.06);
+}
+
+.tt-btn--journal:hover {
+  background: rgba(180, 83, 9, 0.14);
+  border-color: #b45309;
+}
+
 .tt-btn--analyze {
   color: var(--muted);
   border-color: var(--border);

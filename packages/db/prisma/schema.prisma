@@ -291,13 +291,28 @@ model PnlHistory {
 }
 
 model TrackingCoin {
-  id      String               @id @default(cuid())
-  symbol  String               @unique @db.VarChar(30)
-  name    String               @default("") @db.VarChar(100)
-  addedAt DateTime             @default(now())
-  signals TrackingCoinSignal[]
+  id       String                  @id @default(cuid())
+  symbol   String                  @unique @db.VarChar(30)
+  name     String                  @default("") @db.VarChar(100)
+  addedAt  DateTime                @default(now())
+  signals  TrackingCoinSignal[]
+  journals TrackingCoinJournal[]
 
   @@map("tracking_coins")
+}
+
+model TrackingCoinJournal {
+  id        String       @id @default(cuid())
+  coinId    String
+  date      DateTime     @db.Date
+  content   String       @db.LongText
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  coin      TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@unique([coinId, date])
+  @@index([coinId, date(sort: Desc)])
+  @@map("tracking_coin_journals")
 }
 
 model TrackingCoinSignal {
