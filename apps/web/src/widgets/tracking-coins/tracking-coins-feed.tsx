@@ -5,7 +5,7 @@ import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, SwingStructure } from '@web/shared/api/types';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'long' | 'short' | 'rsi' | 'vol' | 'coin';
+type SortKey = 'rsi' | 'vol' | 'coin';
 type BiasFilter = 'all' | 'long' | 'short';
 
 const PAGE_SIZE = 50;
@@ -25,21 +25,6 @@ function TfStack({ d1, h4 }: { d1: ReactNode; h4: ReactNode }) {
       </div>
     </div>
   );
-}
-
-/* ── score badges ───────────────────────────────────────────────── */
-
-function scoreColor(score: number | null, dir: 'long' | 'short'): string {
-  if (score == null) return 'tc-score--muted';
-  if (score >= 7.5) return dir === 'long' ? 'tc-score--long-hot' : 'tc-score--short-hot';
-  if (score >= 6.0) return dir === 'long' ? 'tc-score--long-mid' : 'tc-score--short-mid';
-  if (score >= 4.5) return 'tc-score--neutral';
-  return 'tc-score--cold';
-}
-
-function ScoreBadge({ score, dir }: { score: number | null; dir: 'long' | 'short' }) {
-  if (score == null) return <span className="scr-muted">—</span>;
-  return <span className={`tc-score ${scoreColor(score, dir)}`}>{score.toFixed(1)}</span>;
 }
 
 /* ── UT Bot badge ───────────────────────────────────────────────── */
@@ -174,27 +159,7 @@ function IconDetail() {
   );
 }
 
-/* ── score bar ──────────────────────────────────────────────────── */
-
-function ScoreBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = Math.round((value / max) * 100);
-  return (
-    <div className="tc-score-bar-wrap">
-      <div className="tc-score-bar" style={{ width: `${pct}%`, background: color }} />
-    </div>
-  );
-}
-
 /* ── detail modal ───────────────────────────────────────────────── */
-
-const SCORE_FACTORS = [
-  { key: 'Multi-TF Trend', max: 2.5 },
-  { key: 'EMA Stack',      max: 2.0 },
-  { key: 'UT Bot D1',      max: 2.0 },
-  { key: 'RSI',            max: 1.5 },
-  { key: 'Fibonacci',      max: 1.5 },
-  { key: 'Volume',         max: 0.5 },
-];
 
 function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: () => void }) {
   const sig = coin.signal;
@@ -217,37 +182,6 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
             </p>
           ) : (
             <>
-              {/* Long / Short score */}
-              <div className="tc-detail-score-section">
-                <div className="tc-detail-score-col">
-                  <div className="tc-detail-score-label">Long Score</div>
-                  <div className={`tc-detail-score-num ${scoreColor(sig.longScore, 'long')}`}>
-                    {sig.longScore != null ? sig.longScore.toFixed(1) : '—'}
-                    <span className="tc-detail-score-max">/10</span>
-                  </div>
-                  <ScoreBar value={sig.longScore ?? 0} max={10} color="#22c55e" />
-                </div>
-                <div className="tc-detail-score-divider" />
-                <div className="tc-detail-score-col">
-                  <div className="tc-detail-score-label">Short Score</div>
-                  <div className={`tc-detail-score-num ${scoreColor(sig.shortScore, 'short')}`}>
-                    {sig.shortScore != null ? sig.shortScore.toFixed(1) : '—'}
-                    <span className="tc-detail-score-max">/10</span>
-                  </div>
-                  <ScoreBar value={sig.shortScore ?? 0} max={10} color="#ef4444" />
-                </div>
-              </div>
-
-              <div className="tc-detail-factors">
-                <div className="tc-detail-label">Thành phần scoring</div>
-                {SCORE_FACTORS.map(f => (
-                  <div key={f.key} className="tc-detail-factor-row">
-                    <span className="tc-detail-factor-name">{f.key}</span>
-                    <span className="tc-detail-factor-max">/{f.max}</span>
-                  </div>
-                ))}
-              </div>
-
               {/* Indicator rows: D1 / H4 / M30 */}
               <div className="tc-detail-section">
                 <div className="tc-detail-label">Indicators per timeframe</div>
@@ -377,7 +311,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<TrackingCoinRow[]>(initialCoins);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('long');
+  const [sortKey, setSortKey] = useState<SortKey>('coin');
   const [biasFilter, setBiasFilter] = useState<BiasFilter>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
@@ -434,22 +368,18 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     const filtered = coins.filter((c) => {
       if (q && !c.symbol.includes(q) && !c.name.toUpperCase().includes(q)) return false;
       if (biasFilter === 'long') {
-        const l = c.signal?.longScore ?? 0;
-        const s = c.signal?.shortScore ?? 0;
-        return l > s + 1.5;
+        const t = c.signal?.trend;
+        return t === 'Up' || t === 'StrongUp';
       }
       if (biasFilter === 'short') {
-        const l = c.signal?.longScore ?? 0;
-        const s = c.signal?.shortScore ?? 0;
-        return s > l + 1.5;
+        const t = c.signal?.trend;
+        return t === 'Down' || t === 'StrongDown';
       }
       return true;
     });
     return [...filtered].sort((a, b) => {
-      if (sortKey === 'long')  return (b.signal?.longScore ?? 0)  - (a.signal?.longScore ?? 0);
-      if (sortKey === 'short') return (b.signal?.shortScore ?? 0) - (a.signal?.shortScore ?? 0);
-      if (sortKey === 'rsi')   return (b.signal?.rsi ?? 0)        - (a.signal?.rsi ?? 0);
-      if (sortKey === 'vol')   return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
+      if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
+      if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
     });
   }, [coins, sortKey, biasFilter, nameFilter]);
@@ -532,12 +462,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
                   Coin {sortKey === 'coin' && '↑'}
                 </th>
-                <th className="scr-th tc-th--score" onClick={() => setSortKey('long')}>
-                  L Score {sortKey === 'long' && '↓'}
-                </th>
-                <th className="scr-th tc-th--score" onClick={() => setSortKey('short')}>
-                  S Score {sortKey === 'short' && '↓'}
-                </th>
+                <th className="scr-th tc-th--stacked">Trend</th>
                 <th className="scr-th tc-th--stacked">UT Bot</th>
                 <th className="scr-th tc-th--stacked">EMA</th>
                 <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
@@ -553,7 +478,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="scr-empty">
+                  <td colSpan={8} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -570,11 +495,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                       <span className="scr-symbol">{coin.symbol}</span>
                       {coin.name && <span className="scr-name">{coin.name}</span>}
                     </td>
-                    <td className="scr-td tc-td--score">
-                      <ScoreBadge score={sig?.longScore ?? null} dir="long" />
-                    </td>
-                    <td className="scr-td tc-td--score">
-                      <ScoreBadge score={sig?.shortScore ?? null} dir="short" />
+                    {/* Trend D1 / H4 */}
+                    <td className="scr-td">
+                      {sig
+                        ? <TfStack
+                            d1={<TrendBadge trend={sig.trend} />}
+                            h4={<TrendBadge trend={sig.h4Trend} />}
+                          />
+                        : <span className="scr-muted">—</span>}
                     </td>
                     {/* UT Bot D1 / H4 */}
                     <td className="scr-td">
