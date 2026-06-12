@@ -7,7 +7,6 @@ import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/t
 
 type Props = { initialCoins: TrackingCoinRow[] };
 type SortKey = 'rsi' | 'vol' | 'coin';
-type BiasFilter = 'all' | 'long' | 'short';
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
@@ -380,7 +379,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('coin');
-  const [biasFilter, setBiasFilter] = useState<BiasFilter>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -389,7 +387,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
 
-  useEffect(() => { setPage(1); }, [nameFilter, biasFilter, sortKey]);
+  useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
 
   async function reloadCoins() {
     try {
@@ -434,24 +432,15 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
   const sorted = useMemo(() => {
     const q = nameFilter.trim().toUpperCase();
-    const filtered = coins.filter((c) => {
-      if (q && !c.symbol.includes(q) && !c.name.toUpperCase().includes(q)) return false;
-      if (biasFilter === 'long') {
-        const t = c.signal?.trend;
-        return t === 'Up' || t === 'StrongUp';
-      }
-      if (biasFilter === 'short') {
-        const t = c.signal?.trend;
-        return t === 'Down' || t === 'StrongDown';
-      }
-      return true;
-    });
+    const filtered = coins.filter((c) =>
+      !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)
+    );
     return [...filtered].sort((a, b) => {
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
     });
-  }, [coins, sortKey, biasFilter, nameFilter]);
+  }, [coins, sortKey, nameFilter]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -509,18 +498,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         )}
 
         {/* filters */}
-        <div className="scr-filters">
-          <div className="tc-bias-tabs">
-            {(['all', 'long', 'short'] as BiasFilter[]).map((b) => (
-              <button
-                key={b}
-                className={`tc-bias-tab tc-bias-tab--${b}${biasFilter === b ? ' tc-bias-tab--active' : ''}`}
-                onClick={() => setBiasFilter(b)}
-              >
-                {b === 'all' ? 'Tất cả' : b === 'long' ? '▲ Long bias' : '▼ Short bias'}
-              </button>
-            ))}
-          </div>
+        <div className="scr-filters scr-filters--right">
           <input
             className="scr-search"
             type="search"

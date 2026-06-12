@@ -6683,6 +6683,9 @@ a.metric-card--link:hover {
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
+.scr-filters--right {
+  justify-content: flex-end;
+}
 
 .scr-filter-chip {
   padding: 5px 12px;
