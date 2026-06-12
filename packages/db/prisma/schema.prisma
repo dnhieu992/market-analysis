@@ -313,6 +313,8 @@ model TrackingCoinSignal {
   signalScore    Int          @default(0)
   sparklineJson  String       @db.Text
   trend          String       @default("Neutral") @db.VarChar(15)
+  h4Trend        String       @default("Neutral") @db.VarChar(15)
+  m30Trend       String       @default("Neutral") @db.VarChar(15)
   swingStructure String       @default("Mixed") @db.VarChar(10)
   scannedAt      DateTime     @default(now())
   coin           TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)

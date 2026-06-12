@@ -404,6 +404,8 @@ export type TrackingCoinRow = {
     signalScore: number;
     sparkline: number[];
     trend: PaTrend;
+    h4Trend: PaTrend;
+    m30Trend: PaTrend;
     swingStructure: SwingStructure;
     scannedAt: string;
   } | null;

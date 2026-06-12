@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
@@ -21,6 +21,8 @@ export type TrackingCoinWithSignal = {
     signalScore: number;
     sparkline: number[];
     trend: string;
+    h4Trend: string;
+    m30Trend: string;
     swingStructure: string;
     scannedAt: Date;
   } | null;
@@ -53,6 +55,8 @@ export class TrackingCoinsService {
               signalScore: sig.signalScore,
               sparkline: this.parseSparkline(sig.sparklineJson),
               trend: sig.trend,
+              h4Trend: sig.h4Trend,
+              m30Trend: sig.m30Trend,
               swingStructure: sig.swingStructure,
               scannedAt: sig.scannedAt,
             }
@@ -94,11 +98,13 @@ export class TrackingCoinsService {
   }
 
   private async scanOneCoin(coinId: string, symbol: string): Promise<void> {
-    const klines = await this.binance.fetchKlines({
-      symbol: `${symbol}USDT`,
-      timeframe: '1d',
-      limit: CANDLE_LIMIT,
-    });
+    const binanceSymbol = `${symbol}USDT`;
+
+    const [klines, h4Klines, m30Klines] = await Promise.all([
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
+    ]);
 
     if (klines.length < 210) return;
 
@@ -109,6 +115,22 @@ export class TrackingCoinsService {
 
     const result = computeSmallCapSignal(closes, highs, lows, volumes);
     if (!result) return;
+
+    const h4Trend = h4Klines.length >= 20
+      ? computeTimeframeTrend(
+          h4Klines.map((k) => parseFloat(k[4])),
+          h4Klines.map((k) => parseFloat(k[2])),
+          h4Klines.map((k) => parseFloat(k[3])),
+        )
+      : 'Neutral';
+
+    const m30Trend = m30Klines.length >= 20
+      ? computeTimeframeTrend(
+          m30Klines.map((k) => parseFloat(k[4])),
+          m30Klines.map((k) => parseFloat(k[2])),
+          m30Klines.map((k) => parseFloat(k[3])),
+        )
+      : 'Neutral';
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -123,6 +145,8 @@ export class TrackingCoinsService {
       signalScore: result.signalScore,
       sparklineJson: JSON.stringify(result.sparkline),
       trend: result.trend,
+      h4Trend,
+      m30Trend,
       swingStructure: result.swingStructure,
     });
   }

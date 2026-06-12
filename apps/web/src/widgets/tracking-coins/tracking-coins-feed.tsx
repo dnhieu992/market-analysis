@@ -36,6 +36,25 @@ function TrendBadge({ trend }: { trend: PaTrend }) {
   return <span className={meta.cls} title={meta.desc}>{meta.label}</span>;
 }
 
+function MultiTrendCell({ d1, h4, m30 }: { d1: PaTrend; h4: PaTrend; m30: PaTrend }) {
+  return (
+    <div className="tc-multi-trend">
+      <div className="tc-multi-trend-row">
+        <span className="tc-tf-label">D1</span>
+        <TrendBadge trend={d1} />
+      </div>
+      <div className="tc-multi-trend-row">
+        <span className="tc-tf-label">H4</span>
+        <TrendBadge trend={h4} />
+      </div>
+      <div className="tc-multi-trend-row">
+        <span className="tc-tf-label">M30</span>
+        <TrendBadge trend={m30} />
+      </div>
+    </div>
+  );
+}
+
 function SwingStructureLabel({ structure }: { structure: SwingStructure }) {
   const map: Record<SwingStructure, { label: string; desc: string }> = {
     HH_HL: { label: 'HH / HL', desc: 'Higher High + Higher Low — bullish structure' },
@@ -162,13 +181,16 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
 
               {/* Stats grid */}
               <div className="tc-detail-grid">
-                <div className="tc-detail-stat">
-                  <div className="tc-detail-label">Trend (PA)</div>
-                  <div className="tc-detail-value">
-                    <TrendBadge trend={sig.trend} />
-                    <span style={{ marginLeft: 6, fontSize: '0.85rem', color: 'var(--muted)' }}>
-                      {TREND_META[sig.trend].desc}
-                    </span>
+                <div className="tc-detail-stat tc-detail-stat--full">
+                  <div className="tc-detail-label">Trend (D1 / H4 / M30)</div>
+                  <div className="tc-detail-trend-row">
+                    {([['D1', sig.trend], ['H4', sig.h4Trend], ['M30', sig.m30Trend]] as [string, PaTrend][]).map(([tf, t]) => (
+                      <div key={tf} className="tc-detail-trend-item">
+                        <span className="tc-tf-label tc-tf-label--lg">{tf}</span>
+                        <TrendBadge trend={t} />
+                        <span className="tc-detail-trend-desc">{TREND_META[t].desc}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="tc-detail-stat">
@@ -594,6 +616,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 Coin {sortKey === 'coin' && '↑'}
               </th>
               <th className="scr-th">Stage</th>
+              <th className="scr-th">Trend</th>
               <th className="scr-th scr-th--signal" onClick={() => setSortKey('signal')}>
                 Signal {sortKey === 'signal' && '↓'}
               </th>
@@ -611,7 +634,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="scr-empty">
+                <td colSpan={9} className="scr-empty">
                   {coins.length === 0
                     ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm coin muốn theo dõi.'
                     : nameFilter
@@ -630,10 +653,13 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     {coin.name && <span className="scr-name">{coin.name}</span>}
                   </td>
                   <td className="scr-td">
-                    <div className="tc-stage-cell">
-                      <StageBadge stage={stage} />
-                      {sig && <TrendBadge trend={sig.trend} />}
-                    </div>
+                    <StageBadge stage={stage} />
+                  </td>
+                  <td className="scr-td scr-td--trend">
+                    {sig
+                      ? <MultiTrendCell d1={sig.trend} h4={sig.h4Trend} m30={sig.m30Trend} />
+                      : <span className="scr-muted">—</span>
+                    }
                   </td>
                   <td className="scr-td scr-td--signal">
                     <SignalBar score={sig?.signalScore ?? 0} stage={stage} />

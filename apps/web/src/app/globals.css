@@ -7133,6 +7133,52 @@ a.metric-card--link:hover {
 }
 .scr-page-sub { color: var(--muted); font-size: 0.78rem; }
 
+/* ── tracking coins: multi-timeframe trend cell ── */
+.scr-td--trend { vertical-align: middle; }
+.tc-multi-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tc-multi-trend-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tc-tf-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  min-width: 26px;
+  line-height: 1;
+}
+.tc-tf-label--lg {
+  font-size: 0.75rem;
+  min-width: 32px;
+}
+
+/* ── tracking coins: detail trend row ── */
+.tc-detail-stat--full {
+  grid-column: 1 / -1;
+}
+.tc-detail-trend-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.tc-detail-trend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tc-detail-trend-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
 /* ── legend ── */
 .scr-legend {
   display: flex;

@@ -1,5 +1,5 @@
 export { buildIndicatorSnapshot } from './analysis/indicator-snapshot';
-export { computeSmallCapSignal } from './analysis/small-cap-signal';
+export { computeSmallCapSignal, computeTimeframeTrend } from './analysis/small-cap-signal';
 export type { SmallCapStage, SmallCapSignalResult, PaTrend, SwingStructure } from './analysis/small-cap-signal';
 export { analyzeMarketStructure } from './analysis/market-structure';
 export type {

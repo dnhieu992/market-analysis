@@ -19,6 +19,17 @@ export type SmallCapSignalResult = {
   swingStructure: SwingStructure;
 };
 
+export function computeTimeframeTrend(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+): PaTrend {
+  if (closes.length < 20) return 'Neutral';
+  const ema34 = calculateEma(closes, 34);
+  const ema89 = calculateEma(closes, 89);
+  return computePaTrend(closes, highs, lows, ema34, ema89).trend;
+}
+
 export function computeSmallCapSignal(
   closes: number[],
   highs: number[],
