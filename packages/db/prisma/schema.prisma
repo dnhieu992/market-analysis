@@ -318,6 +318,11 @@ model TrackingCoinSignal {
   swingStructure String       @default("Mixed") @db.VarChar(10)
   longScore      Float?
   shortScore     Float?
+  utBotD1Bullish Boolean?
+  utBotH4Bullish Boolean?
+  h4Ema34Above   Boolean?
+  h4Ema89Above   Boolean?
+  h4Ema200Above  Boolean?
   scannedAt      DateTime     @default(now())
   coin           TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
 

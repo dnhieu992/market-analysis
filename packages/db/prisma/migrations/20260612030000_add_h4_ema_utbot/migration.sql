@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE `tracking_coin_signals`
+  ADD COLUMN `utBotD1Bullish` BOOLEAN NULL,
+  ADD COLUMN `utBotH4Bullish` BOOLEAN NULL,
+  ADD COLUMN `h4Ema34Above`   BOOLEAN NULL,
+  ADD COLUMN `h4Ema89Above`   BOOLEAN NULL,
+  ADD COLUMN `h4Ema200Above`  BOOLEAN NULL;

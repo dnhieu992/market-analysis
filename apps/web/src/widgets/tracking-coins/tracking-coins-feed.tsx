@@ -41,16 +41,6 @@ function TrendBadge({ trend }: { trend: PaTrend }) {
   return <span className={meta.cls} title={meta.desc}>{meta.label}</span>;
 }
 
-function MultiTrendCell({ d1, h4, m30 }: { d1: PaTrend; h4: PaTrend; m30: PaTrend }) {
-  return (
-    <div className="tc-multi-trend">
-      <div className="tc-multi-trend-row"><span className="tc-tf-label">D1</span><TrendBadge trend={d1} /></div>
-      <div className="tc-multi-trend-row"><span className="tc-tf-label">H4</span><TrendBadge trend={h4} /></div>
-      <div className="tc-multi-trend-row"><span className="tc-tf-label">M30</span><TrendBadge trend={m30} /></div>
-    </div>
-  );
-}
-
 function SwingStructureLabel({ structure }: { structure: SwingStructure }) {
   const map: Record<SwingStructure, { label: string; desc: string }> = {
     HH_HL: { label: 'HH / HL', desc: 'Higher High + Higher Low — bullish structure' },
@@ -79,12 +69,37 @@ function VolCell({ vol }: { vol: number | null }) {
   return <span className={cls}>{vol.toFixed(1)}×</span>;
 }
 
-function EmaPips({ ema34Above, ema89Above, ema200Above }: { ema34Above: boolean; ema89Above: boolean; ema200Above: boolean }) {
+function EmaPips({ e34, e89, e200 }: { e34: boolean | null; e89: boolean | null; e200: boolean | null }) {
+  const cls = (v: boolean | null) =>
+    v === null ? 'scr-pip scr-pip--na' : v ? 'scr-pip scr-pip--on' : 'scr-pip scr-pip--off';
   return (
     <div className="scr-ema-pips">
-      <span className={`scr-pip${ema34Above ? ' scr-pip--on' : ''}`}>34</span>
-      <span className={`scr-pip${ema89Above ? ' scr-pip--on' : ''}`}>89</span>
-      <span className={`scr-pip${ema200Above ? ' scr-pip--on' : ''}`}>200</span>
+      <span className={cls(e34)}>34</span>
+      <span className={cls(e89)}>89</span>
+      <span className={cls(e200)}>200</span>
+    </div>
+  );
+}
+
+function UtBotBadge({ bullish }: { bullish: boolean | null }) {
+  if (bullish === null) return <span className="scr-muted tc-utbot-badge">—</span>;
+  return (
+    <span className={`tc-utbot-badge ${bullish ? 'tc-utbot--bull' : 'tc-utbot--bear'}`}>
+      {bullish ? '● Bull' : '● Bear'}
+    </span>
+  );
+}
+
+function TfIndicatorsCell({ utBull, e34, e89, e200 }: {
+  utBull: boolean | null;
+  e34: boolean | null;
+  e89: boolean | null;
+  e200: boolean | null;
+}) {
+  return (
+    <div className="tc-tf-indicators">
+      <UtBotBadge bullish={utBull} />
+      <EmaPips e34={e34} e89={e89} e200={e200} />
     </div>
   );
 }
@@ -223,15 +238,24 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
 
               <div className="tc-detail-grid">
                 <div className="tc-detail-stat tc-detail-stat--full">
-                  <div className="tc-detail-label">Trend (D1 / H4 / M30)</div>
-                  <div className="tc-detail-trend-row">
-                    {([['D1', sig.trend], ['H4', sig.h4Trend], ['M30', sig.m30Trend]] as [string, PaTrend][]).map(([tf, t]) => (
-                      <div key={tf} className="tc-detail-trend-item">
-                        <span className="tc-tf-label tc-tf-label--lg">{tf}</span>
-                        <TrendBadge trend={t} />
-                        <span className="tc-detail-trend-desc">{TREND_META[t].desc}</span>
-                      </div>
-                    ))}
+                  <div className="tc-detail-label">Indicators (D1 / H4)</div>
+                  <div className="tc-detail-tf-rows">
+                    <div className="tc-detail-tf-row">
+                      <span className="tc-tf-label tc-tf-label--lg">D1</span>
+                      <TrendBadge trend={sig.trend} />
+                      <UtBotBadge bullish={sig.utBotD1Bullish} />
+                      <EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />
+                    </div>
+                    <div className="tc-detail-tf-row">
+                      <span className="tc-tf-label tc-tf-label--lg">H4</span>
+                      <TrendBadge trend={sig.h4Trend} />
+                      <UtBotBadge bullish={sig.utBotH4Bullish} />
+                      <EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />
+                    </div>
+                    <div className="tc-detail-tf-row">
+                      <span className="tc-tf-label tc-tf-label--lg">M30</span>
+                      <TrendBadge trend={sig.m30Trend} />
+                    </div>
                   </div>
                 </div>
                 <div className="tc-detail-stat">
@@ -245,12 +269,6 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
                 <div className="tc-detail-stat">
                   <div className="tc-detail-label">Vol×</div>
                   <div className="tc-detail-value"><VolCell vol={sig.volMultiplier} /></div>
-                </div>
-                <div className="tc-detail-stat">
-                  <div className="tc-detail-label">vs EMA</div>
-                  <div className="tc-detail-value">
-                    <EmaPips ema34Above={sig.ema34Above} ema89Above={sig.ema89Above} ema200Above={sig.ema200Above} />
-                  </div>
                 </div>
               </div>
 
@@ -508,14 +526,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th tc-th--score" onClick={() => setSortKey('short')}>
                   S Score {sortKey === 'short' && '↓'}
                 </th>
-                <th className="scr-th">Trend (D1/H4/M30)</th>
+                <th className="scr-th tc-th--tfindicators">D1</th>
+                <th className="scr-th tc-th--tfindicators">H4</th>
                 <th className="scr-th scr-th--num" onClick={() => setSortKey('rsi')}>
                   RSI {sortKey === 'rsi' && '↓'}
                 </th>
                 <th className="scr-th scr-th--num" onClick={() => setSortKey('vol')}>
                   Vol× {sortKey === 'vol' && '↓'}
                 </th>
-                <th className="scr-th">vs EMA</th>
                 <th className="scr-th">30d</th>
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
@@ -523,7 +541,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="scr-empty">
+                  <td colSpan={10} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm coin muốn theo dõi.'
                       : nameFilter
@@ -546,18 +564,18 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className="scr-td tc-td--score">
                       <ScoreBadge score={sig?.shortScore ?? null} dir="short" />
                     </td>
-                    <td className="scr-td scr-td--trend">
+                    <td className="scr-td tc-td--tfindicators">
                       {sig
-                        ? <MultiTrendCell d1={sig.trend} h4={sig.h4Trend} m30={sig.m30Trend} />
+                        ? <TfIndicatorsCell utBull={sig.utBotD1Bullish} e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />
+                        : <span className="scr-muted">—</span>}
+                    </td>
+                    <td className="scr-td tc-td--tfindicators">
+                      {sig
+                        ? <TfIndicatorsCell utBull={sig.utBotH4Bullish} e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />
                         : <span className="scr-muted">—</span>}
                     </td>
                     <td className="scr-td scr-td--num"><RsiCell rsi={sig?.rsi ?? null} /></td>
                     <td className="scr-td scr-td--num"><VolCell vol={sig?.volMultiplier ?? null} /></td>
-                    <td className="scr-td">
-                      {sig
-                        ? <EmaPips ema34Above={sig.ema34Above} ema89Above={sig.ema89Above} ema200Above={sig.ema200Above} />
-                        : <span className="scr-muted">—</span>}
-                    </td>
                     <td className="scr-td scr-td--sparkline">
                       <Sparkline prices={sig?.sparkline ?? []} />
                     </td>

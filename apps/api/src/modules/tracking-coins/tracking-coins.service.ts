@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calcUtBotResult } from '@app/core';
 import type { PaTrend } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
@@ -18,6 +18,11 @@ export type TrackingCoinWithSignal = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
+    h4Ema34Above: boolean | null;
+    h4Ema89Above: boolean | null;
+    h4Ema200Above: boolean | null;
+    utBotD1Bullish: boolean | null;
+    utBotH4Bullish: boolean | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
@@ -53,6 +58,11 @@ export class TrackingCoinsService {
               ema34Above: sig.ema34Above,
               ema89Above: sig.ema89Above,
               ema200Above: sig.ema200Above,
+              h4Ema34Above: sig.h4Ema34Above,
+              h4Ema89Above: sig.h4Ema89Above,
+              h4Ema200Above: sig.h4Ema200Above,
+              utBotD1Bullish: sig.utBotD1Bullish,
+              utBotH4Bullish: sig.utBotH4Bullish,
               longScore: sig.longScore,
               shortScore: sig.shortScore,
               signalScore: sig.signalScore,
@@ -135,6 +145,28 @@ export class TrackingCoinsService {
         )
       : 'Neutral';
 
+    // H4 indicators
+    const h4Closes = h4Klines.map((k) => parseFloat(k[4]));
+    const h4Highs  = h4Klines.map((k) => parseFloat(k[2]));
+    const h4Lows   = h4Klines.map((k) => parseFloat(k[3]));
+    const h4LastClose = h4Closes[h4Closes.length - 1] ?? 0;
+
+    const h4Ema34Above  = h4Closes.length >= 34  ? h4LastClose > calculateEma(h4Closes, 34)  : null;
+    const h4Ema89Above  = h4Closes.length >= 89  ? h4LastClose > calculateEma(h4Closes, 89)  : null;
+    const h4Ema200Above = h4Closes.length >= 200 ? h4LastClose > calculateEma(h4Closes, 200) : null;
+
+    // UT Bot D1
+    const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
+    const utBotD1 = calcUtBotResult(d1Candles, 10, 1);
+    const utBotD1Bullish = utBotD1?.uptrend ?? null;
+
+    // UT Bot H4
+    const h4Candles = h4Closes.length >= 11
+      ? h4Closes.map((c, i) => ({ open: c, high: h4Highs[i]!, low: h4Lows[i]!, close: c }))
+      : [];
+    const utBotH4 = h4Candles.length >= 11 ? calcUtBotResult(h4Candles, 10, 1) : null;
+    const utBotH4Bullish = utBotH4?.uptrend ?? null;
+
     const { longScore, shortScore } = computeLongShortScore({
       closes,
       highs,
@@ -168,6 +200,11 @@ export class TrackingCoinsService {
       swingStructure: result.swingStructure,
       longScore,
       shortScore,
+      h4Ema34Above,
+      h4Ema89Above,
+      h4Ema200Above,
+      utBotD1Bullish,
+      utBotH4Bullish,
     });
   }
 
