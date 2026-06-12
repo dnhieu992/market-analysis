@@ -6,6 +6,7 @@ import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.s
 import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
+import { TrackingCoinScanService } from '../tracking-coin-scan/tracking-coin-scan.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
 
@@ -21,6 +22,7 @@ export class SchedulerService {
     private readonly swingSignalService: SwingSignalService,
     private readonly dailySignalService: DailySignalService,
     private readonly smallCapScanService: SmallCapScanService,
+    private readonly trackingCoinScanService: TrackingCoinScanService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -52,6 +54,19 @@ export class SchedulerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Small-cap scan failed: ${msg}`);
+    }
+  }
+
+  // Runs every day at 00:30 UTC — scan all tracking-coin watchlist
+  @Cron('30 0 * * *', { timeZone: 'UTC' })
+  async runTrackingCoinScan() {
+    this.logger.log('Running tracking-coin scan');
+    try {
+      const result = await this.trackingCoinScanService.scanAll();
+      this.logger.log(`Tracking-coin scan complete — scanned: ${result.scanned}, failed: ${result.failed}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Tracking-coin scan failed: ${msg}`);
     }
   }
 
