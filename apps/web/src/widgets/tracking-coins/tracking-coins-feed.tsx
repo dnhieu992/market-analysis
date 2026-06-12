@@ -261,6 +261,84 @@ function SparklineLarge({ prices }: { prices: number[] }) {
   );
 }
 
+function IconTrash() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function IconDetail() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+const STAGE_INFO: { stage: SmallCapStage; cls: string; desc: string }[] = [
+  { stage: 'Breakout',    cls: 'scr-stage--breakout',    desc: 'Vừa bứt phá — vào soi ngay' },
+  { stage: 'Accumulating',cls: 'scr-stage--accumulating',desc: 'Đang tích lũy — theo dõi chờ entry' },
+  { stage: 'Waking',      cls: 'scr-stage--waking',      desc: 'Chớm động — sắp bứt phá' },
+  { stage: 'Extended',    cls: 'scr-stage--extended',    desc: 'Đã chạy xa — tránh đu đỉnh' },
+  { stage: 'Quiet',       cls: 'scr-stage--quiet',       desc: 'Không có gì đáng chú ý — bỏ qua' },
+];
+
+function StageInfoPopover({ onClose }: { onClose: () => void }) {
+  return (
+    <>
+      <div className="tc-info-popover-backdrop" onClick={onClose} />
+      <div className="tc-info-popover">
+        <p className="tc-info-popover-title">Giải thích Stage</p>
+        {STAGE_INFO.map(({ stage, cls, desc }) => (
+          <div key={stage} className="tc-info-popover-row">
+            <span className={`scr-stage ${cls}`}>{stage}</span>
+            <span className="tc-info-popover-desc">{desc}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ConfirmRemoveDialog({
+  symbol,
+  isRemoving,
+  onConfirm,
+  onCancel,
+}: {
+  symbol: string;
+  isRemoving: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Xóa coin</span>
+          <button className="dialog-close" onClick={onCancel}>✕</button>
+        </div>
+        <div className="dialog-body">
+          <p className="dialog-confirm-text">
+            Xóa <strong>{symbol}</strong> khỏi danh sách theo dõi?
+          </p>
+          <div className="dialog-confirm-actions">
+            <button className="btn btn--secondary" onClick={onCancel} disabled={isRemoving}>
+              Hủy
+            </button>
+            <button className="btn btn--danger" onClick={onConfirm} disabled={isRemoving}>
+              {isRemoving ? 'Đang xóa…' : 'Xóa'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) {
   const [symbol, setSymbol] = useState('');
   const [name, setName] = useState('');
@@ -325,7 +403,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
+  const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
+  const [showStageInfo, setShowStageInfo] = useState(false);
 
   function toggleStage(stage: SmallCapStage) {
     setHiddenStages((prev) => {
@@ -359,13 +439,16 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       });
       if (res.ok) {
         const data = await res.json() as { scanned: number; failed: number };
-        setStatusMsg(`Re-analyze xong: ${data.scanned} coins scanned, ${data.failed} failed.`);
+        const failNote = data.failed > 0 ? ` (${data.failed} lỗi)` : '';
+        setStatusMsg(`✅ Re-analyze xong: ${data.scanned} coins${failNote}.`);
         await reloadCoins();
       } else {
-        setStatusMsg('Re-analyze thất bại, thử lại sau.');
+        const body = await res.text().catch(() => '');
+        setStatusMsg(`❌ Re-analyze thất bại (HTTP ${res.status})${body ? `: ${body.slice(0, 120)}` : ''}.`);
       }
-    } catch {
-      setStatusMsg('Re-analyze thất bại, thử lại sau.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatusMsg(`❌ Không kết nối được server: ${msg}`);
     } finally {
       setReanalyzing(false);
     }
@@ -415,16 +498,39 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     {selectedCoin && (
       <CoinDetailModal coin={selectedCoin} onClose={() => setSelectedCoin(null)} />
     )}
+    {confirmRemoveSymbol && (
+      <ConfirmRemoveDialog
+        symbol={confirmRemoveSymbol}
+        isRemoving={removingSymbol === confirmRemoveSymbol}
+        onConfirm={async () => {
+          await handleRemoveCoin(confirmRemoveSymbol);
+          setConfirmRemoveSymbol(null);
+        }}
+        onCancel={() => setConfirmRemoveSymbol(null)}
+      />
+    )}
     <main className="dashboard-shell scr-shell">
-      {/* ── toolbar ── */}
-      <div className="scr-toolbar">
-        <div className="scr-toolbar-left">
-          <h1 className="scr-title">Tracking Coins</h1>
-          <span className="scr-count">
+      {/* ── page header ── */}
+      <div className="tc-page-header">
+        <div className="tc-page-header-left">
+          <div className="tc-page-title-row">
+            <h1 className="scr-title">Tracking Coins</h1>
+            <div className="tc-info-wrap">
+              <button
+                className={`tc-info-btn${showStageInfo ? ' tc-info-btn--active' : ''}`}
+                onClick={() => setShowStageInfo((v) => !v)}
+                aria-label="Giải thích các nhãn stage"
+              >
+                i
+              </button>
+              {showStageInfo && <StageInfoPopover onClose={() => setShowStageInfo(false)} />}
+            </div>
+          </div>
+          <p className="tc-page-header-sub">
             {sorted.length < coins.length
-              ? `${sorted.length} / ${coins.length} coins`
-              : `${coins.length} coins`}
-          </span>
+              ? `${sorted.length} / ${coins.length} coins hiển thị`
+              : `${coins.length} coins đang theo dõi`}
+          </p>
         </div>
         <div className="scr-toolbar-right">
           <button
@@ -499,7 +605,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
               </th>
               <th className="scr-th">vs EMA</th>
               <th className="scr-th">30d</th>
-              <th className="scr-th scr-th--num">Chi tiết</th>
+              <th className="scr-th scr-th--num">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -517,30 +623,29 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             {paginated.map((coin) => {
               const sig = coin.signal;
               const stage = (sig?.stage ?? 'Quiet') as SmallCapStage;
-              const tvUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${coin.symbol}USDT`;
               return (
-                <tr key={coin.id} className="scr-row">
-                  <td className="scr-td scr-td--coin" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
+                <tr key={coin.id} className="scr-row" onClick={() => setSelectedCoin(coin)} style={{ cursor: 'pointer' }}>
+                  <td className="scr-td scr-td--coin">
                     <span className="scr-symbol">{coin.symbol}</span>
                     {coin.name && <span className="scr-name">{coin.name}</span>}
                   </td>
-                  <td className="scr-td" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
+                  <td className="scr-td">
                     <div className="tc-stage-cell">
                       <StageBadge stage={stage} />
                       {sig && <TrendBadge trend={sig.trend} />}
                     </div>
                   </td>
-                  <td className="scr-td scr-td--signal" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
+                  <td className="scr-td scr-td--signal">
                     <SignalBar score={sig?.signalScore ?? 0} stage={stage} />
                     <span className="scr-signal-num">{sig?.signalScore ?? '—'}</span>
                   </td>
-                  <td className="scr-td scr-td--num" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
+                  <td className="scr-td scr-td--num">
                     <RsiCell rsi={sig?.rsi ?? null} />
                   </td>
-                  <td className="scr-td scr-td--num" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
+                  <td className="scr-td scr-td--num">
                     <VolCell vol={sig?.volMultiplier ?? null} />
                   </td>
-                  <td className="scr-td" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
+                  <td className="scr-td">
                     {sig ? (
                       <EmaPips
                         ema34Above={sig.ema34Above}
@@ -551,25 +656,27 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                       <span className="scr-muted">—</span>
                     )}
                   </td>
-                  <td className="scr-td scr-td--sparkline" onClick={() => window.open(tvUrl, '_blank')} style={{ cursor: 'pointer' }}>
+                  <td className="scr-td scr-td--sparkline">
                     <Sparkline prices={sig?.sparkline ?? []} />
                   </td>
-                  <td className="scr-td scr-td--num">
-                    <div className="tc-row-actions">
+                  <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
+                    <div className="tt-actions">
                       <button
-                        className="tc-view-btn"
+                        className="tt-btn tt-btn--notes"
+                        data-tooltip="Chi tiết"
+                        aria-label={`Xem chi tiết ${coin.symbol}`}
                         onClick={() => setSelectedCoin(coin)}
-                        title={`Xem chi tiết ${coin.symbol}`}
                       >
-                        ⊙
+                        <IconDetail />
                       </button>
                       <button
-                        className="scr-remove-btn"
-                        onClick={() => handleRemoveCoin(coin.symbol)}
+                        className="tt-btn tt-btn--danger"
+                        data-tooltip="Xóa"
+                        aria-label={`Xóa ${coin.symbol}`}
+                        onClick={() => setConfirmRemoveSymbol(coin.symbol)}
                         disabled={removingSymbol === coin.symbol}
-                        title={`Xóa ${coin.symbol}`}
                       >
-                        {removingSymbol === coin.symbol ? '…' : '✕'}
+                        {removingSymbol === coin.symbol ? '…' : <IconTrash />}
                       </button>
                     </div>
                   </td>
@@ -596,14 +703,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         </div>
       )}
 
-      {/* ── legend ── */}
-      <div className="scr-legend">
-        <span className="scr-stage scr-stage--breakout">Breakout</span><span>vào soi ngay</span>
-        <span className="scr-stage scr-stage--accumulating">Accumulating</span><span>theo dõi</span>
-        <span className="scr-stage scr-stage--waking">Waking</span><span>chớm động</span>
-        <span className="scr-stage scr-stage--extended">Extended</span><span>đã chạy, tránh đu</span>
-        <span className="scr-stage scr-stage--quiet">Quiet</span><span>bỏ qua</span>
-      </div>
     </main>
     </>
   );

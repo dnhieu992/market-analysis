@@ -62,7 +62,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 28px 22px;
+  padding: 28px 12px;
   border-right: 1px solid rgba(23, 18, 13, 0.08);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(245, 239, 231, 0.88)),
@@ -184,6 +184,23 @@ a {
 .sidebar-nav-links {
   display: grid;
   gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar-nav-links::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar-nav-links::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav-links::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
 }
 
 .sidebar-nav-link {
@@ -1627,6 +1644,7 @@ a {
 .tt-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -6939,6 +6957,110 @@ a.metric-card--link:hover {
   align-items: center;
   gap: 5px;
   flex-wrap: wrap;
+}
+
+/* ── tracking coins: page header card ── */
+.tc-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 22px;
+  margin-bottom: 20px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  flex-wrap: wrap;
+}
+
+.tc-page-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tc-page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tc-page-header-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── tracking coins: info icon & stage popover ── */
+.tc-info-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tc-info-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.tc-info-btn:hover,
+.tc-info-btn--active {
+  color: var(--accent, #1f6f5b);
+  border-color: var(--accent, #1f6f5b);
+}
+
+.tc-info-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+
+.tc-info-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  z-index: 50;
+  min-width: 300px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+
+.tc-info-popover-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 10px;
+}
+
+.tc-info-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.tc-info-popover-desc {
+  font-size: 0.82rem;
+  color: var(--fg);
+  flex: 1;
 }
 
 /* ── tracking coins: trend badge ── */
