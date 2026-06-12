@@ -462,7 +462,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
                   Coin {sortKey === 'coin' && '↑'}
                 </th>
-                <th className="scr-th tc-th--stacked">Trend</th>
+                <th className="scr-th tc-th--stacked">Trend (PA)</th>
                 <th className="scr-th tc-th--stacked">UT Bot</th>
                 <th className="scr-th tc-th--stacked">EMA</th>
                 <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
