@@ -397,6 +397,8 @@ export type TrackingCoinRow = {
     h4Ema200Above: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    h4Rsi: number | null;
+    h4VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;

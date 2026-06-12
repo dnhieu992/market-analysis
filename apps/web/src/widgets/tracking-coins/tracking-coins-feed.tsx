@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, SwingStructure } from '@web/shared/api/types';
 
@@ -10,7 +10,24 @@ type BiasFilter = 'all' | 'long' | 'short';
 
 const PAGE_SIZE = 50;
 
-/* ── score helpers ──────────────────────────────────────────────── */
+/* ── shared: D1/H4 stacked layout ──────────────────────────────── */
+
+function TfStack({ d1, h4 }: { d1: ReactNode; h4: ReactNode }) {
+  return (
+    <div className="tc-tf-stack">
+      <div className="tc-tf-stack-row">
+        <span className="tc-tf-label">D1</span>
+        <span className="tc-tf-stack-val">{d1}</span>
+      </div>
+      <div className="tc-tf-stack-row">
+        <span className="tc-tf-label">H4</span>
+        <span className="tc-tf-stack-val">{h4}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── score badges ───────────────────────────────────────────────── */
 
 function scoreColor(score: number | null, dir: 'long' | 'short'): string {
   if (score == null) return 'tc-score--muted';
@@ -22,52 +39,21 @@ function scoreColor(score: number | null, dir: 'long' | 'short'): string {
 
 function ScoreBadge({ score, dir }: { score: number | null; dir: 'long' | 'short' }) {
   if (score == null) return <span className="scr-muted">—</span>;
-  const cls = `tc-score ${scoreColor(score, dir)}`;
-  return <span className={cls}>{score.toFixed(1)}</span>;
+  return <span className={`tc-score ${scoreColor(score, dir)}`}>{score.toFixed(1)}</span>;
 }
 
-/* ── trend / structure badges ───────────────────────────────────── */
+/* ── UT Bot badge ───────────────────────────────────────────────── */
 
-const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> = {
-  StrongUp:   { label: '↑↑', cls: 'tc-trend tc-trend--strong-up',   desc: 'Strong Uptrend' },
-  Up:         { label: '↑',  cls: 'tc-trend tc-trend--up',          desc: 'Uptrend' },
-  Neutral:    { label: '→',  cls: 'tc-trend tc-trend--neutral',     desc: 'Sideways' },
-  Down:       { label: '↓',  cls: 'tc-trend tc-trend--down',        desc: 'Downtrend' },
-  StrongDown: { label: '↓↓', cls: 'tc-trend tc-trend--strong-down', desc: 'Strong Downtrend' },
-};
-
-function TrendBadge({ trend }: { trend: PaTrend }) {
-  const meta = TREND_META[trend];
-  return <span className={meta.cls} title={meta.desc}>{meta.label}</span>;
+function UtBotBadge({ bullish }: { bullish: boolean | null }) {
+  if (bullish === null) return <span className="scr-muted" style={{ fontSize: '0.75rem' }}>N/A</span>;
+  return (
+    <span className={`tc-utbot-badge ${bullish ? 'tc-utbot--bull' : 'tc-utbot--bear'}`}>
+      {bullish ? '● Bull' : '● Bear'}
+    </span>
+  );
 }
 
-function SwingStructureLabel({ structure }: { structure: SwingStructure }) {
-  const map: Record<SwingStructure, { label: string; desc: string }> = {
-    HH_HL: { label: 'HH / HL', desc: 'Higher High + Higher Low — bullish structure' },
-    LH_LL: { label: 'LH / LL', desc: 'Lower High + Lower Low — bearish structure' },
-    HH_LL: { label: 'HH / LL', desc: 'Higher High + Lower Low — expanding range' },
-    LH_HL: { label: 'LH / HL', desc: 'Lower High + Higher Low — compression / coil' },
-    Mixed: { label: 'Mixed',   desc: 'Not enough swing points detected' },
-  };
-  const { label, desc } = map[structure];
-  return <span className="tc-swing-label" title={desc}>{label}</span>;
-}
-
-function RsiCell({ rsi }: { rsi: number | null }) {
-  if (rsi == null) return <span className="scr-muted">—</span>;
-  const cls =
-    rsi > 70 ? 'scr-rsi scr-rsi--hot' :
-    rsi < 35 ? 'scr-rsi scr-rsi--cold' :
-    rsi >= 35 && rsi <= 60 ? 'scr-rsi scr-rsi--good' :
-    'scr-rsi';
-  return <span className={cls}>{Math.round(rsi)}</span>;
-}
-
-function VolCell({ vol }: { vol: number | null }) {
-  if (vol == null) return <span className="scr-muted">—</span>;
-  const cls = vol >= 1.5 ? 'scr-vol scr-vol--high' : vol >= 1.0 ? 'scr-vol' : 'scr-vol scr-vol--low';
-  return <span className={cls}>{vol.toFixed(1)}×</span>;
-}
+/* ── EMA pips — green above, red below ─────────────────────────── */
 
 function EmaPips({ e34, e89, e200 }: { e34: boolean | null; e89: boolean | null; e200: boolean | null }) {
   const cls = (v: boolean | null) =>
@@ -81,28 +67,54 @@ function EmaPips({ e34, e89, e200 }: { e34: boolean | null; e89: boolean | null;
   );
 }
 
-function UtBotBadge({ bullish }: { bullish: boolean | null }) {
-  if (bullish === null) return <span className="scr-muted tc-utbot-badge">—</span>;
-  return (
-    <span className={`tc-utbot-badge ${bullish ? 'tc-utbot--bull' : 'tc-utbot--bear'}`}>
-      {bullish ? '● Bull' : '● Bear'}
-    </span>
-  );
+/* ── RSI cell ───────────────────────────────────────────────────── */
+
+function RsiCell({ rsi }: { rsi: number | null }) {
+  if (rsi == null) return <span className="scr-muted">—</span>;
+  const cls =
+    rsi > 70 ? 'scr-rsi scr-rsi--hot' :
+    rsi < 35 ? 'scr-rsi scr-rsi--cold' :
+    rsi >= 35 && rsi <= 60 ? 'scr-rsi scr-rsi--good' :
+    'scr-rsi';
+  return <span className={cls}>{Math.round(rsi)}</span>;
 }
 
-function TfIndicatorsCell({ utBull, e34, e89, e200 }: {
-  utBull: boolean | null;
-  e34: boolean | null;
-  e89: boolean | null;
-  e200: boolean | null;
-}) {
-  return (
-    <div className="tc-tf-indicators">
-      <UtBotBadge bullish={utBull} />
-      <EmaPips e34={e34} e89={e89} e200={e200} />
-    </div>
-  );
+/* ── Vol cell ───────────────────────────────────────────────────── */
+
+function VolCell({ vol }: { vol: number | null }) {
+  if (vol == null) return <span className="scr-muted">—</span>;
+  const cls = vol >= 1.5 ? 'scr-vol scr-vol--high' : vol >= 1.0 ? 'scr-vol' : 'scr-vol scr-vol--low';
+  return <span className={cls}>{vol.toFixed(1)}×</span>;
 }
+
+/* ── Trend badge ────────────────────────────────────────────────── */
+
+const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> = {
+  StrongUp:   { label: '↑↑', cls: 'tc-trend tc-trend--strong-up',   desc: 'Strong Uptrend' },
+  Up:         { label: '↑',  cls: 'tc-trend tc-trend--up',          desc: 'Uptrend' },
+  Neutral:    { label: '→',  cls: 'tc-trend tc-trend--neutral',     desc: 'Sideways' },
+  Down:       { label: '↓',  cls: 'tc-trend tc-trend--down',        desc: 'Downtrend' },
+  StrongDown: { label: '↓↓', cls: 'tc-trend tc-trend--strong-down', desc: 'Strong Downtrend' },
+};
+
+function TrendBadge({ trend }: { trend: PaTrend }) {
+  const m = TREND_META[trend];
+  return <span className={m.cls} title={m.desc}>{m.label}</span>;
+}
+
+function SwingStructureLabel({ structure }: { structure: SwingStructure }) {
+  const map: Record<SwingStructure, { label: string; desc: string }> = {
+    HH_HL: { label: 'HH / HL', desc: 'Higher High + Higher Low — bullish' },
+    LH_LL: { label: 'LH / LL', desc: 'Lower High + Lower Low — bearish' },
+    HH_LL: { label: 'HH / LL', desc: 'Higher High + Lower Low — expanding' },
+    LH_HL: { label: 'LH / HL', desc: 'Lower High + Higher Low — coil' },
+    Mixed:  { label: 'Mixed',  desc: 'Not enough swing points' },
+  };
+  const { label, desc } = map[structure];
+  return <span className="tc-swing-label" title={desc}>{label}</span>;
+}
+
+/* ── Sparkline ──────────────────────────────────────────────────── */
 
 function Sparkline({ prices }: { prices: number[] }) {
   if (prices.length < 2) return <span className="scr-muted">—</span>;
@@ -119,37 +131,6 @@ function Sparkline({ prices }: { prices: number[] }) {
     </svg>
   );
 }
-
-/* ── icons ──────────────────────────────────────────────────────── */
-
-function IconTrash() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
-function IconDetail() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-
-/* ── score breakdown bar ────────────────────────────────────────── */
-
-function ScoreBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = Math.round((value / max) * 100);
-  return (
-    <div className="tc-score-bar-wrap">
-      <div className="tc-score-bar" style={{ width: `${pct}%`, background: color }} />
-    </div>
-  );
-}
-
-/* ── detail modal ───────────────────────────────────────────────── */
 
 function SparklineLarge({ prices }: { prices: number[] }) {
   if (prices.length < 2) return <span className="scr-muted">Không có dữ liệu</span>;
@@ -174,6 +155,37 @@ function SparklineLarge({ prices }: { prices: number[] }) {
     </div>
   );
 }
+
+/* ── icons ──────────────────────────────────────────────────────── */
+
+function IconTrash() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function IconDetail() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+/* ── score bar ──────────────────────────────────────────────────── */
+
+function ScoreBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = Math.round((value / max) * 100);
+  return (
+    <div className="tc-score-bar-wrap">
+      <div className="tc-score-bar" style={{ width: `${pct}%`, background: color }} />
+    </div>
+  );
+}
+
+/* ── detail modal ───────────────────────────────────────────────── */
 
 const SCORE_FACTORS = [
   { key: 'Multi-TF Trend', max: 2.5 },
@@ -205,7 +217,7 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
             </p>
           ) : (
             <>
-              {/* Score section */}
+              {/* Long / Short score */}
               <div className="tc-detail-score-section">
                 <div className="tc-detail-score-col">
                   <div className="tc-detail-score-label">Long Score</div>
@@ -236,39 +248,39 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
                 ))}
               </div>
 
-              <div className="tc-detail-grid">
-                <div className="tc-detail-stat tc-detail-stat--full">
-                  <div className="tc-detail-label">Indicators (D1 / H4)</div>
-                  <div className="tc-detail-tf-rows">
-                    <div className="tc-detail-tf-row">
-                      <span className="tc-tf-label tc-tf-label--lg">D1</span>
-                      <TrendBadge trend={sig.trend} />
-                      <UtBotBadge bullish={sig.utBotD1Bullish} />
-                      <EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />
-                    </div>
-                    <div className="tc-detail-tf-row">
-                      <span className="tc-tf-label tc-tf-label--lg">H4</span>
-                      <TrendBadge trend={sig.h4Trend} />
-                      <UtBotBadge bullish={sig.utBotH4Bullish} />
-                      <EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />
-                    </div>
-                    <div className="tc-detail-tf-row">
-                      <span className="tc-tf-label tc-tf-label--lg">M30</span>
-                      <TrendBadge trend={sig.m30Trend} />
-                    </div>
+              {/* Indicator rows: D1 / H4 / M30 */}
+              <div className="tc-detail-section">
+                <div className="tc-detail-label">Indicators per timeframe</div>
+                <div className="tc-detail-tf-table">
+                  <div className="tc-detail-tf-head">
+                    <span />
+                    <span>Trend</span>
+                    <span>UT Bot</span>
+                    <span>EMA</span>
+                    <span>RSI</span>
+                    <span>Vol×</span>
                   </div>
+                  {[
+                    { tf: 'D1',  trend: sig.trend,    utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,    vol: sig.volMultiplier },
+                    { tf: 'H4',  trend: sig.h4Trend,  utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi,  vol: sig.h4VolMultiplier },
+                    { tf: 'M30', trend: sig.m30Trend, utBot: null,               e34: null,             e89: null,             e200: null,              rsi: null,        vol: null },
+                  ].map(r => (
+                    <div key={r.tf} className="tc-detail-tf-row">
+                      <span className="tc-tf-label tc-tf-label--lg">{r.tf}</span>
+                      <TrendBadge trend={r.trend} />
+                      <UtBotBadge bullish={r.utBot} />
+                      <EmaPips e34={r.e34} e89={r.e89} e200={r.e200} />
+                      <RsiCell rsi={r.rsi} />
+                      <VolCell vol={r.vol} />
+                    </div>
+                  ))}
                 </div>
+              </div>
+
+              <div className="tc-detail-grid">
                 <div className="tc-detail-stat">
                   <div className="tc-detail-label">Swing Structure</div>
                   <div className="tc-detail-value"><SwingStructureLabel structure={sig.swingStructure} /></div>
-                </div>
-                <div className="tc-detail-stat">
-                  <div className="tc-detail-label">RSI (14)</div>
-                  <div className="tc-detail-value"><RsiCell rsi={sig.rsi} /></div>
-                </div>
-                <div className="tc-detail-stat">
-                  <div className="tc-detail-label">Vol×</div>
-                  <div className="tc-detail-value"><VolCell vol={sig.volMultiplier} /></div>
                 </div>
               </div>
 
@@ -459,7 +471,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       )}
 
       <main className="dashboard-shell scr-shell">
-        {/* ── page header ── */}
+        {/* header */}
         <div className="tc-page-header">
           <div className="tc-page-header-left">
             <h1 className="scr-title">Tracking Coins</h1>
@@ -490,7 +502,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           />
         )}
 
-        {/* ── filters ── */}
+        {/* filters */}
         <div className="scr-filters">
           <div className="tc-bias-tabs">
             {(['all', 'long', 'short'] as BiasFilter[]).map((b) => (
@@ -512,7 +524,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           />
         </div>
 
-        {/* ── table ── */}
+        {/* table */}
         <div className="scr-table-wrap">
           <table className="scr-table">
             <thead>
@@ -526,12 +538,12 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th tc-th--score" onClick={() => setSortKey('short')}>
                   S Score {sortKey === 'short' && '↓'}
                 </th>
-                <th className="scr-th tc-th--tfindicators">D1</th>
-                <th className="scr-th tc-th--tfindicators">H4</th>
-                <th className="scr-th scr-th--num" onClick={() => setSortKey('rsi')}>
+                <th className="scr-th tc-th--stacked">UT Bot</th>
+                <th className="scr-th tc-th--stacked">EMA</th>
+                <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
                   RSI {sortKey === 'rsi' && '↓'}
                 </th>
-                <th className="scr-th scr-th--num" onClick={() => setSortKey('vol')}>
+                <th className="scr-th tc-th--stacked" onClick={() => setSortKey('vol')}>
                   Vol× {sortKey === 'vol' && '↓'}
                 </th>
                 <th className="scr-th">30d</th>
@@ -541,9 +553,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="scr-empty">
+                  <td colSpan={9} className="scr-empty">
                     {coins.length === 0
-                      ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm coin muốn theo dõi.'
+                      ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
                       ? `Không tìm thấy coin khớp với "${nameFilter}".`
                       : 'Không có coin nào khớp filter.'}
@@ -564,24 +576,48 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className="scr-td tc-td--score">
                       <ScoreBadge score={sig?.shortScore ?? null} dir="short" />
                     </td>
-                    <td className="scr-td tc-td--tfindicators">
+                    {/* UT Bot D1 / H4 */}
+                    <td className="scr-td">
                       {sig
-                        ? <TfIndicatorsCell utBull={sig.utBotD1Bullish} e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />
+                        ? <TfStack
+                            d1={<UtBotBadge bullish={sig.utBotD1Bullish} />}
+                            h4={<UtBotBadge bullish={sig.utBotH4Bullish} />}
+                          />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    <td className="scr-td tc-td--tfindicators">
+                    {/* EMA D1 / H4 */}
+                    <td className="scr-td">
                       {sig
-                        ? <TfIndicatorsCell utBull={sig.utBotH4Bullish} e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />
+                        ? <TfStack
+                            d1={<EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />}
+                            h4={<EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />}
+                          />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    <td className="scr-td scr-td--num"><RsiCell rsi={sig?.rsi ?? null} /></td>
-                    <td className="scr-td scr-td--num"><VolCell vol={sig?.volMultiplier ?? null} /></td>
+                    {/* RSI D1 / H4 */}
+                    <td className="scr-td">
+                      {sig
+                        ? <TfStack
+                            d1={<RsiCell rsi={sig.rsi} />}
+                            h4={<RsiCell rsi={sig.h4Rsi} />}
+                          />
+                        : <span className="scr-muted">—</span>}
+                    </td>
+                    {/* Vol D1 / H4 */}
+                    <td className="scr-td">
+                      {sig
+                        ? <TfStack
+                            d1={<VolCell vol={sig.volMultiplier} />}
+                            h4={<VolCell vol={sig.h4VolMultiplier} />}
+                          />
+                        : <span className="scr-muted">—</span>}
+                    </td>
                     <td className="scr-td scr-td--sparkline">
                       <Sparkline prices={sig?.sparkline ?? []} />
                     </td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
-                        <button className="tt-btn tt-btn--notes" data-tooltip="Chi tiết" aria-label={`Xem chi tiết ${coin.symbol}`} onClick={() => setSelectedCoin(coin)}>
+                        <button className="tt-btn tt-btn--notes" data-tooltip="Chi tiết" aria-label={`Chi tiết ${coin.symbol}`} onClick={() => setSelectedCoin(coin)}>
                           <IconDetail />
                         </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
@@ -596,7 +632,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           </table>
         </div>
 
-        {/* ── pagination ── */}
+        {/* pagination */}
         {totalPages > 1 && (
           <div className="scr-pagination">
             <button className="scr-page-btn" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>

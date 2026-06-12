@@ -7184,6 +7184,53 @@ a.metric-card--link:hover {
   min-width: 32px;
 }
 
+/* ── tracking coins: stacked D1/H4 rows within an indicator column ── */
+.tc-tf-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tc-tf-stack-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.tc-tf-stack-val {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.tc-th--stacked { min-width: 108px; }
+
+/* ── tracking coins: detail TF table ── */
+.tc-detail-tf-table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+.tc-detail-tf-head {
+  display: grid;
+  grid-template-columns: 36px 1fr 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.tc-detail-tf-row {
+  display: grid;
+  grid-template-columns: 36px 1fr 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+
 /* ── tracking coins: detail trend row ── */
 .tc-detail-stat--full {
   grid-column: 1 / -1;

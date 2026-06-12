@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calcUtBotResult } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult } from '@app/core';
 import type { PaTrend } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
@@ -23,6 +23,8 @@ export type TrackingCoinWithSignal = {
     h4Ema200Above: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    h4Rsi: number | null;
+    h4VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
@@ -63,6 +65,8 @@ export class TrackingCoinsService {
               h4Ema200Above: sig.h4Ema200Above,
               utBotD1Bullish: sig.utBotD1Bullish,
               utBotH4Bullish: sig.utBotH4Bullish,
+              h4Rsi: sig.h4Rsi,
+              h4VolMultiplier: sig.h4VolMultiplier,
               longScore: sig.longScore,
               shortScore: sig.shortScore,
               signalScore: sig.signalScore,
@@ -154,6 +158,9 @@ export class TrackingCoinsService {
     const h4Ema34Above  = h4Closes.length >= 34  ? h4LastClose > calculateEma(h4Closes, 34)  : null;
     const h4Ema89Above  = h4Closes.length >= 89  ? h4LastClose > calculateEma(h4Closes, 89)  : null;
     const h4Ema200Above = h4Closes.length >= 200 ? h4LastClose > calculateEma(h4Closes, 200) : null;
+    const h4Volumes = h4Klines.map((k) => parseFloat(k[5]));
+    const h4Rsi           = h4Closes.length > 14 ? calculateRsi(h4Closes, 14) : null;
+    const h4VolMultiplier = h4Volumes.length >= 20 ? calculateVolumeRatio(h4Volumes, 20) : null;
 
     // UT Bot D1
     const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
@@ -205,6 +212,8 @@ export class TrackingCoinsService {
       h4Ema200Above,
       utBotD1Bullish,
       utBotH4Bullish,
+      h4Rsi,
+      h4VolMultiplier,
     });
   }
 
