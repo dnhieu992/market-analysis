@@ -2,20 +2,31 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
-import type { TrackingCoinRow, TradeSetup, PaTrend, SwingStructure } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, SwingStructure } from '@web/shared/api/types';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'setup' | 'rsi' | 'vol' | 'coin';
+type SortKey = 'long' | 'short' | 'rsi' | 'vol' | 'coin';
+type BiasFilter = 'all' | 'long' | 'short';
 
-const ALL_SETUPS: TradeSetup[] = ['LongSwing', 'ShortSwing', 'LongScalp', 'ShortScalp', 'Neutral'];
+const PAGE_SIZE = 50;
 
-const SETUP_META: Record<TradeSetup, { label: string; cls: string; desc: string; priority: number }> = {
-  LongSwing:  { label: '▲ Long Swing',  cls: 'tc-setup tc-setup--long-swing',  desc: 'D1 + H4 uptrend — swing long opportunity',   priority: 5 },
-  ShortSwing: { label: '▼ Short Swing', cls: 'tc-setup tc-setup--short-swing', desc: 'D1 + H4 downtrend — swing short opportunity', priority: 4 },
-  LongScalp:  { label: '↑ Long Scalp',  cls: 'tc-setup tc-setup--long-scalp',  desc: 'H4 + M30 uptrend — intraday long setup',     priority: 3 },
-  ShortScalp: { label: '↓ Short Scalp', cls: 'tc-setup tc-setup--short-scalp', desc: 'H4 + M30 downtrend — intraday short setup',  priority: 2 },
-  Neutral:    { label: '— Neutral',      cls: 'tc-setup tc-setup--neutral',     desc: 'Conflicting signals — no clear setup',       priority: 1 },
-};
+/* ── score helpers ──────────────────────────────────────────────── */
+
+function scoreColor(score: number | null, dir: 'long' | 'short'): string {
+  if (score == null) return 'tc-score--muted';
+  if (score >= 7.5) return dir === 'long' ? 'tc-score--long-hot' : 'tc-score--short-hot';
+  if (score >= 6.0) return dir === 'long' ? 'tc-score--long-mid' : 'tc-score--short-mid';
+  if (score >= 4.5) return 'tc-score--neutral';
+  return 'tc-score--cold';
+}
+
+function ScoreBadge({ score, dir }: { score: number | null; dir: 'long' | 'short' }) {
+  if (score == null) return <span className="scr-muted">—</span>;
+  const cls = `tc-score ${scoreColor(score, dir)}`;
+  return <span className={cls}>{score.toFixed(1)}</span>;
+}
+
+/* ── trend / structure badges ───────────────────────────────────── */
 
 const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> = {
   StrongUp:   { label: '↑↑', cls: 'tc-trend tc-trend--strong-up',   desc: 'Strong Uptrend' },
@@ -24,15 +35,6 @@ const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> 
   Down:       { label: '↓',  cls: 'tc-trend tc-trend--down',        desc: 'Downtrend' },
   StrongDown: { label: '↓↓', cls: 'tc-trend tc-trend--strong-down', desc: 'Strong Downtrend' },
 };
-
-const PAGE_SIZE = 50;
-
-/* ── badges & cells ────────────────────────────────────────────── */
-
-function SetupBadge({ setup }: { setup: TradeSetup }) {
-  const meta = SETUP_META[setup];
-  return <span className={meta.cls} title={meta.desc}>{meta.label}</span>;
-}
 
 function TrendBadge({ trend }: { trend: PaTrend }) {
   const meta = TREND_META[trend];
@@ -121,6 +123,17 @@ function IconDetail() {
   );
 }
 
+/* ── score breakdown bar ────────────────────────────────────────── */
+
+function ScoreBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = Math.round((value / max) * 100);
+  return (
+    <div className="tc-score-bar-wrap">
+      <div className="tc-score-bar" style={{ width: `${pct}%`, background: color }} />
+    </div>
+  );
+}
+
 /* ── detail modal ───────────────────────────────────────────────── */
 
 function SparklineLarge({ prices }: { prices: number[] }) {
@@ -147,9 +160,17 @@ function SparklineLarge({ prices }: { prices: number[] }) {
   );
 }
 
+const SCORE_FACTORS = [
+  { key: 'Multi-TF Trend', max: 2.5 },
+  { key: 'EMA Stack',      max: 2.0 },
+  { key: 'UT Bot D1',      max: 2.0 },
+  { key: 'RSI',            max: 1.5 },
+  { key: 'Fibonacci',      max: 1.5 },
+  { key: 'Volume',         max: 0.5 },
+];
+
 function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: () => void }) {
   const sig = coin.signal;
-  const setup = sig?.setup ?? 'Neutral';
   const tvUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${coin.symbol}USDT`;
 
   return (
@@ -159,7 +180,6 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
           <div className="tc-detail-header-coin">
             <span className="scr-symbol">{coin.symbol}</span>
             {coin.name && <span className="scr-name">{coin.name}</span>}
-            {sig && <SetupBadge setup={setup} />}
           </div>
           <button className="dialog-close" onClick={onClose}>✕</button>
         </div>
@@ -170,14 +190,35 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
             </p>
           ) : (
             <>
-              <div className="tc-detail-section">
-                <div className="tc-detail-label">Trade Setup</div>
-                <div style={{ marginTop: 6 }}>
-                  <SetupBadge setup={setup} />
-                  <span className="scr-muted" style={{ marginLeft: 8, fontSize: 12 }}>
-                    {SETUP_META[setup].desc}
-                  </span>
+              {/* Score section */}
+              <div className="tc-detail-score-section">
+                <div className="tc-detail-score-col">
+                  <div className="tc-detail-score-label">Long Score</div>
+                  <div className={`tc-detail-score-num ${scoreColor(sig.longScore, 'long')}`}>
+                    {sig.longScore != null ? sig.longScore.toFixed(1) : '—'}
+                    <span className="tc-detail-score-max">/10</span>
+                  </div>
+                  <ScoreBar value={sig.longScore ?? 0} max={10} color="#22c55e" />
                 </div>
+                <div className="tc-detail-score-divider" />
+                <div className="tc-detail-score-col">
+                  <div className="tc-detail-score-label">Short Score</div>
+                  <div className={`tc-detail-score-num ${scoreColor(sig.shortScore, 'short')}`}>
+                    {sig.shortScore != null ? sig.shortScore.toFixed(1) : '—'}
+                    <span className="tc-detail-score-max">/10</span>
+                  </div>
+                  <ScoreBar value={sig.shortScore ?? 0} max={10} color="#ef4444" />
+                </div>
+              </div>
+
+              <div className="tc-detail-factors">
+                <div className="tc-detail-label">Thành phần scoring</div>
+                {SCORE_FACTORS.map(f => (
+                  <div key={f.key} className="tc-detail-factor-row">
+                    <span className="tc-detail-factor-name">{f.key}</span>
+                    <span className="tc-detail-factor-max">/{f.max}</span>
+                  </div>
+                ))}
               </div>
 
               <div className="tc-detail-grid">
@@ -210,10 +251,6 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
                   <div className="tc-detail-value">
                     <EmaPips ema34Above={sig.ema34Above} ema89Above={sig.ema89Above} ema200Above={sig.ema200Above} />
                   </div>
-                </div>
-                <div className="tc-detail-stat">
-                  <div className="tc-detail-label">Signal Score</div>
-                  <div className="tc-detail-value">{sig.signalScore}</div>
                 </div>
               </div>
 
@@ -304,53 +341,22 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
   );
 }
 
-/* ── setup info popover ─────────────────────────────────────────── */
-
-function SetupInfoPopover({ onClose }: { onClose: () => void }) {
-  return (
-    <>
-      <div className="tc-info-popover-backdrop" onClick={onClose} />
-      <div className="tc-info-popover">
-        <p className="tc-info-popover-title">Giải thích Setup</p>
-        {ALL_SETUPS.map((setup) => {
-          const meta = SETUP_META[setup];
-          return (
-            <div key={setup} className="tc-info-popover-row">
-              <span className={meta.cls}>{meta.label}</span>
-              <span className="tc-info-popover-desc">{meta.desc}</span>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
 /* ── main feed ──────────────────────────────────────────────────── */
 
 export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<TrackingCoinRow[]>(initialCoins);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('setup');
-  const [hiddenSetups, setHiddenSetups] = useState<Set<TradeSetup>>(new Set<TradeSetup>());
+  const [sortKey, setSortKey] = useState<SortKey>('long');
+  const [biasFilter, setBiasFilter] = useState<BiasFilter>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
-  const [showSetupInfo, setShowSetupInfo] = useState(false);
 
-  function toggleSetup(setup: TradeSetup) {
-    setHiddenSetups((prev) => {
-      const next = new Set(prev);
-      if (next.has(setup)) next.delete(setup); else next.add(setup);
-      return next;
-    });
-  }
-
-  useEffect(() => { setPage(1); }, [nameFilter, hiddenSetups, sortKey]);
+  useEffect(() => { setPage(1); }, [nameFilter, biasFilter, sortKey]);
 
   async function reloadCoins() {
     try {
@@ -397,21 +403,26 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     const q = nameFilter.trim().toUpperCase();
     const filtered = coins.filter((c) => {
       if (q && !c.symbol.includes(q) && !c.name.toUpperCase().includes(q)) return false;
-      if (c.signal === null) return true;
-      return !hiddenSetups.has(c.signal.setup);
+      if (biasFilter === 'long') {
+        const l = c.signal?.longScore ?? 0;
+        const s = c.signal?.shortScore ?? 0;
+        return l > s + 1.5;
+      }
+      if (biasFilter === 'short') {
+        const l = c.signal?.longScore ?? 0;
+        const s = c.signal?.shortScore ?? 0;
+        return s > l + 1.5;
+      }
+      return true;
     });
     return [...filtered].sort((a, b) => {
-      if (sortKey === 'setup') {
-        const pa = SETUP_META[a.signal?.setup ?? 'Neutral'].priority;
-        const pb = SETUP_META[b.signal?.setup ?? 'Neutral'].priority;
-        if (pb !== pa) return pb - pa;
-        return (b.signal?.signalScore ?? 0) - (a.signal?.signalScore ?? 0);
-      }
-      if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
-      if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
+      if (sortKey === 'long')  return (b.signal?.longScore ?? 0)  - (a.signal?.longScore ?? 0);
+      if (sortKey === 'short') return (b.signal?.shortScore ?? 0) - (a.signal?.shortScore ?? 0);
+      if (sortKey === 'rsi')   return (b.signal?.rsi ?? 0)        - (a.signal?.rsi ?? 0);
+      if (sortKey === 'vol')   return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
     });
-  }, [coins, sortKey, hiddenSetups, nameFilter]);
+  }, [coins, sortKey, biasFilter, nameFilter]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -433,19 +444,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         {/* ── page header ── */}
         <div className="tc-page-header">
           <div className="tc-page-header-left">
-            <div className="tc-page-title-row">
-              <h1 className="scr-title">Tracking Coins</h1>
-              <div className="tc-info-wrap">
-                <button
-                  className={`tc-info-btn${showSetupInfo ? ' tc-info-btn--active' : ''}`}
-                  onClick={() => setShowSetupInfo((v) => !v)}
-                  aria-label="Giải thích các setup"
-                >
-                  i
-                </button>
-                {showSetupInfo && <SetupInfoPopover onClose={() => setShowSetupInfo(false)} />}
-              </div>
-            </div>
+            <h1 className="scr-title">Tracking Coins</h1>
             <p className="tc-page-header-sub">
               {sorted.length < coins.length
                 ? `${sorted.length} / ${coins.length} coins hiển thị`
@@ -475,18 +474,17 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
         {/* ── filters ── */}
         <div className="scr-filters">
-          {ALL_SETUPS.map((setup) => {
-            const meta = SETUP_META[setup];
-            return (
+          <div className="tc-bias-tabs">
+            {(['all', 'long', 'short'] as BiasFilter[]).map((b) => (
               <button
-                key={setup}
-                className={`tc-setup-chip tc-setup-chip--${setup.toLowerCase()}${hiddenSetups.has(setup) ? ' tc-setup-chip--off' : ''}`}
-                onClick={() => toggleSetup(setup)}
+                key={b}
+                className={`tc-bias-tab tc-bias-tab--${b}${biasFilter === b ? ' tc-bias-tab--active' : ''}`}
+                onClick={() => setBiasFilter(b)}
               >
-                {meta.label}
+                {b === 'all' ? 'Tất cả' : b === 'long' ? '▲ Long bias' : '▼ Short bias'}
               </button>
-            );
-          })}
+            ))}
+          </div>
           <input
             className="scr-search"
             type="search"
@@ -504,8 +502,11 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
                   Coin {sortKey === 'coin' && '↑'}
                 </th>
-                <th className="scr-th" onClick={() => setSortKey('setup')}>
-                  Setup {sortKey === 'setup' && '↓'}
+                <th className="scr-th tc-th--score" onClick={() => setSortKey('long')}>
+                  L Score {sortKey === 'long' && '↓'}
+                </th>
+                <th className="scr-th tc-th--score" onClick={() => setSortKey('short')}>
+                  S Score {sortKey === 'short' && '↓'}
                 </th>
                 <th className="scr-th">Trend (D1/H4/M30)</th>
                 <th className="scr-th scr-th--num" onClick={() => setSortKey('rsi')}>
@@ -515,7 +516,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                   Vol× {sortKey === 'vol' && '↓'}
                 </th>
                 <th className="scr-th">vs EMA</th>
-                <th className="scr-th">Structure</th>
                 <th className="scr-th">30d</th>
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
@@ -528,21 +528,23 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm coin muốn theo dõi.'
                       : nameFilter
                       ? `Không tìm thấy coin khớp với "${nameFilter}".`
-                      : 'Tất cả setups đang bị ẩn bởi filter.'}
+                      : 'Không có coin nào khớp filter.'}
                   </td>
                 </tr>
               )}
               {paginated.map((coin) => {
                 const sig = coin.signal;
-                const setup = sig?.setup ?? 'Neutral';
                 return (
                   <tr key={coin.id} className="scr-row" onClick={() => setSelectedCoin(coin)} style={{ cursor: 'pointer' }}>
                     <td className="scr-td scr-td--coin">
                       <span className="scr-symbol">{coin.symbol}</span>
                       {coin.name && <span className="scr-name">{coin.name}</span>}
                     </td>
-                    <td className="scr-td">
-                      {sig ? <SetupBadge setup={setup} /> : <span className="scr-muted">—</span>}
+                    <td className="scr-td tc-td--score">
+                      <ScoreBadge score={sig?.longScore ?? null} dir="long" />
+                    </td>
+                    <td className="scr-td tc-td--score">
+                      <ScoreBadge score={sig?.shortScore ?? null} dir="short" />
                     </td>
                     <td className="scr-td scr-td--trend">
                       {sig
@@ -555,9 +557,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                       {sig
                         ? <EmaPips ema34Above={sig.ema34Above} ema89Above={sig.ema89Above} ema200Above={sig.ema200Above} />
                         : <span className="scr-muted">—</span>}
-                    </td>
-                    <td className="scr-td">
-                      {sig ? <SwingStructureLabel structure={sig.swingStructure} /> : <span className="scr-muted">—</span>}
                     </td>
                     <td className="scr-td scr-td--sparkline">
                       <Sparkline prices={sig?.sparkline ?? []} />

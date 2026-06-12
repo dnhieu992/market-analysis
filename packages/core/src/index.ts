@@ -1,6 +1,8 @@
 export { buildIndicatorSnapshot } from './analysis/indicator-snapshot';
 export { computeSmallCapSignal, computeTimeframeTrend } from './analysis/small-cap-signal';
 export type { SmallCapStage, SmallCapSignalResult, PaTrend, SwingStructure } from './analysis/small-cap-signal';
+export { computeLongShortScore } from './analysis/long-short-score';
+export type { LongShortScore, LongShortScoreParams } from './analysis/long-short-score';
 export { analyzeMarketStructure } from './analysis/market-structure';
 export type {
   MarketStructure,
@@ -20,8 +22,8 @@ export { calculateMacd } from './indicators/macd';
 export { calculateRsi } from './indicators/rsi';
 export { extractSupportAndResistanceLevels } from './indicators/support-resistance';
 export { calculateVolumeRatio } from './indicators/volume';
-export { isUtBotUptrend, calcUtBotResult } from './indicators/ut-bot';
-export type { UtBotResult } from './indicators/ut-bot';
+export { isUtBotUptrend, calcUtBotResult, calcUtBotSignals } from './indicators/ut-bot';
+export type { UtBotResult, UtBotBarSignal } from './indicators/ut-bot';
 export { normalizeLlmSignal } from './normalizers/normalize-llm-signal';
 export { buildAnalysisPrompt } from './prompts/build-analysis-prompt';
 export { formatAnalysisMessage } from './telegram/format-analysis-message';

@@ -316,6 +316,8 @@ model TrackingCoinSignal {
   h4Trend        String       @default("Neutral") @db.VarChar(15)
   m30Trend       String       @default("Neutral") @db.VarChar(15)
   swingStructure String       @default("Mixed") @db.VarChar(10)
+  longScore      Float?
+  shortScore     Float?
   scannedAt      DateTime     @default(now())
   coin           TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
 

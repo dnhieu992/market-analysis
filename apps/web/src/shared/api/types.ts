@@ -381,8 +381,6 @@ export type SmallCapStage = 'Breakout' | 'Accumulating' | 'Waking' | 'Extended' 
 export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
 export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
 
-export type TradeSetup = 'LongSwing' | 'ShortSwing' | 'LongScalp' | 'ShortScalp' | 'Neutral';
-
 export type TrackingCoinRow = {
   id: string;
   symbol: string;
@@ -394,7 +392,8 @@ export type TrackingCoinRow = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
-    setup: TradeSetup;
+    longScore: number | null;
+    shortScore: number | null;
     signalScore: number;
     sparkline: number[];
     trend: PaTrend;

@@ -1,22 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore } from '@app/core';
+import type { PaTrend } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 const CANDLE_LIMIT = 220;
-
-type TradeSetup = 'LongSwing' | 'ShortSwing' | 'LongScalp' | 'ShortScalp' | 'Neutral';
-
-function deriveSetup(d1: string, h4: string, m30: string): TradeSetup {
-  const isUp   = (t: string) => t === 'Up' || t === 'StrongUp';
-  const isDown = (t: string) => t === 'Down' || t === 'StrongDown';
-  if (isUp(d1)   && isUp(h4))   return 'LongSwing';
-  if (isDown(d1) && isDown(h4)) return 'ShortSwing';
-  if (isUp(h4)   && isUp(m30))  return 'LongScalp';
-  if (isDown(h4) && isDown(m30)) return 'ShortScalp';
-  return 'Neutral';
-}
 
 export type TrackingCoinWithSignal = {
   id: string;
@@ -29,7 +18,8 @@ export type TrackingCoinWithSignal = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
-    setup: TradeSetup;
+    longScore: number | null;
+    shortScore: number | null;
     signalScore: number;
     sparkline: number[];
     trend: string;
@@ -63,7 +53,8 @@ export class TrackingCoinsService {
               ema34Above: sig.ema34Above,
               ema89Above: sig.ema89Above,
               ema200Above: sig.ema200Above,
-              setup: deriveSetup(sig.trend, sig.h4Trend, sig.m30Trend),
+              longScore: sig.longScore,
+              shortScore: sig.shortScore,
               signalScore: sig.signalScore,
               sparkline: this.parseSparkline(sig.sparklineJson),
               trend: sig.trend,
@@ -144,6 +135,21 @@ export class TrackingCoinsService {
         )
       : 'Neutral';
 
+    const { longScore, shortScore } = computeLongShortScore({
+      closes,
+      highs,
+      lows,
+      rsi: result.rsi,
+      volMultiplier: result.volMultiplier,
+      ema34Above: result.ema34Above,
+      ema89Above: result.ema89Above,
+      ema200Above: result.ema200Above,
+      d1Trend: result.trend as PaTrend,
+      h4Trend: h4Trend as PaTrend,
+      m30Trend: m30Trend as PaTrend,
+      sparkline: result.sparkline,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -160,6 +166,8 @@ export class TrackingCoinsService {
       h4Trend,
       m30Trend,
       swingStructure: result.swingStructure,
+      longScore,
+      shortScore,
     });
   }
 

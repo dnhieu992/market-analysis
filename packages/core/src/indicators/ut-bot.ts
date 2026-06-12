@@ -93,3 +93,32 @@ export function calcUtBotResult(
   const stopLevel = stop[last]!;
   return { uptrend: price > stopLevel, price, stopLevel };
 }
+
+export type UtBotBarSignal = {
+  uptrend: boolean;
+  buySignal: boolean;
+  sellSignal: boolean;
+  stopLevel: number;
+};
+
+/**
+ * Returns per-candle UT Bot signals including buy/sell crosses and trailing stop level.
+ */
+export function calcUtBotSignals(
+  candles: Candle[],
+  period = 10,
+  multiplier = 1
+): UtBotBarSignal[] {
+  const stop = calcUtBotTrailingStop(candles, period, multiplier);
+  return candles.map((c, i) => {
+    const prevClose = i > 0 ? candles[i - 1]!.close : c.close;
+    const prevStop  = i > 0 ? stop[i - 1]! : stop[i]!;
+    const curStop   = stop[i]!;
+    return {
+      uptrend:    c.close > curStop && curStop > 0,
+      buySignal:  prevClose <= prevStop && c.close > curStop && curStop > 0,
+      sellSignal: prevClose >= prevStop && c.close < curStop && curStop > 0,
+      stopLevel:  curStop,
+    };
+  });
+}
