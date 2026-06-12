@@ -1696,6 +1696,17 @@ a {
   background: rgba(99, 102, 241, 0.08);
 }
 
+.tt-btn--ai {
+  color: #6d28d9;
+  border-color: rgba(109, 40, 217, 0.25);
+  background: rgba(109, 40, 217, 0.06);
+}
+
+.tt-btn--ai:hover {
+  background: rgba(109, 40, 217, 0.14);
+  border-color: #6d28d9;
+}
+
 .tt-btn--analyze {
   color: var(--muted);
   border-color: var(--border);
