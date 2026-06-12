@@ -62,7 +62,7 @@ function calcUtBotScore(closes: number[], highs: number[], lows: number[]) {
     open: close, high: highs[i]!, low: lows[i]!, close,
   }));
 
-  const signals = calcUtBotSignals(candles, 10, 1);
+  const signals = calcUtBotSignals(candles, 1, 3);
   const last = signals[signals.length - 1]!;
   const recentBuy  = signals.slice(-3).some(s => s.buySignal);
   const recentSell = signals.slice(-3).some(s => s.sellSignal);

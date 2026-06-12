@@ -63,8 +63,8 @@ function calcUtBotTrailingStop(candles: Candle[], period: number, multiplier: nu
  */
 export function isUtBotUptrend(
   candles: Candle[],
-  period = 10,
-  multiplier = 1
+  period = 1,
+  multiplier = 3
 ): boolean {
   if (candles.length < period + 1) return false;
   const stop = calcUtBotTrailingStop(candles, period, multiplier);
@@ -83,8 +83,8 @@ export type UtBotResult = {
  */
 export function calcUtBotResult(
   candles: Candle[],
-  period = 10,
-  multiplier = 1
+  period = 1,
+  multiplier = 3
 ): UtBotResult | null {
   if (candles.length < period + 1) return null;
   const stop = calcUtBotTrailingStop(candles, period, multiplier);
@@ -106,8 +106,8 @@ export type UtBotBarSignal = {
  */
 export function calcUtBotSignals(
   candles: Candle[],
-  period = 10,
-  multiplier = 1
+  period = 1,
+  multiplier = 3
 ): UtBotBarSignal[] {
   const stop = calcUtBotTrailingStop(candles, period, multiplier);
   return candles.map((c, i) => {
