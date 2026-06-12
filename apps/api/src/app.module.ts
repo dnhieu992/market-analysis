@@ -18,7 +18,6 @@ import { SignalsModule } from './modules/signals/signals.module';
 import { StrategiesModule } from './modules/strategies/strategies.module';
 import { TelegramLogsModule } from './modules/telegram-logs/telegram-logs.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
-import { ScannerModule } from './modules/scanner/scanner.module';
 import { SmallCapRadarModule } from './modules/small-cap-radar/small-cap-radar.module';
 import { TrackingCoinsModule } from './modules/tracking-coins/tracking-coins.module';
 import { SkillsModule } from './modules/skills/skills.module';
@@ -48,7 +47,6 @@ import { WorkerModule } from './modules/worker/worker.module';
     UserModule,
     UploadModule,
     SkillsModule,
-    ScannerModule,
     SmallCapRadarModule,
     TrackingCoinsModule,
   ],

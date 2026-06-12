@@ -376,18 +376,12 @@ export type PaginatedOrders = {
   openOrders: DashboardOrder[];
 };
 
-export type ScanResult = {
-  symbol: string;
-  trend: 'uptrend' | 'downtrend';
-  price: number;
-  stopLevel: number;
-  error?: string;
-};
-
 export type SmallCapStage = 'Breakout' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
 
 export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
 export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
+
+export type TradeSetup = 'LongSwing' | 'ShortSwing' | 'LongScalp' | 'ShortScalp' | 'Neutral';
 
 export type TrackingCoinRow = {
   id: string;
@@ -400,7 +394,7 @@ export type TrackingCoinRow = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
-    stage: SmallCapStage;
+    setup: TradeSetup;
     signalScore: number;
     sparkline: number[];
     trend: PaTrend;

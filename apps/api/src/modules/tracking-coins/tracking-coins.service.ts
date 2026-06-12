@@ -6,6 +6,18 @@ import { BinanceMarketDataService } from '../market/binance-market-data.service'
 
 const CANDLE_LIMIT = 220;
 
+type TradeSetup = 'LongSwing' | 'ShortSwing' | 'LongScalp' | 'ShortScalp' | 'Neutral';
+
+function deriveSetup(d1: string, h4: string, m30: string): TradeSetup {
+  const isUp   = (t: string) => t === 'Up' || t === 'StrongUp';
+  const isDown = (t: string) => t === 'Down' || t === 'StrongDown';
+  if (isUp(d1)   && isUp(h4))   return 'LongSwing';
+  if (isDown(d1) && isDown(h4)) return 'ShortSwing';
+  if (isUp(h4)   && isUp(m30))  return 'LongScalp';
+  if (isDown(h4) && isDown(m30)) return 'ShortScalp';
+  return 'Neutral';
+}
+
 export type TrackingCoinWithSignal = {
   id: string;
   symbol: string;
@@ -17,7 +29,7 @@ export type TrackingCoinWithSignal = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
-    stage: string;
+    setup: TradeSetup;
     signalScore: number;
     sparkline: number[];
     trend: string;
@@ -51,7 +63,7 @@ export class TrackingCoinsService {
               ema34Above: sig.ema34Above,
               ema89Above: sig.ema89Above,
               ema200Above: sig.ema200Above,
-              stage: sig.stage,
+              setup: deriveSetup(sig.trend, sig.h4Trend, sig.m30Trend),
               signalScore: sig.signalScore,
               sparkline: this.parseSparkline(sig.sparklineJson),
               trend: sig.trend,

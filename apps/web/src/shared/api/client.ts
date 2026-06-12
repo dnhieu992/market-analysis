@@ -32,7 +32,6 @@ import type {
   UserProfile,
   Conversation,
   ChatMessage,
-  ScanResult,
   SmallCapCoinRow,
   TrackingCoinRow,
 } from './types';
@@ -718,31 +717,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(body?.message ?? `sendMessage failed: ${res.status}`);
       }
       return res.json() as Promise<ChatMessage>;
-    },
-
-    async fetchScannerWatchlist(): Promise<string[]> {
-      return fetchJson<string[]>(fetchImpl, `${baseUrl}/scanner/watchlist`, withDefaults());
-    },
-
-    async updateScannerWatchlist(symbols: string[]): Promise<string[]> {
-      return fetchJson<string[]>(fetchImpl, `${baseUrl}/scanner/watchlist`, withDefaults({
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols })
-      }));
-    },
-
-    async scanUtBot(
-      symbols: string[],
-      timeframe: '1d' | '4h' | '1w' = '1d',
-      atrPeriod = 10,
-      keyValue = 1
-    ): Promise<ScanResult[]> {
-      return fetchJson<ScanResult[]>(fetchImpl, `${baseUrl}/scanner/scan`, withDefaults({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols, timeframe, atrPeriod, keyValue })
-      }));
     },
 
     async fetchSmallCapRadar(): Promise<SmallCapCoinRow[]> {

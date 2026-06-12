@@ -9,6 +9,6 @@
       "Glob",
       "Grep"
     ],
-    "defaultMode": "bypassPermissions"
+    "defaultMode": "acceptEdits"
   }
 }

@@ -48,11 +48,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Back-test trading strategies'
   },
   {
-    href: '/scanner',
-    label: 'Scanner',
-    description: 'UT Bot coin scanner'
-  },
-  {
     href: '/small-cap-radar',
     label: 'Small Cap Radar',
     description: 'Daily signal scan for small-cap watchlist'

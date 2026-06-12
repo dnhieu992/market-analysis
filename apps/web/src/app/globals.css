@@ -6691,6 +6691,20 @@ a.metric-card--link:hover {
 .scr-filter-chip--extended    { background: rgba(239,68,68,0.10);  border-color: rgba(239,68,68,0.3);  color: #dc2626; }
 .scr-filter-chip--quiet       { background: rgba(23,18,13,0.06);   border-color: var(--border);        color: var(--muted); }
 
+/* setup filter chips */
+.tc-setup-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 20px; border: 1px solid;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.tc-setup-chip--off { opacity: 0.3; }
+.tc-setup-chip--longswing  { background: rgba(34,197,94,0.12);  border-color: rgba(34,197,94,0.4);  color: #15803d; }
+.tc-setup-chip--shortswing { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.4);  color: #dc2626; }
+.tc-setup-chip--longscalp  { background: rgba(20,184,166,0.10); border-color: rgba(20,184,166,0.35);color: #0f766e; }
+.tc-setup-chip--shortscalp { background: rgba(249,115,22,0.10); border-color: rgba(249,115,22,0.35);color: #c2410c; }
+.tc-setup-chip--neutral    { background: rgba(100,116,139,0.08);border-color: var(--border);        color: var(--muted); }
+
 /* ── table ── */
 .scr-table-wrap {
   background: var(--background-elevated);
@@ -6763,7 +6777,8 @@ a.metric-card--link:hover {
 .scr-muted { color: var(--muted); }
 
 /* ── stage badge ── */
-.scr-stage {
+/* trade setup badges */
+.tc-setup {
   display: inline-block;
   padding: 3px 10px;
   border-radius: 20px;
@@ -6771,11 +6786,11 @@ a.metric-card--link:hover {
   font-weight: 600;
   white-space: nowrap;
 }
-.scr-stage--breakout    { background: rgba(34,197,94,0.12);  color: #16a34a; }
-.scr-stage--accumulating{ background: rgba(59,130,246,0.10); color: #2563eb; }
-.scr-stage--waking      { background: rgba(245,158,11,0.10); color: #b45309; }
-.scr-stage--extended    { background: rgba(239,68,68,0.10);  color: #dc2626; }
-.scr-stage--quiet       { background: transparent;           color: var(--muted); font-weight: 500; }
+.tc-setup--long-swing  { background: rgba(34,197,94,0.15);  color: #15803d; }
+.tc-setup--short-swing { background: rgba(239,68,68,0.15);  color: #dc2626; }
+.tc-setup--long-scalp  { background: rgba(20,184,166,0.12); color: #0f766e; }
+.tc-setup--short-scalp { background: rgba(249,115,22,0.12); color: #c2410c; }
+.tc-setup--neutral     { background: transparent;           color: var(--muted); font-weight: 500; }
 
 /* ── signal bar ── */
 .scr-bar-wrap {
