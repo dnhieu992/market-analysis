@@ -7184,6 +7184,20 @@ a.metric-card--link:hover {
   min-width: 32px;
 }
 
+/* ── tracking coins: live price ── */
+.tc-live-price {
+  display: block;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 2px;
+  transition: color 0.15s;
+}
+.tc-live-price--up   { color: #16a34a; }
+.tc-live-price--down { color: #dc2626; }
+.tc-live-price--idle { color: var(--muted); }
+
 /* ── tracking coins: stacked D1/H4 rows within an indicator column ── */
 .tc-tf-stack {
   display: flex;

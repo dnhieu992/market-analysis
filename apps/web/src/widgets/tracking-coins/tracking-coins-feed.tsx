@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, SwingStructure } from '@web/shared/api/types';
 
@@ -9,6 +9,62 @@ type SortKey = 'rsi' | 'vol' | 'coin';
 type BiasFilter = 'all' | 'long' | 'short';
 
 const PAGE_SIZE = 50;
+const PRICE_REFRESH_MS = 5000;
+
+/* ── live price hook ────────────────────────────────────────────── */
+
+type PriceMap = Map<string, number>;
+type PriceFlash = Map<string, 'up' | 'down'>;
+
+function formatPrice(price: number): string {
+  if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (price >= 1)    return price.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 4 });
+  if (price >= 0.01) return price.toFixed(5);
+  return price.toFixed(7);
+}
+
+function useLivePrices(symbols: string[]) {
+  const [prices, setPrices] = useState<PriceMap>(new Map());
+  const [flash, setFlash]   = useState<PriceFlash>(new Map());
+  const prevRef = useRef<PriceMap>(new Map());
+
+  const fetchPrices = useCallback(async () => {
+    if (symbols.length === 0) return;
+    const usdtSymbols = symbols.map(s => `${s}USDT`);
+    const query = encodeURIComponent(JSON.stringify(usdtSymbols));
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbols=${query}`);
+      if (!res.ok) return;
+      const data = await res.json() as { symbol: string; price: string }[];
+      const next: PriceMap = new Map();
+      const nextFlash: PriceFlash = new Map();
+      for (const { symbol, price } of data) {
+        const coin = symbol.replace(/USDT$/, '');
+        const val = parseFloat(price);
+        next.set(coin, val);
+        const prev = prevRef.current.get(coin);
+        if (prev !== undefined && prev !== val) {
+          nextFlash.set(coin, val > prev ? 'up' : 'down');
+        }
+      }
+      prevRef.current = next;
+      setPrices(next);
+      setFlash(nextFlash);
+      // clear flash after 600ms
+      if (nextFlash.size > 0) {
+        setTimeout(() => setFlash(new Map()), 600);
+      }
+    } catch { /* ignore */ }
+  }, [symbols.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    fetchPrices();
+    const id = setInterval(fetchPrices, PRICE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [fetchPrices]);
+
+  return { prices, flash };
+}
 
 /* ── shared: D1/H4 stacked layout ──────────────────────────────── */
 
@@ -309,6 +365,8 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
 
 export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<TrackingCoinRow[]>(initialCoins);
+  const symbols = useMemo(() => coins.map(c => c.symbol), [coins]);
+  const { prices, flash } = useLivePrices(symbols);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('coin');
@@ -494,6 +552,11 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className="scr-td scr-td--coin">
                       <span className="scr-symbol">{coin.symbol}</span>
                       {coin.name && <span className="scr-name">{coin.name}</span>}
+                      {prices.has(coin.symbol) && (
+                        <span className={`tc-live-price tc-live-price--${flash.get(coin.symbol) ?? 'idle'}`}>
+                          ${formatPrice(prices.get(coin.symbol)!)}
+                        </span>
+                      )}
                     </td>
                     {/* Trend D1 / H4 */}
                     <td className="scr-td">
