@@ -36,7 +36,34 @@ pnpm --filter @app/db exec prisma migrate deploy   # production migration
 
 # Deploy (runs on server: pull → install → migrate → build → pm2 restart)
 ./deploy.sh
+
+# Manual build order (when NOT using deploy.sh)
+# MUST build shared packages before apps — API/worker use compiled dist/ from core
+pnpm --filter @app/core build          # 1. build core first
+pnpm --filter @app/db build            # 2. build db
+pnpm --filter api build                # 3. then API
+pnpm --filter worker build             # 3. and/or worker
+set -a && source .env && set +a && pnpm --filter web build  # web needs env vars at build time
+
+# After any manual build, restart the affected pm2 process:
+pm2 restart market-api                 # after API changes
+pm2 restart market-worker              # after worker changes
+pm2 restart market-web                 # after web changes
 ```
+
+## Build & Deploy Rules
+
+**Always use `./deploy.sh` for production deploys.** It handles the full pipeline:
+1. `git pull` — pull latest code
+2. `pnpm install --frozen-lockfile` — install deps
+3. `pnpm prisma:generate` — regenerate Prisma client
+4. `pnpm --filter @app/db exec prisma migrate deploy` — apply DB migrations
+5. `pnpm -r build` — build ALL packages in correct dependency order
+6. `pm2 restart` for each process: `market-api` (:3000), `market-worker`, `market-web` (:3001)
+
+**Manual builds must respect dependency order.** `@app/core` and `@app/db` are shared packages consumed by API and worker as compiled `dist/`. If you add a new export to `@app/core` and only run `pnpm --filter api build`, the runtime will throw "X is not a function" because API's dist still references the old core dist. Always build shared packages first, or use `pnpm -r build` to build everything in order.
+
+**Web builds require env vars.** `NEXT_PUBLIC_*` vars are baked into the JS bundle at build time. The `.env` file lives at the monorepo root but Next.js reads from `apps/web/`. A permanent fix is `apps/web/.env.local` (already exists). For manual builds without `deploy.sh`, source the root `.env` first: `set -a && source .env && set +a && pnpm --filter web build`.
 
 ## Architecture
 
