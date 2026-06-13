@@ -426,8 +426,8 @@ function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClo
                 <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
                 <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
               </div>
-              <OrderCard order={data.swing} label="Swing trade (ngày — tuần)" />
-              <OrderCard order={data.scalp} label="Scalping (giờ)" />
+              <OrderCard order={data.swing} label="Swing (2–5 ngày)" />
+              <OrderCard order={data.scalp} label="Day trade (trong ngày)" />
               <p className="ord-footer">
                 Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
               </p>
