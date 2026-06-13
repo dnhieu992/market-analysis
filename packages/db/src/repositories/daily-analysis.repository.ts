@@ -25,10 +25,10 @@ export function createDailyAnalysisRepository(client = prisma) {
         take: limit
       });
     },
-    updateFeedback(id: string, score: number, note?: string) {
+    updateFeedback(id: string, score?: number, note?: string) {
       return client.dailyAnalysis.update({
         where: { id },
-        data: { feedbackScore: score, feedbackNote: note ?? null }
+        data: { feedbackScore: score ?? null, feedbackNote: note ?? null }
       });
     }
   };

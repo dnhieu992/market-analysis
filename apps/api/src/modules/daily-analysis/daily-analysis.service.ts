@@ -52,7 +52,7 @@ export class DailyAnalysisService {
     return record ? this.mapRecord(record) : null;
   }
 
-  async updateFeedback(id: string, score: number, note?: string): Promise<DailyAnalysisRecord> {
+  async updateFeedback(id: string, score?: number, note?: string): Promise<DailyAnalysisRecord> {
     const updated = await this.dailyAnalysisRepository.updateFeedback(id, score, note).catch(() => null);
     if (!updated) throw new NotFoundException(`DailyAnalysis ${id} not found`);
     return this.mapRecord(updated as unknown as DailyAnalysisRecord);

@@ -20,7 +20,7 @@ The auto daily plan feature runs once per day and sends a multi-timeframe tradin
 - The result is saved to the `DailyAnalysis` database table
 - If a record already exists for the same symbol + date, the DB save is skipped (dedup)
 - If the analysis fails for one symbol, the error is logged and the loop continues for the next symbol
-- Users can submit a **feedback score (1–5) and optional note** via the web dashboard; saved to `feedbackScore` / `feedbackNote` fields for future LLM training data
+- Users can submit feedback via the web dashboard; **both the score (1–5) and the note are optional** — either, both, or just one may be saved to `feedbackScore` / `feedbackNote` for future LLM training data. The note uses the shared TipTap markdown editor.
 
 ---
 
@@ -170,8 +170,11 @@ The `/daily-plan` page in the web app displays the results of the daily analysis
 | `apps/web/src/shared/api/types.ts` | Structural fields made `\| null`; `status` accepts `'PUBLISHED'` |
 | `apps/web/src/shared/api/client.ts` | `fetchDailyAnalysis()` without args omits the symbol query param; mapper is null-safe for all structural fields |
 | `apps/web/src/_pages/daily-plan-page/daily-plan-page.tsx` | Calls `fetchDailyAnalysis()` with no argument to fetch all symbols |
-| `apps/web/src/widgets/daily-plan-feed/daily-plan-feed.tsx` | Rebuilt to show AI analysis text prominently; structural sections rendered conditionally |
-| `apps/web/src/app/globals.css` | Added all daily plan card styles |
+| `apps/web/src/widgets/daily-plan-feed/daily-plan-feed.tsx` | Rebuilt to show AI analysis text prominently; structural sections rendered conditionally. Detail dialog now renders the full summary (no "Show more" toggle). Feedback score is optional/clearable and the note uses the shared `MarkdownEditor`. |
+| `apps/web/src/app/globals.css` | Added all daily plan card styles; field grid collapses to a single column at ≤640px so cards fit mobile width (no horizontal scroll) |
+| `apps/api/src/modules/daily-analysis/dto/update-feedback.dto.ts` | `score` made optional (`@IsOptional`) |
+| `apps/api/src/modules/daily-analysis/daily-analysis.service.ts` | `updateFeedback` accepts optional `score` |
+| `packages/db/src/repositories/daily-analysis.repository.ts` | `updateFeedback` writes `feedbackScore: score ?? null` |
 
 ---
 

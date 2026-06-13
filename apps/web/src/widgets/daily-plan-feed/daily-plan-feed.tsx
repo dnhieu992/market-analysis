@@ -1,10 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { formatPrice } from '@web/shared/lib/format';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { DailyAnalysis } from '@web/shared/api/types';
 import type { DailyAnalysisPlan } from '@app/core';
+
+// Lazy-load the shared TipTap editor so its bundle only loads with the dialog.
+const MarkdownEditor = dynamic(
+  () => import('@web/shared/ui/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  { ssr: false },
+);
 
 type DailyAnalysisSetup = DailyAnalysisPlan['primarySetup'];
 
@@ -90,17 +97,19 @@ function LevelsBlock({
 
 /* ── collapsible pre-formatted text ───────────────────────── */
 
-function ScrollableText({ text }: { text: string }) {
+function ScrollableText({ text, showAll = false }: { text: string; showAll?: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  // In the detail dialog (showAll) we render the full text with no toggle.
+  const isExpanded = showAll || expanded;
   return (
     <div className="dp-scrolltext-wrap">
       <pre
         className="dp-scrolltext"
-        style={{ maxHeight: expanded ? 'none' : '220px' }}
+        style={{ maxHeight: isExpanded ? 'none' : '220px' }}
       >
         {text}
       </pre>
-      {text.length > 300 && (
+      {!showAll && text.length > 300 && (
         <button
           className="dp-scrolltext-toggle"
           onClick={() => setExpanded((v) => !v)}
@@ -118,18 +127,24 @@ function FeedbackBlock({ record }: { record: DailyAnalysis }) {
   const [score, setScore] = useState<number>(record.feedbackScore ?? 0);
   const [note, setNote] = useState<string>(record.feedbackNote ?? '');
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(!!record.feedbackScore);
+  const [saved, setSaved] = useState(!!record.feedbackScore || !!record.feedbackNote);
+
+  // Both score and note are optional; only block when nothing was provided.
+  const isEmpty = score === 0 && note.trim() === '';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (score === 0) return;
+    if (saving || isEmpty) return;
     setSaving(true);
     try {
       await fetch(`${resolveApiBaseUrl()}/daily-analysis/${record.id}/feedback`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ score, note: note || undefined })
+        body: JSON.stringify({
+          score: score > 0 ? score : undefined,
+          note: note.trim() ? note : undefined,
+        })
       });
       setSaved(true);
     } finally {
@@ -139,7 +154,7 @@ function FeedbackBlock({ record }: { record: DailyAnalysis }) {
 
   return (
     <div className="dp-feedback">
-      <span className="dp-feedback-label">Đánh giá plan:</span>
+      <span className="dp-feedback-label">Đánh giá plan (tuỳ chọn):</span>
       <form className="dp-feedback-form" onSubmit={handleSubmit}>
         <div className="dp-stars">
           {[1, 2, 3, 4, 5].map(n => (
@@ -147,24 +162,24 @@ function FeedbackBlock({ record }: { record: DailyAnalysis }) {
               key={n}
               type="button"
               className={`dp-star${score >= n ? ' dp-star--active' : ''}`}
-              onClick={() => { setScore(n); setSaved(false); }}
+              // Click the current score again to clear it (score is optional).
+              onClick={() => { setScore(prev => (prev === n ? 0 : n)); setSaved(false); }}
               aria-label={`${n} sao`}
             >
               ★
             </button>
           ))}
         </div>
-        <textarea
-          className="dp-feedback-note"
-          placeholder="Nhận xét (tuỳ chọn)..."
+        <MarkdownEditor
           value={note}
-          onChange={e => { setNote(e.target.value); setSaved(false); }}
-          rows={2}
+          onChange={(val) => { setNote(val); setSaved(false); }}
+          placeholder="Nhận xét (tuỳ chọn)..."
+          minHeight={140}
         />
         <button
           type="submit"
           className="dp-feedback-submit"
-          disabled={score === 0 || saving}
+          disabled={saving || isEmpty}
         >
           {saving ? 'Đang lưu...' : saved ? 'Đã lưu ✓' : 'Lưu đánh giá'}
         </button>
@@ -256,7 +271,7 @@ function PlanDetailPanel({ record }: { record: DailyAnalysis }) {
       )}
       {summaryText && (
         <Field label="Summary" full>
-          <ScrollableText text={summaryText} />
+          <ScrollableText text={summaryText} showAll />
         </Field>
       )}
     </div>
