@@ -31,14 +31,24 @@ export class SetupAnalyzerService {
     const trend4h = this.detectTrend(candles4h.slice(-20));
     const trend1h = this.detectTrend(candles1h.slice(-20));
 
+    // Collects per-setup rejection reasons for DEBUG visibility.
+    const reasons: string[] = [];
+
     // Try Liquidity Sweep first (cleaner signal)
-    const sweep = this.detectLiquiditySweep(candles15m, candles1h, trend4h, trend1h);
+    const sweep = this.detectLiquiditySweep(candles15m, candles1h, trend4h, trend1h, reasons);
     if (sweep) return sweep;
 
     // Then Break & Retest
-    const breakRetest = this.detectBreakRetest(candles15m, candles1h, candles4h, trend4h, trend1h);
+    const breakRetest = this.detectBreakRetest(candles15m, candles1h, candles4h, trend4h, trend1h, reasons);
     if (breakRetest) return breakRetest;
 
+    const latest = candles15m.at(-1);
+    const avg20 = this.avgVolume(candles15m, 20);
+    const volMult = latest && avg20 > 0 ? (latest.volume / avg20).toFixed(2) : 'n/a';
+    this.logger.debug(
+      `Reject @ price=${latest?.close ?? '?'} trend4H=${trend4h} trend1H=${trend1h} vol=${volMult}x | ` +
+        reasons.join(' ; '),
+    );
     return null;
   }
 
@@ -71,6 +81,10 @@ export class SetupAnalyzerService {
     if (ph2 > ph1 && pl2 > pl1) return 'up';
     if (ph2 < ph1 && pl2 < pl1) return 'down';
     return 'neutral';
+  }
+
+  private yn(v: boolean): string {
+    return v ? 'Y' : 'N';
   }
 
   private avgVolume(candles: Candle[], n: number): number {
@@ -169,33 +183,49 @@ export class SetupAnalyzerService {
     _candles4h: Candle[],
     trend4h: Trend,
     trend1h: Trend,
+    reasons: string[],
   ): SetupResult | null {
     const latest = candles15m.at(-1);
-    if (!latest) return null;
+    if (!latest) {
+      reasons.push('BR: missing latest 15m candle');
+      return null;
+    }
     const avg20 = this.avgVolume(candles15m, 20);
 
     if (trend4h === 'up' && trend1h !== 'down') {
       // Look for LONG setup: break above resistance, retest confirmed
       const resistanceLevels = this.getSwingHighs(candles1h, 25);
       const resistance = resistanceLevels.at(-1);
-      if (resistance == null) return null;
+      if (resistance == null) {
+        reasons.push('BR-LONG: no 1H resistance');
+        return null;
+      }
 
       // Find break candle (within last 10 candles): closed above resistance with volume spike
       const recent15m = candles15m.slice(-12, -1);
       const breakIdx = recent15m.findIndex(
         (c) => c.close > resistance && c.volume > avg20 * 1.2,
       );
-      if (breakIdx < 0) return null;
+      if (breakIdx < 0) {
+        reasons.push(`BR-LONG[R1=${resistance}]: no break candle (close>R & vol>1.2x)`);
+        return null;
+      }
 
       // After break: check for retest (price returning to within 0.4% of resistance)
       const postBreak = recent15m.slice(breakIdx + 1);
       const retestIdx = postBreak.findIndex(
         (c) => c.low <= resistance * 1.004 && c.low >= resistance * 0.996,
       );
-      if (retestIdx < 0) return null;
+      if (retestIdx < 0) {
+        reasons.push(`BR-LONG[R1=${resistance}]: broke but no retest`);
+        return null;
+      }
 
       // Confirmation: latest candle closes above resistance
-      if (latest.close < resistance) return null;
+      if (latest.close < resistance) {
+        reasons.push(`BR-LONG[R1=${resistance}]: retest but close<R (unconfirmed)`);
+        return null;
+      }
 
       const retestLow = Math.min(...postBreak.slice(retestIdx, retestIdx + 3).map((c) => c.low));
       const sl = retestLow * 0.9995;
@@ -214,21 +244,33 @@ export class SetupAnalyzerService {
       // SHORT: break below support, retest from below
       const supportLevels = this.getSwingLows(candles1h, 25);
       const support = supportLevels.at(-1);
-      if (support == null) return null;
+      if (support == null) {
+        reasons.push('BR-SHORT: no 1H support');
+        return null;
+      }
 
       const recent15m = candles15m.slice(-12, -1);
       const breakIdx = recent15m.findIndex(
         (c) => c.close < support && c.volume > avg20 * 1.2,
       );
-      if (breakIdx < 0) return null;
+      if (breakIdx < 0) {
+        reasons.push(`BR-SHORT[S1=${support}]: no break candle (close<S & vol>1.2x)`);
+        return null;
+      }
 
       const postBreak = recent15m.slice(breakIdx + 1);
       const retestIdx = postBreak.findIndex(
         (c) => c.high >= support * 0.996 && c.high <= support * 1.004,
       );
-      if (retestIdx < 0) return null;
+      if (retestIdx < 0) {
+        reasons.push(`BR-SHORT[S1=${support}]: broke but no retest`);
+        return null;
+      }
 
-      if (latest.close > support) return null;
+      if (latest.close > support) {
+        reasons.push(`BR-SHORT[S1=${support}]: retest but close>S (unconfirmed)`);
+        return null;
+      }
 
       const retestHigh = Math.max(...postBreak.slice(retestIdx, retestIdx + 3).map((c) => c.high));
       const sl = retestHigh * 1.0005;
@@ -243,6 +285,7 @@ export class SetupAnalyzerService {
       });
     }
 
+    reasons.push(`BR: trend not aligned (4H=${trend4h}, 1H=${trend1h}; need 4H=up&1H!=down or 4H=down&1H!=up)`);
     return null;
   }
 
@@ -253,23 +296,32 @@ export class SetupAnalyzerService {
     candles1h: Candle[],
     trend4h: Trend,
     trend1h: Trend,
+    reasons: string[],
   ): SetupResult | null {
     const latest = candles15m.at(-1);
     const prev = candles15m.at(-2);
-    if (!latest || !prev) return null;
+    if (!latest || !prev) {
+      reasons.push('Sweep: missing latest/prev 15m candle');
+      return null;
+    }
     const avg20 = this.avgVolume(candles15m, 20);
 
     // SHORT: sweep above 1H swing high, close back below it
-    if (trend4h !== 'up') {
+    if (trend4h === 'up') {
+      reasons.push('Sweep-SHORT: trend4H=up (need !=up)');
+    } else {
       const swingHighs = this.getSwingHighs(candles1h, 20);
       const swingHigh = swingHighs.at(-1);
-      if (swingHigh != null) {
+      if (swingHigh == null) {
+        reasons.push('Sweep-SHORT: no 1H swing high');
+      } else {
         const sweptAbove = latest.high > swingHigh * 1.003;
         const closedBelow = latest.close < swingHigh;
         const bearishPattern = this.isBearishEngulfing(prev, latest) || this.hasLongUpperWick(latest);
         const volumeSpike = latest.volume > avg20 * 1.3;
+        const trendOk = trend1h !== 'up';
 
-        if (sweptAbove && closedBelow && bearishPattern && volumeSpike && trend1h !== 'up') {
+        if (sweptAbove && closedBelow && bearishPattern && volumeSpike && trendOk) {
           const sl = latest.high * 1.0005;
           return this.buildSignal('LIQUIDITY_SWEEP', 'SHORT', latest.close, sl, {
             swingHigh,
@@ -281,20 +333,29 @@ export class SetupAnalyzerService {
             candleVolume: latest.volume,
           });
         }
+        reasons.push(
+          `Sweep-SHORT[H1=${swingHigh}]: swept=${this.yn(sweptAbove)} closeBelow=${this.yn(closedBelow)} ` +
+            `bearish=${this.yn(bearishPattern)} vol1.3x=${this.yn(volumeSpike)} t1h!=up=${this.yn(trendOk)}`,
+        );
       }
     }
 
     // LONG: sweep below 1H swing low, close back above it
-    if (trend4h !== 'down') {
+    if (trend4h === 'down') {
+      reasons.push('Sweep-LONG: trend4H=down (need !=down)');
+    } else {
       const swingLows = this.getSwingLows(candles1h, 20);
       const swingLow = swingLows.at(-1);
-      if (swingLow != null) {
+      if (swingLow == null) {
+        reasons.push('Sweep-LONG: no 1H swing low');
+      } else {
         const sweptBelow = latest.low < swingLow * 0.997;
         const closedAbove = latest.close > swingLow;
         const bullishPattern = this.isBullishEngulfing(prev, latest) || this.hasLongLowerWick(latest);
         const volumeSpike = latest.volume > avg20 * 1.3;
+        const trendOk = trend1h !== 'down';
 
-        if (sweptBelow && closedAbove && bullishPattern && volumeSpike && trend1h !== 'down') {
+        if (sweptBelow && closedAbove && bullishPattern && volumeSpike && trendOk) {
           const sl = latest.low * 0.9995;
           return this.buildSignal('LIQUIDITY_SWEEP', 'LONG', latest.close, sl, {
             swingLow,
@@ -306,6 +367,10 @@ export class SetupAnalyzerService {
             candleVolume: latest.volume,
           });
         }
+        reasons.push(
+          `Sweep-LONG[L1=${swingLow}]: swept=${this.yn(sweptBelow)} closeAbove=${this.yn(closedAbove)} ` +
+            `bullish=${this.yn(bullishPattern)} vol1.3x=${this.yn(volumeSpike)} t1h!=down=${this.yn(trendOk)}`,
+        );
       }
     }
 
