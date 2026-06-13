@@ -20,6 +20,7 @@ Nến được fetch **qua backend proxy** `GET /tracking-coins/coins/:symbol/kl
 - `navigator.clipboard` không khả dụng (HTTP / browser cũ) → fallback tạo textarea ẩn + `document.execCommand('copy')`.
 - Tính năng AI chat cũ (createConversation → sendMessage → poll reply) được comment trong file drawer; muốn bật lại thì khôi phục block comment và phần render chat gốc.
 - Fetch nến lỗi (mạng / symbol không có trên Binance) → hiện cảnh báo "⚠ Không tải được nến", prompt vẫn dùng được nhưng chỉ gồm chỉ báo (không có OHLCV).
+- Coin lưu dạng bare (vd `ADA`) nhưng Binance cần full pair (`ADAUSDT`) → `fetchKlines()` tự thêm hậu tố `USDT` nếu thiếu (khớp convention của `scanOneCoin`). Trước đây thiếu bước này nên Binance trả 400 và prompt rơi về chỉ-báo-only.
 - Trình duyệt gọi thẳng Binance hay bị chặn (CORS / geo / trang chạy HTTP) → đã chuyển sang gọi qua backend proxy server-side để ổn định.
 - Số Binance trả dạng chuỗi fixed-decimal → `compactNum` bỏ số 0 thừa để CSV gọn.
 

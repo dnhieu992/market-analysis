@@ -76,8 +76,12 @@ export class TrackingCoinsService {
    */
   async fetchKlines(symbol: string, interval: string, limit: number) {
     const safeLimit = Math.min(Math.max(Math.trunc(limit) || 100, 1), 1000);
+    // Coins are stored bare (e.g. "ADA"); Binance needs the full pair ("ADAUSDT").
+    // Match the scan convention in scanOneCoin so both paths hit the same market.
+    const upper = symbol.toUpperCase();
+    const binanceSymbol = upper.endsWith('USDT') ? upper : `${upper}USDT`;
     return this.binance.fetchKlines({
-      symbol: symbol.toUpperCase(),
+      symbol: binanceSymbol,
       timeframe: interval as never,
       limit: safeLimit,
     });
