@@ -86,7 +86,7 @@ export class DayTradingService implements OnModuleInit {
 
     // Historical candle sets via REST (WS only streams recent candles).
     const [candles15m, candles1h, candles4h] = await Promise.all([
-      this.bitget.fetchCandles('15min', 50),
+      this.bitget.fetchCandles('15m', 50),
       this.bitget.fetchCandles('1H', 40),
       this.bitget.fetchCandles('4H', 30),
     ]);

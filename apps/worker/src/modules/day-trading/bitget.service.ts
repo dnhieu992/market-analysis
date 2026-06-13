@@ -10,7 +10,9 @@ export type Candle = {
   volume: number;
 };
 
-type BitgetGranularity = '1min' | '3min' | '5min' | '15min' | '30min' | '1H' | '4H' | '1D';
+// Bitget REST granularity values (differ from the WS candle channel names):
+// valid: 1m,3m,5m,15m,30m,1H,4H,6H,12H,1D,1W,1M
+type BitgetGranularity = '1m' | '3m' | '5m' | '15m' | '30m' | '1H' | '4H' | '1D';
 
 type BitgetCandleResponse = {
   code: string;
