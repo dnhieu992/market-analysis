@@ -13,7 +13,7 @@ async function loadData(): Promise<{ signals: DayTradingSignal[]; stats: DayTrad
   } catch {
     return {
       signals: [],
-      stats: { total: 0, active: 0, tpHit: 0, slHit: 0, winRate: 0, totalPnlPct: 0 },
+      stats: { total: 0, active: 0, tpHit: 0, slHit: 0, winRate: 0, totalPnlUsd: 0 },
     };
   }
 }

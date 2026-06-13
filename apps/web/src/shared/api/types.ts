@@ -470,11 +470,13 @@ export type DayTradingSignal = {
   takeProfit: number;
   rrRatio: number;
   riskAmount: number;
+  quantity: number | null;
+  positionValue: number | null;
   status: 'ACTIVE' | 'TP_HIT' | 'SL_HIT' | 'EXPIRED';
   mode: 'PAPER' | 'LIVE';
   closedPrice: number | null;
   closedAt: string | null;
-  pnlPercent: number | null;
+  pnlUsd: number | null;
   setupJson: string;
   detectedAt: string;
   createdAt: string;
@@ -493,7 +495,7 @@ export type DayTradingStats = {
   tpHit: number;
   slHit: number;
   winRate: number;
-  totalPnlPct: number;
+  totalPnlUsd: number;
 };
 
 export type SmallCapCoinRow = {

@@ -8,14 +8,16 @@ export type SetupResult = {
   stopLoss: number;
   takeProfit: number;
   rrRatio: number;
-  riskAmount: number;
+  riskAmount: number;     // hard loss budget in USD if SL is hit
+  quantity: number;       // position size (volume) in base asset (BTC)
+  positionValue: number;  // notional in USD = quantity * entryPrice
   setupJson: string;
 };
 
 type Trend = 'up' | 'down' | 'neutral';
 
-const ACCOUNT_SIZE = 10_000;
-const RISK_PCT = 0.01;
+// Fixed-dollar risk model: every trade risks exactly this much if SL is hit.
+const FIXED_RISK_USD = 2;
 const MIN_RR = 2.0;
 
 @Injectable()
@@ -161,7 +163,10 @@ export class SetupAnalyzerService {
       ? entryPrice + MIN_RR * riskPerUnit
       : entryPrice - MIN_RR * riskPerUnit;
 
-    const riskAmount = ACCOUNT_SIZE * RISK_PCT;
+    // Volume sized so that hitting SL loses exactly FIXED_RISK_USD.
+    const riskAmount = FIXED_RISK_USD;
+    const quantity = riskAmount / riskPerUnit;
+    const positionValue = quantity * entryPrice;
 
     return {
       setupType,
@@ -171,7 +176,9 @@ export class SetupAnalyzerService {
       takeProfit,
       rrRatio: MIN_RR,
       riskAmount,
-      setupJson: JSON.stringify({ ...context, entryPrice, stopLoss, takeProfit }),
+      quantity,
+      positionValue,
+      setupJson: JSON.stringify({ ...context, entryPrice, stopLoss, takeProfit, quantity, positionValue }),
     };
   }
 

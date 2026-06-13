@@ -40,14 +40,23 @@ export class ResultMonitorService {
       }
 
       if (hit) {
-        const pnlPct = hit === 'TP_HIT' ? signal.rrRatio * signal.riskAmount / 100 : -(signal.riskAmount / 100);
+        // Realized P&L in USD = volume × price move (signed by direction).
+        // Falls back to the fixed ±risk model if volume wasn't stored.
+        const qty = signal.quantity;
+        const priceMove = direction === 'LONG' ? price - entryPrice : entryPrice - price;
+        const pnlUsd = qty != null
+          ? qty * priceMove
+          : (hit === 'TP_HIT' ? signal.rrRatio * signal.riskAmount : -signal.riskAmount);
+
         await this.repo.updateSignalResult(id, {
           status: hit,
           closedPrice: price,
           closedAt: new Date(),
-          pnlPercent: pnlPct,
+          pnlUsd,
         });
-        this.logger.log(`Signal ${id} closed: ${hit} @ ${price} (entry ${entryPrice}, SL ${stopLoss}, TP ${takeProfit})`);
+        this.logger.log(
+          `Signal ${id} closed: ${hit} @ ${price} → $${pnlUsd.toFixed(2)} (entry ${entryPrice}, SL ${stopLoss}, TP ${takeProfit})`,
+        );
       }
     }
   }

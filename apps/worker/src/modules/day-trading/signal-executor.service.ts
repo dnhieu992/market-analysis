@@ -21,7 +21,8 @@ export class SignalExecutorService {
     // PHASE 1: print the signal — no order placement.
     this.logger.log(
       `🔔 TÍN HIỆU [PAPER] ${setup.direction} ${symbol} | ${setup.setupType} | ` +
-        `Entry ${setup.entryPrice} | SL ${setup.stopLoss} | TP ${setup.takeProfit} | R:R 1:${setup.rrRatio}`,
+        `Entry ${setup.entryPrice} | SL ${setup.stopLoss} | TP ${setup.takeProfit} | R:R 1:${setup.rrRatio} | ` +
+        `Vol ${setup.quantity.toFixed(6)} BTC (~$${setup.positionValue.toFixed(0)}) | Risk $${setup.riskAmount}`,
     );
 
     await this.repo.createSignal({
@@ -33,6 +34,8 @@ export class SignalExecutorService {
       takeProfit: setup.takeProfit,
       rrRatio: setup.rrRatio,
       riskAmount: setup.riskAmount,
+      quantity: setup.quantity,
+      positionValue: setup.positionValue,
       status: 'ACTIVE',
       mode: 'PAPER',
       setupJson: setup.setupJson,

@@ -11,6 +11,8 @@ export function createDayTradingRepository(client = prisma) {
       takeProfit: number;
       rrRatio: number;
       riskAmount: number;
+      quantity?: number;
+      positionValue?: number;
       status: string;
       mode?: string;
       setupJson: string;
@@ -61,7 +63,7 @@ export function createDayTradingRepository(client = prisma) {
       return client.dayTradingSignal.findUnique({ where: { id } });
     },
 
-    updateSignalResult(id: string, data: { status: string; closedPrice: number; closedAt: Date; pnlPercent: number }) {
+    updateSignalResult(id: string, data: { status: string; closedPrice: number; closedAt: Date; pnlUsd: number }) {
       return client.dayTradingSignal.update({ where: { id }, data });
     },
 
@@ -71,14 +73,15 @@ export function createDayTradingRepository(client = prisma) {
       return client.dayTradingSignal.count({ where: { symbol, detectedAt: { gte: startOfDay } } });
     },
 
-    async getTodayLossPct(symbol: string): Promise<number> {
+    /** Net realized P&L (USD) for today's closed trades — used for the daily loss guard. */
+    async getTodayPnlUsd(symbol: string): Promise<number> {
       const startOfDay = new Date();
       startOfDay.setUTCHours(0, 0, 0, 0);
       const agg = await client.dayTradingSignal.aggregate({
-        _sum: { pnlPercent: true },
-        where: { symbol, status: 'SL_HIT', closedAt: { gte: startOfDay } },
+        _sum: { pnlUsd: true },
+        where: { symbol, status: { in: ['TP_HIT', 'SL_HIT'] }, closedAt: { gte: startOfDay } },
       });
-      return agg._sum.pnlPercent ?? 0;
+      return agg._sum.pnlUsd ?? 0;
     },
 
     async getStats() {
@@ -88,7 +91,7 @@ export function createDayTradingRepository(client = prisma) {
         client.dayTradingSignal.count({ where: { status: 'SL_HIT' } }),
         client.dayTradingSignal.count({ where: { status: 'ACTIVE' } }),
         client.dayTradingSignal.aggregate({
-          _sum: { pnlPercent: true },
+          _sum: { pnlUsd: true },
           where: { status: { in: ['TP_HIT', 'SL_HIT'] } },
         }),
       ]);
@@ -99,7 +102,7 @@ export function createDayTradingRepository(client = prisma) {
         tpHit,
         slHit,
         winRate: closed > 0 ? (tpHit / closed) * 100 : 0,
-        totalPnlPct: pnlAgg._sum.pnlPercent ?? 0,
+        totalPnlUsd: pnlAgg._sum.pnlUsd ?? 0,
       };
     },
   };

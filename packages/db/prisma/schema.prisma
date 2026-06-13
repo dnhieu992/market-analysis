@@ -389,14 +389,16 @@ model DayTradingSignal {
   entryPrice  Float
   stopLoss    Float
   takeProfit  Float
-  rrRatio     Float     @default(2.0)
-  riskAmount  Float     @default(100)
-  status      String    @db.VarChar(20)
-  mode        String    @default("PAPER") @db.VarChar(10)
-  closedPrice Float?
-  closedAt    DateTime?
-  pnlPercent  Float?
-  setupJson   String    @db.Text
+  rrRatio       Float     @default(2.0)
+  riskAmount    Float     @default(2)
+  quantity      Float?
+  positionValue Float?
+  status        String    @db.VarChar(20)
+  mode          String    @default("PAPER") @db.VarChar(10)
+  closedPrice   Float?
+  closedAt      DateTime?
+  pnlUsd        Float?
+  setupJson     String    @db.Text
   detectedAt  DateTime
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

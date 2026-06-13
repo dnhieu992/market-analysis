@@ -12,22 +12,23 @@ Built in two phases:
    - `candle15m` (BTCUSDT) → detects 15m candle close → emits `candleClose`
    It handles ping/pong (literal `"ping"` every 25s) and reconnects with exponential backoff.
 2. On `candleClose`, `DayTradingService` runs a scan (a re-entrancy guard prevents overlap).
-3. Scan checks daily guards: max 3 signals/day, stop if daily loss ≤ −2%.
+3. Scan checks daily guards: max 5 signals/day, stop if net realized P&L ≤ −$4 (two losing trades).
 4. Historical candle sets (50×15m, 40×1H, 30×4H) are fetched via REST (`BitgetService`) for swing-structure lookback.
 5. `SetupAnalyzerService` runs two detectors:
    - **Liquidity Sweep**: 1H swing high/low swept ≥0.3%, closed back with engulfing/pin bar + volume spike.
    - **Break & Retest**: 4H/1H trend-confirmed level break (volume > avg×1.2), retest pullback, confirmation close.
 6. **Dedup**: if the same setup+direction already fired within one candle window (~14 min), it is skipped.
-7. `SignalExecutorService.execute()` — **Phase 1**: logs `🔔 TÍN HIỆU [PAPER] …` and persists the signal with `mode = PAPER`, `status = ACTIVE`. No order is placed.
-8. **Result monitor** (`@Cron` every minute) reads the **real-time WS price** (REST fallback if WS is stale) and marks ACTIVE signals `TP_HIT` / `SL_HIT`.
-9. Web page `/day-trading` shows signals + stats, auto-refreshing every 60s. Each signal shows a PAPER/LIVE badge.
+7. **Risk/volume model**: fixed-dollar risk — every trade risks exactly **$2** if SL is hit. Volume (BTC) = `$2 / |entry − stopLoss|`, and `positionValue = quantity × entry`. P&L is realized in USD = `quantity × price move` (≈ −$2 at SL, ≈ +$4 at TP with R:R 1:2).
+8. `SignalExecutorService.execute()` — **Phase 1**: logs `🔔 TÍN HIỆU [PAPER] …` and persists the signal with `mode = PAPER`, `status = ACTIVE`. No order is placed.
+9. **Result monitor** (`@Cron` every minute) reads the **real-time WS price** (REST fallback if WS is stale) and marks ACTIVE signals `TP_HIT` / `SL_HIT`, recording `pnlUsd`.
+10. Web page `/day-trading` shows signals + stats (Total P&L in USD), auto-refreshing every 60s. Each signal shows volume and a PAPER/LIVE badge.
 
 ## Edge Cases
 - **WS disconnect**: auto-reconnects with backoff. A cron fallback (`:02/:17/:32/:47`) runs the scan only when `ws.isHealthy()` is false, so candle closes are not missed.
 - **WS price stale**: result monitor falls back to REST `fetchCurrentPrice`.
 - Bitget REST failure: logged as warning, scan skipped (non-fatal).
 - Insufficient candle data (<30×15m, <20×1H, <10×4H): scan skipped.
-- Daily limit reached (3 signals or −2% loss): scan returns early.
+- Daily limit reached (5 signals or −$4 net P&L): scan returns early.
 - Both setups trigger on one candle: only the first (Liquidity Sweep) is used.
 - Overlapping triggers (WS + cron): re-entrancy guard + dedup prevent duplicate signals.
 - Result check has no slippage modeling — price vs TP/SL, an approximation for review.

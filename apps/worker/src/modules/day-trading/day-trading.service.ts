@@ -8,8 +8,9 @@ import { SignalExecutorService } from './signal-executor.service';
 import { ResultMonitorService } from './result-monitor.service';
 
 const SYMBOL = 'BTCUSDT';
-const MAX_SIGNALS_PER_DAY = 3;
-const MAX_DAILY_LOSS_PCT = -2;
+const MAX_SIGNALS_PER_DAY = 5;
+// Fixed-dollar model: stop the day once net realized P&L drops to this (2 losing trades × $2).
+const MAX_DAILY_LOSS_USD = -4;
 // One 15m candle + buffer — skip if we already fired the same setup this window.
 const DEDUP_WINDOW_MS = 14 * 60 * 1000;
 
@@ -78,9 +79,9 @@ export class DayTradingService implements OnModuleInit {
       return;
     }
 
-    const todayLoss = await this.repo.getTodayLossPct(SYMBOL);
-    if (todayLoss <= MAX_DAILY_LOSS_PCT) {
-      this.logger.log(`Daily loss limit reached for ${SYMBOL} (${todayLoss.toFixed(2)}%)`);
+    const todayPnl = await this.repo.getTodayPnlUsd(SYMBOL);
+    if (todayPnl <= MAX_DAILY_LOSS_USD) {
+      this.logger.log(`Daily loss limit reached for ${SYMBOL} ($${todayPnl.toFixed(2)})`);
       return;
     }
 

@@ -51,7 +51,7 @@ function PriceCell({ label, value, modifier, sub }: { label: string; value: stri
 
 function SignalCard({ signal }: { signal: DayTradingSignal }) {
   const riskPct = ((Math.abs(signal.entryPrice - signal.stopLoss) / signal.entryPrice) * 100).toFixed(2);
-  const pnl = signal.pnlPercent;
+  const pnl = signal.pnlUsd;
 
   return (
     <div className="dt-card">
@@ -68,8 +68,8 @@ function SignalCard({ signal }: { signal: DayTradingSignal }) {
           {signal.mode === 'LIVE' ? 'LIVE' : 'PAPER'}
         </span>
         {pnl != null && (
-          <span className={`dt-pnl ${pnl > 0 ? 'dt-pnl--pos' : 'dt-pnl--neg'}`}>
-            {pnl > 0 ? '+' : ''}{(pnl * 100).toFixed(2)}%
+          <span className={`dt-pnl ${pnl >= 0 ? 'dt-pnl--pos' : 'dt-pnl--neg'}`}>
+            {pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
           </span>
         )}
       </div>
@@ -88,7 +88,8 @@ function SignalCard({ signal }: { signal: DayTradingSignal }) {
       )}
 
       <div className="dt-meta">
-        Detected {formatTime(signal.detectedAt)} · Risk ${signal.riskAmount.toFixed(0)} USDT
+        Detected {formatTime(signal.detectedAt)} · Vol {signal.quantity != null ? `${signal.quantity.toFixed(6)} BTC` : '—'}
+        {signal.positionValue != null ? ` (~$${signal.positionValue.toFixed(0)})` : ''} · Risk ${signal.riskAmount.toFixed(0)}
       </div>
     </div>
   );
@@ -104,7 +105,7 @@ function StatCard({ label, value, modifier }: { label: string; value: string | n
 }
 
 function StatsHeader({ stats }: { stats: DayTradingStats }) {
-  const totalPnlUsd = stats.totalPnlPct * 10_000;
+  const totalPnlUsd = stats.totalPnlUsd;
   return (
     <div className="dt-stats">
       <StatCard label="Signals" value={stats.total} />
@@ -113,7 +114,7 @@ function StatsHeader({ stats }: { stats: DayTradingStats }) {
       <StatCard label="TP / SL" value={`${stats.tpHit} / ${stats.slHit}`} />
       <StatCard
         label="Total P&L"
-        value={`${totalPnlUsd >= 0 ? '+' : ''}$${totalPnlUsd.toFixed(0)}`}
+        value={`${totalPnlUsd >= 0 ? '+' : '-'}$${Math.abs(totalPnlUsd).toFixed(2)}`}
         modifier={totalPnlUsd >= 0 ? 'dt-stat-value--pos' : 'dt-stat-value--neg'}
       />
     </div>
