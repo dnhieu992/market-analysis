@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, SwingStructure, OrderSuggestions, OrderSuggestion, TrackingCoinOrder, CoinSetup } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, OrderSuggestions, OrderSuggestion, TrackingCoinOrder, CoinSetup } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -144,18 +144,6 @@ function TrendBadge({ trend }: { trend: PaTrend }) {
   return <span className={m.cls} title={m.desc}>{m.label}</span>;
 }
 
-function SwingStructureLabel({ structure }: { structure: SwingStructure }) {
-  const map: Record<SwingStructure, { label: string; desc: string }> = {
-    HH_HL: { label: 'HH / HL', desc: 'Higher High + Higher Low — bullish' },
-    LH_LL: { label: 'LH / LL', desc: 'Lower High + Lower Low — bearish' },
-    HH_LL: { label: 'HH / LL', desc: 'Higher High + Lower Low — expanding' },
-    LH_HL: { label: 'LH / HL', desc: 'Lower High + Higher Low — coil' },
-    Mixed:  { label: 'Mixed',  desc: 'Not enough swing points' },
-  };
-  const { label, desc } = map[structure];
-  return <span className="tc-swing-label" title={desc}>{label}</span>;
-}
-
 /* ── Sparkline ──────────────────────────────────────────────────── */
 
 function Sparkline({ prices }: { prices: number[] }) {
@@ -171,30 +159,6 @@ function Sparkline({ prices }: { prices: number[] }) {
     <svg width={W} height={H} className="scr-sparkline" viewBox={`0 0 ${W} ${H}`}>
       <polyline points={points} fill="none" stroke={isUp ? '#22c55e' : '#ef4444'} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
-  );
-}
-
-function SparklineLarge({ prices }: { prices: number[] }) {
-  if (prices.length < 2) return <span className="scr-muted">Không có dữ liệu</span>;
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const range = max - min || 1;
-  const W = 280; const H = 80;
-  const step = W / (prices.length - 1);
-  const points = prices.map((p, i) => `${i * step},${H - ((p - min) / range) * H}`).join(' ');
-  const last = prices[prices.length - 1]!;
-  const first = prices[0]!;
-  const isUp = last >= first;
-  const pct = (((last - first) / first) * 100).toFixed(1);
-  return (
-    <div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="tc-detail-spark-svg">
-        <polyline points={points} fill="none" stroke={isUp ? '#22c55e' : '#ef4444'} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      </svg>
-      <div className="tc-detail-spark-pct" style={{ color: isUp ? '#22c55e' : '#ef4444' }}>
-        {isUp ? '+' : ''}{pct}% (30 ngày)
-      </div>
-    </div>
   );
 }
 
@@ -316,16 +280,6 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="tc-detail-section">
-        <div className="tc-detail-label">Swing Structure</div>
-        <div className="tc-detail-value"><SwingStructureLabel structure={sig.swingStructure} /></div>
-      </section>
-
-      <section className="tc-detail-section">
-        <div className="tc-detail-label">30 ngày gần nhất</div>
-        <div className="tc-detail-sparkline"><SparklineLarge prices={sig.sparkline} /></div>
       </section>
 
       <div className="tc-detail-footer">

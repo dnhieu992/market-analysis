@@ -6954,7 +6954,12 @@ a.metric-card--link:hover {
 .tc-view-btn:hover { opacity: 1; color: var(--accent, #1f6f5b); }
 
 /* ── tracking coins: detail modal ── */
-.tc-detail-dialog { max-width: 440px; }
+/* Fixed height so the dialog keeps a consistent size across tabs
+   (body scrolls instead of the dialog growing/shrinking to content). */
+.tc-detail-dialog {
+  max-width: 440px;
+  height: min(660px, 90vh);
+}
 @media (min-width: 768px) {
   .tc-detail-dialog { max-width: 760px; }
 }
