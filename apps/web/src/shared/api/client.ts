@@ -42,6 +42,7 @@ import type {
   DayTradingStats,
   DayTradingSettings,
   UpdateDayTradingSettingsInput,
+  BinanceKline,
 } from './types';
 
 
@@ -680,6 +681,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     fetchCoinOrders(symbol: string): Promise<TrackingCoinOrder[]> {
       return fetchJson<TrackingCoinOrder[]>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/orders`, withDefaults());
+    },
+
+    fetchCoinKlines(symbol: string, interval: string, limit: number): Promise<BinanceKline[]> {
+      return fetchJson<BinanceKline[]>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/klines?interval=${encodeURIComponent(interval)}&limit=${limit}`,
+        withDefaults(),
+      );
     },
 
     fetchCoinSetup(symbol: string): Promise<CoinSetup> {

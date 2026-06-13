@@ -381,6 +381,9 @@ export type SmallCapStage = 'Breakout' | 'Accumulating' | 'Waking' | 'Extended' 
 export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
 export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
 
+// Raw Binance kline row: [openTime, open, high, low, close, volume, closeTime, ...]
+export type BinanceKline = [number, string, string, string, string, string, ...unknown[]];
+
 export type TrackingCoinRow = {
   id: string;
   symbol: string;

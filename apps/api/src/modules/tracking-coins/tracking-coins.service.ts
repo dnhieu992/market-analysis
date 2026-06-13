@@ -70,6 +70,19 @@ export class TrackingCoinsService {
 
   constructor(private readonly binance: BinanceMarketDataService) {}
 
+  /**
+   * Proxy raw OHLCV klines from Binance (server-side, avoids browser CORS/geo
+   * restrictions). Used by the tracking-coins prompt generator to embed candles.
+   */
+  async fetchKlines(symbol: string, interval: string, limit: number) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit) || 100, 1), 1000);
+    return this.binance.fetchKlines({
+      symbol: symbol.toUpperCase(),
+      timeframe: interval as never,
+      limit: safeLimit,
+    });
+  }
+
   async listCoins(): Promise<TrackingCoinWithSignal[]> {
     const rows = await this.repo.findCoinsWithLatestSignal();
     return rows.map((coin) => {

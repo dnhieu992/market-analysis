@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
@@ -38,6 +38,16 @@ export class TrackingCoinsController {
   @ApiOperation({ summary: 'Manually trigger a full signal scan for all tracked coins' })
   triggerScan() {
     return this.service.triggerScan();
+  }
+
+  @Get('coins/:symbol/klines')
+  @ApiOperation({ summary: 'Proxy raw OHLCV klines from Binance (server-side) for prompt embedding' })
+  getKlines(
+    @Param('symbol') symbol: string,
+    @Query('interval') interval = '1d',
+    @Query('limit') limit = '100',
+  ) {
+    return this.service.fetchKlines(symbol, interval, Number(limit));
   }
 
   @Get('coins/:symbol/journal')

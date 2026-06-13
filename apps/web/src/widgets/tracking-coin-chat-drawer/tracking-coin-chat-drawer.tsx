@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { TrackingCoinRow } from '@web/shared/api/types';
+import { createApiClient } from '@web/shared/api/client';
+import type { TrackingCoinRow, BinanceKline } from '@web/shared/api/types';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -44,14 +45,7 @@ const CANDLE_TIMEFRAMES: { label: string; interval: string; limit: number }[] = 
   { label: 'M30', interval: '30m', limit: 80 },
 ];
 
-type Kline = [number, string, string, string, string, string, ...unknown[]];
-
-async function fetchKlines(symbol: string, interval: string, limit: number): Promise<Kline[]> {
-  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Binance ${res.status} for ${symbol} ${interval}`);
-  return res.json() as Promise<Kline[]>;
-}
+type Kline = BinanceKline;
 
 function fmtCandleTime(ms: number, interval: string): string {
   const d = new Date(ms);
@@ -154,11 +148,12 @@ export function TrackingCoinChatDrawer({ coin, livePrice, onClose }: Props) {
     setCandleSection('');
     (async () => {
       try {
+        const api = createApiClient();
         const blocks = await Promise.all(
           CANDLE_TIMEFRAMES.map(async (tf) => ({
             label: tf.label,
             interval: tf.interval,
-            rows: await fetchKlines(coin.symbol, tf.interval, tf.limit),
+            rows: await api.fetchCoinKlines(coin.symbol, tf.interval, tf.limit),
           }))
         );
         if (cancelled) return;
