@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpsertJournalEntryDto } from './dto/upsert-journal-entry.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
+import { UpdateOrderNotesDto } from './dto/update-order-notes.dto';
 import { TrackingCoinsService } from './tracking-coins.service';
 
 @ApiTags('Tracking Coins')
@@ -67,6 +68,13 @@ export class TrackingCoinsController {
   @ApiOperation({ summary: 'Get risk setup settings for a coin' })
   getSetup(@Param('symbol') symbol: string) {
     return this.service.getSetup(symbol);
+  }
+
+  @Patch('coins/orders/:orderId/notes')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Update notes for a saved limit order' })
+  updateOrderNotes(@Param('orderId') orderId: string, @Body() body: UpdateOrderNotesDto) {
+    return this.service.updateOrderNotes(orderId, body.notes ?? null);
   }
 
   @Put('coins/:symbol/setup')

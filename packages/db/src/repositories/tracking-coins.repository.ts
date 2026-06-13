@@ -96,10 +96,23 @@ export function createTrackingCoinsRepository(client = prisma) {
         positionValue?: number | null;
       },
     ) {
+      // notes is intentionally excluded from update to preserve user edits
+      const { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale, positionSize, positionValue } = data;
       return client.trackingCoinOrder.upsert({
         where: { coinId_date_type: { coinId, date, type } },
         create: { coinId, date, type, ...data },
-        update: { ...data },
+        update: { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale, positionSize, positionValue },
+      });
+    },
+
+    updateOrderNotes(id: string, notes: string | null) {
+      return client.trackingCoinOrder.update({ where: { id }, data: { notes } });
+    },
+
+    findOrdersByDate(coinId: string, date: Date) {
+      return client.trackingCoinOrder.findMany({
+        where: { coinId, date },
+        orderBy: { type: 'asc' },
       });
     },
 
@@ -128,11 +141,10 @@ export function createTrackingCoinsRepository(client = prisma) {
       });
     },
 
-    findOrdersByCoin(coinId: string, limit = 10) {
+    findOrdersByCoin(coinId: string) {
       return client.trackingCoinOrder.findMany({
         where: { coinId },
         orderBy: { date: 'desc' },
-        take: limit,
       });
     },
   };

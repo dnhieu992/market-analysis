@@ -412,6 +412,7 @@ export type TrackingCoinRow = {
 };
 
 export type OrderSuggestion = {
+  id: string;
   side: 'LONG' | 'SHORT';
   entryLow: number;
   entryHigh: number;
@@ -420,6 +421,7 @@ export type OrderSuggestion = {
   sl: number;
   rrRatio: number;
   rationale: string;
+  notes: string | null;
 };
 
 export type OrderSuggestions = {
@@ -442,6 +444,7 @@ export type TrackingCoinOrder = {
   sl: number;
   rrRatio: number;
   rationale: string;
+  notes: string | null;
   positionSize: number | null;
   positionValue: number | null;
   activated: boolean | null;
@@ -455,6 +458,42 @@ export type CoinSetup = {
   swingMinRR: number | null;
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
+};
+
+export type DayTradingSignal = {
+  id: string;
+  symbol: string;
+  setupType: 'BREAK_RETEST' | 'LIQUIDITY_SWEEP';
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  rrRatio: number;
+  riskAmount: number;
+  status: 'ACTIVE' | 'TP_HIT' | 'SL_HIT' | 'EXPIRED';
+  mode: 'PAPER' | 'LIVE';
+  closedPrice: number | null;
+  closedAt: string | null;
+  pnlPercent: number | null;
+  setupJson: string;
+  detectedAt: string;
+  createdAt: string;
+};
+
+export type DayTradingSignalsResponse = {
+  data: DayTradingSignal[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type DayTradingStats = {
+  total: number;
+  active: number;
+  tpHit: number;
+  slHit: number;
+  winRate: number;
+  totalPnlPct: number;
 };
 
 export type SmallCapCoinRow = {

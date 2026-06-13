@@ -319,6 +319,7 @@ model TrackingCoinOrder {
   sl          Float
   rrRatio       Float
   rationale     String       @db.Text
+  notes         String?      @db.Text
   positionSize  Float?
   positionValue Float?
   activated     Boolean?
@@ -378,6 +379,30 @@ model TrackingCoinSignal {
   @@unique([coinId, date])
   @@index([date, signalScore(sort: Desc)])
   @@map("tracking_coin_signals")
+}
+
+model DayTradingSignal {
+  id          String    @id @default(cuid())
+  symbol      String    @db.VarChar(20)
+  setupType   String    @db.VarChar(30)
+  direction   String    @db.VarChar(5)
+  entryPrice  Float
+  stopLoss    Float
+  takeProfit  Float
+  rrRatio     Float     @default(2.0)
+  riskAmount  Float     @default(100)
+  status      String    @db.VarChar(20)
+  mode        String    @default("PAPER") @db.VarChar(10)
+  closedPrice Float?
+  closedAt    DateTime?
+  pnlPercent  Float?
+  setupJson   String    @db.Text
+  detectedAt  DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([symbol, status, detectedAt])
+  @@map("day_trading_signals")
 }
 
 model SmallCapCoin {

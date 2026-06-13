@@ -58,6 +58,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Theo dõi coin tự nhập tay'
   },
   {
+    href: '/day-trading',
+    label: 'Day Trading',
+    description: 'BTC 15m setups · Break & Retest, Liq. Sweep'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

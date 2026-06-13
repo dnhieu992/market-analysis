@@ -37,6 +37,9 @@ import type {
   OrderSuggestions,
   TrackingCoinOrder,
   CoinSetup,
+  DayTradingSignal,
+  DayTradingSignalsResponse,
+  DayTradingStats,
 } from './types';
 
 
@@ -690,6 +693,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
+    updateOrderNotes(orderId: string, notes: string | null): Promise<void> {
+      return fetchImpl(`${baseUrl}/tracking-coins/coins/orders/${encodeURIComponent(orderId)}/notes`, {
+        ...withDefaults(),
+        method: 'PATCH',
+        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      }).then(() => undefined);
+    },
+
     // ── Skills ────────────────────────────────────────────────────────
     fetchSkills(): Promise<Skill[]> {
       return fetchJson<Skill[]>(fetchImpl, `${baseUrl}/skills`, withDefaults());
@@ -798,6 +810,25 @@ export function createApiClient(options: ApiClientOptions = {}) {
         `${baseUrl}/tracking-coins/scan`,
         withDefaults({ method: 'POST' }),
       );
+    },
+
+    async fetchDayTradingSignals(params: { status?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): Promise<DayTradingSignalsResponse> {
+      const qs = new URLSearchParams();
+      if (params.status) qs.set('status', params.status);
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      if (params.limit != null) qs.set('limit', String(params.limit));
+      if (params.offset != null) qs.set('offset', String(params.offset));
+      const url = `${baseUrl}/day-trading/signals${qs.toString() ? `?${qs}` : ''}`;
+      return fetchJson<DayTradingSignalsResponse>(fetchImpl, url, withDefaults({}));
+    },
+
+    async fetchDayTradingStats(): Promise<DayTradingStats> {
+      return fetchJson<DayTradingStats>(fetchImpl, `${baseUrl}/day-trading/signals/stats`, withDefaults({}));
+    },
+
+    async fetchDayTradingSignalById(id: string): Promise<DayTradingSignal | null> {
+      return fetchJson<DayTradingSignal | null>(fetchImpl, `${baseUrl}/day-trading/signals/${encodeURIComponent(id)}`, withDefaults({}));
     },
   };
 }

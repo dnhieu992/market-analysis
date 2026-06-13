@@ -370,6 +370,18 @@ function calcLiveVolume(order: OrderSuggestion, maxLoss: number | null): { posit
 }
 
 function OrderCard({ order, label, maxLoss }: { order: OrderSuggestion; label: string; maxLoss: number | null }) {
+  const [notes, setNotes] = useState(order.notes ?? '');
+  const savedNotesRef = useRef(order.notes ?? '');
+
+  function handleNotesBlur() {
+    const val = notes.trim() || null;
+    const saved = savedNotesRef.current.trim() || null;
+    if (val !== saved) {
+      savedNotesRef.current = val ?? '';
+      createApiClient().updateOrderNotes(order.id, val).catch(() => {});
+    }
+  }
+
   const isLong = order.side === 'LONG';
   const vol = calcLiveVolume(order, maxLoss);
   return (
@@ -399,6 +411,14 @@ function OrderCard({ order, label, maxLoss }: { order: OrderSuggestion; label: s
         </>}
       </div>
       <p className="ord-card__rationale">{order.rationale}</p>
+      <textarea
+        className="ord-card__notes"
+        placeholder="Nhận định của bạn…"
+        value={notes}
+        rows={2}
+        onChange={(e) => setNotes(e.target.value)}
+        onBlur={handleNotesBlur}
+      />
     </div>
   );
 }
@@ -410,6 +430,31 @@ function OutcomeBadge({ activated, outcome }: { activated: boolean | null; outco
   if (outcome === 'tp1') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP1</span>;
   if (outcome === 'sl') return <span className="ord-hist__outcome ord-hist__outcome--sl">✗ SL</span>;
   return <span className="ord-hist__outcome ord-hist__outcome--active">Đang chạy</span>;
+}
+
+function HistoryNoteCell({ orderId, initialNotes }: { orderId: string; initialNotes: string | null }) {
+  const [notes, setNotes] = useState(initialNotes ?? '');
+  const savedRef = useRef(initialNotes ?? '');
+
+  function handleBlur() {
+    const val = notes.trim() || null;
+    const saved = savedRef.current.trim() || null;
+    if (val !== saved) {
+      savedRef.current = val ?? '';
+      createApiClient().updateOrderNotes(orderId, val).catch(() => {});
+    }
+  }
+
+  return (
+    <textarea
+      className="ord-hist__notes"
+      placeholder="—"
+      value={notes}
+      rows={1}
+      onChange={(e) => setNotes(e.target.value)}
+      onBlur={handleBlur}
+    />
+  );
 }
 
 function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
@@ -431,6 +476,7 @@ function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
             <th>R:R</th>
             {hasVolume && <th>Vol / $</th>}
             <th>Kết quả</th>
+            <th>Ghi chú</th>
           </tr>
         </thead>
         <tbody>
@@ -454,6 +500,7 @@ function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
                 </td>
               )}
               <td><OutcomeBadge activated={o.activated} outcome={o.outcome} /></td>
+              <td><HistoryNoteCell orderId={o.id} initialNotes={o.notes} /></td>
             </tr>
           ))}
         </tbody>
@@ -476,6 +523,7 @@ function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClo
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setHistory(null); // reset so history tab re-fetches fresh data after re-analyze
     const api = createApiClient();
     Promise.all([
       api.fetchOrderSuggestions(symbol),

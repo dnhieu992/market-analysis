@@ -23,11 +23,13 @@ function calcVolume(order: LimitOrderResult, maxLoss: number | null): { position
   return { positionSize, positionValue: positionSize * entryMid };
 }
 
+export type SavedOrderSuggestion = LimitOrderResult & { id: string; notes: string | null };
+
 export type OrderSuggestionsResult = {
   symbol: string;
   currentPrice: number;
-  swing: LimitOrderResult;
-  scalp: LimitOrderResult;
+  swing: SavedOrderSuggestion;
+  scalp: SavedOrderSuggestion;
   generatedAt: string;
 };
 
@@ -205,13 +207,34 @@ export class TrackingCoinsService {
     const swing = computeSwingLimitOrder(price, h4Highs, h4Lows, sigSnap);
     const scalp = computeDayTradeLimitOrder(price, h1Highs, h1Lows, sigSnap);
 
-    return { symbol: upper, currentPrice: price, swing, scalp, generatedAt: new Date().toISOString() };
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const setup = await this.repo.findCoinBySymbol(upper);
+    const swingVol  = calcVolume(swing,  setup?.swingMaxLoss    ?? null);
+    const scalpVol  = calcVolume(scalp,  setup?.daytradeMaxLoss ?? null);
+
+    const [swingRecord, scalpRecord] = await Promise.all([
+      this.repo.upsertOrder(coin.id, today, 'swing',    { ...swing,  ...swingVol }),
+      this.repo.upsertOrder(coin.id, today, 'daytrade', { ...scalp, ...scalpVol }),
+    ]);
+
+    return {
+      symbol: upper,
+      currentPrice: price,
+      swing:  { ...swing,  id: swingRecord.id,  notes: swingRecord.notes  ?? null },
+      scalp:  { ...scalp,  id: scalpRecord.id,  notes: scalpRecord.notes  ?? null },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async updateOrderNotes(orderId: string, notes: string | null): Promise<void> {
+    await this.repo.updateOrderNotes(orderId, notes);
   }
 
   async listOrders(symbol: string) {
     const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
     if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
-    const orders = await this.repo.findOrdersByCoin(coin.id, 30);
+    const orders = await this.repo.findOrdersByCoin(coin.id);
     return orders.map((o) => ({
       id: o.id,
       date: o.date.toISOString().slice(0, 10),
@@ -224,6 +247,7 @@ export class TrackingCoinsService {
       sl: o.sl,
       rrRatio: o.rrRatio,
       rationale: o.rationale,
+      notes: o.notes ?? null,
       positionSize: o.positionSize ?? null,
       positionValue: o.positionValue ?? null,
       activated: o.activated ?? null,
