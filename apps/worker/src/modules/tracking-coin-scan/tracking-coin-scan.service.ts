@@ -7,8 +7,11 @@ import {
   calculateRsi,
   calculateVolumeRatio,
   calcUtBotResult,
+  computeSwingLimitOrder,
+  computeDayTradeLimitOrder,
+  evaluateLimitOrder,
 } from '@app/core';
-import type { PaTrend } from '@app/core';
+import type { PaTrend, OrderSigSnapshot } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
@@ -45,10 +48,11 @@ export class TrackingCoinScanService {
   private async scanOne(coinId: string, symbol: string): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
-    const [klines, h4Klines, m30Klines] = await Promise.all([
+    const [klines, h4Klines, m30Klines, h1Klines] = await Promise.all([
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1h', limit: 72 }),
     ]);
 
     if (klines.length < 210) return;
@@ -134,5 +138,76 @@ export class TrackingCoinScanService {
       h4Rsi,
       h4VolMultiplier,
     });
+
+    // ── Generate & persist today's orders ──────────────────────────────
+    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
+    if (currentPrice > 0) {
+      const sigSnap: OrderSigSnapshot = {
+        trend: result.trend,
+        h4Trend,
+        m30Trend,
+        utBotD1Bullish,
+        utBotH4Bullish,
+        longScore,
+        shortScore,
+        ema200Above: result.ema200Above,
+        rsi: result.rsi,
+        h4Rsi,
+        swingStructure: result.swingStructure,
+      };
+
+      const h1Highs = h1Klines.map((k) => parseFloat(k[2]));
+      const h1Lows  = h1Klines.map((k) => parseFloat(k[3]));
+
+      const swingOrder    = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap);
+      const dayTradeOrder = computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap);
+
+      await Promise.all([
+        this.repo.upsertOrder(coinId, today, 'swing', swingOrder),
+        this.repo.upsertOrder(coinId, today, 'daytrade', dayTradeOrder),
+      ]);
+    }
+
+    // ── Evaluate unresolved past orders ────────────────────────────────
+    const unresolved = await this.repo.findUnresolvedOrders(coinId);
+    const h1Highs = h1Klines.map((k) => parseFloat(k[2]));
+    const h1Lows  = h1Klines.map((k) => parseFloat(k[3]));
+
+    for (const order of unresolved) {
+      // Skip today's freshly created orders
+      if (order.date.getTime() >= today.getTime()) continue;
+
+      const daysAgo = Math.ceil((today.getTime() - order.date.getTime()) / (1000 * 60 * 60 * 24));
+
+      let candleHighs: number[];
+      let candleLows: number[];
+
+      if (order.type === 'swing') {
+        const candlesPerDay = 6; // H4
+        const skip = Math.max(0, h4Highs.length - daysAgo * candlesPerDay);
+        candleHighs = h4Highs.slice(skip);
+        candleLows  = h4Lows.slice(skip);
+      } else {
+        const candlesPerDay = 24; // H1
+        const skip = Math.max(0, h1Highs.length - daysAgo * candlesPerDay);
+        candleHighs = h1Highs.slice(skip);
+        candleLows  = h1Lows.slice(skip);
+      }
+
+      if (candleHighs.length === 0) continue;
+
+      const eval_ = evaluateLimitOrder(
+        order.side as 'LONG' | 'SHORT',
+        order.entryLow,
+        order.entryHigh,
+        order.tp1,
+        order.tp2 ?? null,
+        order.sl,
+        candleHighs,
+        candleLows,
+      );
+
+      await this.repo.updateOrderEvaluation(order.id, eval_.activated, eval_.outcome);
+    }
   }
 }

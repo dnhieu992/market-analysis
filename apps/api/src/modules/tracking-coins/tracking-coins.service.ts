@@ -1,29 +1,17 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult } from '@app/core';
-import type { PaTrend } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, computeSwingLimitOrder, computeDayTradeLimitOrder } from '@app/core';
+import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 const CANDLE_LIMIT = 220;
 
-
-export type OrderSuggestionResult = {
-  side: 'LONG' | 'SHORT';
-  entryLow: number;
-  entryHigh: number;
-  tp1: number;
-  tp2: number | null;
-  sl: number;
-  rrRatio: number;
-  rationale: string;
-};
-
 export type OrderSuggestionsResult = {
   symbol: string;
   currentPrice: number;
-  swing: OrderSuggestionResult;
-  scalp: OrderSuggestionResult;
+  swing: LimitOrderResult;
+  scalp: LimitOrderResult;
   generatedAt: string;
 };
 
@@ -184,168 +172,47 @@ export class TrackingCoinsService {
 
     const price = currentPrice || (h4Klines.length > 0 ? parseFloat(h4Klines[h4Klines.length - 1]![4]) : 0);
 
-    const swing = this.computeSwingOrder(price, h4Highs, h4Lows, sig);
-    const scalp = this.computeScalpOrder(price, h1Highs, h1Lows, sig);
+    const sigSnap: OrderSigSnapshot | null = sig ? {
+      trend: sig.trend,
+      h4Trend: sig.h4Trend,
+      m30Trend: sig.m30Trend,
+      utBotD1Bullish: sig.utBotD1Bullish,
+      utBotH4Bullish: sig.utBotH4Bullish,
+      longScore: sig.longScore,
+      shortScore: sig.shortScore,
+      ema200Above: sig.ema200Above,
+      rsi: sig.rsi,
+      h4Rsi: sig.h4Rsi,
+      swingStructure: sig.swingStructure,
+    } : null;
+
+    const swing = computeSwingLimitOrder(price, h4Highs, h4Lows, sigSnap);
+    const scalp = computeDayTradeLimitOrder(price, h1Highs, h1Lows, sigSnap);
 
     return { symbol: upper, currentPrice: price, swing, scalp, generatedAt: new Date().toISOString() };
   }
 
-  private detectSwingLevels(highs: number[], lows: number[], window = 3): { highs: number[]; lows: number[] } {
-    const rawHighs: number[] = [];
-    const rawLows: number[] = [];
-    for (let i = window; i < highs.length - window; i++) {
-      const localMax = Math.max(...highs.slice(i - window, i + window + 1));
-      const localMin = Math.min(...lows.slice(i - window, i + window + 1));
-      if (highs[i]! >= localMax) rawHighs.push(highs[i]!);
-      if (lows[i]! <= localMin) rawLows.push(lows[i]!);
-    }
-    return { highs: this.clusterLevels(rawHighs), lows: this.clusterLevels(rawLows) };
-  }
-
-  private clusterLevels(levels: number[], threshold = 0.015): number[] {
-    if (levels.length === 0) return [];
-    const sorted = [...levels].sort((a, b) => a - b);
-    const result: number[] = [sorted[0]!];
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = result[result.length - 1]!;
-      const curr = sorted[i]!;
-      if (Math.abs(curr - prev) / prev > threshold) {
-        result.push(curr);
-      } else {
-        result[result.length - 1] = (prev + curr) / 2;
-      }
-    }
-    return result;
-  }
-
-  private determineSide(
-    tf: 'D1' | 'H4',
-    sig: { trend: string; utBotD1Bullish: boolean | null; longScore: number | null; shortScore: number | null; h4Trend: string; utBotH4Bullish: boolean | null; m30Trend: string } | null,
-  ): 'LONG' | 'SHORT' {
-    if (!sig) return 'LONG';
-    if (tf === 'D1') {
-      const ls = sig.longScore ?? 0;
-      const ss = sig.shortScore ?? 0;
-      if (ls !== ss) return ls > ss ? 'LONG' : 'SHORT';
-      if (sig.utBotD1Bullish != null) return sig.utBotD1Bullish ? 'LONG' : 'SHORT';
-      const t = sig.trend.toLowerCase();
-      return (t.includes('bull') || t.includes('up')) ? 'LONG' : 'SHORT';
-    } else {
-      if (sig.utBotH4Bullish != null) return sig.utBotH4Bullish ? 'LONG' : 'SHORT';
-      const t = sig.h4Trend.toLowerCase();
-      if (t.includes('bull') || t.includes('up')) return 'LONG';
-      if (t.includes('bear') || t.includes('down')) return 'SHORT';
-      const t30 = sig.m30Trend.toLowerCase();
-      return (t30.includes('bull') || t30.includes('up')) ? 'LONG' : 'SHORT';
-    }
-  }
-
-  private buildRationale(
-    side: 'LONG' | 'SHORT',
-    tf: 'D1' | 'H4',
-    sig: { trend: string; utBotD1Bullish: boolean | null; ema200Above: boolean; rsi: number | null; swingStructure: string; h4Trend: string; utBotH4Bullish: boolean | null; h4Rsi: number | null; m30Trend: string } | null,
-  ): string {
-    const base = side === 'LONG' ? 'Entry tại vùng hỗ trợ' : 'Entry tại vùng kháng cự';
-    if (!sig) return `${base}.`;
-    const parts: string[] = [];
-    if (tf === 'D1') {
-      parts.push(`D1 ${sig.trend}`);
-      if (sig.utBotD1Bullish === true) parts.push('UT Bot D1 bullish');
-      if (sig.utBotD1Bullish === false) parts.push('UT Bot D1 bearish');
-      if (side === 'LONG' && sig.ema200Above) parts.push('trên EMA200');
-      if (side === 'SHORT' && !sig.ema200Above) parts.push('dưới EMA200');
-      if (sig.rsi != null && side === 'LONG' && sig.rsi < 40) parts.push(`RSI (${Math.round(sig.rsi)})`);
-      if (sig.rsi != null && side === 'SHORT' && sig.rsi > 65) parts.push(`RSI (${Math.round(sig.rsi)})`);
-      if (sig.swingStructure) parts.push(`swing ${sig.swingStructure}`);
-    } else {
-      parts.push(`H4 ${sig.h4Trend}`);
-      if (sig.utBotH4Bullish === true) parts.push('UT Bot H4 bullish');
-      if (sig.utBotH4Bullish === false) parts.push('UT Bot H4 bearish');
-      if (sig.m30Trend) parts.push(`M30 ${sig.m30Trend}`);
-      if (sig.h4Rsi != null && side === 'LONG' && sig.h4Rsi < 40) parts.push(`H4 RSI (${Math.round(sig.h4Rsi)})`);
-      if (sig.h4Rsi != null && side === 'SHORT' && sig.h4Rsi > 65) parts.push(`H4 RSI (${Math.round(sig.h4Rsi)})`);
-    }
-    return `${base}. ${parts.filter(Boolean).join(', ')}.`;
-  }
-
-  // Swing: H4 levels, entry within 3% — target 2–5 ngày
-  private computeSwingOrder(
-    currentPrice: number,
-    h4Highs: number[],
-    h4Lows: number[],
-    sig: Parameters<TrackingCoinsService['determineSide']>[1] & Parameters<TrackingCoinsService['buildRationale']>[2],
-  ): OrderSuggestionResult {
-    const { highs, lows } = this.detectSwingLevels(h4Highs, h4Lows, 3);
-    const side = this.determineSide('D1', sig);
-    const rationale = this.buildRationale(side, 'D1', sig);
-
-    if (side === 'LONG') {
-      // Chỉ lấy support trong vòng 3% dưới giá — đủ gần để chạm trong vài ngày
-      const supports = lows.filter(l => l < currentPrice * 0.999 && l > currentPrice * 0.97).sort((a, b) => b - a);
-      const resistances = highs.filter(h => h > currentPrice * 1.001 && h < currentPrice * 1.06).sort((a, b) => a - b);
-      const pivot = supports[0] ?? currentPrice * 0.98;
-      const entryLow = pivot * 0.995;
-      const entryHigh = pivot * 1.005;
-      const entryMid = (entryLow + entryHigh) / 2;
-      const tp1 = resistances[0] ?? currentPrice * 1.04;
-      const tp2 = resistances[1] ?? null;
-      const sl = Math.min(supports[1] ?? entryLow * 0.988, entryLow * 0.992);
-      const rrRatio = Math.max((tp1 - entryMid) / (entryMid - sl), 0.1);
-      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
-    } else {
-      // Resistance trong vòng 3% trên giá
-      const resistances = highs.filter(h => h > currentPrice * 1.001 && h < currentPrice * 1.03).sort((a, b) => a - b);
-      const supports = lows.filter(l => l < currentPrice * 0.999 && l > currentPrice * 0.94).sort((a, b) => b - a);
-      const pivot = resistances[0] ?? currentPrice * 1.02;
-      const entryLow = pivot * 0.995;
-      const entryHigh = pivot * 1.005;
-      const entryMid = (entryLow + entryHigh) / 2;
-      const tp1 = supports[0] ?? currentPrice * 0.96;
-      const tp2 = supports[1] ?? null;
-      const sl = Math.max(resistances[1] ?? entryHigh * 1.012, entryHigh * 1.008);
-      const rrRatio = Math.max((entryMid - tp1) / (sl - entryMid), 0.1);
-      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
-    }
-  }
-
-  // Day trade: H1 levels, entry trong vòng 1.5% — target trong ngày
-  private computeScalpOrder(
-    currentPrice: number,
-    h1Highs: number[],
-    h1Lows: number[],
-    sig: Parameters<TrackingCoinsService['determineSide']>[1] & Parameters<TrackingCoinsService['buildRationale']>[2],
-  ): OrderSuggestionResult {
-    const { highs, lows } = this.detectSwingLevels(h1Highs, h1Lows, 2);
-    const side = this.determineSide('H4', sig);
-    const rationale = this.buildRationale(side, 'H4', sig);
-
-    if (side === 'LONG') {
-      // Support trong vòng 1.5% dưới giá — entry trong ngày
-      const supports = lows.filter(l => l < currentPrice * 0.999 && l > currentPrice * 0.985).sort((a, b) => b - a);
-      const resistances = highs.filter(h => h > currentPrice * 1.001 && h < currentPrice * 1.025).sort((a, b) => a - b);
-      const pivot = supports[0] ?? currentPrice * 0.991;
-      const entryLow = pivot * 0.998;
-      const entryHigh = pivot * 1.002;
-      const entryMid = (entryLow + entryHigh) / 2;
-      const tp1 = resistances[0] ?? currentPrice * 1.015;
-      const tp2 = resistances[1] ?? null;
-      const sl = Math.min(supports[1] ?? entryLow * 0.994, entryLow * 0.995);
-      const rrRatio = Math.max((tp1 - entryMid) / (entryMid - sl), 0.1);
-      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
-    } else {
-      // Resistance trong vòng 1.5% trên giá
-      const resistances = highs.filter(h => h > currentPrice * 1.001 && h < currentPrice * 1.015).sort((a, b) => a - b);
-      const supports = lows.filter(l => l < currentPrice * 0.999 && l > currentPrice * 0.975).sort((a, b) => b - a);
-      const pivot = resistances[0] ?? currentPrice * 1.009;
-      const entryLow = pivot * 0.998;
-      const entryHigh = pivot * 1.002;
-      const entryMid = (entryLow + entryHigh) / 2;
-      const tp1 = supports[0] ?? currentPrice * 0.985;
-      const tp2 = supports[1] ?? null;
-      const sl = Math.max(resistances[1] ?? entryHigh * 1.006, entryHigh * 1.005);
-      const rrRatio = Math.max((entryMid - tp1) / (sl - entryMid), 0.1);
-      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
-    }
+  async listOrders(symbol: string) {
+    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
+    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+    const orders = await this.repo.findOrdersByCoin(coin.id, 30);
+    return orders.map((o) => ({
+      id: o.id,
+      date: o.date.toISOString().slice(0, 10),
+      type: o.type,
+      side: o.side,
+      entryLow: o.entryLow,
+      entryHigh: o.entryHigh,
+      tp1: o.tp1,
+      tp2: o.tp2 ?? null,
+      sl: o.sl,
+      rrRatio: o.rrRatio,
+      rationale: o.rationale,
+      activated: o.activated ?? null,
+      outcome: o.outcome ?? null,
+      evaluatedAt: o.evaluatedAt?.toISOString() ?? null,
+      createdAt: o.createdAt.toISOString(),
+    }));
   }
 
   private async scanOneCoin(coinId: string, symbol: string): Promise<void> {

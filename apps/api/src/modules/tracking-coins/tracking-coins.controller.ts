@@ -55,4 +55,10 @@ export class TrackingCoinsController {
   suggestOrders(@Param('symbol') symbol: string) {
     return this.service.suggestOrders(symbol);
   }
+
+  @Get('coins/:symbol/orders')
+  @ApiOperation({ summary: 'List saved limit orders history for a coin' })
+  listOrders(@Param('symbol') symbol: string) {
+    return this.service.listOrders(symbol);
+  }
 }

@@ -297,8 +297,34 @@ model TrackingCoin {
   addedAt  DateTime                @default(now())
   signals  TrackingCoinSignal[]
   journals TrackingCoinJournal[]
+  orders   TrackingCoinOrder[]
 
   @@map("tracking_coins")
+}
+
+model TrackingCoinOrder {
+  id          String       @id @default(cuid())
+  coinId      String
+  date        DateTime     @db.Date
+  type        String       @db.VarChar(15)
+  side        String       @db.VarChar(5)
+  entryLow    Float
+  entryHigh   Float
+  tp1         Float
+  tp2         Float?
+  sl          Float
+  rrRatio     Float
+  rationale   String       @db.Text
+  activated   Boolean?
+  outcome     String?      @db.VarChar(5)
+  evaluatedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  coin        TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@unique([coinId, date, type])
+  @@index([coinId, date(sort: Desc)])
+  @@map("tracking_coin_orders")
 }
 
 model TrackingCoinJournal {

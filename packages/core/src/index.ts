@@ -47,3 +47,9 @@ export { dailyAnalysisPlanSchema } from './validation/daily-analysis-plan.schema
 export type { DailyAnalysisValidatorResult } from './validation/daily-analysis-validator-result.schema';
 export { dailyAnalysisValidatorResultSchema } from './validation/daily-analysis-validator-result.schema';
 export { llmSignalSchema } from './validation/llm-signal.schema';
+export {
+  computeSwingLimitOrder,
+  computeDayTradeLimitOrder,
+  evaluateLimitOrder,
+} from './orders/tracking-coin-orders';
+export type { OrderSigSnapshot, LimitOrderResult, OrderEvalResult } from './orders/tracking-coin-orders';

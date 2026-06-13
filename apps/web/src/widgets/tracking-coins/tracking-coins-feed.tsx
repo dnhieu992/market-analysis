@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, SwingStructure, OrderSuggestions, OrderSuggestion } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, SwingStructure, OrderSuggestions, OrderSuggestion, TrackingCoinOrder } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { TrackingCoinJournal } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -386,10 +386,61 @@ function OrderCard({ order, label }: { order: OrderSuggestion; label: string }) 
   );
 }
 
+function OutcomeBadge({ activated, outcome }: { activated: boolean | null; outcome: string | null }) {
+  if (activated === null) return <span className="ord-hist__outcome ord-hist__outcome--pending">Chưa eval</span>;
+  if (!activated) return <span className="ord-hist__outcome ord-hist__outcome--miss">Chưa kích hoạt</span>;
+  if (outcome === 'tp2') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP2</span>;
+  if (outcome === 'tp1') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP1</span>;
+  if (outcome === 'sl') return <span className="ord-hist__outcome ord-hist__outcome--sl">✗ SL</span>;
+  return <span className="ord-hist__outcome ord-hist__outcome--active">Đang chạy</span>;
+}
+
+function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
+  if (orders.length === 0) {
+    return <p className="scr-muted" style={{ textAlign: 'center', padding: '16px 0' }}>Chưa có lệnh nào được lưu. Lệnh sẽ tự động tạo sau mỗi lần quét.</p>;
+  }
+  return (
+    <div className="ord-hist-wrap">
+      <table className="ord-hist-table">
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th>Loại</th>
+            <th>Side</th>
+            <th>Entry</th>
+            <th>TP1</th>
+            <th>SL</th>
+            <th>R:R</th>
+            <th>Kết quả</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((o) => (
+            <tr key={o.id} title={o.rationale}>
+              <td>{o.date}</td>
+              <td><span className="ord-hist__type">{o.type}</span></td>
+              <td><span className={`tt-side-badge tt-side-badge--${o.side === 'LONG' ? 'long' : 'short'}`}>{o.side}</span></td>
+              <td className="ord-hist__price">{fmtPrice(o.entryLow)}–{fmtPrice(o.entryHigh)}</td>
+              <td className="ord-hist__price ord-tp">{fmtPrice(o.tp1)}</td>
+              <td className="ord-hist__price ord-sl">{fmtPrice(o.sl)}</td>
+              <td>{o.rrRatio.toFixed(1)}×</td>
+              <td><OutcomeBadge activated={o.activated} outcome={o.outcome} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  const [tab, setTab] = useState<'live' | 'history'>('live');
   const [data, setData] = useState<OrderSuggestions | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<TrackingCoinOrder[] | null>(null);
+  const [histLoading, setHistLoading] = useState(false);
+  const [histError, setHistError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -402,35 +453,69 @@ function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClo
     return () => { cancelled = true; };
   }, [symbol]);
 
+  const loadHistory = useCallback(() => {
+    if (history !== null) return;
+    setHistLoading(true);
+    setHistError(null);
+    createApiClient()
+      .fetchCoinOrders(symbol)
+      .then((res) => { setHistory(res); setHistLoading(false); })
+      .catch((err) => { setHistError(err instanceof Error ? err.message : 'Lỗi tải lịch sử.'); setHistLoading(false); });
+  }, [symbol, history]);
+
   useEffect(() => { return load(); }, [load]);
+
+  useEffect(() => {
+    if (tab === 'history') loadHistory();
+  }, [tab, loadHistory]);
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog ord-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
-          <span className="dialog-title">Gợi ý lệnh limit — {symbol}</span>
+          <span className="dialog-title">Lệnh limit — {symbol}</span>
           <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
         </div>
+        <div className="ord-tabs">
+          <button className={`ord-tab${tab === 'live' ? ' ord-tab--active' : ''}`} onClick={() => setTab('live')}>Gợi ý live</button>
+          <button className={`ord-tab${tab === 'history' ? ' ord-tab--active' : ''}`} onClick={() => setTab('history')}>Lịch sử</button>
+        </div>
         <div className="dialog-body ord-body">
-          {loading && (
-            <div className="ord-loading">
-              <span className="ord-loading__spinner" />
-              <span>AI đang phân tích và tính toán lệnh…</span>
-            </div>
-          )}
-          {error && <p className="scr-muted ord-error">{error}</p>}
-          {!loading && !error && data && (
+          {tab === 'live' && (
             <>
-              <div className="ord-price-bar">
-                <span className="ord-price-bar__label">Giá hiện tại</span>
-                <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
-                <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
-              </div>
-              <OrderCard order={data.swing} label="Swing (2–5 ngày)" />
-              <OrderCard order={data.scalp} label="Day trade (trong ngày)" />
-              <p className="ord-footer">
-                Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-              </p>
+              {loading && (
+                <div className="ord-loading">
+                  <span className="ord-loading__spinner" />
+                  <span>Đang tính toán lệnh…</span>
+                </div>
+              )}
+              {error && <p className="scr-muted ord-error">{error}</p>}
+              {!loading && !error && data && (
+                <>
+                  <div className="ord-price-bar">
+                    <span className="ord-price-bar__label">Giá hiện tại</span>
+                    <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
+                    <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
+                  </div>
+                  <OrderCard order={data.swing} label="Swing (2–5 ngày)" />
+                  <OrderCard order={data.scalp} label="Day trade (trong ngày)" />
+                  <p className="ord-footer">
+                    Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                  </p>
+                </>
+              )}
+            </>
+          )}
+          {tab === 'history' && (
+            <>
+              {histLoading && (
+                <div className="ord-loading">
+                  <span className="ord-loading__spinner" />
+                  <span>Đang tải lịch sử…</span>
+                </div>
+              )}
+              {histError && <p className="scr-muted ord-error">{histError}</p>}
+              {!histLoading && !histError && history !== null && <OrderHistoryTable orders={history} />}
             </>
           )}
         </div>

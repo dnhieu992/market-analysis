@@ -35,6 +35,7 @@ import type {
   SmallCapCoinRow,
   TrackingCoinRow,
   OrderSuggestions,
+  TrackingCoinOrder,
 } from './types';
 
 
@@ -669,6 +670,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
     // ── Tracking Coins ────────────────────────────────────────────────
     fetchOrderSuggestions(symbol: string): Promise<OrderSuggestions> {
       return fetchJson<OrderSuggestions>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/order-suggestions`, withDefaults());
+    },
+
+    fetchCoinOrders(symbol: string): Promise<TrackingCoinOrder[]> {
+      return fetchJson<TrackingCoinOrder[]>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/orders`, withDefaults());
     },
 
     // ── Skills ────────────────────────────────────────────────────────

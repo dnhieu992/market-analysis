@@ -430,6 +430,24 @@ export type OrderSuggestions = {
   generatedAt: string;
 };
 
+export type TrackingCoinOrder = {
+  id: string;
+  date: string;
+  type: 'swing' | 'daytrade';
+  side: 'LONG' | 'SHORT';
+  entryLow: number;
+  entryHigh: number;
+  tp1: number;
+  tp2: number | null;
+  sl: number;
+  rrRatio: number;
+  rationale: string;
+  activated: boolean | null;
+  outcome: 'tp1' | 'tp2' | 'sl' | null;
+  evaluatedAt: string | null;
+  createdAt: string;
+};
+
 export type SmallCapCoinRow = {
   id: string;
   symbol: string;
