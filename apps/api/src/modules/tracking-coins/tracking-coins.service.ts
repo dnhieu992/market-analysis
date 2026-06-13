@@ -167,30 +167,37 @@ export class TrackingCoinsService {
     if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
 
     const sig = coin.signals[0] ?? null;
-    const sparkline = sig ? this.parseSparkline(sig.sparklineJson) : [];
+    const binanceSymbol = `${upper}USDT`;
 
-    let currentPrice: number;
-    try {
-      currentPrice = await this.binance.fetchCurrentPrice(`${upper}USDT`);
-    } catch {
-      currentPrice = sparkline.length > 0 ? sparkline[sparkline.length - 1]! : 0;
-    }
+    const [[d1Klines, h4Klines], currentPrice] = await Promise.all([
+      Promise.all([
+        this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: 60 }),
+        this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 60 }),
+      ]),
+      this.binance.fetchCurrentPrice(binanceSymbol).catch(() => 0),
+    ]);
 
-    const swing = this.computeSwingOrder(currentPrice, sparkline, sig);
-    const scalp = this.computeScalpOrder(currentPrice, sparkline, sig);
+    const d1Highs = d1Klines.map((k) => parseFloat(k[2]));
+    const d1Lows  = d1Klines.map((k) => parseFloat(k[3]));
+    const h4Highs = h4Klines.map((k) => parseFloat(k[2]));
+    const h4Lows  = h4Klines.map((k) => parseFloat(k[3]));
 
-    return { symbol: upper, currentPrice, swing, scalp, generatedAt: new Date().toISOString() };
+    const price = currentPrice || (d1Klines.length > 0 ? parseFloat(d1Klines[d1Klines.length - 1]![4]) : 0);
+
+    const swing = this.computeSwingOrder(price, d1Highs, d1Lows, sig);
+    const scalp = this.computeScalpOrder(price, h4Highs, h4Lows, sig);
+
+    return { symbol: upper, currentPrice: price, swing, scalp, generatedAt: new Date().toISOString() };
   }
 
-  private detectSwingLevels(prices: number[], window = 3): { highs: number[]; lows: number[] } {
+  private detectSwingLevels(highs: number[], lows: number[], window = 3): { highs: number[]; lows: number[] } {
     const rawHighs: number[] = [];
     const rawLows: number[] = [];
-    for (let i = window; i < prices.length - window; i++) {
-      const slice = prices.slice(i - window, i + window + 1);
-      const max = Math.max(...slice);
-      const min = Math.min(...slice);
-      if (prices[i]! >= max) rawHighs.push(prices[i]!);
-      if (prices[i]! <= min) rawLows.push(prices[i]!);
+    for (let i = window; i < highs.length - window; i++) {
+      const localMax = Math.max(...highs.slice(i - window, i + window + 1));
+      const localMin = Math.min(...lows.slice(i - window, i + window + 1));
+      if (highs[i]! >= localMax) rawHighs.push(highs[i]!);
+      if (lows[i]! <= localMin) rawLows.push(lows[i]!);
     }
     return { highs: this.clusterLevels(rawHighs), lows: this.clusterLevels(rawLows) };
   }
@@ -263,10 +270,11 @@ export class TrackingCoinsService {
 
   private computeSwingOrder(
     currentPrice: number,
-    sparkline: number[],
+    d1Highs: number[],
+    d1Lows: number[],
     sig: Parameters<TrackingCoinsService['determineSide']>[1] & Parameters<TrackingCoinsService['buildRationale']>[2],
   ): OrderSuggestionResult {
-    const { highs, lows } = this.detectSwingLevels(sparkline);
+    const { highs, lows } = this.detectSwingLevels(d1Highs, d1Lows);
     const side = this.determineSide('D1', sig);
     const rationale = this.buildRationale(side, 'D1', sig);
 
@@ -299,11 +307,17 @@ export class TrackingCoinsService {
 
   private computeScalpOrder(
     currentPrice: number,
-    sparkline: number[],
+    h4Highs: number[],
+    h4Lows: number[],
     sig: Parameters<TrackingCoinsService['determineSide']>[1] & Parameters<TrackingCoinsService['buildRationale']>[2],
   ): OrderSuggestionResult {
-    const recent = sparkline.slice(-10);
-    const { highs, lows } = this.detectSwingLevels(recent.length >= 7 ? recent : sparkline, 2);
+    const recentHighs = h4Highs.slice(-20);
+    const recentLows  = h4Lows.slice(-20);
+    const { highs, lows } = this.detectSwingLevels(
+      recentHighs.length >= 7 ? recentHighs : h4Highs,
+      recentLows.length >= 7 ? recentLows : h4Lows,
+      2,
+    );
     const side = this.determineSide('H4', sig);
     const rationale = this.buildRationale(side, 'H4', sig);
 
