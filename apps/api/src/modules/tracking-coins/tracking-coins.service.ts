@@ -7,6 +7,26 @@ import { BinanceMarketDataService } from '../market/binance-market-data.service'
 
 const CANDLE_LIMIT = 220;
 
+
+export type OrderSuggestionResult = {
+  side: 'LONG' | 'SHORT';
+  entryLow: number;
+  entryHigh: number;
+  tp1: number;
+  tp2: number | null;
+  sl: number;
+  rrRatio: number;
+  rationale: string;
+};
+
+export type OrderSuggestionsResult = {
+  symbol: string;
+  currentPrice: number;
+  swing: OrderSuggestionResult;
+  scalp: OrderSuggestionResult;
+  generatedAt: string;
+};
+
 export type TrackingCoinWithSignal = {
   id: string;
   symbol: string;
@@ -138,6 +158,180 @@ export class TrackingCoinsService {
     }
 
     return { scanned, failed };
+  }
+
+  async suggestOrders(symbol: string): Promise<OrderSuggestionsResult> {
+    const upper = symbol.toUpperCase();
+    const coins = await this.repo.findCoinsWithLatestSignal();
+    const coin = coins.find((c) => c.symbol === upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+
+    const sig = coin.signals[0] ?? null;
+    const sparkline = sig ? this.parseSparkline(sig.sparklineJson) : [];
+
+    let currentPrice: number;
+    try {
+      currentPrice = await this.binance.fetchCurrentPrice(`${upper}USDT`);
+    } catch {
+      currentPrice = sparkline.length > 0 ? sparkline[sparkline.length - 1]! : 0;
+    }
+
+    const swing = this.computeSwingOrder(currentPrice, sparkline, sig);
+    const scalp = this.computeScalpOrder(currentPrice, sparkline, sig);
+
+    return { symbol: upper, currentPrice, swing, scalp, generatedAt: new Date().toISOString() };
+  }
+
+  private detectSwingLevels(prices: number[], window = 3): { highs: number[]; lows: number[] } {
+    const rawHighs: number[] = [];
+    const rawLows: number[] = [];
+    for (let i = window; i < prices.length - window; i++) {
+      const slice = prices.slice(i - window, i + window + 1);
+      const max = Math.max(...slice);
+      const min = Math.min(...slice);
+      if (prices[i]! >= max) rawHighs.push(prices[i]!);
+      if (prices[i]! <= min) rawLows.push(prices[i]!);
+    }
+    return { highs: this.clusterLevels(rawHighs), lows: this.clusterLevels(rawLows) };
+  }
+
+  private clusterLevels(levels: number[], threshold = 0.015): number[] {
+    if (levels.length === 0) return [];
+    const sorted = [...levels].sort((a, b) => a - b);
+    const result: number[] = [sorted[0]!];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = result[result.length - 1]!;
+      const curr = sorted[i]!;
+      if (Math.abs(curr - prev) / prev > threshold) {
+        result.push(curr);
+      } else {
+        result[result.length - 1] = (prev + curr) / 2;
+      }
+    }
+    return result;
+  }
+
+  private determineSide(
+    tf: 'D1' | 'H4',
+    sig: { trend: string; utBotD1Bullish: boolean | null; longScore: number | null; shortScore: number | null; h4Trend: string; utBotH4Bullish: boolean | null; m30Trend: string } | null,
+  ): 'LONG' | 'SHORT' {
+    if (!sig) return 'LONG';
+    if (tf === 'D1') {
+      const ls = sig.longScore ?? 0;
+      const ss = sig.shortScore ?? 0;
+      if (ls !== ss) return ls > ss ? 'LONG' : 'SHORT';
+      if (sig.utBotD1Bullish != null) return sig.utBotD1Bullish ? 'LONG' : 'SHORT';
+      const t = sig.trend.toLowerCase();
+      return (t.includes('bull') || t.includes('up')) ? 'LONG' : 'SHORT';
+    } else {
+      if (sig.utBotH4Bullish != null) return sig.utBotH4Bullish ? 'LONG' : 'SHORT';
+      const t = sig.h4Trend.toLowerCase();
+      if (t.includes('bull') || t.includes('up')) return 'LONG';
+      if (t.includes('bear') || t.includes('down')) return 'SHORT';
+      const t30 = sig.m30Trend.toLowerCase();
+      return (t30.includes('bull') || t30.includes('up')) ? 'LONG' : 'SHORT';
+    }
+  }
+
+  private buildRationale(
+    side: 'LONG' | 'SHORT',
+    tf: 'D1' | 'H4',
+    sig: { trend: string; utBotD1Bullish: boolean | null; ema200Above: boolean; rsi: number | null; swingStructure: string; h4Trend: string; utBotH4Bullish: boolean | null; h4Rsi: number | null; m30Trend: string } | null,
+  ): string {
+    const base = side === 'LONG' ? 'Entry tại vùng hỗ trợ' : 'Entry tại vùng kháng cự';
+    if (!sig) return `${base}.`;
+    const parts: string[] = [];
+    if (tf === 'D1') {
+      parts.push(`D1 ${sig.trend}`);
+      if (sig.utBotD1Bullish === true) parts.push('UT Bot D1 bullish');
+      if (sig.utBotD1Bullish === false) parts.push('UT Bot D1 bearish');
+      if (side === 'LONG' && sig.ema200Above) parts.push('trên EMA200');
+      if (side === 'SHORT' && !sig.ema200Above) parts.push('dưới EMA200');
+      if (sig.rsi != null && side === 'LONG' && sig.rsi < 40) parts.push(`RSI (${Math.round(sig.rsi)})`);
+      if (sig.rsi != null && side === 'SHORT' && sig.rsi > 65) parts.push(`RSI (${Math.round(sig.rsi)})`);
+      if (sig.swingStructure) parts.push(`swing ${sig.swingStructure}`);
+    } else {
+      parts.push(`H4 ${sig.h4Trend}`);
+      if (sig.utBotH4Bullish === true) parts.push('UT Bot H4 bullish');
+      if (sig.utBotH4Bullish === false) parts.push('UT Bot H4 bearish');
+      if (sig.m30Trend) parts.push(`M30 ${sig.m30Trend}`);
+      if (sig.h4Rsi != null && side === 'LONG' && sig.h4Rsi < 40) parts.push(`H4 RSI (${Math.round(sig.h4Rsi)})`);
+      if (sig.h4Rsi != null && side === 'SHORT' && sig.h4Rsi > 65) parts.push(`H4 RSI (${Math.round(sig.h4Rsi)})`);
+    }
+    return `${base}. ${parts.filter(Boolean).join(', ')}.`;
+  }
+
+  private computeSwingOrder(
+    currentPrice: number,
+    sparkline: number[],
+    sig: Parameters<TrackingCoinsService['determineSide']>[1] & Parameters<TrackingCoinsService['buildRationale']>[2],
+  ): OrderSuggestionResult {
+    const { highs, lows } = this.detectSwingLevels(sparkline);
+    const side = this.determineSide('D1', sig);
+    const rationale = this.buildRationale(side, 'D1', sig);
+
+    if (side === 'LONG') {
+      const supports = lows.filter(l => l < currentPrice * 0.998).sort((a, b) => b - a);
+      const resistances = highs.filter(h => h > currentPrice * 1.002).sort((a, b) => a - b);
+      const pivot = supports[0] ?? currentPrice * 0.96;
+      const entryLow = pivot * 0.995;
+      const entryHigh = pivot * 1.005;
+      const entryMid = (entryLow + entryHigh) / 2;
+      const tp1 = resistances[0] ?? currentPrice * 1.08;
+      const tp2 = resistances[1] ?? null;
+      const sl = Math.min(supports[1] ?? entryLow * 0.985, entryLow * 0.99);
+      const rrRatio = Math.max((tp1 - entryMid) / (entryMid - sl), 0.1);
+      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
+    } else {
+      const resistances = highs.filter(h => h > currentPrice * 1.002).sort((a, b) => a - b);
+      const supports = lows.filter(l => l < currentPrice * 0.998).sort((a, b) => b - a);
+      const pivot = resistances[0] ?? currentPrice * 1.04;
+      const entryLow = pivot * 0.995;
+      const entryHigh = pivot * 1.005;
+      const entryMid = (entryLow + entryHigh) / 2;
+      const tp1 = supports[0] ?? currentPrice * 0.92;
+      const tp2 = supports[1] ?? null;
+      const sl = Math.max(resistances[1] ?? entryHigh * 1.015, entryHigh * 1.01);
+      const rrRatio = Math.max((entryMid - tp1) / (sl - entryMid), 0.1);
+      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
+    }
+  }
+
+  private computeScalpOrder(
+    currentPrice: number,
+    sparkline: number[],
+    sig: Parameters<TrackingCoinsService['determineSide']>[1] & Parameters<TrackingCoinsService['buildRationale']>[2],
+  ): OrderSuggestionResult {
+    const recent = sparkline.slice(-10);
+    const { highs, lows } = this.detectSwingLevels(recent.length >= 7 ? recent : sparkline, 2);
+    const side = this.determineSide('H4', sig);
+    const rationale = this.buildRationale(side, 'H4', sig);
+
+    if (side === 'LONG') {
+      const supports = lows.filter(l => l < currentPrice * 0.998).sort((a, b) => b - a);
+      const resistances = highs.filter(h => h > currentPrice * 1.002).sort((a, b) => a - b);
+      const pivot = supports[0] ?? currentPrice * 0.985;
+      const entryLow = pivot * 0.997;
+      const entryHigh = pivot * 1.003;
+      const entryMid = (entryLow + entryHigh) / 2;
+      const tp1 = resistances[0] ?? currentPrice * 1.03;
+      const tp2 = resistances[1] ?? null;
+      const sl = Math.min(supports[1] ?? entryLow * 0.993, entryLow * 0.993);
+      const rrRatio = Math.max((tp1 - entryMid) / (entryMid - sl), 0.1);
+      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
+    } else {
+      const resistances = highs.filter(h => h > currentPrice * 1.002).sort((a, b) => a - b);
+      const supports = lows.filter(l => l < currentPrice * 0.998).sort((a, b) => b - a);
+      const pivot = resistances[0] ?? currentPrice * 1.015;
+      const entryLow = pivot * 0.997;
+      const entryHigh = pivot * 1.003;
+      const entryMid = (entryLow + entryHigh) / 2;
+      const tp1 = supports[0] ?? currentPrice * 0.97;
+      const tp2 = supports[1] ?? null;
+      const sl = Math.max(resistances[1] ?? entryHigh * 1.007, entryHigh * 1.007);
+      const rrRatio = Math.max((entryMid - tp1) / (sl - entryMid), 0.1);
+      return { side, entryLow, entryHigh, tp1, tp2, sl, rrRatio, rationale };
+    }
   }
 
   private async scanOneCoin(coinId: string, symbol: string): Promise<void> {

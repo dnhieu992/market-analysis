@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { resolveApiBaseUrl } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, SwingStructure } from '@web/shared/api/types';
+import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
+import type { TrackingCoinRow, PaTrend, SwingStructure, OrderSuggestions, OrderSuggestion } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { TrackingCoinJournal } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -225,6 +225,17 @@ function IconAI() {
   );
 }
 
+function IconTrades() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+      <polyline points="7 10 10 7 13 10 17 6" />
+    </svg>
+  );
+}
+
 function IconJournal() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -339,6 +350,95 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
   );
 }
 
+/* ── order suggestions dialog ───────────────────────────────────── */
+
+function fmtPrice(n: number): string {
+  if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n >= 1)    return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 4 });
+  if (n >= 0.01) return n.toFixed(5);
+  return n.toFixed(7);
+}
+
+function OrderCard({ order, label }: { order: OrderSuggestion; label: string }) {
+  const isLong = order.side === 'LONG';
+  return (
+    <div className="ord-card">
+      <div className="ord-card__header">
+        <span className="ord-card__title">{label}</span>
+        <span className={`tt-side-badge tt-side-badge--${isLong ? 'long' : 'short'}`}>{order.side}</span>
+      </div>
+      <div className="ord-card__grid">
+        <span className="ord-card__label">Vùng entry</span>
+        <span className="ord-card__value ord-entry">${fmtPrice(order.entryLow)} – ${fmtPrice(order.entryHigh)}</span>
+        <span className="ord-card__label">TP1</span>
+        <span className="ord-card__value ord-tp">${fmtPrice(order.tp1)}</span>
+        {order.tp2 != null && <>
+          <span className="ord-card__label">TP2</span>
+          <span className="ord-card__value ord-tp">${fmtPrice(order.tp2)}</span>
+        </>}
+        <span className="ord-card__label">SL</span>
+        <span className="ord-card__value ord-sl">${fmtPrice(order.sl)}</span>
+        <span className="ord-card__label">R:R</span>
+        <span className="ord-card__value ord-rr">{order.rrRatio.toFixed(1)}×</span>
+      </div>
+      <p className="ord-card__rationale">{order.rationale}</p>
+    </div>
+  );
+}
+
+function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  const [data, setData] = useState<OrderSuggestions | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    createApiClient()
+      .fetchOrderSuggestions(symbol)
+      .then((res) => { if (!cancelled) { setData(res); setLoading(false); } })
+      .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Lỗi tải gợi ý.'); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  useEffect(() => { return load(); }, [load]);
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog ord-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Gợi ý lệnh limit — {symbol}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body ord-body">
+          {loading && (
+            <div className="ord-loading">
+              <span className="ord-loading__spinner" />
+              <span>AI đang phân tích và tính toán lệnh…</span>
+            </div>
+          )}
+          {error && <p className="scr-muted ord-error">{error}</p>}
+          {!loading && !error && data && (
+            <>
+              <div className="ord-price-bar">
+                <span className="ord-price-bar__label">Giá hiện tại</span>
+                <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
+                <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
+              </div>
+              <OrderCard order={data.swing} label="Swing trade (ngày — tuần)" />
+              <OrderCard order={data.scalp} label="Scalping (giờ)" />
+              <p className="ord-footer">
+                Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── add coin form ──────────────────────────────────────────────── */
 
 function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) {
@@ -398,6 +498,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [journalCoin, setJournalCoin] = useState<TrackingCoinRow | null>(null);
+  const [tradesCoin, setTradesCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
 
@@ -483,6 +584,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onCancel={() => setConfirmRemoveSymbol(null)}
         />
       )}
+      {tradesCoin && <CoinOrderSuggestionsDialog symbol={tradesCoin} onClose={() => setTradesCoin(null)} />}
 
       <main className="dashboard-shell scr-shell">
         {/* header */}
@@ -628,6 +730,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </button>
                         <button className="tt-btn tt-btn--ai" data-tooltip="Ask AI" aria-label={`Ask AI về ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconAI />
+                        </button>
+                        <button className="tt-btn tt-btn--trades" data-tooltip="Lệnh" aria-label={`Lệnh ${coin.symbol}`} onClick={() => setTradesCoin(coin.symbol)}>
+                          <IconTrades />
                         </button>
                         <button className="tt-btn tt-btn--notes" data-tooltip="Chi tiết" aria-label={`Chi tiết ${coin.symbol}`} onClick={() => setSelectedCoin(coin)}>
                           <IconDetail />

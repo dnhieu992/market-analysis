@@ -46,6 +46,11 @@ export class BinanceMarketDataService {
     return response.data;
   }
 
+  async fetchCurrentPrice(symbol: string): Promise<number> {
+    const res = await this.client.get<{ price: string }>('/api/v3/ticker/price', { params: { symbol } });
+    return parseFloat(res.data.price);
+  }
+
   async fetchKlinesInRange({
     symbol,
     timeframe,

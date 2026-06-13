@@ -411,6 +411,25 @@ export type TrackingCoinRow = {
   } | null;
 };
 
+export type OrderSuggestion = {
+  side: 'LONG' | 'SHORT';
+  entryLow: number;
+  entryHigh: number;
+  tp1: number;
+  tp2: number | null;
+  sl: number;
+  rrRatio: number;
+  rationale: string;
+};
+
+export type OrderSuggestions = {
+  symbol: string;
+  currentPrice: number;
+  swing: OrderSuggestion;
+  scalp: OrderSuggestion;
+  generatedAt: string;
+};
+
 export type SmallCapCoinRow = {
   id: string;
   symbol: string;

@@ -34,6 +34,7 @@ import type {
   ChatMessage,
   SmallCapCoinRow,
   TrackingCoinRow,
+  OrderSuggestions,
 } from './types';
 
 
@@ -663,6 +664,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
         symbolsTracking: Array.isArray(row.symbolsTracking) ? (row.symbolsTracking as unknown[]).map(String) : [],
         dailySignalWatchlist: Array.isArray(row.dailySignalWatchlist) ? (row.dailySignalWatchlist as unknown[]).map(String) : [],
       };
+    },
+
+    // ── Tracking Coins ────────────────────────────────────────────────
+    fetchOrderSuggestions(symbol: string): Promise<OrderSuggestions> {
+      return fetchJson<OrderSuggestions>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/order-suggestions`, withDefaults());
     },
 
     // ── Skills ────────────────────────────────────────────────────────

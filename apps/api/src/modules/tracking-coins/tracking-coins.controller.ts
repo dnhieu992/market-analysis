@@ -49,4 +49,10 @@ export class TrackingCoinsController {
   upsertJournalEntry(@Param('symbol') symbol: string, @Body() body: UpsertJournalEntryDto) {
     return this.service.upsertJournalEntry(symbol, body.date, body.content);
   }
+
+  @Get('coins/:symbol/order-suggestions')
+  @ApiOperation({ summary: 'AI-generated limit order suggestions based on PA analysis' })
+  suggestOrders(@Param('symbol') symbol: string) {
+    return this.service.suggestOrders(symbol);
+  }
 }
