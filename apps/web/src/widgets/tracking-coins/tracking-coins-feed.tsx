@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } fro
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, SwingStructure, OrderSuggestions, OrderSuggestion, TrackingCoinOrder, CoinSetup } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
-import { TrackingCoinJournal } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
+import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 type SortKey = 'rsi' | 'vol' | 'coin';
@@ -229,21 +229,19 @@ function IconPrompt() {
   );
 }
 
-function IconJournal() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      <line x1="9" y1="9" x2="15" y2="9" /><line x1="9" y1="13" x2="13" y2="13" />
-    </svg>
-  );
-}
-
 /* ── detail modal ───────────────────────────────────────────────── */
 
+type DetailTab = 'overview' | 'today' | 'history' | 'journal';
+
+const DETAIL_TABS: ReadonlyArray<[DetailTab, string]> = [
+  ['overview', 'Overview'],
+  ['today', 'Tín hiệu hôm nay'],
+  ['history', 'Lịch sử tín hiệu'],
+  ['journal', 'Journal'],
+];
+
 function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: () => void }) {
-  const sig = coin.signal;
-  const tvUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${coin.symbol}USDT`;
+  const [tab, setTab] = useState<DetailTab>('overview');
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
@@ -255,69 +253,85 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
           </div>
           <button className="dialog-close" onClick={onClose}>✕</button>
         </div>
+
+        <div className="tc-detail-tabs" role="tablist">
+          {DETAIL_TABS.map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              className={`tc-detail-tab${tab === key ? ' tc-detail-tab--active' : ''}`}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="dialog-body tc-detail-body">
-          {!sig ? (
-            <p className="scr-muted" style={{ textAlign: 'center', padding: '24px 0' }}>
-              Chưa có dữ liệu. Nhấn ⚡ Re-analyze để quét coin này.
-            </p>
-          ) : (
-            <>
-              {/* Indicator rows: D1 / H4 / M30 */}
-              <div className="tc-detail-section">
-                <div className="tc-detail-label">Indicators per timeframe</div>
-                <div className="tc-detail-tf-table">
-                  <div className="tc-detail-tf-head">
-                    <span />
-                    <span>Trend</span>
-                    <span>UT Bot</span>
-                    <span>EMA</span>
-                    <span>RSI</span>
-                    <span>Vol×</span>
-                  </div>
-                  {[
-                    { tf: 'D1',  trend: sig.trend,    utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,    vol: sig.volMultiplier },
-                    { tf: 'H4',  trend: sig.h4Trend,  utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi,  vol: sig.h4VolMultiplier },
-                    { tf: 'M30', trend: sig.m30Trend, utBot: null,               e34: null,             e89: null,             e200: null,              rsi: null,        vol: null },
-                  ].map(r => (
-                    <div key={r.tf} className="tc-detail-tf-row">
-                      <span className="tc-tf-label tc-tf-label--lg">{r.tf}</span>
-                      <TrendBadge trend={r.trend} />
-                      <UtBotBadge bullish={r.utBot} />
-                      <EmaPips e34={r.e34} e89={r.e89} e200={r.e200} />
-                      <RsiCell rsi={r.rsi} />
-                      <VolCell vol={r.vol} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="tc-detail-grid">
-                <div className="tc-detail-stat">
-                  <div className="tc-detail-label">Swing Structure</div>
-                  <div className="tc-detail-value"><SwingStructureLabel structure={sig.swingStructure} /></div>
-                </div>
-              </div>
-
-              <div className="tc-detail-section">
-                <div className="tc-detail-label">30 ngày gần nhất</div>
-                <div className="tc-detail-sparkline"><SparklineLarge prices={sig.sparkline} /></div>
-              </div>
-
-              <div className="tc-detail-section">
-                <div className="tc-detail-label">Lệnh limit</div>
-                <CoinOrderSuggestions symbol={coin.symbol} />
-              </div>
-
-              <div className="tc-detail-footer">
-                Cập nhật: {new Date(sig.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-              </div>
-            </>
-          )}
-          <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">
-            Mở TradingView ↗
-          </a>
+          {tab === 'overview' && <CoinOverview coin={coin} />}
+          {tab === 'today' && <CoinLiveSignal symbol={coin.symbol} />}
+          {tab === 'history' && <CoinHistorySignal symbol={coin.symbol} />}
+          {tab === 'journal' && <CoinJournalPanel symbol={coin.symbol} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
+  const sig = coin.signal;
+  const tvUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${coin.symbol}USDT`;
+
+  if (!sig) {
+    return (
+      <div className="tc-overview">
+        <p className="scr-muted tc-overview__empty">Chưa có dữ liệu. Nhấn ⚡ Re-analyze để quét coin này.</p>
+        <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
+      </div>
+    );
+  }
+
+  const rows = [
+    { tf: 'D1', trend: sig.trend,   utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,   vol: sig.volMultiplier },
+    { tf: 'H4', trend: sig.h4Trend, utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi, vol: sig.h4VolMultiplier },
+  ];
+
+  return (
+    <div className="tc-overview">
+      <section className="tc-detail-section">
+        <div className="tc-detail-label">Chỉ báo theo khung</div>
+        <div className="tc-tf-grid">
+          <div className="tc-tf-grid__head">
+            <span>TF</span><span>Trend</span><span>UT Bot</span><span>EMA</span><span>RSI</span><span>Vol×</span>
+          </div>
+          {rows.map((r) => (
+            <div key={r.tf} className="tc-tf-grid__row">
+              <span className="tc-tf-grid__tf">{r.tf}</span>
+              <TrendBadge trend={r.trend} />
+              <UtBotBadge bullish={r.utBot} />
+              <EmaPips e34={r.e34} e89={r.e89} e200={r.e200} />
+              <RsiCell rsi={r.rsi} />
+              <VolCell vol={r.vol} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="tc-detail-section">
+        <div className="tc-detail-label">Swing Structure</div>
+        <div className="tc-detail-value"><SwingStructureLabel structure={sig.swingStructure} /></div>
+      </section>
+
+      <section className="tc-detail-section">
+        <div className="tc-detail-label">30 ngày gần nhất</div>
+        <div className="tc-detail-sparkline"><SparklineLarge prices={sig.sparkline} /></div>
+      </section>
+
+      <div className="tc-detail-footer">
+        Cập nhật: {new Date(sig.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+      </div>
+      <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
     </div>
   );
 }
@@ -506,21 +520,16 @@ function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
   );
 }
 
-function CoinOrderSuggestions({ symbol }: { symbol: string }) {
-  const [tab, setTab] = useState<'live' | 'history'>('live');
+function CoinLiveSignal({ symbol }: { symbol: string }) {
   const [data, setData] = useState<OrderSuggestions | null>(null);
   const [setup, setSetup] = useState<CoinSetup | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<TrackingCoinOrder[] | null>(null);
-  const [histLoading, setHistLoading] = useState(false);
-  const [histError, setHistError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setHistory(null); // reset so history tab re-fetches fresh data after re-analyze
     const api = createApiClient();
     Promise.all([
       api.fetchOrderSuggestions(symbol),
@@ -533,67 +542,61 @@ function CoinOrderSuggestions({ symbol }: { symbol: string }) {
     return () => { cancelled = true; };
   }, [symbol]);
 
-  const loadHistory = useCallback(() => {
-    if (history !== null) return;
-    setHistLoading(true);
-    setHistError(null);
-    createApiClient()
-      .fetchCoinOrders(symbol)
-      .then((res) => { setHistory(res); setHistLoading(false); })
-      .catch((err) => { setHistError(err instanceof Error ? err.message : 'Lỗi tải lịch sử.'); setHistLoading(false); });
-  }, [symbol, history]);
-
-  useEffect(() => { return load(); }, [load]);
-
-  useEffect(() => {
-    if (tab === 'history') loadHistory();
-  }, [tab, loadHistory]);
+  useEffect(() => load(), [load]);
 
   return (
-    <div className="tc-detail-orders">
-      <div className="ord-tabs">
-        <button className={`ord-tab${tab === 'live' ? ' ord-tab--active' : ''}`} onClick={() => setTab('live')}>Gợi ý live</button>
-        <button className={`ord-tab${tab === 'history' ? ' ord-tab--active' : ''}`} onClick={() => setTab('history')}>Lịch sử</button>
-      </div>
-      <div className="ord-body ord-body--embedded">
-        {tab === 'live' && (
-          <>
-            {loading && (
-              <div className="ord-loading">
-                <span className="ord-loading__spinner" />
-                <span>Đang tính toán lệnh…</span>
-              </div>
-            )}
-            {error && <p className="scr-muted ord-error">{error}</p>}
-            {!loading && !error && data && (
-              <>
-                <div className="ord-price-bar">
-                  <span className="ord-price-bar__label">Giá hiện tại</span>
-                  <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
-                  <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
-                </div>
-                <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
-                <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
-                <p className="ord-footer">
-                  Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-                </p>
-              </>
-            )}
-          </>
-        )}
-        {tab === 'history' && (
-          <>
-            {histLoading && (
-              <div className="ord-loading">
-                <span className="ord-loading__spinner" />
-                <span>Đang tải lịch sử…</span>
-              </div>
-            )}
-            {histError && <p className="scr-muted ord-error">{histError}</p>}
-            {!histLoading && !histError && history !== null && <OrderHistoryTable orders={history} />}
-          </>
-        )}
-      </div>
+    <div className="tc-signal">
+      {loading && (
+        <div className="ord-loading">
+          <span className="ord-loading__spinner" />
+          <span>Đang tính toán lệnh…</span>
+        </div>
+      )}
+      {error && <p className="scr-muted ord-error">{error}</p>}
+      {!loading && !error && data && (
+        <>
+          <div className="ord-price-bar">
+            <span className="ord-price-bar__label">Giá hiện tại</span>
+            <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
+            <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
+          </div>
+          <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
+          <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
+          <p className="ord-footer">
+            Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CoinHistorySignal({ symbol }: { symbol: string }) {
+  const [history, setHistory] = useState<TrackingCoinOrder[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    createApiClient()
+      .fetchCoinOrders(symbol)
+      .then((res) => { if (!cancelled) { setHistory(res); setLoading(false); } })
+      .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Lỗi tải lịch sử.'); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  return (
+    <div className="tc-signal">
+      {loading && (
+        <div className="ord-loading">
+          <span className="ord-loading__spinner" />
+          <span>Đang tải lịch sử…</span>
+        </div>
+      )}
+      {error && <p className="scr-muted ord-error">{error}</p>}
+      {!loading && !error && history !== null && <OrderHistoryTable orders={history} />}
     </div>
   );
 }
@@ -755,7 +758,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
-  const [journalCoin, setJournalCoin] = useState<TrackingCoinRow | null>(null);
   const [setupCoin, setSetupCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
@@ -825,13 +827,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           coin={chatCoin}
           livePrice={prices.get(chatCoin.symbol) ?? null}
           onClose={() => setChatCoin(null)}
-        />
-      )}
-      {journalCoin && (
-        <TrackingCoinJournal
-          symbol={journalCoin.symbol}
-          name={journalCoin.name}
-          onClose={() => setJournalCoin(null)}
         />
       )}
       {confirmRemoveSymbol && (
@@ -983,9 +978,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
-                        <button className="tt-btn tt-btn--journal" data-tooltip="Journal" aria-label={`Journal ${coin.symbol}`} onClick={() => setJournalCoin(coin)}>
-                          <IconJournal />
-                        </button>
                         <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconPrompt />
                         </button>
