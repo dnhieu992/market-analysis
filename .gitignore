@@ -16,3 +16,9 @@ coverage
 *.sqlite
 *.sqlite-journal
 *.tsbuildinfo
+
+# next-pwa generated service worker artifacts (regenerated on every web build)
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/workbox-*.js
+apps/web/public/workbox-*.js.map
