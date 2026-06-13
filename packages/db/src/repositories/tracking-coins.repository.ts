@@ -67,6 +67,18 @@ export function createTrackingCoinsRepository(client = prisma) {
 
     // ── Orders ───────────────────────────────────────────────────────────
 
+    updateCoinSetup(
+      coinId: string,
+      data: {
+        swingMaxLoss?: number | null;
+        swingMinRR?: number | null;
+        daytradeMaxLoss?: number | null;
+        daytradeMinRR?: number | null;
+      },
+    ) {
+      return client.trackingCoin.update({ where: { id: coinId }, data });
+    },
+
     upsertOrder(
       coinId: string,
       date: Date,
@@ -80,6 +92,8 @@ export function createTrackingCoinsRepository(client = prisma) {
         sl: number;
         rrRatio: number;
         rationale: string;
+        positionSize?: number | null;
+        positionValue?: number | null;
       },
     ) {
       return client.trackingCoinOrder.upsert({

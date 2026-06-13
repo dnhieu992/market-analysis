@@ -11,7 +11,7 @@ import {
   computeDayTradeLimitOrder,
   evaluateLimitOrder,
 } from '@app/core';
-import type { PaTrend, OrderSigSnapshot } from '@app/core';
+import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
@@ -32,7 +32,7 @@ export class TrackingCoinScanService {
 
     for (const coin of coins) {
       try {
-        await this.scanOne(coin.id, coin.symbol);
+        await this.scanOne(coin.id, coin.symbol, coin);
         scanned++;
       } catch (err) {
         failed++;
@@ -45,7 +45,20 @@ export class TrackingCoinScanService {
     return { scanned, failed };
   }
 
-  private async scanOne(coinId: string, symbol: string): Promise<void> {
+  private calcVolume(order: LimitOrderResult, maxLoss: number | null | undefined): { positionSize: number; positionValue: number } | null {
+    if (!maxLoss || maxLoss <= 0) return null;
+    const entryMid = (order.entryLow + order.entryHigh) / 2;
+    const risk = order.side === 'LONG' ? entryMid - order.sl : order.sl - entryMid;
+    if (risk <= 0) return null;
+    const positionSize = maxLoss / risk;
+    return { positionSize, positionValue: positionSize * entryMid };
+  }
+
+  private async scanOne(
+    coinId: string,
+    symbol: string,
+    setup?: { swingMaxLoss?: number | null; daytradeMaxLoss?: number | null } | null,
+  ): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
     const [klines, h4Klines, m30Klines, h1Klines] = await Promise.all([
@@ -161,10 +174,12 @@ export class TrackingCoinScanService {
 
       const swingOrder    = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap);
       const dayTradeOrder = computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap);
+      const swingVol    = this.calcVolume(swingOrder, setup?.swingMaxLoss);
+      const dayTradeVol = this.calcVolume(dayTradeOrder, setup?.daytradeMaxLoss);
 
       await Promise.all([
-        this.repo.upsertOrder(coinId, today, 'swing', swingOrder),
-        this.repo.upsertOrder(coinId, today, 'daytrade', dayTradeOrder),
+        this.repo.upsertOrder(coinId, today, 'swing',    { ...swingOrder,    ...swingVol }),
+        this.repo.upsertOrder(coinId, today, 'daytrade', { ...dayTradeOrder, ...dayTradeVol }),
       ]);
     }
 

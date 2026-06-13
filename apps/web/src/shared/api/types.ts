@@ -442,10 +442,19 @@ export type TrackingCoinOrder = {
   sl: number;
   rrRatio: number;
   rationale: string;
+  positionSize: number | null;
+  positionValue: number | null;
   activated: boolean | null;
   outcome: 'tp1' | 'tp2' | 'sl' | null;
   evaluatedAt: string | null;
   createdAt: string;
+};
+
+export type CoinSetup = {
+  swingMaxLoss: number | null;
+  swingMinRR: number | null;
+  daytradeMaxLoss: number | null;
+  daytradeMinRR: number | null;
 };
 
 export type SmallCapCoinRow = {

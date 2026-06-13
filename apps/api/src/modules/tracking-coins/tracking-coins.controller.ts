@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpsertJournalEntryDto } from './dto/upsert-journal-entry.dto';
+import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
 import { TrackingCoinsService } from './tracking-coins.service';
 
 @ApiTags('Tracking Coins')
@@ -60,5 +61,22 @@ export class TrackingCoinsController {
   @ApiOperation({ summary: 'List saved limit orders history for a coin' })
   listOrders(@Param('symbol') symbol: string) {
     return this.service.listOrders(symbol);
+  }
+
+  @Get('coins/:symbol/setup')
+  @ApiOperation({ summary: 'Get risk setup settings for a coin' })
+  getSetup(@Param('symbol') symbol: string) {
+    return this.service.getSetup(symbol);
+  }
+
+  @Put('coins/:symbol/setup')
+  @ApiOperation({ summary: 'Save risk setup settings for a coin' })
+  updateSetup(@Param('symbol') symbol: string, @Body() body: UpdateCoinSetupDto) {
+    return this.service.updateSetup(symbol, {
+      swingMaxLoss:    body.swingMaxLoss    ?? null,
+      swingMinRR:      body.swingMinRR      ?? null,
+      daytradeMaxLoss: body.daytradeMaxLoss ?? null,
+      daytradeMinRR:   body.daytradeMinRR   ?? null,
+    });
   }
 }

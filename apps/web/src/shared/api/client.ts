@@ -36,6 +36,7 @@ import type {
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
+  CoinSetup,
 } from './types';
 
 
@@ -674,6 +675,19 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     fetchCoinOrders(symbol: string): Promise<TrackingCoinOrder[]> {
       return fetchJson<TrackingCoinOrder[]>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/orders`, withDefaults());
+    },
+
+    fetchCoinSetup(symbol: string): Promise<CoinSetup> {
+      return fetchJson<CoinSetup>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`, withDefaults());
+    },
+
+    updateCoinSetup(symbol: string, body: CoinSetup): Promise<CoinSetup> {
+      return fetchJson<CoinSetup>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`, {
+        ...withDefaults(),
+        method: 'PUT',
+        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
     },
 
     // ── Skills ────────────────────────────────────────────────────────

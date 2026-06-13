@@ -7,6 +7,22 @@ import { BinanceMarketDataService } from '../market/binance-market-data.service'
 
 const CANDLE_LIMIT = 220;
 
+type CoinSetup = {
+  swingMaxLoss: number | null;
+  swingMinRR: number | null;
+  daytradeMaxLoss: number | null;
+  daytradeMinRR: number | null;
+};
+
+function calcVolume(order: LimitOrderResult, maxLoss: number | null): { positionSize: number; positionValue: number } | null {
+  if (!maxLoss || maxLoss <= 0) return null;
+  const entryMid = (order.entryLow + order.entryHigh) / 2;
+  const risk = order.side === 'LONG' ? entryMid - order.sl : order.sl - entryMid;
+  if (risk <= 0) return null;
+  const positionSize = maxLoss / risk;
+  return { positionSize, positionValue: positionSize * entryMid };
+}
+
 export type OrderSuggestionsResult = {
   symbol: string;
   currentPrice: number;
@@ -136,7 +152,7 @@ export class TrackingCoinsService {
 
     for (const coin of coins) {
       try {
-        await this.scanOneCoin(coin.id, coin.symbol);
+        await this.scanOneCoin(coin.id, coin.symbol, coin);
         scanned++;
       } catch (err) {
         failed++;
@@ -208,6 +224,8 @@ export class TrackingCoinsService {
       sl: o.sl,
       rrRatio: o.rrRatio,
       rationale: o.rationale,
+      positionSize: o.positionSize ?? null,
+      positionValue: o.positionValue ?? null,
       activated: o.activated ?? null,
       outcome: o.outcome ?? null,
       evaluatedAt: o.evaluatedAt?.toISOString() ?? null,
@@ -215,7 +233,25 @@ export class TrackingCoinsService {
     }));
   }
 
-  private async scanOneCoin(coinId: string, symbol: string): Promise<void> {
+  async getSetup(symbol: string) {
+    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
+    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+    return {
+      swingMaxLoss: coin.swingMaxLoss ?? null,
+      swingMinRR: coin.swingMinRR ?? null,
+      daytradeMaxLoss: coin.daytradeMaxLoss ?? null,
+      daytradeMinRR: coin.daytradeMinRR ?? null,
+    };
+  }
+
+  async updateSetup(symbol: string, data: CoinSetup) {
+    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
+    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+    await this.repo.updateCoinSetup(coin.id, data);
+    return { symbol: symbol.toUpperCase(), ...data };
+  }
+
+  private async scanOneCoin(coinId: string, symbol: string, setup?: CoinSetup | null): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
     const [klines, h4Klines, m30Klines, h1Klines] = await Promise.all([
@@ -336,9 +372,13 @@ export class TrackingCoinsService {
       };
       const h1Highs = h1Klines.map((k) => parseFloat(k[2]));
       const h1Lows  = h1Klines.map((k) => parseFloat(k[3]));
+      const swingOrder    = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap);
+      const dayTradeOrder = computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap);
+      const swingVol    = calcVolume(swingOrder, setup?.swingMaxLoss ?? null);
+      const dayTradeVol = calcVolume(dayTradeOrder, setup?.daytradeMaxLoss ?? null);
       await Promise.all([
-        this.repo.upsertOrder(coinId, today, 'swing', computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap)),
-        this.repo.upsertOrder(coinId, today, 'daytrade', computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap)),
+        this.repo.upsertOrder(coinId, today, 'swing',    { ...swingOrder,    ...swingVol }),
+        this.repo.upsertOrder(coinId, today, 'daytrade', { ...dayTradeOrder, ...dayTradeVol }),
       ]);
     }
   }

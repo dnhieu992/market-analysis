@@ -291,13 +291,17 @@ model PnlHistory {
 }
 
 model TrackingCoin {
-  id       String                  @id @default(cuid())
-  symbol   String                  @unique @db.VarChar(30)
-  name     String                  @default("") @db.VarChar(100)
-  addedAt  DateTime                @default(now())
-  signals  TrackingCoinSignal[]
-  journals TrackingCoinJournal[]
-  orders   TrackingCoinOrder[]
+  id              String                  @id @default(cuid())
+  symbol          String                  @unique @db.VarChar(30)
+  name            String                  @default("") @db.VarChar(100)
+  addedAt         DateTime                @default(now())
+  swingMaxLoss    Float?
+  swingMinRR      Float?
+  daytradeMaxLoss Float?
+  daytradeMinRR   Float?
+  signals         TrackingCoinSignal[]
+  journals        TrackingCoinJournal[]
+  orders          TrackingCoinOrder[]
 
   @@map("tracking_coins")
 }
@@ -313,11 +317,13 @@ model TrackingCoinOrder {
   tp1         Float
   tp2         Float?
   sl          Float
-  rrRatio     Float
-  rationale   String       @db.Text
-  activated   Boolean?
-  outcome     String?      @db.VarChar(5)
-  evaluatedAt DateTime?
+  rrRatio       Float
+  rationale     String       @db.Text
+  positionSize  Float?
+  positionValue Float?
+  activated     Boolean?
+  outcome       String?      @db.VarChar(5)
+  evaluatedAt   DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   coin        TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
