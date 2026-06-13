@@ -360,8 +360,18 @@ function fmtPrice(n: number): string {
   return n.toFixed(7);
 }
 
-function OrderCard({ order, label }: { order: OrderSuggestion; label: string }) {
+function calcLiveVolume(order: OrderSuggestion, maxLoss: number | null): { positionSize: number; positionValue: number } | null {
+  if (!maxLoss || maxLoss <= 0) return null;
+  const entryMid = (order.entryLow + order.entryHigh) / 2;
+  const risk = order.side === 'LONG' ? entryMid - order.sl : order.sl - entryMid;
+  if (risk <= 0) return null;
+  const positionSize = maxLoss / risk;
+  return { positionSize, positionValue: positionSize * entryMid };
+}
+
+function OrderCard({ order, label, maxLoss }: { order: OrderSuggestion; label: string; maxLoss: number | null }) {
   const isLong = order.side === 'LONG';
+  const vol = calcLiveVolume(order, maxLoss);
   return (
     <div className="ord-card">
       <div className="ord-card__header">
@@ -381,6 +391,12 @@ function OrderCard({ order, label }: { order: OrderSuggestion; label: string }) 
         <span className="ord-card__value ord-sl">${fmtPrice(order.sl)}</span>
         <span className="ord-card__label">R:R</span>
         <span className="ord-card__value ord-rr">{order.rrRatio.toFixed(1)}×</span>
+        {vol && <>
+          <span className="ord-card__label">Số lượng</span>
+          <span className="ord-card__value">{vol.positionSize < 1 ? vol.positionSize.toFixed(4) : vol.positionSize.toFixed(2)}</span>
+          <span className="ord-card__label">Giá trị lệnh</span>
+          <span className="ord-card__value">${vol.positionValue.toFixed(2)}</span>
+        </>}
       </div>
       <p className="ord-card__rationale">{order.rationale}</p>
     </div>
@@ -449,6 +465,7 @@ function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
 function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
   const [tab, setTab] = useState<'live' | 'history'>('live');
   const [data, setData] = useState<OrderSuggestions | null>(null);
+  const [setup, setSetup] = useState<CoinSetup | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<TrackingCoinOrder[] | null>(null);
@@ -459,9 +476,14 @@ function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClo
     let cancelled = false;
     setLoading(true);
     setError(null);
-    createApiClient()
-      .fetchOrderSuggestions(symbol)
-      .then((res) => { if (!cancelled) { setData(res); setLoading(false); } })
+    const api = createApiClient();
+    Promise.all([
+      api.fetchOrderSuggestions(symbol),
+      api.fetchCoinSetup(symbol).catch(() => null),
+    ])
+      .then(([orders, coinSetup]) => {
+        if (!cancelled) { setData(orders); setSetup(coinSetup); setLoading(false); }
+      })
       .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Lỗi tải gợi ý.'); setLoading(false); } });
     return () => { cancelled = true; };
   }, [symbol]);
@@ -510,8 +532,8 @@ function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClo
                     <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
                     <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
                   </div>
-                  <OrderCard order={data.swing} label="Swing (2–5 ngày)" />
-                  <OrderCard order={data.scalp} label="Day trade (trong ngày)" />
+                  <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
+                  <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
                   <p className="ord-footer">
                     Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
                   </p>
