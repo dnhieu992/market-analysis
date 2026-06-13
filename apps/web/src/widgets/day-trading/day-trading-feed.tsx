@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { DayTradingSignal, DayTradingStats } from '@web/shared/api/types';
+import type { DayTradingSignal, DayTradingStats, DayTradingSettings } from '@web/shared/api/types';
 
 type Props = {
   initialSignals: DayTradingSignal[];
   initialStats: DayTradingStats;
+  initialSettings: DayTradingSettings;
 };
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'TP_HIT' | 'SL_HIT';
@@ -128,9 +129,74 @@ const FILTERS: { label: string; value: StatusFilter }[] = [
   { label: 'SL Hit', value: 'SL_HIT' },
 ];
 
-export function DayTradingFeed({ initialSignals, initialStats }: Props) {
+const SETTING_FIELDS: { key: keyof DayTradingSettings; label: string; hint: string; step: number; min: number }[] = [
+  { key: 'riskPerTrade', label: 'Rủi ro mỗi lệnh (USDT)', hint: 'Lỗ cứng khi chạm SL', step: 0.5, min: 0.1 },
+  { key: 'minRR', label: 'TP tối thiểu (R)', hint: 'TP = R × rủi ro. VD 2 = 1:2', step: 0.5, min: 0.1 },
+  { key: 'maxTradesPerDay', label: 'Số lệnh tối đa/ngày', hint: 'Dừng vào lệnh khi đạt', step: 1, min: 1 },
+  { key: 'maxLossesPerDay', label: 'Số lệnh lỗ tối đa/ngày', hint: 'Dừng ngày khi đủ số lệnh SL', step: 1, min: 1 },
+];
+
+function SettingsPanel({
+  settings,
+  onSaved,
+  onClose,
+}: {
+  settings: DayTradingSettings;
+  onSaved: (s: DayTradingSettings) => void;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<DayTradingSettings>(settings);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await createApiClient().updateDayTradingSettings(form);
+      onSaved(saved);
+      onClose();
+    } catch {
+      setError('Lưu thất bại, thử lại.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="dt-settings">
+      <div className="dt-settings-grid">
+        {SETTING_FIELDS.map((f) => (
+          <label key={f.key} className="dt-setting">
+            <span className="dt-setting-label">{f.label}</span>
+            <input
+              className="dt-setting-input"
+              type="number"
+              step={f.step}
+              min={f.min}
+              value={form[f.key]}
+              onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: Number(e.target.value) }))}
+            />
+            <span className="dt-setting-hint">{f.hint}</span>
+          </label>
+        ))}
+      </div>
+      {error && <div className="dt-settings-error">{error}</div>}
+      <div className="dt-settings-actions">
+        <button className="dt-filter" onClick={onClose} disabled={saving}>Hủy</button>
+        <button className="dt-filter dt-filter--active" onClick={() => void save()} disabled={saving}>
+          {saving ? 'Đang lưu…' : 'Lưu cấu hình'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function DayTradingFeed({ initialSignals, initialStats, initialSettings }: Props) {
   const [signals, setSignals] = useState<DayTradingSignal[]>(initialSignals);
   const [stats, setStats] = useState<DayTradingStats>(initialStats);
+  const [settings, setSettings] = useState<DayTradingSettings>(initialSettings);
+  const [showSettings, setShowSettings] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [loading, setLoading] = useState(false);
 
@@ -165,12 +231,27 @@ export function DayTradingFeed({ initialSignals, initialStats }: Props) {
       <div className="dt-header">
         <div>
           <h1 className="dt-title">Day Trading — BTCUSDT</h1>
-          <p className="dt-subtitle">Break &amp; Retest · Liquidity Sweep · 15m · Paper</p>
+          <p className="dt-subtitle">
+            Risk ${settings.riskPerTrade} · TP {settings.minRR}R · max {settings.maxTradesPerDay} lệnh / {settings.maxLossesPerDay} lỗ /ngày
+          </p>
         </div>
-        <button className="dt-refresh" onClick={() => void refresh(filter)} disabled={loading}>
-          {loading ? 'Loading…' : '↻ Refresh'}
-        </button>
+        <div className="dt-header-actions">
+          <button className="dt-refresh" onClick={() => setShowSettings((v) => !v)}>
+            ⚙ Cấu hình
+          </button>
+          <button className="dt-refresh" onClick={() => void refresh(filter)} disabled={loading}>
+            {loading ? 'Loading…' : '↻ Refresh'}
+          </button>
+        </div>
       </div>
+
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          onSaved={setSettings}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       <StatsHeader stats={stats} />
 

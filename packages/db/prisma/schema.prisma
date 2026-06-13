@@ -407,6 +407,18 @@ model DayTradingSignal {
   @@map("day_trading_signals")
 }
 
+model DayTradingSettings {
+  id              String   @id @default("singleton")
+  riskPerTrade    Float    @default(2)
+  minRR           Float    @default(2)
+  maxTradesPerDay Int      @default(5)
+  maxLossesPerDay Int      @default(2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("day_trading_settings")
+}
+
 model SmallCapCoin {
   id          String           @id @default(cuid())
   symbol      String           @unique @db.VarChar(30)

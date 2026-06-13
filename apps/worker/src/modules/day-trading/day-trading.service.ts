@@ -8,9 +8,6 @@ import { SignalExecutorService } from './signal-executor.service';
 import { ResultMonitorService } from './result-monitor.service';
 
 const SYMBOL = 'BTCUSDT';
-const MAX_SIGNALS_PER_DAY = 5;
-// Fixed-dollar model: stop the day once net realized P&L drops to this (2 losing trades × $2).
-const MAX_DAILY_LOSS_USD = -4;
 // One 15m candle + buffer — skip if we already fired the same setup this window.
 const DEDUP_WINDOW_MS = 14 * 60 * 1000;
 
@@ -72,16 +69,18 @@ export class DayTradingService implements OnModuleInit {
   }
 
   async scan(): Promise<void> {
-    // Daily guards (risk management rules).
+    const settings = await this.repo.getSettings();
+
+    // Daily guards (configurable risk management rules).
     const todayCount = await this.repo.countTodaySignals(SYMBOL);
-    if (todayCount >= MAX_SIGNALS_PER_DAY) {
-      this.logger.log(`Max daily signals (${MAX_SIGNALS_PER_DAY}) reached for ${SYMBOL}`);
+    if (todayCount >= settings.maxTradesPerDay) {
+      this.logger.log(`Max daily trades (${settings.maxTradesPerDay}) reached for ${SYMBOL}`);
       return;
     }
 
-    const todayPnl = await this.repo.getTodayPnlUsd(SYMBOL);
-    if (todayPnl <= MAX_DAILY_LOSS_USD) {
-      this.logger.log(`Daily loss limit reached for ${SYMBOL} ($${todayPnl.toFixed(2)})`);
+    const todayLosses = await this.repo.countTodayLosses(SYMBOL);
+    if (todayLosses >= settings.maxLossesPerDay) {
+      this.logger.log(`Max daily losses (${settings.maxLossesPerDay}) reached for ${SYMBOL}`);
       return;
     }
 
@@ -97,7 +96,10 @@ export class DayTradingService implements OnModuleInit {
       return;
     }
 
-    const setup = this.analyzer.analyze(candles15m, candles1h, candles4h);
+    const setup = this.analyzer.analyze(candles15m, candles1h, candles4h, {
+      riskPerTrade: settings.riskPerTrade,
+      minRR: settings.minRR,
+    });
     if (!setup) {
       this.logger.debug('No setup detected');
       return;

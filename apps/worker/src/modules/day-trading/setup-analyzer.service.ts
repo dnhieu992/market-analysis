@@ -16,15 +16,24 @@ export type SetupResult = {
 
 type Trend = 'up' | 'down' | 'neutral';
 
-// Fixed-dollar risk model: every trade risks exactly this much if SL is hit.
-const FIXED_RISK_USD = 2;
-const MIN_RR = 2.0;
+// Per-scan risk configuration (loaded from DayTradingSettings).
+export type RiskConfig = {
+  riskPerTrade: number; // hard loss budget in USDT if SL is hit
+  minRR: number;        // minimum reward in R — TP must be at least this many R away
+};
+
+const DEFAULT_RISK: RiskConfig = { riskPerTrade: 2, minRR: 2 };
 
 @Injectable()
 export class SetupAnalyzerService {
   private readonly logger = new Logger(SetupAnalyzerService.name);
 
-  analyze(candles15m: Candle[], candles1h: Candle[], candles4h: Candle[]): SetupResult | null {
+  analyze(
+    candles15m: Candle[],
+    candles1h: Candle[],
+    candles4h: Candle[],
+    config: RiskConfig = DEFAULT_RISK,
+  ): SetupResult | null {
     if (candles15m.length < 30 || candles1h.length < 20 || candles4h.length < 10) {
       this.logger.warn('Insufficient candle data for analysis');
       return null;
@@ -37,11 +46,11 @@ export class SetupAnalyzerService {
     const reasons: string[] = [];
 
     // Try Liquidity Sweep first (cleaner signal)
-    const sweep = this.detectLiquiditySweep(candles15m, candles1h, trend4h, trend1h, reasons);
+    const sweep = this.detectLiquiditySweep(candles15m, candles1h, trend4h, trend1h, reasons, config);
     if (sweep) return sweep;
 
     // Then Break & Retest
-    const breakRetest = this.detectBreakRetest(candles15m, candles1h, candles4h, trend4h, trend1h, reasons);
+    const breakRetest = this.detectBreakRetest(candles15m, candles1h, candles4h, trend4h, trend1h, reasons, config);
     if (breakRetest) return breakRetest;
 
     const latest = candles15m.at(-1);
@@ -155,16 +164,18 @@ export class SetupAnalyzerService {
     entryPrice: number,
     stopLoss: number,
     context: Record<string, unknown>,
+    config: RiskConfig,
   ): SetupResult | null {
     const riskPerUnit = Math.abs(entryPrice - stopLoss);
     if (riskPerUnit <= 0) return null;
 
+    // TP placed at the configured minimum R multiple (1R = riskPerUnit distance).
     const takeProfit = direction === 'LONG'
-      ? entryPrice + MIN_RR * riskPerUnit
-      : entryPrice - MIN_RR * riskPerUnit;
+      ? entryPrice + config.minRR * riskPerUnit
+      : entryPrice - config.minRR * riskPerUnit;
 
-    // Volume sized so that hitting SL loses exactly FIXED_RISK_USD.
-    const riskAmount = FIXED_RISK_USD;
+    // Volume sized so that hitting SL loses exactly riskPerTrade USDT.
+    const riskAmount = config.riskPerTrade;
     const quantity = riskAmount / riskPerUnit;
     const positionValue = quantity * entryPrice;
 
@@ -174,7 +185,7 @@ export class SetupAnalyzerService {
       entryPrice,
       stopLoss,
       takeProfit,
-      rrRatio: MIN_RR,
+      rrRatio: config.minRR,
       riskAmount,
       quantity,
       positionValue,
@@ -191,6 +202,7 @@ export class SetupAnalyzerService {
     trend4h: Trend,
     trend1h: Trend,
     reasons: string[],
+    config: RiskConfig,
   ): SetupResult | null {
     const latest = candles15m.at(-1);
     if (!latest) {
@@ -244,7 +256,7 @@ export class SetupAnalyzerService {
         trend1h,
         avg20Volume: avg20,
         breakCandleVolume,
-      });
+      }, config);
     }
 
     if (trend4h === 'down' && trend1h !== 'up') {
@@ -289,7 +301,7 @@ export class SetupAnalyzerService {
         trend1h,
         avg20Volume: avg20,
         breakCandleVolume: breakCandleVol,
-      });
+      }, config);
     }
 
     reasons.push(`BR: trend not aligned (4H=${trend4h}, 1H=${trend1h}; need 4H=up&1H!=down or 4H=down&1H!=up)`);
@@ -304,6 +316,7 @@ export class SetupAnalyzerService {
     trend4h: Trend,
     trend1h: Trend,
     reasons: string[],
+    config: RiskConfig,
   ): SetupResult | null {
     const latest = candles15m.at(-1);
     const prev = candles15m.at(-2);
@@ -338,7 +351,7 @@ export class SetupAnalyzerService {
             trend1h,
             avg20Volume: avg20,
             candleVolume: latest.volume,
-          });
+          }, config);
         }
         reasons.push(
           `Sweep-SHORT[H1=${swingHigh}]: swept=${this.yn(sweptAbove)} closeBelow=${this.yn(closedBelow)} ` +
@@ -372,7 +385,7 @@ export class SetupAnalyzerService {
             trend1h,
             avg20Volume: avg20,
             candleVolume: latest.volume,
-          });
+          }, config);
         }
         reasons.push(
           `Sweep-LONG[L1=${swingLow}]: swept=${this.yn(sweptBelow)} closeAbove=${this.yn(closedAbove)} ` +

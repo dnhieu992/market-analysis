@@ -12,13 +12,13 @@ Built in two phases:
    - `candle15m` (BTCUSDT) → detects 15m candle close → emits `candleClose`
    It handles ping/pong (literal `"ping"` every 25s) and reconnects with exponential backoff.
 2. On `candleClose`, `DayTradingService` runs a scan (a re-entrancy guard prevents overlap).
-3. Scan checks daily guards: max 5 signals/day, stop if net realized P&L ≤ −$4 (two losing trades).
+3. Scan loads `DayTradingSettings` and checks daily guards: stop if today's signal count ≥ `maxTradesPerDay`, or today's SL_HIT count ≥ `maxLossesPerDay`.
 4. Historical candle sets (50×15m, 40×1H, 30×4H) are fetched via REST (`BitgetService`) for swing-structure lookback.
 5. `SetupAnalyzerService` runs two detectors:
    - **Liquidity Sweep**: 1H swing high/low swept ≥0.3%, closed back with engulfing/pin bar + volume spike.
    - **Break & Retest**: 4H/1H trend-confirmed level break (volume > avg×1.2), retest pullback, confirmation close.
 6. **Dedup**: if the same setup+direction already fired within one candle window (~14 min), it is skipped.
-7. **Risk/volume model**: fixed-dollar risk — every trade risks exactly **$2** if SL is hit. Volume (BTC) = `$2 / |entry − stopLoss|`, and `positionValue = quantity × entry`. P&L is realized in USD = `quantity × price move` (≈ −$2 at SL, ≈ +$4 at TP with R:R 1:2).
+7. **Risk/volume model** (configurable via settings): each trade risks exactly `riskPerTrade` USDT if SL is hit. TP is placed at `minRR` R (`minRR × |entry − stopLoss|`). Volume (BTC) = `riskPerTrade / |entry − stopLoss|`, `positionValue = quantity × entry`. P&L realized in USD = `quantity × price move`.
 8. `SignalExecutorService.execute()` — **Phase 1**: logs `🔔 TÍN HIỆU [PAPER] …` and persists the signal with `mode = PAPER`, `status = ACTIVE`. No order is placed.
 9. **Result monitor** (`@Cron` every minute) reads the **real-time WS price** (REST fallback if WS is stale) and marks ACTIVE signals `TP_HIT` / `SL_HIT`, recording `pnlUsd`.
 10. Web page `/day-trading` shows signals + stats (Total P&L in USD), auto-refreshing every 60s. Each signal shows volume and a PAPER/LIVE badge.
@@ -28,7 +28,8 @@ Built in two phases:
 - **WS price stale**: result monitor falls back to REST `fetchCurrentPrice`.
 - Bitget REST failure: logged as warning, scan skipped (non-fatal).
 - Insufficient candle data (<30×15m, <20×1H, <10×4H): scan skipped.
-- Daily limit reached (5 signals or −$4 net P&L): scan returns early.
+- Daily limit reached (`maxTradesPerDay` signals or `maxLossesPerDay` losses): scan returns early.
+- Settings are a singleton row, created with defaults (risk $2, minRR 2, 5 trades, 2 losses) on first access; editable from the `/day-trading` page (⚙ Cấu hình).
 - Both setups trigger on one candle: only the first (Liquidity Sweep) is used.
 - Overlapping triggers (WS + cron): re-entrancy guard + dedup prevent duplicate signals.
 - Result check has no slippage modeling — price vs TP/SL, an approximation for review.
@@ -47,10 +48,11 @@ Built in two phases:
 - `apps/worker/src/modules/day-trading/result-monitor.service.ts` — TP/SL detection using WS price (REST fallback)
 - `apps/worker/src/modules/day-trading/day-trading.service.ts` — orchestrator: WS-triggered scan + cron fallback + dedup + guards
 - `apps/worker/src/modules/day-trading/day-trading.module.ts` — NestJS module
-- `apps/api/src/modules/day-trading/day-trading.controller.ts` — REST endpoints (`GET /day-trading/signals`, `/stats`, `/:id`)
+- `apps/api/src/modules/day-trading/day-trading.controller.ts` — REST endpoints (`GET /day-trading/signals`, `/stats`, `/:id`, `GET|PUT /day-trading/settings`)
 - `apps/api/src/modules/day-trading/day-trading.service.ts` — API service layer
-- `packages/db/src/repositories/day-trading.repository.ts` — DB repository (incl. `findLatestSignal` for dedup)
-- `packages/db/prisma/schema.prisma` — `DayTradingSignal` model (`mode` column)
+- `apps/api/src/modules/day-trading/dto/update-settings.dto.ts` — settings update validation
+- `packages/db/src/repositories/day-trading.repository.ts` — DB repository (incl. `findLatestSignal` dedup, `getSettings`/`updateSettings`, `countTodayLosses`)
+- `packages/db/prisma/schema.prisma` — `DayTradingSignal` + `DayTradingSettings` models
 - `packages/db/prisma/migrations/20260613000004_add_day_trading_signals/migration.sql` — table
 - `packages/db/prisma/migrations/20260613000005_add_day_trading_mode/migration.sql` — `mode` column
 - `apps/web/src/widgets/day-trading/day-trading-feed.tsx` — signal feed + stats + PAPER/LIVE badge

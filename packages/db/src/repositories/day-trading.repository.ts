@@ -73,15 +73,35 @@ export function createDayTradingRepository(client = prisma) {
       return client.dayTradingSignal.count({ where: { symbol, detectedAt: { gte: startOfDay } } });
     },
 
-    /** Net realized P&L (USD) for today's closed trades — used for the daily loss guard. */
-    async getTodayPnlUsd(symbol: string): Promise<number> {
+    /** Number of losing (SL_HIT) trades closed today — used for the daily loss guard. */
+    countTodayLosses(symbol: string) {
       const startOfDay = new Date();
       startOfDay.setUTCHours(0, 0, 0, 0);
-      const agg = await client.dayTradingSignal.aggregate({
-        _sum: { pnlUsd: true },
-        where: { symbol, status: { in: ['TP_HIT', 'SL_HIT'] }, closedAt: { gte: startOfDay } },
+      return client.dayTradingSignal.count({
+        where: { symbol, status: 'SL_HIT', closedAt: { gte: startOfDay } },
       });
-      return agg._sum.pnlUsd ?? 0;
+    },
+
+    /** Singleton config — created with defaults on first access. */
+    getSettings() {
+      return client.dayTradingSettings.upsert({
+        where: { id: 'singleton' },
+        create: {},
+        update: {},
+      });
+    },
+
+    updateSettings(data: {
+      riskPerTrade?: number;
+      minRR?: number;
+      maxTradesPerDay?: number;
+      maxLossesPerDay?: number;
+    }) {
+      return client.dayTradingSettings.upsert({
+        where: { id: 'singleton' },
+        create: { ...data },
+        update: { ...data },
+      });
     },
 
     async getStats() {

@@ -498,6 +498,15 @@ export type DayTradingStats = {
   totalPnlUsd: number;
 };
 
+export type DayTradingSettings = {
+  riskPerTrade: number;
+  minRR: number;
+  maxTradesPerDay: number;
+  maxLossesPerDay: number;
+};
+
+export type UpdateDayTradingSettingsInput = Partial<DayTradingSettings>;
+
 export type SmallCapCoinRow = {
   id: string;
   symbol: string;

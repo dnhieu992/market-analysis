@@ -40,6 +40,8 @@ import type {
   DayTradingSignal,
   DayTradingSignalsResponse,
   DayTradingStats,
+  DayTradingSettings,
+  UpdateDayTradingSettingsInput,
 } from './types';
 
 
@@ -829,6 +831,22 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async fetchDayTradingSignalById(id: string): Promise<DayTradingSignal | null> {
       return fetchJson<DayTradingSignal | null>(fetchImpl, `${baseUrl}/day-trading/signals/${encodeURIComponent(id)}`, withDefaults({}));
+    },
+
+    async fetchDayTradingSettings(): Promise<DayTradingSettings> {
+      return fetchJson<DayTradingSettings>(fetchImpl, `${baseUrl}/day-trading/settings`, withDefaults({}));
+    },
+
+    async updateDayTradingSettings(input: UpdateDayTradingSettingsInput): Promise<DayTradingSettings> {
+      return fetchJson<DayTradingSettings>(
+        fetchImpl,
+        `${baseUrl}/day-trading/settings`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
     },
   };
 }

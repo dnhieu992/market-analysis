@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createDayTradingRepository } from '@app/db';
 import type { QuerySignalsDto } from './dto/query-signals.dto';
+import type { UpdateDayTradingSettingsDto } from './dto/update-settings.dto';
 
 const repo = createDayTradingRepository();
 
@@ -31,5 +32,13 @@ export class DayTradingService {
 
   getSignalById(id: string) {
     return repo.findById(id);
+  }
+
+  getSettings() {
+    return repo.getSettings();
+  }
+
+  updateSettings(dto: UpdateDayTradingSettingsDto) {
+    return repo.updateSettings(dto);
   }
 }

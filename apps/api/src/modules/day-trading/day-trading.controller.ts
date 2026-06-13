@@ -1,13 +1,26 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DayTradingService } from './day-trading.service';
 import { QuerySignalsDto } from './dto/query-signals.dto';
+import { UpdateDayTradingSettingsDto } from './dto/update-settings.dto';
 
 @ApiTags('day-trading')
 @ApiCookieAuth('market_analysis_session')
 @Controller('day-trading')
 export class DayTradingController {
   constructor(private readonly service: DayTradingService) {}
+
+  @Get('settings')
+  @ApiOperation({ summary: 'Get day trading risk settings' })
+  getSettings() {
+    return this.service.getSettings();
+  }
+
+  @Put('settings')
+  @ApiOperation({ summary: 'Update day trading risk settings' })
+  updateSettings(@Body() dto: UpdateDayTradingSettingsDto) {
+    return this.service.updateSettings(dto);
+  }
 
   @Get('signals')
   @ApiOperation({ summary: 'List day trading signals' })
