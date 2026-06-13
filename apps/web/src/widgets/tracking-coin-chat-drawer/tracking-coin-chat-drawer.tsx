@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { TrackingCoinRow } from '@web/shared/api/types';
 
 /*
@@ -37,7 +37,51 @@ type Props = {
 
 // const STORAGE_KEY = (symbol: string) => `tracking-coin-chat:${symbol}`;
 
-function buildInitialPrompt(coin: TrackingCoinRow, livePrice: number | null): string {
+// ── Raw candle (OHLCV) fetching for CSV embedding ──────────────────────────
+const CANDLE_TIMEFRAMES: { label: string; interval: string; limit: number }[] = [
+  { label: 'D1', interval: '1d', limit: 100 },
+  { label: 'H4', interval: '4h', limit: 100 },
+  { label: 'M30', interval: '30m', limit: 80 },
+];
+
+type Kline = [number, string, string, string, string, string, ...unknown[]];
+
+async function fetchKlines(symbol: string, interval: string, limit: number): Promise<Kline[]> {
+  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Binance ${res.status} for ${symbol} ${interval}`);
+  return res.json() as Promise<Kline[]>;
+}
+
+function fmtCandleTime(ms: number, interval: string): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  if (interval === '1d' || interval === '1w') return date;
+  return `${date} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+// Drop trailing zeros from Binance's fixed-decimal strings to keep the CSV compact.
+const compactNum = (s: string) => Number(s).toString();
+
+function buildCandleCsvSection(blocks: { label: string; interval: string; rows: Kline[] }[]): string {
+  const lines: string[] = [];
+  lines.push(``, `---`, ``);
+  lines.push(`**Nến thô (OHLCV, giờ UTC)** — dùng để đọc cấu trúc giá / mẫu hình. Indicator ở trên đã được tính sẵn và là số liệu chuẩn; đừng tự tính lại indicator từ nến.`);
+  for (const { label, interval, rows } of blocks) {
+    lines.push(``);
+    lines.push(`Nến ${label} (${interval}, ${rows.length} cây, cũ → mới):`);
+    lines.push('```');
+    lines.push('time,open,high,low,close,volume');
+    for (const r of rows) {
+      lines.push(`${fmtCandleTime(r[0], interval)},${compactNum(r[1])},${compactNum(r[2])},${compactNum(r[3])},${compactNum(r[4])},${compactNum(r[5])}`);
+    }
+    lines.push('```');
+  }
+  return lines.join('\n');
+}
+
+function buildInitialPrompt(coin: TrackingCoinRow, livePrice: number | null, candleSection: string): string {
   const sig = coin.signal;
   const name = coin.name ? `${coin.symbol} (${coin.name})` : coin.symbol;
 
@@ -85,8 +129,12 @@ function buildInitialPrompt(coin: TrackingCoinRow, livePrice: number | null): st
     lines.push(`Dữ liệu scan lúc: ${new Date(sig.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`);
   }
 
+  if (candleSection) {
+    lines.push(candleSection);
+  }
+
   lines.push(``, `---`, ``);
-  lines.push(`Dựa trên các chỉ báo trên, hãy:`);
+  lines.push(`Dựa trên các chỉ báo${candleSection ? ' và nến thô' : ''} ở trên, hãy:`);
   lines.push(`1. Đánh giá xu hướng tổng thể (bullish / bearish / neutral) và độ mạnh của xu hướng`);
   lines.push(`2. Phân tích sự đồng thuận/phân kỳ giữa D1 và H4`);
   lines.push(`3. Xác định các vùng giá quan trọng (support/resistance) cần chú ý`);
@@ -96,8 +144,35 @@ function buildInitialPrompt(coin: TrackingCoinRow, livePrice: number | null): st
 }
 
 export function TrackingCoinChatDrawer({ coin, livePrice, onClose }: Props) {
-  const prompt = buildInitialPrompt(coin, livePrice);
   const [copied, setCopied] = useState(false);
+  const [candleSection, setCandleSection] = useState('');
+  const [candleStatus, setCandleStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    setCandleStatus('loading');
+    setCandleSection('');
+    (async () => {
+      try {
+        const blocks = await Promise.all(
+          CANDLE_TIMEFRAMES.map(async (tf) => ({
+            label: tf.label,
+            interval: tf.interval,
+            rows: await fetchKlines(coin.symbol, tf.interval, tf.limit),
+          }))
+        );
+        if (cancelled) return;
+        setCandleSection(buildCandleCsvSection(blocks));
+        setCandleStatus('ready');
+      } catch {
+        if (cancelled) return;
+        setCandleStatus('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [coin.symbol]);
+
+  const prompt = buildInitialPrompt(coin, livePrice, candleSection);
 
   async function handleCopy() {
     try {
@@ -305,8 +380,14 @@ export function TrackingCoinChatDrawer({ coin, livePrice, onClose }: Props) {
         {/* Prompt body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#f9fafb' }}>
           <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-            Prompt phân tích đã được tạo sẵn với đầy đủ chỉ báo. Copy và dán vào AI bạn muốn dùng.
+            Prompt phân tích đã được tạo sẵn với đầy đủ chỉ báo + nến thô (OHLCV). Copy và dán vào AI bạn muốn dùng.
           </div>
+          {candleStatus === 'loading' && (
+            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏳ Đang tải nến D1/H4/M30 từ Binance…</div>
+          )}
+          {candleStatus === 'error' && (
+            <div style={{ fontSize: '0.75rem', color: '#b45309' }}>⚠ Không tải được nến — prompt chỉ gồm chỉ báo (không có OHLCV).</div>
+          )}
           <textarea
             value={prompt}
             readOnly
@@ -326,14 +407,17 @@ export function TrackingCoinChatDrawer({ coin, livePrice, onClose }: Props) {
         <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #e5e7eb', background: '#ffffff', flexShrink: 0 }}>
           <button
             onClick={() => void handleCopy()}
+            disabled={candleStatus === 'loading'}
             style={{
               width: '100%', padding: '0.7rem 1rem',
               background: copied ? '#16a34a' : '#4f46e5', color: '#fff',
-              border: 'none', borderRadius: '10px', cursor: 'pointer',
+              border: 'none', borderRadius: '10px',
+              cursor: candleStatus === 'loading' ? 'not-allowed' : 'pointer',
               fontWeight: 600, fontSize: '0.9rem', transition: 'background 0.15s',
+              opacity: candleStatus === 'loading' ? 0.5 : 1,
             }}
           >
-            {copied ? '✓ Đã copy prompt' : 'Copy prompt'}
+            {candleStatus === 'loading' ? 'Đang tải nến…' : copied ? '✓ Đã copy prompt' : 'Copy prompt'}
           </button>
         </div>
       </div>
