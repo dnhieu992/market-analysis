@@ -997,7 +997,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         <button className="tt-btn tt-btn--journal" data-tooltip="Journal" aria-label={`Journal ${coin.symbol}`} onClick={() => setJournalCoin(coin)}>
                           <IconJournal />
                         </button>
-                        <button className="tt-btn tt-btn--ai" data-tooltip="Ask AI" aria-label={`Ask AI về ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
+                        <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconAI />
                         </button>
                         <button className="tt-btn tt-btn--trades" data-tooltip="Lệnh" aria-label={`Lệnh ${coin.symbol}`} onClick={() => setTradesCoin(coin.symbol)}>

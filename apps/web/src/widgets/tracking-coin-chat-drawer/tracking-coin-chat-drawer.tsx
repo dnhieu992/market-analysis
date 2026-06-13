@@ -1,10 +1,29 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { createApiClient } from '@web/shared/api/client';
-import { renderMarkdown } from '@web/shared/lib/markdown';
-import type { ChatMessage } from '@web/shared/api/types';
+import { useState } from 'react';
 import type { TrackingCoinRow } from '@web/shared/api/types';
+
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ *  TEMPORARILY DISABLED: AI LLM analysis of the current position.
+ *
+ *  The "Ask AI" button used to open a live chat drawer that auto-fired an
+ *  LLM analysis of the coin (createConversation → sendMessage → poll reply).
+ *  That feature is kept but disabled for now — see the commented block below.
+ *
+ *  New behavior: the button generates the full analysis prompt (with all the
+ *  indicator data) and lets the user copy it, so they can paste it into an
+ *  external LLM manually.
+ *
+ *  To re-enable the in-app AI chat, restore the commented imports/logic below
+ *  and revert the render section to the original chat UI.
+ * ──────────────────────────────────────────────────────────────────────────
+ */
+
+// import { useEffect, useRef } from 'react';
+// import { createApiClient } from '@web/shared/api/client';
+// import { renderMarkdown } from '@web/shared/lib/markdown';
+// import type { ChatMessage } from '@web/shared/api/types';
 
 type Props = {
   coin: TrackingCoinRow;
@@ -12,11 +31,11 @@ type Props = {
   onClose: () => void;
 };
 
-function TypingIndicator() {
-  return <div className="chat-typing"><span /><span /><span /></div>;
-}
+// function TypingIndicator() {
+//   return <div className="chat-typing"><span /><span /><span /></div>;
+// }
 
-const STORAGE_KEY = (symbol: string) => `tracking-coin-chat:${symbol}`;
+// const STORAGE_KEY = (symbol: string) => `tracking-coin-chat:${symbol}`;
 
 function buildInitialPrompt(coin: TrackingCoinRow, livePrice: number | null): string {
   const sig = coin.signal;
@@ -77,137 +96,162 @@ function buildInitialPrompt(coin: TrackingCoinRow, livePrice: number | null): st
 }
 
 export function TrackingCoinChatDrawer({ coin, livePrice, onClose }: Props) {
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [initializing, setInitializing] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pollingRef = useRef(false);
+  const prompt = buildInitialPrompt(coin, livePrice);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    return () => { pollingRef.current = false; };
-  }, []);
-
-  useEffect(() => {
-    void initConversation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coin.symbol]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
-
-  async function pollForReply(convId: string, afterIso: string): Promise<void> {
-    const TIMEOUT = 5 * 60 * 1000;
-    const start = Date.now();
-    while (pollingRef.current && Date.now() - start < TIMEOUT) {
-      await new Promise<void>((res) => setTimeout(res, 2000));
-      if (!pollingRef.current) break;
-      try {
-        const msgs = await createApiClient().getMessages(convId);
-        const hasReply = msgs.some((m) => m.role === 'assistant' && m.createdAt >= afterIso);
-        setMessages(msgs);
-        if (hasReply) { pollingRef.current = false; setLoading(false); return; }
-      } catch { /* ignore */ }
-    }
-    pollingRef.current = false;
-    setLoading(false);
-  }
-
-  async function initConversation() {
-    pollingRef.current = false;
-    setInitializing(true);
-    const api = createApiClient();
-    const storageKey = STORAGE_KEY(coin.symbol);
-    const cachedId = localStorage.getItem(storageKey);
-
-    if (cachedId) {
-      try {
-        const existing = await api.getMessages(cachedId);
-        setConversationId(cachedId);
-        setMessages(existing);
-        setInitializing(false);
-        const lastMsg = existing[existing.length - 1];
-        if (lastMsg?.role === 'user') {
-          const age = Date.now() - new Date(lastMsg.createdAt).getTime();
-          if (age < 10 * 60 * 1000) {
-            setLoading(true);
-            pollingRef.current = true;
-            void pollForReply(cachedId, lastMsg.createdAt);
-          }
-        }
-        return;
-      } catch {
-        localStorage.removeItem(storageKey);
-      }
-    }
-
+  async function handleCopy() {
     try {
-      const conv = await api.createConversation(`${coin.symbol} — Market Analysis`);
-      localStorage.setItem(storageKey, conv.id);
-      setConversationId(conv.id);
-      setMessages([]);
-      setInitializing(false);
-
-      const prompt = buildInitialPrompt(coin, livePrice);
-      const sentAt = new Date().toISOString();
-      const optimistic: ChatMessage = {
-        id: `optimistic-${Date.now()}`,
-        conversationId: conv.id,
-        role: 'user',
-        content: prompt,
-        createdAt: sentAt,
-      };
-      setMessages([optimistic]);
-      setLoading(true);
-      await api.sendMessage(conv.id, prompt);
-      pollingRef.current = true;
-      void pollForReply(conv.id, sentAt);
+      await navigator.clipboard.writeText(prompt);
     } catch {
-      setInitializing(false);
+      // Fallback for non-secure contexts / older browsers
+      const ta = document.createElement('textarea');
+      ta.value = prompt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(ta);
     }
-  }
-
-  async function handleClear() {
-    if (!conversationId) return;
-    try { await createApiClient().deleteConversation(conversationId); } catch { /* ignore */ }
-    localStorage.removeItem(STORAGE_KEY(coin.symbol));
-    setConversationId(null);
-    setMessages([]);
-    void initConversation();
-  }
-
-  async function handleSend() {
-    const content = input.trim();
-    if (!content || !conversationId || loading) return;
-    setInput('');
-    const sentAt = new Date().toISOString();
-    const optimistic: ChatMessage = {
-      id: `optimistic-${Date.now()}`,
-      conversationId,
-      role: 'user',
-      content,
-      createdAt: sentAt,
-    };
-    setMessages((prev) => [...prev, optimistic]);
-    setLoading(true);
-    try {
-      await createApiClient().sendMessage(conversationId, content);
-    } catch {
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      setLoading(false);
-      return;
-    }
-    pollingRef.current = true;
-    void pollForReply(conversationId, sentAt);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   const sig = coin.signal;
+
+  /*
+   * ── DISABLED: in-app AI chat logic (kept for future re-enable) ────────────
+   *
+   * const [conversationId, setConversationId] = useState<string | null>(null);
+   * const [messages, setMessages] = useState<ChatMessage[]>([]);
+   * const [input, setInput] = useState('');
+   * const [loading, setLoading] = useState(false);
+   * const [initializing, setInitializing] = useState(true);
+   * const messagesEndRef = useRef<HTMLDivElement>(null);
+   * const pollingRef = useRef(false);
+   *
+   * useEffect(() => {
+   *   return () => { pollingRef.current = false; };
+   * }, []);
+   *
+   * useEffect(() => {
+   *   void initConversation();
+   *   // eslint-disable-next-line react-hooks/exhaustive-deps
+   * }, [coin.symbol]);
+   *
+   * useEffect(() => {
+   *   messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+   * }, [messages, loading]);
+   *
+   * async function pollForReply(convId: string, afterIso: string): Promise<void> {
+   *   const TIMEOUT = 5 * 60 * 1000;
+   *   const start = Date.now();
+   *   while (pollingRef.current && Date.now() - start < TIMEOUT) {
+   *     await new Promise<void>((res) => setTimeout(res, 2000));
+   *     if (!pollingRef.current) break;
+   *     try {
+   *       const msgs = await createApiClient().getMessages(convId);
+   *       const hasReply = msgs.some((m) => m.role === 'assistant' && m.createdAt >= afterIso);
+   *       setMessages(msgs);
+   *       if (hasReply) { pollingRef.current = false; setLoading(false); return; }
+   *     } catch { (* ignore *) }
+   *   }
+   *   pollingRef.current = false;
+   *   setLoading(false);
+   * }
+   *
+   * async function initConversation() {
+   *   pollingRef.current = false;
+   *   setInitializing(true);
+   *   const api = createApiClient();
+   *   const storageKey = STORAGE_KEY(coin.symbol);
+   *   const cachedId = localStorage.getItem(storageKey);
+   *
+   *   if (cachedId) {
+   *     try {
+   *       const existing = await api.getMessages(cachedId);
+   *       setConversationId(cachedId);
+   *       setMessages(existing);
+   *       setInitializing(false);
+   *       const lastMsg = existing[existing.length - 1];
+   *       if (lastMsg?.role === 'user') {
+   *         const age = Date.now() - new Date(lastMsg.createdAt).getTime();
+   *         if (age < 10 * 60 * 1000) {
+   *           setLoading(true);
+   *           pollingRef.current = true;
+   *           void pollForReply(cachedId, lastMsg.createdAt);
+   *         }
+   *       }
+   *       return;
+   *     } catch {
+   *       localStorage.removeItem(storageKey);
+   *     }
+   *   }
+   *
+   *   try {
+   *     const conv = await api.createConversation(`${coin.symbol} — Market Analysis`);
+   *     localStorage.setItem(storageKey, conv.id);
+   *     setConversationId(conv.id);
+   *     setMessages([]);
+   *     setInitializing(false);
+   *
+   *     const sentAt = new Date().toISOString();
+   *     const optimistic: ChatMessage = {
+   *       id: `optimistic-${Date.now()}`,
+   *       conversationId: conv.id,
+   *       role: 'user',
+   *       content: prompt,
+   *       createdAt: sentAt,
+   *     };
+   *     setMessages([optimistic]);
+   *     setLoading(true);
+   *     await api.sendMessage(conv.id, prompt);
+   *     pollingRef.current = true;
+   *     void pollForReply(conv.id, sentAt);
+   *   } catch {
+   *     setInitializing(false);
+   *   }
+   * }
+   *
+   * async function handleClear() {
+   *   if (!conversationId) return;
+   *   try { await createApiClient().deleteConversation(conversationId); } catch { (* ignore *) }
+   *   localStorage.removeItem(STORAGE_KEY(coin.symbol));
+   *   setConversationId(null);
+   *   setMessages([]);
+   *   void initConversation();
+   * }
+   *
+   * async function handleSend() {
+   *   const content = input.trim();
+   *   if (!content || !conversationId || loading) return;
+   *   setInput('');
+   *   const sentAt = new Date().toISOString();
+   *   const optimistic: ChatMessage = {
+   *     id: `optimistic-${Date.now()}`,
+   *     conversationId,
+   *     role: 'user',
+   *     content,
+   *     createdAt: sentAt,
+   *   };
+   *   setMessages((prev) => [...prev, optimistic]);
+   *   setLoading(true);
+   *   try {
+   *     await createApiClient().sendMessage(conversationId, content);
+   *   } catch {
+   *     setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+   *     setLoading(false);
+   *     return;
+   *   }
+   *   pollingRef.current = true;
+   *   void pollForReply(conversationId, sentAt);
+   * }
+   *
+   * function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+   *   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); }
+   * }
+   * ──────────────────────────────────────────────────────────────────────────
+   */
 
   return (
     <>
@@ -238,7 +282,7 @@ export function TrackingCoinChatDrawer({ coin, livePrice, onClose }: Props) {
               <span style={{
                 fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.45rem',
                 borderRadius: '4px', background: '#ede9fe', color: '#6d28d9',
-              }}>AI</span>
+              }}>PROMPT</span>
             </div>
             <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.15rem', display: 'flex', gap: '0.75rem' }}>
               {livePrice != null && <span>Live: ${livePrice.toLocaleString('en-US', { maximumFractionDigits: 4 })}</span>}
@@ -252,99 +296,45 @@ export function TrackingCoinChatDrawer({ coin, livePrice, onClose }: Props) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            <button
-              onClick={() => void handleClear()}
-              disabled={initializing || messages.length === 0}
-              title="Phân tích mới"
-              style={{
-                background: 'none', border: '1px solid #e5e7eb', borderRadius: '6px',
-                cursor: 'pointer', color: '#6b7280', fontSize: '0.75rem',
-                padding: '0.3rem 0.6rem', lineHeight: 1,
-                opacity: initializing || messages.length === 0 ? 0.4 : 1,
-              }}
-            >
-              New
-            </button>
             <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '1.4rem', lineHeight: 1, padding: '0.25rem' }}>
               ✕
             </button>
           </div>
         </div>
 
-        {/* Messages */}
+        {/* Prompt body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#f9fafb' }}>
-          {initializing ? (
-            <div style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'center', paddingTop: '2rem' }}>Đang khởi tạo…</div>
-          ) : messages.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: '0.85rem', textAlign: 'center', paddingTop: '2rem' }}>Đang chuẩn bị phân tích…</div>
-          ) : (
-            messages.map((msg) => {
-              const isUser = msg.role === 'user';
-              return (
-                <div key={msg.id} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
-                  <div style={{
-                    maxWidth: '90%',
-                    padding: '0.6rem 0.9rem',
-                    borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    background: isUser ? '#4f46e5' : '#ffffff',
-                    color: isUser ? '#ffffff' : '#111827',
-                    border: isUser ? 'none' : '1px solid #e5e7eb',
-                    fontSize: '0.875rem',
-                    lineHeight: 1.6,
-                    wordBreak: 'break-word',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                  }}>
-                    {isUser ? (
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
-                    ) : (
-                      <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-          {loading && (
-            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div style={{ padding: '0.6rem 0.9rem', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px 16px 16px 4px', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
-                <TypingIndicator />
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
+          <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+            Prompt phân tích đã được tạo sẵn với đầy đủ chỉ báo. Copy và dán vào AI bạn muốn dùng.
+          </div>
+          <textarea
+            value={prompt}
+            readOnly
+            onFocus={(e) => e.currentTarget.select()}
+            style={{
+              flex: 1, minHeight: '320px', resize: 'none',
+              background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '10px',
+              padding: '0.75rem 0.9rem', color: '#111827',
+              fontSize: '0.8rem', lineHeight: 1.6, outline: 'none',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            }}
+          />
         </div>
 
-        {/* Input */}
+        {/* Copy action */}
         <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #e5e7eb', background: '#ffffff', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Hỏi thêm về coin này… (Enter để gửi)"
-              disabled={loading || initializing || !conversationId}
-              rows={2}
-              style={{
-                flex: 1, resize: 'none',
-                background: '#f9fafb', border: '1px solid #d1d5db', borderRadius: '10px',
-                padding: '0.6rem 0.75rem', color: '#111827',
-                fontSize: '0.875rem', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
-              }}
-            />
-            <button
-              onClick={() => void handleSend()}
-              disabled={loading || initializing || !input.trim() || !conversationId}
-              style={{
-                padding: '0.6rem 1rem', background: '#4f46e5', color: '#fff',
-                border: 'none', borderRadius: '10px', cursor: 'pointer',
-                fontWeight: 600, fontSize: '0.875rem', flexShrink: 0,
-                opacity: loading || initializing || !input.trim() ? 0.45 : 1,
-              }}
-            >
-              Gửi
-            </button>
-          </div>
-          <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.35rem' }}>Shift+Enter để xuống dòng</div>
+          <button
+            onClick={() => void handleCopy()}
+            style={{
+              width: '100%', padding: '0.7rem 1rem',
+              background: copied ? '#16a34a' : '#4f46e5', color: '#fff',
+              border: 'none', borderRadius: '10px', cursor: 'pointer',
+              fontWeight: 600, fontSize: '0.9rem', transition: 'background 0.15s',
+            }}
+          >
+            {copied ? '✓ Đã copy prompt' : 'Copy prompt'}
+          </button>
         </div>
       </div>
     </>
