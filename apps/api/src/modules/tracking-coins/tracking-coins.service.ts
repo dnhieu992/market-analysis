@@ -218,10 +218,11 @@ export class TrackingCoinsService {
   private async scanOneCoin(coinId: string, symbol: string): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
-    const [klines, h4Klines, m30Klines] = await Promise.all([
+    const [klines, h4Klines, m30Klines, h1Klines] = await Promise.all([
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1h', limit: 72 }),
     ]);
 
     if (klines.length < 210) return;
@@ -316,6 +317,30 @@ export class TrackingCoinsService {
       h4Rsi,
       h4VolMultiplier,
     });
+
+    // Regenerate today's orders so re-analyze keeps limit levels fresh
+    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
+    if (currentPrice > 0) {
+      const sigSnap: OrderSigSnapshot = {
+        trend: result.trend,
+        h4Trend,
+        m30Trend,
+        utBotD1Bullish,
+        utBotH4Bullish,
+        longScore,
+        shortScore,
+        ema200Above: result.ema200Above,
+        rsi: result.rsi,
+        h4Rsi,
+        swingStructure: result.swingStructure,
+      };
+      const h1Highs = h1Klines.map((k) => parseFloat(k[2]));
+      const h1Lows  = h1Klines.map((k) => parseFloat(k[3]));
+      await Promise.all([
+        this.repo.upsertOrder(coinId, today, 'swing', computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap)),
+        this.repo.upsertOrder(coinId, today, 'daytrade', computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap)),
+      ]);
+    }
   }
 
   private parseSparkline(json: string): number[] {

@@ -1729,6 +1729,15 @@ a {
   border-color: #0e7490;
 }
 
+.tt-btn--setup {
+  color: #7c3aed;
+  border-color: var(--border);
+}
+.tt-btn--setup:hover {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: #7c3aed;
+}
+
 .tt-btn--analyze {
   color: var(--muted);
   border-color: var(--border);
@@ -7696,6 +7705,86 @@ a.metric-card--link:hover {
 .ord-hist__outcome--active  { background: #2563eb22; color: #2563eb; }
 .ord-hist__outcome--miss    { background: var(--muted-bg, #8882); color: var(--muted); }
 .ord-hist__outcome--pending { background: transparent; color: var(--muted); font-style: italic; }
+
+/* ── setup dialog ── */
+.setup-dialog { max-width: 480px; width: 100%; }
+.setup-body { display: flex; flex-direction: column; gap: 12px; }
+
+.setup-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.setup-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.setup-input {
+  width: 80px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg, var(--background));
+  color: var(--foreground);
+  font-size: 0.85rem;
+}
+.setup-price-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.setup-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setup-card--warn { border-color: #dc262644; background: #dc262606; }
+.setup-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.setup-card__title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex: 1;
+}
+.setup-card__warn {
+  font-size: 0.72rem;
+  color: #dc2626;
+  background: #dc262614;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+.setup-card__order {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 0;
+  font-size: 0.8rem;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.setup-card__result {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 0;
+  font-size: 0.82rem;
+}
+.setup-card__row {
+  display: contents;
+}
+.setup-card__row--em span { font-weight: 600; }
+.setup-card__lbl { color: var(--muted); }
 
 .tt-side-badge {
   display: inline-flex;

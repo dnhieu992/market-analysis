@@ -208,10 +208,13 @@ function IconTrash() {
   );
 }
 
-function IconDetail() {
+function IconSetup() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="3" width="20" height="18" rx="2" />
+      <line x1="7" y1="8" x2="7" y2="8.01" /><line x1="12" y1="8" x2="17" y2="8" />
+      <line x1="7" y1="12" x2="7" y2="12.01" /><line x1="12" y1="12" x2="17" y2="12" />
+      <line x1="7" y1="16" x2="7" y2="16.01" /><line x1="12" y1="16" x2="17" y2="16" />
     </svg>
   );
 }
@@ -524,6 +527,156 @@ function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClo
   );
 }
 
+/* ── position setup dialog ──────────────────────────────────────── */
+
+type SetupCalc = {
+  positionSize: number;
+  positionValue: number;
+  profitTP1: number;
+  profitTP2: number | null;
+  actualRR: number;
+  meetsMinRR: boolean;
+};
+
+function calcSetup(order: OrderSuggestion, maxLoss: number, minRR: number): SetupCalc | null {
+  const entryMid = (order.entryLow + order.entryHigh) / 2;
+  const riskPerUnit = order.side === 'LONG' ? entryMid - order.sl : order.sl - entryMid;
+  if (riskPerUnit <= 0) return null;
+  const positionSize  = maxLoss / riskPerUnit;
+  const positionValue = positionSize * entryMid;
+  const tp1Dist = order.side === 'LONG' ? order.tp1 - entryMid : entryMid - order.tp1;
+  const tp2Dist = order.tp2 != null ? (order.side === 'LONG' ? order.tp2 - entryMid : entryMid - order.tp2) : null;
+  const profitTP1  = positionSize * tp1Dist;
+  const profitTP2  = tp2Dist != null ? positionSize * tp2Dist : null;
+  const actualRR   = tp1Dist / riskPerUnit;
+  return { positionSize, positionValue, profitTP1, profitTP2, actualRR, meetsMinRR: actualRR >= minRR };
+}
+
+function SetupOrderCard({ order, label, maxLoss, minRR }: { order: OrderSuggestion; label: string; maxLoss: number; minRR: number }) {
+  const isLong = order.side === 'LONG';
+  const calc = calcSetup(order, maxLoss, minRR);
+  return (
+    <div className={`setup-card${calc && !calc.meetsMinRR ? ' setup-card--warn' : ''}`}>
+      <div className="setup-card__header">
+        <span className="setup-card__title">{label}</span>
+        <span className={`tt-side-badge tt-side-badge--${isLong ? 'long' : 'short'}`}>{order.side}</span>
+        {calc && !calc.meetsMinRR && (
+          <span className="setup-card__warn">R:R {calc.actualRR.toFixed(2)} &lt; {minRR.toFixed(1)} min</span>
+        )}
+      </div>
+      <div className="setup-card__order">
+        <div className="setup-card__row">
+          <span className="setup-card__lbl">Vùng entry</span>
+          <span>${fmtPrice(order.entryLow)} – ${fmtPrice(order.entryHigh)}</span>
+        </div>
+        <div className="setup-card__row">
+          <span className="setup-card__lbl">TP1</span>
+          <span className="ord-tp">${fmtPrice(order.tp1)}</span>
+        </div>
+        {order.tp2 != null && (
+          <div className="setup-card__row">
+            <span className="setup-card__lbl">TP2</span>
+            <span className="ord-tp">${fmtPrice(order.tp2)}</span>
+          </div>
+        )}
+        <div className="setup-card__row">
+          <span className="setup-card__lbl">SL</span>
+          <span className="ord-sl">${fmtPrice(order.sl)}</span>
+        </div>
+      </div>
+      {calc ? (
+        <div className="setup-card__result">
+          <div className="setup-card__row setup-card__row--em">
+            <span className="setup-card__lbl">Số lượng</span>
+            <span>{calc.positionSize < 1 ? calc.positionSize.toFixed(4) : calc.positionSize.toFixed(2)}</span>
+          </div>
+          <div className="setup-card__row setup-card__row--em">
+            <span className="setup-card__lbl">Giá trị vị thế</span>
+            <span>${calc.positionValue.toFixed(2)}</span>
+          </div>
+          <div className="setup-card__row">
+            <span className="setup-card__lbl">Lãi tại TP1</span>
+            <span className="ord-tp">+${calc.profitTP1.toFixed(2)}</span>
+          </div>
+          {calc.profitTP2 != null && (
+            <div className="setup-card__row">
+              <span className="setup-card__lbl">Lãi tại TP2</span>
+              <span className="ord-tp">+${calc.profitTP2.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="setup-card__row">
+            <span className="setup-card__lbl">R:R thực tế</span>
+            <span className={calc.meetsMinRR ? 'ord-tp' : 'ord-sl'}>{calc.actualRR.toFixed(2)}×</span>
+          </div>
+        </div>
+      ) : (
+        <p className="scr-muted" style={{ fontSize: '0.8rem' }}>Không tính được (risk = 0)</p>
+      )}
+      <p className="ord-card__rationale">{order.rationale}</p>
+    </div>
+  );
+}
+
+function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  const [maxLossInput, setMaxLossInput] = useState('10');
+  const [minRRInput, setMinRRInput]   = useState('1.5');
+  const [orders, setOrders] = useState<OrderSuggestions | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState<string | null>(null);
+
+  const maxLoss = Math.max(0.01, parseFloat(maxLossInput) || 10);
+  const minRR   = Math.max(0.1,  parseFloat(minRRInput)   || 1.5);
+
+  const load = useCallback(() => {
+    let cancelled = false;
+    setLoading(true); setError(null);
+    createApiClient().fetchOrderSuggestions(symbol)
+      .then((r) => { if (!cancelled) { setOrders(r); setLoading(false); } })
+      .catch((e) => { if (!cancelled) { setError(e instanceof Error ? e.message : 'Lỗi.'); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  useEffect(() => { return load(); }, [load]);
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog setup-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Setup lệnh — {symbol}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body setup-body">
+          <div className="setup-inputs">
+            <label className="setup-label">
+              <span>SL tối đa ($)</span>
+              <input className="setup-input" type="number" min="0.01" step="1" value={maxLossInput} onChange={(e) => setMaxLossInput(e.target.value)} />
+            </label>
+            <label className="setup-label">
+              <span>R:R tối thiểu</span>
+              <input className="setup-input" type="number" min="0.1" step="0.1" value={minRRInput} onChange={(e) => setMinRRInput(e.target.value)} />
+            </label>
+            <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻</button>
+          </div>
+          {loading && (
+            <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
+          )}
+          {error && <p className="scr-muted ord-error">{error}</p>}
+          {!loading && !error && orders && (
+            <>
+              <div className="setup-price-bar">
+                <span className="ord-price-bar__label">Giá hiện tại</span>
+                <span className="ord-price-bar__value">${fmtPrice(orders.currentPrice)}</span>
+              </div>
+              <SetupOrderCard order={orders.swing} label="Swing (2–5 ngày)" maxLoss={maxLoss} minRR={minRR} />
+              <SetupOrderCard order={orders.scalp} label="Day trade (trong ngày)" maxLoss={maxLoss} minRR={minRR} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── add coin form ──────────────────────────────────────────────── */
 
 function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) {
@@ -584,6 +737,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [journalCoin, setJournalCoin] = useState<TrackingCoinRow | null>(null);
   const [tradesCoin, setTradesCoin] = useState<string | null>(null);
+  const [setupCoin, setSetupCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
 
@@ -670,6 +824,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         />
       )}
       {tradesCoin && <CoinOrderSuggestionsDialog symbol={tradesCoin} onClose={() => setTradesCoin(null)} />}
+      {setupCoin && <CoinSetupDialog symbol={setupCoin} onClose={() => setSetupCoin(null)} />}
 
       <main className="dashboard-shell scr-shell">
         {/* header */}
@@ -819,8 +974,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         <button className="tt-btn tt-btn--trades" data-tooltip="Lệnh" aria-label={`Lệnh ${coin.symbol}`} onClick={() => setTradesCoin(coin.symbol)}>
                           <IconTrades />
                         </button>
-                        <button className="tt-btn tt-btn--notes" data-tooltip="Chi tiết" aria-label={`Chi tiết ${coin.symbol}`} onClick={() => setSelectedCoin(coin)}>
-                          <IconDetail />
+                        <button className="tt-btn tt-btn--setup" data-tooltip="Setup" aria-label={`Setup ${coin.symbol}`} onClick={() => setSetupCoin(coin.symbol)}>
+                          <IconSetup />
                         </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
                           {removingSymbol === coin.symbol ? '…' : <IconTrash />}
