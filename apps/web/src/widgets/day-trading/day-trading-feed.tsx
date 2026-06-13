@@ -131,7 +131,7 @@ const FILTERS: { label: string; value: StatusFilter }[] = [
 
 const SETTING_FIELDS: { key: keyof DayTradingSettings; label: string; hint: string; step: number; min: number }[] = [
   { key: 'riskPerTrade', label: 'Rủi ro mỗi lệnh (USDT)', hint: 'Lỗ cứng khi chạm SL', step: 0.5, min: 0.1 },
-  { key: 'minRR', label: 'TP tối thiểu (R)', hint: 'TP = R × rủi ro. VD 2 = 1:2', step: 0.5, min: 0.1 },
+  { key: 'minRR', label: 'R:R tối thiểu (R)', hint: 'Chỉ vào lệnh nếu R:R (theo TP phân tích) ≥ giá trị này', step: 0.5, min: 0.1 },
   { key: 'maxTradesPerDay', label: 'Số lệnh tối đa/ngày', hint: 'Dừng vào lệnh khi đạt', step: 1, min: 1 },
   { key: 'maxLossesPerDay', label: 'Số lệnh lỗ tối đa/ngày', hint: 'Dừng ngày khi đủ số lệnh SL', step: 1, min: 1 },
 ];
@@ -232,7 +232,7 @@ export function DayTradingFeed({ initialSignals, initialStats, initialSettings }
         <div>
           <h1 className="dt-title">Day Trading — BTCUSDT</h1>
           <p className="dt-subtitle">
-            Risk ${settings.riskPerTrade} · TP {settings.minRR}R · max {settings.maxTradesPerDay} lệnh / {settings.maxLossesPerDay} lỗ /ngày
+            Risk ${settings.riskPerTrade} · R:R ≥ {settings.minRR} · max {settings.maxTradesPerDay} lệnh / {settings.maxLossesPerDay} lỗ /ngày
           </p>
         </div>
         <div className="dt-header-actions">

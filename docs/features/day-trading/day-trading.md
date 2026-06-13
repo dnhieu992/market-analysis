@@ -18,10 +18,11 @@ Built in two phases:
    - **Liquidity Sweep**: 1H swing high/low swept ≥0.3%, closed back with engulfing/pin bar + volume spike.
    - **Break & Retest**: 4H/1H trend-confirmed level break (volume > avg×1.2), retest pullback, confirmation close.
 6. **Dedup**: if the same setup+direction already fired within one candle window (~14 min), it is skipped.
-7. **Risk/volume model** (configurable via settings): each trade risks exactly `riskPerTrade` USDT if SL is hit. TP is placed at `minRR` R (`minRR × |entry − stopLoss|`). Volume (BTC) = `riskPerTrade / |entry − stopLoss|`, `positionValue = quantity × entry`. P&L realized in USD = `quantity × price move`.
-8. `SignalExecutorService.execute()` — **Phase 1**: logs `🔔 TÍN HIỆU [PAPER] …` and persists the signal with `mode = PAPER`, `status = ACTIVE`. No order is placed.
-9. **Result monitor** (`@Cron` every minute) reads the **real-time WS price** (REST fallback if WS is stale) and marks ACTIVE signals `TP_HIT` / `SL_HIT`, recording `pnlUsd`.
-10. Web page `/day-trading` shows signals + stats (Total P&L in USD), auto-refreshing every 60s. Each signal shows volume and a PAPER/LIVE badge.
+7. **TP from analysis + minRR gate**: TP is the nearest structural target from price action — nearest 1H swing low/high in the trade direction (reversal target for sweeps, continuation target for break & retest). The setup is only **valid** if that target's R:R ≥ `minRR`; otherwise it's rejected (reason logged). `minRR` does NOT set the TP — it filters setups.
+8. **Risk/volume model** (configurable): each trade risks exactly `riskPerTrade` USDT if SL is hit. Volume (BTC) = `riskPerTrade / |entry − stopLoss|`, `positionValue = quantity × entry`. P&L realized in USD = `quantity × price move`. `rrRatio` stored is the actual R:R of the analysis target.
+9. `SignalExecutorService.execute()` — **Phase 1**: logs `🔔 TÍN HIỆU [PAPER] …` and persists the signal with `mode = PAPER`, `status = ACTIVE`. No order is placed.
+10. **Result monitor** (`@Cron` every minute) reads the **real-time WS price** (REST fallback if WS is stale) and marks ACTIVE signals `TP_HIT` / `SL_HIT`, recording `pnlUsd`.
+11. Web page `/day-trading` shows signals + stats (Total P&L in USD), auto-refreshing every 60s. Each signal shows volume and a PAPER/LIVE badge.
 
 ## Edge Cases
 - **WS disconnect**: auto-reconnects with backoff. A cron fallback (`:02/:17/:32/:47`) runs the scan only when `ws.isHealthy()` is false, so candle closes are not missed.

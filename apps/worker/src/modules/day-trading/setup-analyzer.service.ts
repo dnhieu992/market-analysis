@@ -158,21 +158,46 @@ export class SetupAnalyzerService {
     return body > 0 && lowerWick >= 2 * body;
   }
 
+  /** Nearest structural level strictly above the price (for upside TP targets). */
+  private nearestAbove(price: number, levels: number[]): number | null {
+    const above = levels.filter((l) => l > price);
+    return above.length ? Math.min(...above) : null;
+  }
+
+  /** Nearest structural level strictly below the price (for downside TP targets). */
+  private nearestBelow(price: number, levels: number[]): number | null {
+    const below = levels.filter((l) => l < price);
+    return below.length ? Math.max(...below) : null;
+  }
+
+  /**
+   * Build a signal from an analysis-derived TP target.
+   * minRR is a VALIDITY GATE: if the target's R:R is below it, the setup is
+   * rejected (reason recorded). TP itself comes from price action, not minRR.
+   */
   private buildSignal(
     setupType: SetupResult['setupType'],
     direction: SetupResult['direction'],
     entryPrice: number,
     stopLoss: number,
+    takeProfit: number,
     context: Record<string, unknown>,
     config: RiskConfig,
+    reasons: string[],
   ): SetupResult | null {
     const riskPerUnit = Math.abs(entryPrice - stopLoss);
-    if (riskPerUnit <= 0) return null;
+    if (riskPerUnit <= 0) {
+      reasons.push(`${setupType}-${direction}: invalid SL (risk=0)`);
+      return null;
+    }
 
-    // TP placed at the configured minimum R multiple (1R = riskPerUnit distance).
-    const takeProfit = direction === 'LONG'
-      ? entryPrice + config.minRR * riskPerUnit
-      : entryPrice - config.minRR * riskPerUnit;
+    const rr = Math.abs(takeProfit - entryPrice) / riskPerUnit;
+    if (rr < config.minRR) {
+      reasons.push(
+        `${setupType}-${direction}: R:R ${rr.toFixed(2)} < minRR ${config.minRR} (TP ${takeProfit.toFixed(1)} too close)`,
+      );
+      return null;
+    }
 
     // Volume sized so that hitting SL loses exactly riskPerTrade USDT.
     const riskAmount = config.riskPerTrade;
@@ -185,11 +210,11 @@ export class SetupAnalyzerService {
       entryPrice,
       stopLoss,
       takeProfit,
-      rrRatio: config.minRR,
+      rrRatio: rr,
       riskAmount,
       quantity,
       positionValue,
-      setupJson: JSON.stringify({ ...context, entryPrice, stopLoss, takeProfit, quantity, positionValue }),
+      setupJson: JSON.stringify({ ...context, entryPrice, stopLoss, takeProfit, quantity, positionValue, rr }),
     };
   }
 
@@ -249,14 +274,21 @@ export class SetupAnalyzerService {
       const retestLow = Math.min(...postBreak.slice(retestIdx, retestIdx + 3).map((c) => c.low));
       const sl = retestLow * 0.9995;
 
+      // TP from analysis: next 1H swing high above entry (continuation target).
+      const tp = this.nearestAbove(latest.close, this.getSwingHighs(candles1h, 40));
+      if (tp == null) {
+        reasons.push(`BR-LONG[R1=${resistance}]: no swing-high structure above for TP`);
+        return null;
+      }
+
       const breakCandleVolume = recent15m[breakIdx]?.volume ?? 0;
-      return this.buildSignal('BREAK_RETEST', 'LONG', latest.close, sl, {
+      return this.buildSignal('BREAK_RETEST', 'LONG', latest.close, sl, tp, {
         resistance,
         trend4h,
         trend1h,
         avg20Volume: avg20,
         breakCandleVolume,
-      }, config);
+      }, config, reasons);
     }
 
     if (trend4h === 'down' && trend1h !== 'up') {
@@ -294,14 +326,21 @@ export class SetupAnalyzerService {
       const retestHigh = Math.max(...postBreak.slice(retestIdx, retestIdx + 3).map((c) => c.high));
       const sl = retestHigh * 1.0005;
 
+      // TP from analysis: next 1H swing low below entry (continuation target).
+      const tp = this.nearestBelow(latest.close, this.getSwingLows(candles1h, 40));
+      if (tp == null) {
+        reasons.push(`BR-SHORT[S1=${support}]: no swing-low structure below for TP`);
+        return null;
+      }
+
       const breakCandleVol = recent15m[breakIdx]?.volume ?? 0;
-      return this.buildSignal('BREAK_RETEST', 'SHORT', latest.close, sl, {
+      return this.buildSignal('BREAK_RETEST', 'SHORT', latest.close, sl, tp, {
         support,
         trend4h,
         trend1h,
         avg20Volume: avg20,
         breakCandleVolume: breakCandleVol,
-      }, config);
+      }, config, reasons);
     }
 
     reasons.push(`BR: trend not aligned (4H=${trend4h}, 1H=${trend1h}; need 4H=up&1H!=down or 4H=down&1H!=up)`);
@@ -343,20 +382,28 @@ export class SetupAnalyzerService {
 
         if (sweptAbove && closedBelow && bearishPattern && volumeSpike && trendOk) {
           const sl = latest.high * 1.0005;
-          return this.buildSignal('LIQUIDITY_SWEEP', 'SHORT', latest.close, sl, {
-            swingHigh,
-            sweepHigh: latest.high,
-            sweepPct: ((latest.high / swingHigh - 1) * 100).toFixed(3),
-            trend4h,
-            trend1h,
-            avg20Volume: avg20,
-            candleVolume: latest.volume,
-          }, config);
+          // TP from analysis: nearest swing low below entry (reversal target).
+          const tp = this.nearestBelow(latest.close, this.getSwingLows(candles1h, 40));
+          if (tp == null) {
+            reasons.push(`Sweep-SHORT[H1=${swingHigh}]: no swing-low TP target`);
+          } else {
+            const sig = this.buildSignal('LIQUIDITY_SWEEP', 'SHORT', latest.close, sl, tp, {
+              swingHigh,
+              sweepHigh: latest.high,
+              sweepPct: ((latest.high / swingHigh - 1) * 100).toFixed(3),
+              trend4h,
+              trend1h,
+              avg20Volume: avg20,
+              candleVolume: latest.volume,
+            }, config, reasons);
+            if (sig) return sig;
+          }
+        } else {
+          reasons.push(
+            `Sweep-SHORT[H1=${swingHigh}]: swept=${this.yn(sweptAbove)} closeBelow=${this.yn(closedBelow)} ` +
+              `bearish=${this.yn(bearishPattern)} vol1.3x=${this.yn(volumeSpike)} t1h!=up=${this.yn(trendOk)}`,
+          );
         }
-        reasons.push(
-          `Sweep-SHORT[H1=${swingHigh}]: swept=${this.yn(sweptAbove)} closeBelow=${this.yn(closedBelow)} ` +
-            `bearish=${this.yn(bearishPattern)} vol1.3x=${this.yn(volumeSpike)} t1h!=up=${this.yn(trendOk)}`,
-        );
       }
     }
 
@@ -377,20 +424,28 @@ export class SetupAnalyzerService {
 
         if (sweptBelow && closedAbove && bullishPattern && volumeSpike && trendOk) {
           const sl = latest.low * 0.9995;
-          return this.buildSignal('LIQUIDITY_SWEEP', 'LONG', latest.close, sl, {
-            swingLow,
-            sweepLow: latest.low,
-            sweepPct: ((1 - latest.low / swingLow) * 100).toFixed(3),
-            trend4h,
-            trend1h,
-            avg20Volume: avg20,
-            candleVolume: latest.volume,
-          }, config);
+          // TP from analysis: nearest swing high above entry (reversal target).
+          const tp = this.nearestAbove(latest.close, this.getSwingHighs(candles1h, 40));
+          if (tp == null) {
+            reasons.push(`Sweep-LONG[L1=${swingLow}]: no swing-high TP target`);
+          } else {
+            const sig = this.buildSignal('LIQUIDITY_SWEEP', 'LONG', latest.close, sl, tp, {
+              swingLow,
+              sweepLow: latest.low,
+              sweepPct: ((1 - latest.low / swingLow) * 100).toFixed(3),
+              trend4h,
+              trend1h,
+              avg20Volume: avg20,
+              candleVolume: latest.volume,
+            }, config, reasons);
+            if (sig) return sig;
+          }
+        } else {
+          reasons.push(
+            `Sweep-LONG[L1=${swingLow}]: swept=${this.yn(sweptBelow)} closeAbove=${this.yn(closedAbove)} ` +
+              `bullish=${this.yn(bullishPattern)} vol1.3x=${this.yn(volumeSpike)} t1h!=down=${this.yn(trendOk)}`,
+          );
         }
-        reasons.push(
-          `Sweep-LONG[L1=${swingLow}]: swept=${this.yn(sweptBelow)} closeAbove=${this.yn(closedAbove)} ` +
-            `bullish=${this.yn(bullishPattern)} vol1.3x=${this.yn(volumeSpike)} t1h!=down=${this.yn(trendOk)}`,
-        );
       }
     }
 
