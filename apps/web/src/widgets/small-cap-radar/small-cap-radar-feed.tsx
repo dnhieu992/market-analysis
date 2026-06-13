@@ -360,7 +360,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
 
       {/* ── table ── */}
       <div className="scr-table-wrap">
-        <table className="scr-table">
+        <table className="scr-table scr-table--radar">
           <thead>
             <tr>
               <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>

@@ -7838,12 +7838,16 @@ a.metric-card--link:hover {
 
   .tc-bias-tabs { flex-wrap: wrap; }
 
-  .scr-th:nth-child(4),
-  .scr-td:nth-child(4),
-  .scr-th:nth-child(6),
-  .scr-td:nth-child(6),
-  .scr-th:nth-child(7),
-  .scr-td:nth-child(7) {
+  /* Scoped to the small-cap-radar table only — these nth-child positions map to
+     its RSI / vs EMA / 30d columns. The tracking-coins table reuses .scr-* but
+     has a different column order (Vol× sits at nth-child(6)), so leave it alone
+     and let .scr-table-wrap scroll horizontally instead. */
+  .scr-table--radar .scr-th:nth-child(4),
+  .scr-table--radar .scr-td:nth-child(4),
+  .scr-table--radar .scr-th:nth-child(6),
+  .scr-table--radar .scr-td:nth-child(6),
+  .scr-table--radar .scr-th:nth-child(7),
+  .scr-table--radar .scr-td:nth-child(7) {
     display: none;
   }
 }
