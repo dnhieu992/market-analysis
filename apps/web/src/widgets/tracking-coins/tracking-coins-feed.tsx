@@ -229,17 +229,6 @@ function IconPrompt() {
   );
 }
 
-function IconTrades() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-      <line x1="12" y1="17" x2="12" y2="21" />
-      <polyline points="7 10 10 7 13 10 17 6" />
-    </svg>
-  );
-}
-
 function IconJournal() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -312,6 +301,11 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
               <div className="tc-detail-section">
                 <div className="tc-detail-label">30 ngày gần nhất</div>
                 <div className="tc-detail-sparkline"><SparklineLarge prices={sig.sparkline} /></div>
+              </div>
+
+              <div className="tc-detail-section">
+                <div className="tc-detail-label">Lệnh limit</div>
+                <CoinOrderSuggestions symbol={coin.symbol} />
               </div>
 
               <div className="tc-detail-footer">
@@ -512,7 +506,7 @@ function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
   );
 }
 
-function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+function CoinOrderSuggestions({ symbol }: { symbol: string }) {
   const [tab, setTab] = useState<'live' | 'history'>('live');
   const [data, setData] = useState<OrderSuggestions | null>(null);
   const [setup, setSetup] = useState<CoinSetup | null>(null);
@@ -556,55 +550,49 @@ function CoinOrderSuggestionsDialog({ symbol, onClose }: { symbol: string; onClo
   }, [tab, loadHistory]);
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog ord-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <span className="dialog-title">Lệnh limit — {symbol}</span>
-          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
-        </div>
-        <div className="ord-tabs">
-          <button className={`ord-tab${tab === 'live' ? ' ord-tab--active' : ''}`} onClick={() => setTab('live')}>Gợi ý live</button>
-          <button className={`ord-tab${tab === 'history' ? ' ord-tab--active' : ''}`} onClick={() => setTab('history')}>Lịch sử</button>
-        </div>
-        <div className="dialog-body ord-body">
-          {tab === 'live' && (
-            <>
-              {loading && (
-                <div className="ord-loading">
-                  <span className="ord-loading__spinner" />
-                  <span>Đang tính toán lệnh…</span>
+    <div className="tc-detail-orders">
+      <div className="ord-tabs">
+        <button className={`ord-tab${tab === 'live' ? ' ord-tab--active' : ''}`} onClick={() => setTab('live')}>Gợi ý live</button>
+        <button className={`ord-tab${tab === 'history' ? ' ord-tab--active' : ''}`} onClick={() => setTab('history')}>Lịch sử</button>
+      </div>
+      <div className="ord-body ord-body--embedded">
+        {tab === 'live' && (
+          <>
+            {loading && (
+              <div className="ord-loading">
+                <span className="ord-loading__spinner" />
+                <span>Đang tính toán lệnh…</span>
+              </div>
+            )}
+            {error && <p className="scr-muted ord-error">{error}</p>}
+            {!loading && !error && data && (
+              <>
+                <div className="ord-price-bar">
+                  <span className="ord-price-bar__label">Giá hiện tại</span>
+                  <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
+                  <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
                 </div>
-              )}
-              {error && <p className="scr-muted ord-error">{error}</p>}
-              {!loading && !error && data && (
-                <>
-                  <div className="ord-price-bar">
-                    <span className="ord-price-bar__label">Giá hiện tại</span>
-                    <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
-                    <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
-                  </div>
-                  <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
-                  <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
-                  <p className="ord-footer">
-                    Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-                  </p>
-                </>
-              )}
-            </>
-          )}
-          {tab === 'history' && (
-            <>
-              {histLoading && (
-                <div className="ord-loading">
-                  <span className="ord-loading__spinner" />
-                  <span>Đang tải lịch sử…</span>
-                </div>
-              )}
-              {histError && <p className="scr-muted ord-error">{histError}</p>}
-              {!histLoading && !histError && history !== null && <OrderHistoryTable orders={history} />}
-            </>
-          )}
-        </div>
+                <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
+                <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
+                <p className="ord-footer">
+                  Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                </p>
+              </>
+            )}
+          </>
+        )}
+        {tab === 'history' && (
+          <>
+            {histLoading && (
+              <div className="ord-loading">
+                <span className="ord-loading__spinner" />
+                <span>Đang tải lịch sử…</span>
+              </div>
+            )}
+            {histError && <p className="scr-muted ord-error">{histError}</p>}
+            {!histLoading && !histError && history !== null && <OrderHistoryTable orders={history} />}
+          </>
+        )}
       </div>
     </div>
   );
@@ -768,7 +756,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [journalCoin, setJournalCoin] = useState<TrackingCoinRow | null>(null);
-  const [tradesCoin, setTradesCoin] = useState<string | null>(null);
   const [setupCoin, setSetupCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
@@ -855,7 +842,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onCancel={() => setConfirmRemoveSymbol(null)}
         />
       )}
-      {tradesCoin && <CoinOrderSuggestionsDialog symbol={tradesCoin} onClose={() => setTradesCoin(null)} />}
       {setupCoin && <CoinSetupDialog symbol={setupCoin} onClose={() => setSetupCoin(null)} />}
 
       <main className="dashboard-shell scr-shell">
@@ -1002,9 +988,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </button>
                         <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconPrompt />
-                        </button>
-                        <button className="tt-btn tt-btn--trades" data-tooltip="Lệnh" aria-label={`Lệnh ${coin.symbol}`} onClick={() => setTradesCoin(coin.symbol)}>
-                          <IconTrades />
                         </button>
                         <button className="tt-btn tt-btn--setup" data-tooltip="Setup" aria-label={`Setup ${coin.symbol}`} onClick={() => setSetupCoin(coin.symbol)}>
                           <IconSetup />

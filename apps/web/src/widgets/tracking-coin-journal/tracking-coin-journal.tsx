@@ -3,10 +3,12 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState, useCallback } from 'react';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
-import '@uiw/react-md-editor/markdown-editor.css';
-import '@uiw/react-markdown-preview/markdown.css';
 
-const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false });
+// Lazy-load the TipTap editor so its bundle only loads when a journal opens.
+const MarkdownEditor = dynamic(
+  () => import('@web/shared/ui/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  { ssr: false },
+);
 
 type JournalEntry = {
   id: string;
@@ -205,15 +207,12 @@ export function TrackingCoinJournal({ symbol, name, onClose }: Props) {
                     {/* Editor */}
                     {isOpen && (
                       <div style={{ padding: '1rem', background: '#ffffff' }}>
-                        <div data-color-mode="light">
-                          <MDEditor
-                            value={draft}
-                            onChange={(val) => setDrafts((d) => ({ ...d, [date]: val ?? '' }))}
-                            height={320}
-                            preview="live"
-                            visibleDragbar={false}
-                          />
-                        </div>
+                        <MarkdownEditor
+                          value={draft}
+                          onChange={(val) => setDrafts((d) => ({ ...d, [date]: val }))}
+                          minHeight={280}
+                          placeholder="Viết ghi chú phân tích…"
+                        />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem', gap: '0.5rem', alignItems: 'center' }}>
                           {entry && (
                             <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>

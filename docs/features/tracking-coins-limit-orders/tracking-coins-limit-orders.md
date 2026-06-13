@@ -1,8 +1,8 @@
 ## Description
-Auto-generated limit order suggestions for tracked coins. Orders are computed from Binance klines (swing from 4H, daytrade from 1H) and persisted to the database on every dialog open or re-analyze. Users can annotate each order with personal notes.
+Auto-generated limit order suggestions for tracked coins. Orders are computed from Binance klines (swing from 4H, daytrade from 1H) and persisted to the database on every dialog open or re-analyze. Users can annotate each order with personal notes. The order suggestions (Live + History tabs) are rendered **inside the coin detail dialog** (opened by clicking a row) — there is no longer a separate "Lệnh" button/dialog.
 
 ## Main Flow
-1. User opens the order dialog for a tracked coin → `GET /tracking-coins/coins/:symbol/order-suggestions`
+1. User clicks a coin row → `CoinDetailModal` opens, which embeds `CoinOrderSuggestions` → `GET /tracking-coins/coins/:symbol/order-suggestions`
 2. API fetches 4H/1H klines from Binance, computes swing + daytrade limit orders
 3. Orders are upserted into `tracking_coin_orders` for today's date (notes field is preserved on update)
 4. Response includes `id` and `notes` alongside price levels
@@ -24,5 +24,5 @@ Auto-generated limit order suggestions for tracked coins. Orders are computed fr
 - `packages/db/src/repositories/tracking-coins.repository.ts` — `updateOrderNotes`, `findOrdersByDate`; `upsertOrder` preserves notes
 - `apps/web/src/shared/api/types.ts` — `OrderSuggestion` and `TrackingCoinOrder` types include `notes`
 - `apps/web/src/shared/api/client.ts` — `updateOrderNotes()` method
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `OrderCard` with notes textarea; `HistoryNoteCell`; `OrderHistoryTable` with Ghi chú column
-- `apps/web/src/app/globals.css` — `.ord-card__notes`, `.ord-hist__notes` styles
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `CoinOrderSuggestions` (embedded tabs content) rendered inside `CoinDetailModal`; `OrderCard` with notes textarea; `HistoryNoteCell`; `OrderHistoryTable` with Ghi chú column
+- `apps/web/src/app/globals.css` — `.ord-card__notes`, `.ord-hist__notes` styles; `.tc-detail-dialog` widened to 760px on desktop (≥768px); `.tc-detail-orders` / `.ord-body--embedded` for the embedded order panel
