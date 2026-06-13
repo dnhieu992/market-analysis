@@ -25,6 +25,19 @@ export function createDailyAnalysisRepository(client = prisma) {
         take: limit
       });
     },
+    findLatestBefore(symbol: string, date: Date) {
+      return client.dailyAnalysis.findFirst({
+        where: { symbol, date: { lt: date } },
+        orderBy: { date: 'desc' }
+      });
+    },
+    updateReviewNote(id: string, note: string) {
+      // Updates only the note — leaves feedbackScore untouched.
+      return client.dailyAnalysis.update({
+        where: { id },
+        data: { feedbackNote: note }
+      });
+    },
     updateFeedback(id: string, score?: number, note?: string) {
       return client.dailyAnalysis.update({
         where: { id },

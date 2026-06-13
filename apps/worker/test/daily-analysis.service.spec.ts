@@ -197,7 +197,7 @@ describe('DailyAnalysisService', () => {
   function makeService(
     d1Candles: Candle[],
     h4Candles: Candle[],
-    repo?: { findByDate: jest.Mock; create: jest.Mock; listLatest: jest.Mock; listAll: jest.Mock; updateFeedback: jest.Mock },
+    repo?: { findByDate: jest.Mock; create: jest.Mock; listLatest: jest.Mock; listAll: jest.Mock; updateFeedback: jest.Mock; findLatestBefore: jest.Mock; updateReviewNote: jest.Mock },
     llmGateway?: { runDailyAnalysisPipeline: jest.Mock }
   ) {
     const getCandles = jest.fn().mockImplementation((_symbol: string, timeframe: string) => {
@@ -208,7 +208,9 @@ describe('DailyAnalysisService', () => {
       create: jest.fn().mockImplementation((data) => Promise.resolve(data)),
       listLatest: jest.fn().mockResolvedValue([]),
       listAll: jest.fn().mockResolvedValue([]),
-      updateFeedback: jest.fn().mockResolvedValue(null)
+      updateFeedback: jest.fn().mockResolvedValue(null),
+      findLatestBefore: jest.fn().mockResolvedValue(null),
+      updateReviewNote: jest.fn().mockResolvedValue(null)
     };
     const defaultGatewayResult = {
       provider: 'claude',
@@ -249,7 +251,7 @@ describe('DailyAnalysisService', () => {
     const getCandles = jest.fn().mockResolvedValue(makeCandles(200, 80000));
     const service = new DailyAnalysisService(
       { getCandles } as never,
-      { findByDate: jest.fn().mockResolvedValue(null), create: jest.fn(), listLatest: jest.fn(), listAll: jest.fn().mockResolvedValue([]), updateFeedback: jest.fn() },
+      { findByDate: jest.fn().mockResolvedValue(null), create: jest.fn(), listLatest: jest.fn(), listAll: jest.fn().mockResolvedValue([]), updateFeedback: jest.fn(), findLatestBefore: jest.fn().mockResolvedValue(null), updateReviewNote: jest.fn() },
       {
         runDailyAnalysisPipeline: jest.fn().mockResolvedValue({
           provider: 'claude',
@@ -335,7 +337,9 @@ describe('DailyAnalysisService', () => {
       create: jest.fn(),
       listLatest: jest.fn(),
       listAll: jest.fn().mockResolvedValue([]),
-      updateFeedback: jest.fn()
+      updateFeedback: jest.fn(),
+      findLatestBefore: jest.fn().mockResolvedValue(null),
+      updateReviewNote: jest.fn()
     };
     const { service } = makeService(makeCandles(200, 80000), makeCandles(200, 80000), repo);
 

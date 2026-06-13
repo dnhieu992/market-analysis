@@ -29,6 +29,10 @@ type ChartSpec = {
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 
+// Marker prefixed to any review note written automatically by the LLM, so the
+// dashboard clearly shows the evaluation was machine-generated.
+const LLM_REVIEW_MARKER = '🤖 Đánh giá tự động bởi AI';
+
 function getChartSpecs(date: Date): ChartSpec[] {
   const specs: ChartSpec[] = [];
 
@@ -104,6 +108,11 @@ export class VisualAnalysisService {
 
   async analyze(symbol: string): Promise<VisualAnalysisResult> {
     this.logger.log(`Starting visual analysis for ${symbol}`);
+
+    // Before producing today's plan, have the LLM review the previous day's
+    // plan against what actually happened. Fully non-fatal — must never break
+    // the main analysis flow.
+    await this.reviewPreviousPlan(symbol);
 
     const now = new Date();
     const specs = getChartSpecs(now);
@@ -189,6 +198,112 @@ export class VisualAnalysisService {
         `Failed to save daily analysis for ${symbol}: ${error instanceof Error ? error.message : 'unknown'}`
       );
     }
+  }
+
+  /**
+   * Reviews the previous day's plan for `symbol` and stores an LLM evaluation
+   * into that record's note. Fully self-contained and non-fatal: any failure is
+   * logged and swallowed so today's analysis is never blocked.
+   */
+  private async reviewPreviousPlan(symbol: string): Promise<void> {
+    try {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      const previous = await this.dailyAnalysisRepository.findLatestBefore(symbol, today);
+      if (!previous) {
+        this.logger.log(`No previous daily plan to review for ${symbol} — skipping review`);
+        return;
+      }
+
+      // Never clobber an existing note (manual feedback or an earlier review).
+      if (previous.feedbackNote && previous.feedbackNote.trim().length > 0) {
+        this.logger.log(`Previous plan for ${symbol} already has a note — skipping review`);
+        return;
+      }
+
+      const planDate = new Date(previous.date);
+      const planDateStr = planDate.toISOString().slice(0, 10);
+
+      // Fetch recent daily candles to judge how price actually behaved since.
+      const candles = await this.marketDataService.getCandles(symbol, '1d', 14);
+      const outcomeCandles = candles.filter(c => (c.openTime?.getTime() ?? 0) >= planDate.getTime());
+      const relevant = outcomeCandles.length > 0 ? outcomeCandles : candles.slice(-5);
+
+      const priceLines = relevant
+        .map(c => {
+          const d = c.openTime ? c.openTime.toISOString().slice(0, 10) : '?';
+          return `${d}: O=${c.open} H=${c.high} L=${c.low} C=${c.close}`;
+        })
+        .join('\n');
+      const currentPrice = candles[candles.length - 1]?.close ?? 0;
+
+      const reviewText = await this.callClaudeReview(
+        symbol,
+        planDateStr,
+        previous.summary ?? '',
+        priceLines,
+        currentPrice
+      );
+
+      if (!reviewText) {
+        this.logger.warn(`Empty review from Claude for ${symbol} — skipping note save`);
+        return;
+      }
+
+      const note = [
+        `${LLM_REVIEW_MARKER} — ${new Date().toISOString().slice(0, 10)}`,
+        '',
+        reviewText.trim()
+      ].join('\n');
+
+      await this.dailyAnalysisRepository.updateReviewNote(previous.id, note);
+      this.logger.log(`Saved LLM review note for ${symbol} (plan date ${planDateStr})`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'unknown error';
+      this.logger.warn(`Previous-plan review failed for ${symbol} (non-fatal): ${msg}`);
+    }
+  }
+
+  private async callClaudeReview(
+    symbol: string,
+    planDateStr: string,
+    planText: string,
+    priceLines: string,
+    currentPrice: number
+  ): Promise<string | null> {
+    const response = await this.httpClient.post<ClaudeMessagesResponse>('/v1/messages', {
+      model: CLAUDE_MODEL,
+      max_tokens: 1200,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: [
+                `Bạn là chuyên gia phân tích kỹ thuật. Hãy ĐÁNH GIÁ độ chính xác của bản phân tích & plan giao dịch ${symbol} đã đưa ra ngày ${planDateStr}, dựa trên diễn biến giá thực tế sau đó.`,
+                '',
+                '=== PHÂN TÍCH & PLAN NGÀY TRƯỚC ===',
+                planText || '(không có nội dung)',
+                '',
+                '=== DIỄN BIẾN GIÁ THỰC TẾ (nến ngày D1 sau đó) ===',
+                priceLines || '(không có dữ liệu)',
+                `Giá hiện tại: ${currentPrice}`,
+                '',
+                'Yêu cầu đánh giá (trả lời bằng tiếng Việt, ngắn gọn, có cấu trúc):',
+                '- Nhận định xu hướng/bias trong plan có ĐÚNG so với thực tế không?',
+                '- Các vùng entry / SL / TP có bị chạm hay không? Plan thắng/thua/chưa kích hoạt?',
+                '- Điểm đúng và điểm sai của phân tích.',
+                '- Bài học rút ra cho lần sau.'
+              ].join('\n')
+            }
+          ]
+        }
+      ]
+    });
+
+    return response.data.content?.find(b => b.type === 'text')?.text ?? null;
   }
 
   private async callClaudeVision(

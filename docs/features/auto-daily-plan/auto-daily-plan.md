@@ -20,6 +20,7 @@ The auto daily plan feature runs once per day and sends a multi-timeframe tradin
 - The result is saved to the `DailyAnalysis` database table
 - If a record already exists for the same symbol + date, the DB save is skipped (dedup)
 - If the analysis fails for one symbol, the error is logged and the loop continues for the next symbol
+- **Before** producing today's plan for each symbol, the worker calls the LLM to **review the previous day's plan** against the actual price action that followed. The evaluation (bias correct?, entry/SL/TP hit?, what was right/wrong, lessons) is saved into the previous record's `feedbackNote`, prefixed with `🤖 Đánh giá tự động bởi AI` so the dashboard shows it is machine-generated. This step is fully non-fatal (failures are logged and swallowed) and never overwrites an existing note, so it cannot break the main analysis flow.
 - Users can submit feedback via the web dashboard; **both the score (1–5) and the note are optional** — either, both, or just one may be saved to `feedbackScore` / `feedbackNote` for future LLM training data. The note uses the shared TipTap markdown editor.
 
 ---
@@ -34,6 +35,13 @@ Worker boot or 00:30 UTC cron
        └─ for each symbol:
             │
             ├─ VisualAnalysisService.analyze(symbol)
+            │    │
+            │    ├─ reviewPreviousPlan(symbol)   ← runs FIRST, non-fatal
+            │    │    ├─ findLatestBefore(symbol, today) → previous record
+            │    │    ├─ skip if none / note already present
+            │    │    ├─ MarketDataService.getCandles(symbol, '1d', 14) → actual outcome
+            │    │    ├─ Claude (text-only) evaluates previous plan vs reality
+            │    │    └─ updateReviewNote(prev.id, "🤖 Đánh giá tự động bởi AI …")
             │    │
             │    ├─ MarketDataService.getCandles(symbol, '4h', 200)
             │    │
@@ -95,6 +103,8 @@ Worker boot or 00:30 UTC cron
 | File | Change |
 |---|---|
 | `apps/worker/src/modules/scheduler/scheduler.service.ts` | Replaced `DailyAnalysisService` with `VisualAnalysisService` in `runDailyAnalysisForSymbols()` |
+| `apps/worker/src/modules/visual-analysis/visual-analysis.service.ts` | `analyze()` now first calls `reviewPreviousPlan()`; added `callClaudeReview()` (text-only LLM evaluation of the previous plan). Non-fatal — never throws into the main flow |
+| `packages/db/src/repositories/daily-analysis.repository.ts` | Added `findLatestBefore(symbol, date)` and `updateReviewNote(id, note)` (updates only the note, leaving `feedbackScore` intact) |
 | `apps/worker/src/modules/scheduler/scheduler.module.ts` | Added `VisualAnalysisModule` import |
 | `apps/worker/src/modules/telegram/telegram.service.ts` | Added `sendPhoto(buffer, caption?)` method |
 | `apps/worker/src/worker.module.ts` | Removed `MarketSummaryModule` (disabled H4 summary messages) |
