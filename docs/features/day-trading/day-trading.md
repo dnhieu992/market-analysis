@@ -21,7 +21,8 @@ Built in two phases:
 7. **TP from analysis + minRR gate**: TP is the nearest structural target from price action — nearest 1H swing low/high in the trade direction (reversal target for sweeps, continuation target for break & retest). The setup is only **valid** if that target's R:R ≥ `minRR`; otherwise it's rejected (reason logged). `minRR` does NOT set the TP — it filters setups.
 8. **Risk/volume model** (configurable): each trade risks exactly `riskPerTrade` USDT if SL is hit. Volume (BTC) = `riskPerTrade / |entry − stopLoss|`, `positionValue = quantity × entry`. P&L realized in USD = `quantity × price move`. `rrRatio` stored is the actual R:R of the analysis target.
 9. `SignalExecutorService.execute()` — **Phase 1**: logs `🔔 TÍN HIỆU [PAPER] …` and persists the signal with `mode = PAPER`, `status = ACTIVE`. No order is placed.
-10. **Result monitor** (`@Cron` every minute) reads the **real-time WS price** (REST fallback if WS is stale) and marks ACTIVE signals `TP_HIT` / `SL_HIT`, recording `pnlUsd`.
+10. **Result monitor** runs in **real time on every WS price tick**: `ResultMonitorService` listens to the WS `price` event and evaluates the cached ACTIVE signals against each tick, marking `TP_HIT` / `SL_HIT` as close to the actual touch as the public feed allows. To keep DB load flat under the high tick rate, the open-signal list is cached in memory (refreshed at most every 5s, and on each cron pass). A per-minute `@Cron` is now only a **fallback** that re-checks open signals via the REST price if the WS feed stalls/disconnects.
+    - **Observed close, not idealised fill**: `closedPrice` and `pnlUsd` use the **real price at the tick that crossed the level**, NOT the `takeProfit`/`stopLoss` value. So a fast move that overshoots the TP between ticks is recorded as-is (e.g. TP set 64370, closed 64571). This is intentional — Phase 1 must reflect real market behaviour, not flatter the numbers.
 11. Web page `/day-trading` shows signals + stats (Total P&L in USD), auto-refreshing every 60s. Each signal shows volume and a PAPER/LIVE badge.
 
 ## Edge Cases
@@ -33,12 +34,22 @@ Built in two phases:
 - Settings are a singleton row, created with defaults (risk $2, minRR 2, 5 trades, 2 losses) on first access; editable from the `/day-trading` page (⚙ Cấu hình).
 - Both setups trigger on one candle: only the first (Liquidity Sweep) is used.
 - Overlapping triggers (WS + cron): re-entrancy guard + dedup prevent duplicate signals.
-- Result check has no slippage modeling — price vs TP/SL, an approximation for review.
+- **Close price ≠ TP/SL level (expected)**: detection is price-touch based on observed WS ticks, so `closedPrice` is the first tick at/through the level, which can overshoot the target on a fast move. The gap is real slippage from a *market-exit* model, not a bug. See the LIVE note below — a real TP **limit** order removes most of this gap.
+- Real-time evaluation runs many times per second; the in-memory active-signal cache (5s TTL) keeps this off the DB hot path. A close write failure re-arms the cache so the next tick/cron retries.
 
 ## Phase 2 hand-off (placing real orders later)
 - Add an authenticated Bitget trade service (account API keys).
 - In `SignalExecutorService.execute()`, after persisting, place the order and store the broker order id (see the commented Phase 2 block). Set `mode = LIVE`.
 - Optionally gate with an env flag (e.g. `LIVE_TRADING_ENABLED`).
+
+> ⚠️ **LIVE mode MUST place a real TP limit order (and an SL stop) on Bitget — do not rely on the result monitor to "exit" the trade.**
+>
+> In Phase 1 (PAPER) the result monitor only *observes* price and records the first tick that crosses the level, which overshoots the TP on fast moves (the close price is the observed tick, not the TP). That is fine for review, but it is **not an execution mechanism**.
+>
+> When trading real money:
+> 1. On entry, submit the **entry order** AND attach a **TP limit order at `takeProfit`** + a **stop-loss order at `stopLoss`** (Bitget supports TP/SL on the position, or place reduce-only orders). The exchange then fills the TP at ~`takeProfit` (± normal slippage), not at whatever the monitor happened to observe.
+> 2. The result monitor's role in LIVE mode changes from *deciding the exit* to *reconciling* it: read the broker's actual fill price/PnL for the closed order and persist that, instead of the WS-tick price. Otherwise the stored `closedPrice`/`pnlUsd` will diverge from the real account.
+> 3. Use the broker fill as the source of truth for `closedPrice`/`pnlUsd`; treat the WS-tick close as a PAPER-only approximation.
 
 ## Related Files (FE / BE / Worker)
 

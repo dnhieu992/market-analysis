@@ -5,7 +5,8 @@ import { EventEmitter } from 'node:events';
  * PHASE 1 — Public WebSocket, no Bitget account required.
  *
  * Maintains a persistent connection to Bitget's PUBLIC futures WebSocket and:
- *   - streams real-time BTCUSDT price (ticker channel) → cached for result monitoring
+ *   - streams real-time BTCUSDT price (ticker channel) → caches it AND emits 'price'
+ *     on every tick so result monitoring can react in real time
  *   - detects 15m candle close (candle15m channel) → emits 'candleClose' to trigger a scan
  *
  * No API key is used here — only public market data. Authenticated order placement
@@ -149,7 +150,12 @@ export class BitgetWebSocketService extends EventEmitter implements OnModuleInit
     const row = data[0] as { lastPr?: string };
     if (row?.lastPr) {
       const price = parseFloat(row.lastPr);
-      if (Number.isFinite(price)) this.latestPrice = price;
+      if (Number.isFinite(price)) {
+        this.latestPrice = price;
+        // Real-time tick → drive TP/SL evaluation as close to the actual touch
+        // as the public feed allows (ResultMonitorService listens for 'price').
+        this.emit('price', price);
+      }
     }
   }
 

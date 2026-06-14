@@ -43,7 +43,9 @@ export class DayTradingService implements OnModuleInit {
     await this.runScan('cron-fallback');
   }
 
-  // Monitor open signals every minute using the real-time WS price.
+  // Fallback monitor. Primary TP/SL detection runs in real time on every WS
+  // tick (ResultMonitorService listens to 'price'); this per-minute pass catches
+  // open signals if the WS feed stalls/disconnects, using the REST price.
   @Cron('* * * * *', { timeZone: 'UTC' })
   async runResultMonitor(): Promise<void> {
     try {

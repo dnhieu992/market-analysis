@@ -1,33 +1,96 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createDayTradingRepository } from '@app/db';
 import { BitgetService } from './bitget.service';
 import { BitgetWebSocketService } from './bitget-websocket.service';
 
+type ActiveSignal = Awaited<
+  ReturnType<ReturnType<typeof createDayTradingRepository>['findActiveSignals']>
+>[number];
+
+// How long the in-memory active-signal cache is trusted before a DB refresh.
+// Ticks arrive multiple times per second; this keeps DB load flat while still
+// picking up a newly created signal within a few seconds.
+const CACHE_TTL_MS = 5_000;
+
 @Injectable()
-export class ResultMonitorService {
+export class ResultMonitorService implements OnModuleInit {
   private readonly logger = new Logger(ResultMonitorService.name);
   private readonly repo = createDayTradingRepository();
+
+  // Cached open signals so we don't hit the DB on every WS tick.
+  private active: ActiveSignal[] = [];
+  private cacheAt = 0;
+  private refreshing = false;
+  // Signals whose close write is in flight — guards against a concurrent tick
+  // closing the same signal twice while the DB update awaits.
+  private readonly closing = new Set<string>();
 
   constructor(
     private readonly bitget: BitgetService,
     private readonly ws: BitgetWebSocketService,
   ) {}
 
-  async checkActiveSignals(): Promise<void> {
-    const active = await this.repo.findActiveSignals('BTCUSDT');
-    if (!active.length) return;
+  onModuleInit(): void {
+    // Real-time path: evaluate open signals on EVERY WS price tick so TP/SL is
+    // detected as close to the actual touch as the public feed allows. We record
+    // the real observed price as the close (no idealised fill) — this mirrors a
+    // market exit and surfaces the true gap vs the TP/SL level for review.
+    this.ws.on('price', (price: number) => {
+      void this.onTick(price);
+    });
+  }
 
-    // Prefer the real-time WS price; fall back to REST if the feed is stale.
+  /** Real-time path — runs on each WS tick against the cached active set. */
+  private async onTick(price: number): Promise<void> {
+    if (!Number.isFinite(price)) return;
+    await this.ensureCache();
+    if (!this.active.length) return;
+    await this.evaluate(price);
+  }
+
+  /**
+   * Fallback path — invoked by the per-minute cron. Forces a cache refresh and
+   * evaluates with the freshest price available (WS if healthy, else REST), so a
+   * stalled/disconnected WS feed can't silently stop TP/SL detection.
+   */
+  async checkActiveSignals(): Promise<void> {
+    await this.refreshCache();
+    if (!this.active.length) return;
+
     let price = this.ws.isHealthy() ? this.ws.getLatestPrice() : null;
     if (price == null) {
       price = await this.bitget.fetchCurrentPrice();
     }
-    if (!price) {
+    if (price == null) {
       this.logger.warn('Could not obtain price for result monitoring');
       return;
     }
+    await this.evaluate(price);
+  }
 
-    for (const signal of active) {
+  private async ensureCache(): Promise<void> {
+    if (Date.now() - this.cacheAt < CACHE_TTL_MS) return;
+    await this.refreshCache();
+  }
+
+  private async refreshCache(): Promise<void> {
+    if (this.refreshing) return;
+    this.refreshing = true;
+    try {
+      this.active = await this.repo.findActiveSignals('BTCUSDT');
+      this.cacheAt = Date.now();
+    } catch (err) {
+      this.logger.warn(`Failed to refresh active-signal cache: ${this.errMsg(err)}`);
+    } finally {
+      this.refreshing = false;
+    }
+  }
+
+  /** Evaluate the cached open signals against a price; close any that touched TP/SL. */
+  private async evaluate(price: number): Promise<void> {
+    for (const signal of this.active) {
+      if (this.closing.has(signal.id)) continue;
+
       const { id, direction, entryPrice, takeProfit, stopLoss } = signal;
       let hit: 'TP_HIT' | 'SL_HIT' | null = null;
 
@@ -39,15 +102,24 @@ export class ResultMonitorService {
         else if (price >= stopLoss) hit = 'SL_HIT';
       }
 
-      if (hit) {
-        // Realized P&L in USD = volume × price move (signed by direction).
-        // Falls back to the fixed ±risk model if volume wasn't stored.
-        const qty = signal.quantity;
-        const priceMove = direction === 'LONG' ? price - entryPrice : entryPrice - price;
-        const pnlUsd = qty != null
-          ? qty * priceMove
-          : (hit === 'TP_HIT' ? signal.rrRatio * signal.riskAmount : -signal.riskAmount);
+      if (!hit) continue;
 
+      // Claim it synchronously (before any await) so a concurrent tick can't
+      // also close it: mark it closing and drop it from the active set.
+      this.closing.add(id);
+      this.active = this.active.filter((s) => s.id !== id);
+
+      // Realized P&L in USD = volume × price move (signed by direction).
+      // Falls back to the fixed ±risk model if volume wasn't stored.
+      // NOTE: this uses the observed close `price`, not `takeProfit` — so the
+      // P&L reflects real slippage/overshoot, not an idealised limit fill.
+      const qty = signal.quantity;
+      const priceMove = direction === 'LONG' ? price - entryPrice : entryPrice - price;
+      const pnlUsd = qty != null
+        ? qty * priceMove
+        : (hit === 'TP_HIT' ? signal.rrRatio * signal.riskAmount : -signal.riskAmount);
+
+      try {
         await this.repo.updateSignalResult(id, {
           status: hit,
           closedPrice: price,
@@ -57,7 +129,17 @@ export class ResultMonitorService {
         this.logger.log(
           `Signal ${id} closed: ${hit} @ ${price} → $${pnlUsd.toFixed(2)} (entry ${entryPrice}, SL ${stopLoss}, TP ${takeProfit})`,
         );
+      } catch (err) {
+        // Close write failed — re-arm so the next tick/cron retries this signal.
+        this.logger.error(`Failed to close signal ${id}: ${this.errMsg(err)}`);
+        this.cacheAt = 0;
+      } finally {
+        this.closing.delete(id);
       }
     }
+  }
+
+  private errMsg(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
   }
 }
