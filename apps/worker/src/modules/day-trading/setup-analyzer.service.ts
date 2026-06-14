@@ -357,9 +357,10 @@ export class SetupAnalyzerService {
     const prev = candles15m[n - 1]!;
     const zones = this.srZones(candles1h);
 
-    // LONG continuation: H4 up & H1 not down. After a pullback to a recent M15
-    // swing low, the latest candle reclaims (bullish reclaim of the prior high).
-    if (trend4h === 'up' && trend1h !== 'down') {
+    // LONG continuation: require BOTH H4 and H1 trending up (tightened — the
+    // looser "H1 not down" gate let the LONG side bleed: PF 0.93 over 365d).
+    // After a pullback to a recent M15 swing low, the latest candle reclaims.
+    if (trend4h === 'up' && trend1h === 'up') {
       const lows = this.pivots(candles15m, 'low');
       const lastLow = lows.at(-1);
       const recent = lastLow != null && lastLow.idx >= n - 8;   // pullback was recent
