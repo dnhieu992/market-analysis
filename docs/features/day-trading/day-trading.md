@@ -16,7 +16,7 @@ Built in two phases:
 4. Historical candle sets (50×15m, 40×1H, 30×4H) are fetched via REST (`BitgetService`) for swing-structure lookback.
 5. **Trend (H4/H1)** is read from **trendlines** (no EMAs): `trendlineTrend()` finds swing pivots, then `up` = last two swing **lows rising** with price still above the projected support line; `down` = last two swing **highs falling** with price still below the projected resistance line; conflict / no clean structure → `neutral`. This mirrors a discretionary trader drawing trendlines on H4 and H1.
 6. `SetupAnalyzerService` runs two detectors in quality order; the first to trigger wins for the candle:
-   - **Liquidity Sweep** (reversal): 1H swing high/low swept ≥0.12%, closed back with engulfing/pin bar + volume > avg×1.15. Allowed unless 4H trend opposes.
+   - **Liquidity Sweep** (reversal): 1H swing high/low swept ≥0.12%, closed back with a **bullish/bearish engulfing** at entry + volume > avg×1.15. Allowed unless 4H trend opposes. (Engulfing is **required** here — backtest: PF 0.85 → 1.29; it is NOT required for the pullback, where it hurt.)
    - **Trend Pullback** (continuation): with the H4 trendline trending (and H1 not opposing), price pulls back to the nearest M15 swing then the latest candle reclaims (bullish reclaim of the prior high / bearish reject of the prior low). SL beyond that swing.
    - _`RANGE_FADE` and EMA-based logic were removed — range fade traded against the trend in "neutral" regimes and backtested as a heavy net loss (PF 0.61); this is a trend-following system. `BREAK_RETEST` was also removed (negative gross edge)._
 7. **Dedup**: if the same setup+direction already fired within one candle window (~14 min), it is skipped.
