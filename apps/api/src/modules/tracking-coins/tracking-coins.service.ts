@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, computeSwingLimitOrder, computeDayTradeLimitOrder } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder, computeDayTradeLimitOrder } from '@app/core';
 import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
@@ -28,8 +28,8 @@ export type SavedOrderSuggestion = LimitOrderResult & { id: string; notes: strin
 export type OrderSuggestionsResult = {
   symbol: string;
   currentPrice: number;
-  swing: SavedOrderSuggestion;
-  scalp: SavedOrderSuggestion;
+  swing: SavedOrderSuggestion | null;
+  scalp: SavedOrderSuggestion | null;
   generatedAt: string;
 };
 
@@ -200,10 +200,12 @@ export class TrackingCoinsService {
       this.binance.fetchCurrentPrice(binanceSymbol).catch(() => 0),
     ]);
 
-    const h4Highs = h4Klines.map((k) => parseFloat(k[2]));
-    const h4Lows  = h4Klines.map((k) => parseFloat(k[3]));
-    const h1Highs = h1Klines.map((k) => parseFloat(k[2]));
-    const h1Lows  = h1Klines.map((k) => parseFloat(k[3]));
+    const h4Highs  = h4Klines.map((k) => parseFloat(k[2]));
+    const h4Lows   = h4Klines.map((k) => parseFloat(k[3]));
+    const h4Closes = h4Klines.map((k) => parseFloat(k[4]));
+    const h1Highs  = h1Klines.map((k) => parseFloat(k[2]));
+    const h1Lows   = h1Klines.map((k) => parseFloat(k[3]));
+    const h1Closes = h1Klines.map((k) => parseFloat(k[4]));
 
     const price = currentPrice || (h4Klines.length > 0 ? parseFloat(h4Klines[h4Klines.length - 1]![4]) : 0);
 
@@ -221,27 +223,48 @@ export class TrackingCoinsService {
       swingStructure: sig.swingStructure,
     } : null;
 
-    const swing = computeSwingLimitOrder(price, h4Highs, h4Lows, sigSnap);
-    const scalp = computeDayTradeLimitOrder(price, h1Highs, h1Lows, sigSnap);
+    const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
+    const h1Atr = calculateAtr(h1Highs, h1Lows, h1Closes, 14);
+    const swing = computeSwingLimitOrder(price, h4Highs, h4Lows, sigSnap, h4Atr);
+    const scalp = computeDayTradeLimitOrder(price, h1Highs, h1Lows, sigSnap, h1Atr);
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const setup = await this.repo.findCoinBySymbol(upper);
-    const swingVol  = calcVolume(swing,  setup?.swingMaxLoss    ?? null);
-    const scalpVol  = calcVolume(scalp,  setup?.daytradeMaxLoss ?? null);
 
-    const [swingRecord, scalpRecord] = await Promise.all([
-      this.repo.upsertOrder(coin.id, today, 'swing',    { ...swing,  ...swingVol }),
-      this.repo.upsertOrder(coin.id, today, 'daytrade', { ...scalp, ...scalpVol }),
+    const [swingSaved, scalpSaved] = await Promise.all([
+      this.persistSuggestion(coin.id, today, 'swing', swing, setup?.swingMaxLoss ?? null, setup?.swingMinRR ?? null),
+      this.persistSuggestion(coin.id, today, 'daytrade', scalp, setup?.daytradeMaxLoss ?? null, setup?.daytradeMinRR ?? null),
     ]);
 
     return {
       symbol: upper,
       currentPrice: price,
-      swing:  { ...swing,  id: swingRecord.id,  notes: swingRecord.notes  ?? null },
-      scalp:  { ...scalp,  id: scalpRecord.id,  notes: scalpRecord.notes  ?? null },
+      swing: swingSaved,
+      scalp: scalpSaved,
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  // Upsert a suggested order (or delete the day's stale one when regime = no-trade),
+  // returning the shape the UI expects (or null for no-trade).
+  private async persistSuggestion(
+    coinId: string,
+    date: Date,
+    type: 'swing' | 'daytrade',
+    order: LimitOrderResult | null,
+    maxLoss: number | null,
+    minRR: number | null,
+  ): Promise<SavedOrderSuggestion | null> {
+    // P3 — minRR gate: treat a below-threshold R:R order as no-trade.
+    const gated = order && (minRR == null || order.rrRatio >= minRR) ? order : null;
+    if (!gated) {
+      await this.repo.deleteOrder(coinId, date, type);
+      return null;
+    }
+    const vol = calcVolume(gated, maxLoss);
+    const record = await this.repo.upsertOrder(coinId, date, type, { ...gated, ...vol });
+    return { ...gated, id: record.id, notes: record.notes ?? null };
   }
 
   async updateOrderNotes(orderId: string, notes: string | null): Promise<void> {
@@ -411,15 +434,16 @@ export class TrackingCoinsService {
         h4Rsi,
         swingStructure: result.swingStructure,
       };
-      const h1Highs = h1Klines.map((k) => parseFloat(k[2]));
-      const h1Lows  = h1Klines.map((k) => parseFloat(k[3]));
-      const swingOrder    = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap);
-      const dayTradeOrder = computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap);
-      const swingVol    = calcVolume(swingOrder, setup?.swingMaxLoss ?? null);
-      const dayTradeVol = calcVolume(dayTradeOrder, setup?.daytradeMaxLoss ?? null);
+      const h1Highs  = h1Klines.map((k) => parseFloat(k[2]));
+      const h1Lows   = h1Klines.map((k) => parseFloat(k[3]));
+      const h1Closes = h1Klines.map((k) => parseFloat(k[4]));
+      const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
+      const h1Atr = calculateAtr(h1Highs, h1Lows, h1Closes, 14);
+      const swingOrder    = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr);
+      const dayTradeOrder = computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap, h1Atr);
       await Promise.all([
-        this.repo.upsertOrder(coinId, today, 'swing',    { ...swingOrder,    ...swingVol }),
-        this.repo.upsertOrder(coinId, today, 'daytrade', { ...dayTradeOrder, ...dayTradeVol }),
+        this.persistSuggestion(coinId, today, 'swing', swingOrder, setup?.swingMaxLoss ?? null, setup?.swingMinRR ?? null),
+        this.persistSuggestion(coinId, today, 'daytrade', dayTradeOrder, setup?.daytradeMaxLoss ?? null, setup?.daytradeMinRR ?? null),
       ]);
     }
   }

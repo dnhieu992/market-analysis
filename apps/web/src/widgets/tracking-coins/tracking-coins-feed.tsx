@@ -388,12 +388,27 @@ function OrderCard({ order, label, maxLoss }: { order: OrderSuggestion; label: s
   );
 }
 
+function NoTradeCard({ label }: { label: string }) {
+  return (
+    <div className="ord-card ord-card--notrade">
+      <div className="ord-card__header">
+        <span className="ord-card__title">{label}</span>
+        <span className="tt-side-badge tt-side-badge--neutral">NO-TRADE</span>
+      </div>
+      <p className="ord-card__rationale">
+        Không có setup hôm nay — thị trường đi ngang hoặc tín hiệu hai chiều cân bằng. Đứng ngoài để tránh lệnh chất lượng thấp.
+      </p>
+    </div>
+  );
+}
+
 function OutcomeBadge({ activated, outcome }: { activated: boolean | null; outcome: string | null }) {
   if (activated === null) return <span className="ord-hist__outcome ord-hist__outcome--pending">Chưa eval</span>;
   if (!activated) return <span className="ord-hist__outcome ord-hist__outcome--miss">Chưa kích hoạt</span>;
   if (outcome === 'tp2') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP2</span>;
   if (outcome === 'tp1') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP1</span>;
   if (outcome === 'sl') return <span className="ord-hist__outcome ord-hist__outcome--sl">✗ SL</span>;
+  if (outcome === 'expired') return <span className="ord-hist__outcome ord-hist__outcome--miss">Hết hạn</span>;
   return <span className="ord-hist__outcome ord-hist__outcome--active">Đang chạy</span>;
 }
 
@@ -514,8 +529,12 @@ function CoinLiveSignal({ symbol }: { symbol: string }) {
             <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
             <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
           </div>
-          <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
-          <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
+          {data.swing
+            ? <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
+            : <NoTradeCard label="Swing (2–5 ngày)" />}
+          {data.scalp
+            ? <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
+            : <NoTradeCard label="Day trade (trong ngày)" />}
           <p className="ord-footer">
             Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
           </p>

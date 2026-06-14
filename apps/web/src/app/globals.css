@@ -7907,6 +7907,16 @@ a.metric-card--link:hover {
   color: #dc2626;
 }
 
+.tt-side-badge--neutral {
+  background: rgba(148, 163, 184, 0.18);
+  color: #64748b;
+}
+
+.ord-card--notrade {
+  opacity: 0.85;
+  border-style: dashed;
+}
+
 /* ── mobile ── */
 @media (max-width: 700px) {
   .scr-shell { padding: 16px 14px; }

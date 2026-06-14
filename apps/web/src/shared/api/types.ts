@@ -430,8 +430,8 @@ export type OrderSuggestion = {
 export type OrderSuggestions = {
   symbol: string;
   currentPrice: number;
-  swing: OrderSuggestion;
-  scalp: OrderSuggestion;
+  swing: OrderSuggestion | null;
+  scalp: OrderSuggestion | null;
   generatedAt: string;
 };
 
@@ -451,7 +451,7 @@ export type TrackingCoinOrder = {
   positionSize: number | null;
   positionValue: number | null;
   activated: boolean | null;
-  outcome: 'tp1' | 'tp2' | 'sl' | null;
+  outcome: 'tp1' | 'tp2' | 'sl' | 'expired' | null;
   evaluatedAt: string | null;
   createdAt: string;
 };

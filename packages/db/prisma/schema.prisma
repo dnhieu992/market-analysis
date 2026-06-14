@@ -323,7 +323,7 @@ model TrackingCoinOrder {
   positionSize  Float?
   positionValue Float?
   activated     Boolean?
-  outcome       String?      @db.VarChar(5)
+  outcome       String?      @db.VarChar(10)
   evaluatedAt   DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt

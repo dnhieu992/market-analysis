@@ -109,6 +109,12 @@ export function createTrackingCoinsRepository(client = prisma) {
       return client.trackingCoinOrder.update({ where: { id }, data: { notes } });
     },
 
+    // Remove a day's order of a given type (used when the regime turns no-trade,
+    // so a stale order from an earlier scan does not linger). No-op if absent.
+    deleteOrder(coinId: string, date: Date, type: string) {
+      return client.trackingCoinOrder.deleteMany({ where: { coinId, date, type } });
+    },
+
     findOrdersByDate(coinId: string, date: Date) {
       return client.trackingCoinOrder.findMany({
         where: { coinId, date },

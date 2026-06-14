@@ -7,6 +7,7 @@ import {
   calculateRsi,
   calculateVolumeRatio,
   calcUtBotResult,
+  calculateAtr,
   computeSwingLimitOrder,
   computeDayTradeLimitOrder,
   evaluateLimitOrder,
@@ -17,6 +18,10 @@ import { createTrackingCoinsRepository } from '@app/db';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 const CANDLE_LIMIT = 220;
+
+// P4 — order expiry windows (after which an unfilled/unresolved order is closed).
+const SWING_EXPIRY_DAYS = 5;
+const DAYTRADE_EXPIRY_DAYS = 1;
 
 @Injectable()
 export class TrackingCoinScanService {
@@ -45,6 +50,14 @@ export class TrackingCoinScanService {
     return { scanned, failed };
   }
 
+  // P3 — minRR gate: drop an otherwise-valid order whose R:R is below the coin's
+  // configured minimum (null setup = no gate). Returns null = no-trade.
+  private gateByMinRr(order: LimitOrderResult | null, minRr: number | null | undefined): LimitOrderResult | null {
+    if (!order) return null;
+    if (minRr != null && order.rrRatio < minRr) return null;
+    return order;
+  }
+
   private calcVolume(order: LimitOrderResult, maxLoss: number | null | undefined): { positionSize: number; positionValue: number } | null {
     if (!maxLoss || maxLoss <= 0) return null;
     const entryMid = (order.entryLow + order.entryHigh) / 2;
@@ -57,7 +70,12 @@ export class TrackingCoinScanService {
   private async scanOne(
     coinId: string,
     symbol: string,
-    setup?: { swingMaxLoss?: number | null; daytradeMaxLoss?: number | null } | null,
+    setup?: {
+      swingMaxLoss?: number | null;
+      daytradeMaxLoss?: number | null;
+      swingMinRR?: number | null;
+      daytradeMinRR?: number | null;
+    } | null,
   ): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
@@ -169,17 +187,23 @@ export class TrackingCoinScanService {
         swingStructure: result.swingStructure,
       };
 
-      const h1Highs = h1Klines.map((k) => parseFloat(k[2]));
-      const h1Lows  = h1Klines.map((k) => parseFloat(k[3]));
+      const h1Highs  = h1Klines.map((k) => parseFloat(k[2]));
+      const h1Lows   = h1Klines.map((k) => parseFloat(k[3]));
+      const h1Closes = h1Klines.map((k) => parseFloat(k[4]));
 
-      const swingOrder    = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap);
-      const dayTradeOrder = computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap);
-      const swingVol    = this.calcVolume(swingOrder, setup?.swingMaxLoss);
-      const dayTradeVol = this.calcVolume(dayTradeOrder, setup?.daytradeMaxLoss);
+      const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
+      const h1Atr = calculateAtr(h1Highs, h1Lows, h1Closes, 14);
+
+      const swingOrder    = this.gateByMinRr(computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr), setup?.swingMinRR);
+      const dayTradeOrder = this.gateByMinRr(computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap, h1Atr), setup?.daytradeMinRR);
 
       await Promise.all([
-        this.repo.upsertOrder(coinId, today, 'swing',    { ...swingOrder,    ...swingVol }),
-        this.repo.upsertOrder(coinId, today, 'daytrade', { ...dayTradeOrder, ...dayTradeVol }),
+        swingOrder
+          ? this.repo.upsertOrder(coinId, today, 'swing', { ...swingOrder, ...this.calcVolume(swingOrder, setup?.swingMaxLoss) })
+          : this.repo.deleteOrder(coinId, today, 'swing'),
+        dayTradeOrder
+          ? this.repo.upsertOrder(coinId, today, 'daytrade', { ...dayTradeOrder, ...this.calcVolume(dayTradeOrder, setup?.daytradeMaxLoss) })
+          : this.repo.deleteOrder(coinId, today, 'daytrade'),
       ]);
     }
 
@@ -194,20 +218,18 @@ export class TrackingCoinScanService {
 
       const daysAgo = Math.ceil((today.getTime() - order.date.getTime()) / (1000 * 60 * 60 * 24));
 
-      let candleHighs: number[];
-      let candleLows: number[];
+      // P4: only score candles within the order's lifetime — a day-trade must not
+      // be evaluated over many days of H1 candles (it would eventually hit SL).
+      const isSwing = order.type === 'swing';
+      const candlesPerDay = isSwing ? 6 : 24;        // H4 vs H1
+      const expiryDays = isSwing ? SWING_EXPIRY_DAYS : DAYTRADE_EXPIRY_DAYS;
+      const srcHighs = isSwing ? h4Highs : h1Highs;
+      const srcLows  = isSwing ? h4Lows  : h1Lows;
 
-      if (order.type === 'swing') {
-        const candlesPerDay = 6; // H4
-        const skip = Math.max(0, h4Highs.length - daysAgo * candlesPerDay);
-        candleHighs = h4Highs.slice(skip);
-        candleLows  = h4Lows.slice(skip);
-      } else {
-        const candlesPerDay = 24; // H1
-        const skip = Math.max(0, h1Highs.length - daysAgo * candlesPerDay);
-        candleHighs = h1Highs.slice(skip);
-        candleLows  = h1Lows.slice(skip);
-      }
+      const skip = Math.max(0, srcHighs.length - daysAgo * candlesPerDay);     // ≈ order placement
+      const maxCandles = expiryDays * candlesPerDay;                            // expiry window
+      const candleHighs = srcHighs.slice(skip, skip + maxCandles);
+      const candleLows  = srcLows.slice(skip, skip + maxCandles);
 
       if (candleHighs.length === 0) continue;
 
@@ -222,7 +244,10 @@ export class TrackingCoinScanService {
         candleLows,
       );
 
-      await this.repo.updateOrderEvaluation(order.id, eval_.activated, eval_.outcome);
+      // P4: if no TP/SL hit and the order has outlived its window → expired.
+      const outcome = !eval_.outcome && daysAgo > expiryDays ? 'expired' : eval_.outcome;
+
+      await this.repo.updateOrderEvaluation(order.id, eval_.activated, outcome);
     }
   }
 }
