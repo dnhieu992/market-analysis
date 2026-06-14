@@ -532,9 +532,6 @@ function CoinLiveSignal({ symbol }: { symbol: string }) {
           {data.swing
             ? <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
             : <NoTradeCard label="Swing (2–5 ngày)" />}
-          {data.scalp
-            ? <OrderCard order={data.scalp} label="Day trade (trong ngày)" maxLoss={setup?.daytradeMaxLoss ?? null} />
-            : <NoTradeCard label="Day trade (trong ngày)" />}
           <p className="ord-footer">
             Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
           </p>
@@ -640,21 +637,6 @@ function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => v
                     <span>R:R tối thiểu</span>
                     <input className="setup-input" type="number" min="0" step="0.1" placeholder="e.g. 1.5"
                       value={field('swingMinRR')} onChange={(e) => setField('swingMinRR', e.target.value)} />
-                  </label>
-                </div>
-              </div>
-              <div className="setup-section">
-                <div className="setup-section__title">Day trade (trong ngày)</div>
-                <div className="setup-fields">
-                  <label className="setup-label">
-                    <span>SL tối đa ($)</span>
-                    <input className="setup-input" type="number" min="0" step="1" placeholder="e.g. 5"
-                      value={field('daytradeMaxLoss')} onChange={(e) => setField('daytradeMaxLoss', e.target.value)} />
-                  </label>
-                  <label className="setup-label">
-                    <span>R:R tối thiểu</span>
-                    <input className="setup-input" type="number" min="0" step="0.1" placeholder="e.g. 2"
-                      value={field('daytradeMinRR')} onChange={(e) => setField('daytradeMinRR', e.target.value)} />
                   </label>
                 </div>
               </div>

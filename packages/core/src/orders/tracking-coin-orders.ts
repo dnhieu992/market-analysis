@@ -94,14 +94,19 @@ function resolveD1Regime(sig: OrderSigSnapshot | null): D1Regime {
   const trendUp = t.includes('up');
   const trendDown = t.includes('down');
 
-  // Regime gate: scores too close to call AND no clear D1 trend → stay flat.
-  if (gap < REGIME_SCORE_MARGIN && !trendUp && !trendDown) return null;
+  // Candidate side: score gap if decisive, else the clear D1 trend, else flat.
+  let side: 'LONG' | 'SHORT' | null = null;
+  if (gap >= REGIME_SCORE_MARGIN) side = ls > ss ? 'LONG' : 'SHORT';
+  else if (trendUp) side = 'LONG';
+  else if (trendDown) side = 'SHORT';
+  else return null; // range-bound → no trade
 
-  if (gap >= REGIME_SCORE_MARGIN) return { side: ls > ss ? 'LONG' : 'SHORT' };
-  // Scores ambiguous but trend is clear → follow the trend.
-  if (trendUp) return { side: 'LONG' };
-  if (trendDown) return { side: 'SHORT' };
-  return null;
+  // Asymmetric LONG filter: only go long in a confirmed StrongUp regime. Backtest
+  // (P5, 1y) showed longs in mild/non-strong uptrends are net-negative, while shorts
+  // perform well unrestricted.
+  if (side === 'LONG' && sig.trend !== 'StrongUp') return null;
+
+  return { side };
 }
 
 // P2 — day-trade direction is slaved to the D1 regime so intraday entries never

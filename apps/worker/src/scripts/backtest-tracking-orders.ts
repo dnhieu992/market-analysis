@@ -28,7 +28,6 @@ import {
   calcUtBotResult,
   calculateAtr,
   computeSwingLimitOrder,
-  computeDayTradeLimitOrder,
   evaluateLimitOrder,
 } from '@app/core';
 import type { OrderSigSnapshot, LimitOrderResult, PaTrend } from '@app/core';
@@ -38,17 +37,15 @@ import { BinanceMarketDataService } from '../modules/market/binance-market-data.
 import type { BinanceKlineDto } from '../modules/market/dto/binance-kline.dto';
 
 // ── Constants (mirror production scan + expiry windows) ────────────────────────
+// Day-trade was removed from tracking-coins; this harness backtests SWING only.
 const WARMUP_D1 = 210;
 const H4_PER_DAY = 6;
-const H1_PER_DAY = 24;
 const SWING_FWD_DAYS = 5;   // = SWING_EXPIRY_DAYS
-const DAY_FWD_DAYS = 1;     // = DAYTRADE_EXPIRY_DAYS
 const SWING_FWD = SWING_FWD_DAYS * H4_PER_DAY;  // 30 H4 bars
-const DAY_FWD = DAY_FWD_DAYS * H1_PER_DAY;      // 24 H1 bars
 const DAY_MS = 86_400_000;
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
-type Args = { days: number; symbols: string[] | null; swingMinRr: number | null; dayMinRr: number | null; csv: string | null };
+type Args = { days: number; symbols: string[] | null; swingMinRr: number | null; csv: string | null };
 
 function parseArgs(argv: string[]): Args {
   const get = (k: string) => {
@@ -60,13 +57,12 @@ function parseArgs(argv: string[]): Args {
     days: num(get('days')) ?? 180,
     symbols: get('symbols')?.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean) ?? null,
     swingMinRr: num(get('swing-min-rr')),
-    dayMinRr: num(get('day-min-rr')),
     csv: get('csv'),
   };
 }
 
 // ── Kline helpers ───────────────────────────────────────────────────────────
-type Tf = '1d' | '4h' | '1h';
+type Tf = '1d' | '4h';
 const high = (k: BinanceKlineDto) => parseFloat(k[2]);
 const low = (k: BinanceKlineDto) => parseFloat(k[3]);
 const close = (k: BinanceKlineDto) => parseFloat(k[4]);
@@ -131,7 +127,7 @@ function buildSnapshot(
 }
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
-type Trade = { type: 'swing' | 'daytrade'; side: 'LONG' | 'SHORT'; outcome: 'tp1' | 'tp2' | 'sl' | 'expired'; activated: boolean; r: number; t: number };
+type Trade = { side: 'LONG' | 'SHORT'; outcome: 'tp1' | 'tp2' | 'sl' | 'expired'; activated: boolean; r: number; t: number };
 
 function gate(order: LimitOrderResult | null, minRr: number | null): LimitOrderResult | null {
   if (!order) return null;
@@ -197,8 +193,8 @@ async function main() {
   }
   if (symbols.length === 0) { console.error('No symbols to backtest.'); process.exit(1); }
 
-  console.log(`\nBacktest tracking-coin orders — days=${args.days}, symbols=${symbols.length}`);
-  console.log(`minRR: swing=${args.swingMinRr ?? '—'} day=${args.dayMinRr ?? '—'}  (m30Trend≈h4Trend)\n`);
+  console.log(`\nBacktest tracking-coin SWING orders — days=${args.days}, symbols=${symbols.length}`);
+  console.log(`swing minRR=${args.swingMinRr ?? '—'}  (m30Trend≈h4Trend)\n`);
 
   const all: Trade[] = [];
   let noTradeBars = 0, testedBars = 0;
@@ -208,10 +204,9 @@ async function main() {
     const bs = `${sym}USDT`;
     const symBucket = emptyBucket();
     try {
-      const [d1, h4, h1] = await Promise.all([
+      const [d1, h4] = await Promise.all([
         fetchHistory(binance, bs, '1d', Date.now() - (WARMUP_D1 + args.days + 10) * DAY_MS),
         fetchHistory(binance, bs, '4h', Date.now() - (args.days + 40) * DAY_MS),
-        fetchHistory(binance, bs, '1h', Date.now() - (args.days + 5) * DAY_MS),
       ]);
       if (d1.length < WARMUP_D1 + 5) { console.log(`${sym.padEnd(6)} skipped (insufficient D1 history: ${d1.length})`); continue; }
 
@@ -221,8 +216,7 @@ async function main() {
         const T = closeTime(d1[i]!);
         // up-to-T slices (no lookahead) — candle fully closed by T
         const h4Up = h4.filter((k) => closeTime(k) <= T);
-        const h1Up = h1.filter((k) => closeTime(k) <= T);
-        if (h4Up.length < 200 || h1Up.length < 30) continue;
+        if (h4Up.length < 200) continue;
 
         const snap = buildSnapshot(
           d1C.slice(0, i + 1), d1H.slice(0, i + 1), d1L.slice(0, i + 1), d1V.slice(0, i + 1),
@@ -232,33 +226,21 @@ async function main() {
         testedBars++;
 
         const h4H = h4Up.map(high), h4L = h4Up.map(low), h4C = h4Up.map(close);
-        const h1H = h1Up.map(high), h1L = h1Up.map(low), h1C = h1Up.map(close);
         const atrH4 = calculateAtr(h4H, h4L, h4C, 14);
-        const atrH1 = calculateAtr(h1H, h1L, h1C, 14);
 
         const swing = gate(computeSwingLimitOrder(snap.price, h4H, h4L, snap.snap, atrH4), args.swingMinRr);
-        const day = gate(computeDayTradeLimitOrder(snap.price, h1H, h1L, snap.snap, atrH1), args.dayMinRr);
-        if (!swing && !day) { noTradeBars++; continue; }
+        if (!swing) { noTradeBars++; continue; }
 
-        // forward candles
-        const h4Fwd = h4.filter((k) => closeTime(k) > T).slice(0, SWING_FWD);
-        const h1Fwd = h1.filter((k) => closeTime(k) > T).slice(0, DAY_FWD);
-
-        for (const [order, fwd, full, type] of [
-          [swing, h4Fwd, SWING_FWD, 'swing' as const],
-          [day, h1Fwd, DAY_FWD, 'daytrade' as const],
-        ] as const) {
-          if (!order) continue;
-          const ev = evaluateLimitOrder(order.side, order.entryLow, order.entryHigh, order.tp1, order.tp2 ?? null, order.sl, fwd.map(high), fwd.map(low));
-          let outcome: Trade['outcome'] | null = ev.outcome;
-          if (!outcome) {
-            if (fwd.length >= full) outcome = 'expired';  // full window elapsed, no TP/SL
-            else continue;                                 // window not complete yet → still running, skip
-          }
-          const tr: Trade = { type, side: order.side, outcome, activated: ev.activated, r: ev.activated ? rOf(order, outcome) : 0, t: T };
-          all.push(tr);
-          add(symBucket, tr);
+        const fwd = h4.filter((k) => closeTime(k) > T).slice(0, SWING_FWD);
+        const ev = evaluateLimitOrder(swing.side, swing.entryLow, swing.entryHigh, swing.tp1, swing.tp2 ?? null, swing.sl, fwd.map(high), fwd.map(low));
+        let outcome: Trade['outcome'] | null = ev.outcome;
+        if (!outcome) {
+          if (fwd.length >= SWING_FWD) outcome = 'expired';  // full window elapsed, no TP/SL
+          else continue;                                      // window not complete yet → still running
         }
+        const tr: Trade = { side: swing.side, outcome, activated: ev.activated, r: ev.activated ? rOf(swing, outcome) : 0, t: T };
+        all.push(tr);
+        add(symBucket, tr);
       }
       perSymbol[sym] = symBucket;
       console.log(fmtBucket(sym, symBucket));
@@ -268,23 +250,22 @@ async function main() {
   }
 
   // ── Aggregate report ──
-  const byType: Record<string, Bucket> = { 'swing':emptyBucket(), 'daytrade':emptyBucket(),
-    'swing LONG':emptyBucket(), 'swing SHORT':emptyBucket(), 'daytrade LONG':emptyBucket(), 'daytrade SHORT':emptyBucket() };
+  const bySide: Record<string, Bucket> = { 'swing LONG': emptyBucket(), 'swing SHORT': emptyBucket() };
   const overall = emptyBucket();
-  for (const t of all) { add(overall, t); add(byType[t.type]!, t); add(byType[`${t.type} ${t.side}`]!, t); }
+  for (const t of all) { add(overall, t); add(bySide[`swing ${t.side}`]!, t); }
 
   console.log('\n── Breakdown ───────────────────────────────────────────────────────────────');
-  for (const k of ['swing', 'swing LONG', 'swing SHORT', 'daytrade', 'daytrade LONG', 'daytrade SHORT']) {
-    if (byType[k]!.trades > 0) console.log(fmtBucket(k, byType[k]!));
+  for (const k of ['swing LONG', 'swing SHORT']) {
+    if (bySide[k]!.trades > 0) console.log(fmtBucket(k, bySide[k]!));
   }
   console.log('────────────────────────────────────────────────────────────────────────────');
   console.log(fmtBucket('OVERALL', overall));
   const noTradePct = testedBars > 0 ? (noTradeBars / testedBars) * 100 : 0;
-  console.log(`\nTested bars: ${testedBars}  |  No-trade bars (both sides skipped): ${noTradeBars} (${noTradePct.toFixed(1)}%)`);
+  console.log(`\nTested bars: ${testedBars}  |  No-trade bars (regime gate / minRR): ${noTradeBars} (${noTradePct.toFixed(1)}%)`);
   console.log('E[R] = expectancy per order in R (SL=-1). PF = profit factor. MDD = max drawdown in R.\n');
 
   if (args.csv) {
-    const rows = ['time,type,side,activated,outcome,r', ...all.map((t) => `${new Date(t.t).toISOString()},${t.type},${t.side},${t.activated},${t.outcome},${t.r.toFixed(4)}`)];
+    const rows = ['time,side,activated,outcome,r', ...all.map((t) => `${new Date(t.t).toISOString()},${t.side},${t.activated},${t.outcome},${t.r.toFixed(4)}`)];
     fs.writeFileSync(args.csv, rows.join('\n'));
     console.log(`Wrote ${all.length} trades → ${args.csv}\n`);
   }

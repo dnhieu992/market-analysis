@@ -28,6 +28,20 @@ Cập nhật 2026-06-14 (P3 + P4):
     quá hạn mà chưa chạm TP/SL → `outcome = 'expired'` (không tính thắng/thua). Tránh việc
     day-trade trôi nhiều ngày rồi sớm muộn cũng dính SL.
 
+Cập nhật 2026-06-14 (bỏ day-trade):
+
+- **Gỡ hẳn lệnh day-trade khỏi tracking-coins** — chỉ còn sinh lệnh **swing**. Lý do: backtest
+  P5 cho thấy daytrade (đặc biệt daytrade LONG) kỳ vọng âm, kéo lùi hiệu suất. Worker + API
+  ngừng tạo lệnh daytrade và `deleteOrder(...,'daytrade')` để dọn lệnh cũ trong ngày; UI bỏ card
+  "Day trade" ở tab Tín hiệu hôm nay và bỏ section day-trade trong dialog Setup. Lịch sử lệnh
+  daytrade cũ vẫn giữ (bản ghi quá khứ). Hàm `computeDayTradeLimitOrder` vẫn còn trong core
+  (không xoá) để có thể bật lại sau; backtest harness chuyển sang swing-only.
+- **Siết side LONG (asymmetric filter):** `resolveD1Regime` chỉ trả `LONG` khi D1 trend là
+  `StrongUp`; mọi uptrend nhẹ hơn → no-trade. SHORT không đổi. Lý do: backtest 1 năm cho thấy
+  long ở uptrend không-mạnh là net-âm. Kết quả sau khi siết (365 ngày, 5 coin): OVERALL
+  E[R] +0.060→**+0.116**, PF 1.13→**1.26**, MDD −36.6R→**−21.9R**; swing LONG từ −0.041 về hòa
+  (−0.001), drawdown −49.6R→−15.8R. No-trade rate ~38% (chọn lọc hơn).
+
 ## Main Flow
 1. Scan (cron worker, nút Re-analyze qua API, hoặc tab "Tín hiệu hôm nay" gọi live) lấy nến
    D1/H4/H1 từ Binance.

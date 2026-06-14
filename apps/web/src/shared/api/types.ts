@@ -431,7 +431,6 @@ export type OrderSuggestions = {
   symbol: string;
   currentPrice: number;
   swing: OrderSuggestion | null;
-  scalp: OrderSuggestion | null;
   generatedAt: string;
 };
 

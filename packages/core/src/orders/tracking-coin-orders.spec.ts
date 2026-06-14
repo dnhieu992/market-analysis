@@ -18,11 +18,13 @@ function series(n: number, base: number): { highs: number[]; lows: number[] } {
 }
 
 const bullish: OrderSigSnapshot = {
-  trend: 'Up', h4Trend: 'Up', m30Trend: 'Up',
+  trend: 'StrongUp', h4Trend: 'Up', m30Trend: 'Up',  // StrongUp required for LONG (asymmetric filter)
   utBotD1Bullish: true, utBotH4Bullish: true,
   longScore: 7, shortScore: 2,
   ema200Above: true, rsi: 45, h4Rsi: 50, swingStructure: 'HH-HL',
 };
+
+const mildUp: OrderSigSnapshot = { ...bullish, trend: 'Up' }; // mild uptrend → LONG filtered out
 
 const bearish: OrderSigSnapshot = {
   trend: 'Down', h4Trend: 'Down', m30Trend: 'Down',
@@ -52,6 +54,10 @@ describe('tracking-coin orders — P1 ATR stop + P2 regime/direction', () => {
   it('P2 direction: swing follows D1 bias', () => {
     expect(computeSwingLimitOrder(price, h4H, h4L, bullish, atr)!.side).toBe('LONG');
     expect(computeSwingLimitOrder(price, h4H, h4L, bearish, atr)!.side).toBe('SHORT');
+  });
+
+  it('LONG filter: mild Up (not StrongUp) → no swing trade', () => {
+    expect(computeSwingLimitOrder(price, h4H, h4L, mildUp, atr)).toBeNull();
   });
 
   it('P2 direction sync: day-trade does NOT oppose D1 bias (no strong reversal)', () => {

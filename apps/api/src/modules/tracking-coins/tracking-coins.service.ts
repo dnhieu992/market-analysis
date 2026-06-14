@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder, computeDayTradeLimitOrder } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
 import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
@@ -29,7 +29,6 @@ export type OrderSuggestionsResult = {
   symbol: string;
   currentPrice: number;
   swing: SavedOrderSuggestion | null;
-  scalp: SavedOrderSuggestion | null;
   generatedAt: string;
 };
 
@@ -192,20 +191,14 @@ export class TrackingCoinsService {
     const sig = coin.signals[0] ?? null;
     const binanceSymbol = `${upper}USDT`;
 
-    const [[h4Klines, h1Klines], currentPrice] = await Promise.all([
-      Promise.all([
-        this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 60 }),
-        this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1h', limit: 72 }),
-      ]),
+    const [h4Klines, currentPrice] = await Promise.all([
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 60 }),
       this.binance.fetchCurrentPrice(binanceSymbol).catch(() => 0),
     ]);
 
     const h4Highs  = h4Klines.map((k) => parseFloat(k[2]));
     const h4Lows   = h4Klines.map((k) => parseFloat(k[3]));
     const h4Closes = h4Klines.map((k) => parseFloat(k[4]));
-    const h1Highs  = h1Klines.map((k) => parseFloat(k[2]));
-    const h1Lows   = h1Klines.map((k) => parseFloat(k[3]));
-    const h1Closes = h1Klines.map((k) => parseFloat(k[4]));
 
     const price = currentPrice || (h4Klines.length > 0 ? parseFloat(h4Klines[h4Klines.length - 1]![4]) : 0);
 
@@ -224,24 +217,23 @@ export class TrackingCoinsService {
     } : null;
 
     const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
-    const h1Atr = calculateAtr(h1Highs, h1Lows, h1Closes, 14);
     const swing = computeSwingLimitOrder(price, h4Highs, h4Lows, sigSnap, h4Atr);
-    const scalp = computeDayTradeLimitOrder(price, h1Highs, h1Lows, sigSnap, h1Atr);
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const setup = await this.repo.findCoinBySymbol(upper);
 
-    const [swingSaved, scalpSaved] = await Promise.all([
+    // Day-trade removed from tracking-coins — only swing orders are generated;
+    // clear any stale day-trade order from earlier scans.
+    const [swingSaved] = await Promise.all([
       this.persistSuggestion(coin.id, today, 'swing', swing, setup?.swingMaxLoss ?? null, setup?.swingMinRR ?? null),
-      this.persistSuggestion(coin.id, today, 'daytrade', scalp, setup?.daytradeMaxLoss ?? null, setup?.daytradeMinRR ?? null),
+      this.repo.deleteOrder(coin.id, today, 'daytrade'),
     ]);
 
     return {
       symbol: upper,
       currentPrice: price,
       swing: swingSaved,
-      scalp: scalpSaved,
       generatedAt: new Date().toISOString(),
     };
   }
@@ -318,11 +310,10 @@ export class TrackingCoinsService {
   private async scanOneCoin(coinId: string, symbol: string, setup?: CoinSetup | null): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
-    const [klines, h4Klines, m30Klines, h1Klines] = await Promise.all([
+    const [klines, h4Klines, m30Klines] = await Promise.all([
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
-      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1h', limit: 72 }),
     ]);
 
     if (klines.length < 210) return;
@@ -434,16 +425,11 @@ export class TrackingCoinsService {
         h4Rsi,
         swingStructure: result.swingStructure,
       };
-      const h1Highs  = h1Klines.map((k) => parseFloat(k[2]));
-      const h1Lows   = h1Klines.map((k) => parseFloat(k[3]));
-      const h1Closes = h1Klines.map((k) => parseFloat(k[4]));
       const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
-      const h1Atr = calculateAtr(h1Highs, h1Lows, h1Closes, 14);
-      const swingOrder    = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr);
-      const dayTradeOrder = computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap, h1Atr);
+      const swingOrder = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr);
       await Promise.all([
         this.persistSuggestion(coinId, today, 'swing', swingOrder, setup?.swingMaxLoss ?? null, setup?.swingMinRR ?? null),
-        this.persistSuggestion(coinId, today, 'daytrade', dayTradeOrder, setup?.daytradeMaxLoss ?? null, setup?.daytradeMinRR ?? null),
+        this.repo.deleteOrder(coinId, today, 'daytrade'),  // day-trade removed
       ]);
     }
   }

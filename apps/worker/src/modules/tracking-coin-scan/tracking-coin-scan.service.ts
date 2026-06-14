@@ -9,7 +9,6 @@ import {
   calcUtBotResult,
   calculateAtr,
   computeSwingLimitOrder,
-  computeDayTradeLimitOrder,
   evaluateLimitOrder,
 } from '@app/core';
 import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
@@ -187,23 +186,15 @@ export class TrackingCoinScanService {
         swingStructure: result.swingStructure,
       };
 
-      const h1Highs  = h1Klines.map((k) => parseFloat(k[2]));
-      const h1Lows   = h1Klines.map((k) => parseFloat(k[3]));
-      const h1Closes = h1Klines.map((k) => parseFloat(k[4]));
-
       const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
-      const h1Atr = calculateAtr(h1Highs, h1Lows, h1Closes, 14);
+      const swingOrder = this.gateByMinRr(computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr), setup?.swingMinRR);
 
-      const swingOrder    = this.gateByMinRr(computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr), setup?.swingMinRR);
-      const dayTradeOrder = this.gateByMinRr(computeDayTradeLimitOrder(currentPrice, h1Highs, h1Lows, sigSnap, h1Atr), setup?.daytradeMinRR);
-
+      // Day-trade removed from tracking-coins — only swing; clear stale day-trade order.
       await Promise.all([
         swingOrder
           ? this.repo.upsertOrder(coinId, today, 'swing', { ...swingOrder, ...this.calcVolume(swingOrder, setup?.swingMaxLoss) })
           : this.repo.deleteOrder(coinId, today, 'swing'),
-        dayTradeOrder
-          ? this.repo.upsertOrder(coinId, today, 'daytrade', { ...dayTradeOrder, ...this.calcVolume(dayTradeOrder, setup?.daytradeMaxLoss) })
-          : this.repo.deleteOrder(coinId, today, 'daytrade'),
+        this.repo.deleteOrder(coinId, today, 'daytrade'),
       ]);
     }
 
