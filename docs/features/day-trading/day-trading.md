@@ -24,6 +24,9 @@ Built in two phases:
 10. **Result monitor** runs in **real time on every WS price tick**: `ResultMonitorService` listens to the WS `price` event and evaluates the cached ACTIVE signals against each tick, marking `TP_HIT` / `SL_HIT` as close to the actual touch as the public feed allows. To keep DB load flat under the high tick rate, the open-signal list is cached in memory (refreshed at most every 5s, and on each cron pass). A per-minute `@Cron` is now only a **fallback** that re-checks open signals via the REST price if the WS feed stalls/disconnects.
     - **Observed close, not idealised fill**: `closedPrice` and `pnlUsd` use the **real price at the tick that crossed the level**, NOT the `takeProfit`/`stopLoss` value. So a fast move that overshoots the TP between ticks is recorded as-is (e.g. TP set 64370, closed 64571). This is intentional — Phase 1 must reflect real market behaviour, not flatter the numbers.
 11. Web page `/day-trading` shows signals + stats (Total P&L in USD), auto-refreshing every 60s. Each signal shows volume and a PAPER/LIVE badge.
+12. **Open-position live view**: while any ACTIVE signal exists, the page polls `GET /day-trading/price` every 5s (live BTCUSDT price from Bitget REST, 2s server-side cache). For each open position the card shows: a **Live price** banner with distance to TP/SL (%), and a header **unrealized P&L** chip (`~$X · ±N.NNR`) = `quantity × (live − entry)` signed by direction, plus the current R multiple. The polling stops automatically when there are no open positions.
+13. **Entry rationale / methodology**: every card has a "Vì sao vào lệnh" disclosure that reconstructs the exact setup from `setupJson` — the method (Liquidity Sweep + Reversal / Break & Retest), how it works, the concrete reason (levels swept/broken, sweep %, volume × average, 4H/1H trend), and the SL/TP exit plan with R:R.
+14. **Trader note**: every card (active and closed) has a "📝 Ghi chú" disclosure with the shared `MarkdownEditor` (TipTap). The note is saved via `PATCH /day-trading/signals/:id/note` and persisted on `DayTradingSignal.note` (markdown text). Empty/whitespace clears it. The editor bundle is lazy-loaded (`next/dynamic`, `ssr: false`).
 
 ## Edge Cases
 - **WS disconnect**: auto-reconnects with backoff. A cron fallback (`:02/:17/:32/:47`) runs the scan only when `ws.isHealthy()` is false, so candle closes are not missed.
@@ -60,15 +63,19 @@ Built in two phases:
 - `apps/worker/src/modules/day-trading/result-monitor.service.ts` — TP/SL detection using WS price (REST fallback)
 - `apps/worker/src/modules/day-trading/day-trading.service.ts` — orchestrator: WS-triggered scan + cron fallback + dedup + guards
 - `apps/worker/src/modules/day-trading/day-trading.module.ts` — NestJS module
-- `apps/api/src/modules/day-trading/day-trading.controller.ts` — REST endpoints (`GET /day-trading/signals`, `/stats`, `/:id`, `GET|PUT /day-trading/settings`)
-- `apps/api/src/modules/day-trading/day-trading.service.ts` — API service layer
+- `apps/api/src/modules/day-trading/day-trading.controller.ts` — REST endpoints (`GET /day-trading/signals`, `/stats`, `/:id`, `GET /day-trading/price`, `PATCH /day-trading/signals/:id/note`, `GET|PUT /day-trading/settings`)
+- `apps/api/src/modules/day-trading/day-trading.service.ts` — API service layer (incl. `getCurrentPrice()` — live Bitget price with 2s cache + stale fallback; `updateNote()`)
+- `apps/api/src/modules/day-trading/dto/update-note.dto.ts` — trader-note update validation
 - `apps/api/src/modules/day-trading/dto/update-settings.dto.ts` — settings update validation
-- `packages/db/src/repositories/day-trading.repository.ts` — DB repository (incl. `findLatestSignal` dedup, `getSettings`/`updateSettings`, `countTodayLosses`)
-- `packages/db/prisma/schema.prisma` — `DayTradingSignal` + `DayTradingSettings` models
+- `packages/db/src/repositories/day-trading.repository.ts` — DB repository (incl. `findLatestSignal` dedup, `getSettings`/`updateSettings`, `countTodayLosses`, `updateNote`)
+- `packages/db/prisma/schema.prisma` — `DayTradingSignal` (incl. `note`) + `DayTradingSettings` models
+- `packages/db/prisma/migrations/20260614000001_add_day_trading_note/migration.sql` — `note` column
 - `packages/db/prisma/migrations/20260613000004_add_day_trading_signals/migration.sql` — table
 - `packages/db/prisma/migrations/20260613000005_add_day_trading_mode/migration.sql` — `mode` column
-- `apps/web/src/widgets/day-trading/day-trading-feed.tsx` — signal feed + stats + PAPER/LIVE badge
+- `apps/web/src/widgets/day-trading/day-trading-feed.tsx` — signal feed + stats + PAPER/LIVE badge; live-price polling, unrealized P&L for open positions, the `describeSetup()` entry-rationale disclosure, and the `NoteBlock` markdown trader note
+- `apps/web/src/shared/ui/markdown-editor/markdown-editor.tsx` — shared TipTap editor reused for the trader note
+- `apps/web/src/app/globals.css` — `.dt-live*` (live banner), `.dt-why*` (rationale) and `.dt-note*` (trader note) styles
 - `apps/web/src/_pages/day-trading-page/day-trading-page.tsx` — server page (SSR data load)
 - `apps/web/src/app/day-trading/page.tsx` — App Router entry
-- `apps/web/src/shared/api/types.ts` — `DayTradingSignal` (incl. `mode`), `DayTradingStats`
-- `apps/web/src/shared/api/client.ts` — `fetchDayTradingSignals`, `fetchDayTradingStats`, `fetchDayTradingSignalById`
+- `apps/web/src/shared/api/types.ts` — `DayTradingSignal` (incl. `mode`, `note`), `DayTradingStats`, `DayTradingPrice`
+- `apps/web/src/shared/api/client.ts` — `fetchDayTradingSignals`, `fetchDayTradingStats`, `fetchDayTradingSignalById`, `fetchDayTradingPrice`, `updateDayTradingSignalNote`

@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Put, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DayTradingService } from './day-trading.service';
 import { QuerySignalsDto } from './dto/query-signals.dto';
 import { UpdateDayTradingSettingsDto } from './dto/update-settings.dto';
+import { UpdateNoteDto } from './dto/update-note.dto';
 
 @ApiTags('day-trading')
 @ApiCookieAuth('market_analysis_session')
@@ -22,6 +23,12 @@ export class DayTradingController {
     return this.service.updateSettings(dto);
   }
 
+  @Get('price')
+  @ApiOperation({ summary: 'Live BTCUSDT price for open-position monitoring' })
+  getPrice() {
+    return this.service.getCurrentPrice();
+  }
+
   @Get('signals')
   @ApiOperation({ summary: 'List day trading signals' })
   getSignals(@Query() query: QuerySignalsDto) {
@@ -38,5 +45,11 @@ export class DayTradingController {
   @ApiOperation({ summary: 'Get a single signal with setup context' })
   getSignalById(@Param('id') id: string) {
     return this.service.getSignalById(id);
+  }
+
+  @Patch('signals/:id/note')
+  @ApiOperation({ summary: 'Add or update the trader note on a signal' })
+  updateNote(@Param('id') id: string, @Body() dto: UpdateNoteDto) {
+    return this.service.updateNote(id, dto.note);
   }
 }

@@ -399,6 +399,7 @@ model DayTradingSignal {
   closedAt      DateTime?
   pnlUsd        Float?
   setupJson     String    @db.Text
+  note          String?   @db.Text
   detectedAt  DateTime
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

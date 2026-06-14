@@ -8149,6 +8149,138 @@ a.metric-card--link:hover {
   opacity: 0.85;
 }
 
+/* Live price banner for open positions */
+.dt-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e8f0fe;
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: 0.8rem;
+}
+.dt-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a56db;
+  box-shadow: 0 0 0 0 rgba(26, 86, 219, 0.5);
+  animation: dt-pulse 1.6s ease-out infinite;
+}
+@keyframes dt-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(26, 86, 219, 0.45); }
+  70%  { box-shadow: 0 0 0 7px rgba(26, 86, 219, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(26, 86, 219, 0); }
+}
+.dt-live-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #1a56db;
+}
+.dt-live-price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.dt-live-dist {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Why this trade" disclosure */
+.dt-why {
+  background: var(--background);
+  border-radius: 10px;
+  padding: 0 11px;
+}
+.dt-why-summary {
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--foreground);
+  padding: 9px 0;
+  list-style: none;
+}
+.dt-why-summary::-webkit-details-marker { display: none; }
+.dt-why-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.dt-why[open] .dt-why-summary::before { transform: rotate(90deg); }
+.dt-why-body {
+  padding: 2px 0 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.dt-why-body p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+.dt-why-tag {
+  display: inline-block;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+/* Trader note (markdown) disclosure */
+.dt-note {
+  background: var(--background);
+  border-radius: 10px;
+  padding: 0 11px;
+}
+.dt-note-summary {
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--foreground);
+  padding: 9px 0;
+  list-style: none;
+}
+.dt-note-summary::-webkit-details-marker { display: none; }
+.dt-note-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.dt-note[open] .dt-note-summary::before { transform: rotate(90deg); }
+.dt-note-body {
+  padding: 2px 0 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt-note-save {
+  align-self: flex-end;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dt-note-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .dt-empty {
   text-align: center;
   color: var(--muted);

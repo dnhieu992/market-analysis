@@ -1,8 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { createApiClient } from '@web/shared/api/client';
 import type { DayTradingSignal, DayTradingStats, DayTradingSettings } from '@web/shared/api/types';
+
+// Lazy-load the shared TipTap editor so its bundle only loads when a note opens.
+const MarkdownEditor = dynamic(
+  () => import('@web/shared/ui/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  { ssr: false },
+);
 
 type Props = {
   initialSignals: DayTradingSignal[];
@@ -40,6 +47,67 @@ function formatTime(iso: string) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+type SetupInfo = { method: string; how: string; reason: string; exit: string };
+
+function num(o: Record<string, unknown>, k: string): number | null {
+  const v = o[k];
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v !== '' && Number.isFinite(Number(v))) return Number(v);
+  return null;
+}
+
+function volMult(o: Record<string, unknown>, key: string): string | null {
+  const vol = num(o, key);
+  const avg = num(o, 'avg20Volume');
+  return vol != null && avg != null && avg > 0 ? (vol / avg).toFixed(1) : null;
+}
+
+/** Reconstruct the exact entry rationale + methodology from the persisted setup context. */
+function describeSetup(signal: DayTradingSignal): SetupInfo {
+  let ctx: Record<string, unknown> = {};
+  try { ctx = JSON.parse(signal.setupJson) as Record<string, unknown>; } catch { /* ignore */ }
+  const trend = `Xu hướng 4H=${String(ctx.trend4h ?? '—')}, 1H=${String(ctx.trend1h ?? '—')}`;
+  const rr = `R:R 1:${signal.rrRatio.toFixed(1)}`;
+  const lvl = (v: number | null) => (v != null ? formatPrice(v) : '?');
+
+  if (signal.setupType === 'LIQUIDITY_SWEEP') {
+    const vm = volMult(ctx, 'candleVolume');
+    const volTxt = vm ? `, volume ${vm}× trung bình 20 nến` : '';
+    const pct = ctx.sweepPct != null ? `${ctx.sweepPct}%` : null;
+    if (signal.direction === 'LONG') {
+      return {
+        method: 'Liquidity Sweep + Reversal',
+        how: 'Giá phá xuống giả qua đáy 1H để quét stop-loss, rồi đóng nến trở lại trên đáy — bẫy phe bán và đảo chiều tăng.',
+        reason: `Quét xuống dưới đáy 1H ${lvl(num(ctx, 'swingLow'))}${pct ? ` (-${pct})` : ''} rồi đóng nến tăng (bullish engulfing / râu nến dưới dài) trở lại trên đáy${volTxt}. ${trend}.`,
+        exit: `SL ngay dưới đáy quét; TP tại swing high 1H gần nhất phía trên (mục tiêu đảo chiều) — ${rr}.`,
+      };
+    }
+    return {
+      method: 'Liquidity Sweep + Reversal',
+      how: 'Giá phá lên giả qua đỉnh 1H để quét stop-loss, rồi đóng nến trở lại dưới đỉnh — bẫy phe mua và đảo chiều giảm.',
+      reason: `Quét lên trên đỉnh 1H ${lvl(num(ctx, 'swingHigh'))}${pct ? ` (+${pct})` : ''} rồi đóng nến giảm (bearish engulfing / râu nến trên dài) trở lại dưới đỉnh${volTxt}. ${trend}.`,
+      exit: `SL ngay trên đỉnh quét; TP tại swing low 1H gần nhất phía dưới (mục tiêu đảo chiều) — ${rr}.`,
+    };
+  }
+
+  const vm = volMult(ctx, 'breakCandleVolume');
+  const volTxt = vm ? ` với volume ${vm}× trung bình 20 nến` : '';
+  if (signal.direction === 'LONG') {
+    return {
+      method: 'Break & Retest',
+      how: 'Giá phá vỡ kháng cự kèm volume cao, quay lại retest đúng mức vừa phá rồi đóng nến xác nhận → tiếp diễn xu hướng.',
+      reason: `Phá vỡ kháng cự 1H ${lvl(num(ctx, 'resistance'))}${volTxt}, retest thành công và đóng nến trên mức này → tiếp diễn tăng (thuận xu hướng 4H). ${trend}.`,
+      exit: `SL dưới đáy vùng retest; TP tại swing high 1H gần nhất phía trên (mục tiêu tiếp diễn) — ${rr}.`,
+    };
+  }
+  return {
+    method: 'Break & Retest',
+    how: 'Giá phá vỡ hỗ trợ kèm volume cao, quay lại retest đúng mức vừa phá rồi đóng nến xác nhận → tiếp diễn xu hướng.',
+    reason: `Phá vỡ hỗ trợ 1H ${lvl(num(ctx, 'support'))}${volTxt}, retest từ dưới và đóng nến dưới mức này → tiếp diễn giảm (thuận xu hướng 4H). ${trend}.`,
+    exit: `SL trên đỉnh vùng retest; TP tại swing low 1H gần nhất phía dưới (mục tiêu tiếp diễn) — ${rr}.`,
+  };
+}
+
 function PriceCell({ label, value, modifier, sub }: { label: string; value: string; modifier?: string; sub?: string }) {
   return (
     <div className="dt-price">
@@ -50,9 +118,63 @@ function PriceCell({ label, value, modifier, sub }: { label: string; value: stri
   );
 }
 
-function SignalCard({ signal }: { signal: DayTradingSignal }) {
+/** Markdown trader note attached to a signal — available for any status (active or closed). */
+function NoteBlock({ signal }: { signal: DayTradingSignal }) {
+  const [note, setNote] = useState<string>(signal.note ?? '');
+  const [baseline, setBaseline] = useState<string>(signal.note ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const dirty = note !== baseline;
+
+  const save = async () => {
+    if (saving || !dirty) return;
+    setSaving(true);
+    try {
+      await createApiClient().updateDayTradingSignalNote(signal.id, note);
+      setBaseline(note);
+      setSaved(true);
+    } catch { /* ignore — leave dirty so the user can retry */ } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <details className="dt-note" open={!!baseline}>
+      <summary className="dt-note-summary">📝 Ghi chú{baseline ? ' · đã lưu' : ''}</summary>
+      <div className="dt-note-body">
+        <MarkdownEditor
+          value={note}
+          onChange={(val) => { setNote(val); setSaved(false); }}
+          placeholder="Ghi chú cho lệnh này (lý do vào, cảm nhận, bài học)…"
+          minHeight={120}
+        />
+        <button type="button" className="dt-note-save" onClick={() => void save()} disabled={saving || !dirty}>
+          {saving ? 'Đang lưu…' : saved ? 'Đã lưu ✓' : 'Lưu ghi chú'}
+        </button>
+      </div>
+    </details>
+  );
+}
+
+function SignalCard({ signal, livePrice }: { signal: DayTradingSignal; livePrice: number | null }) {
   const riskPct = ((Math.abs(signal.entryPrice - signal.stopLoss) / signal.entryPrice) * 100).toFixed(2);
   const pnl = signal.pnlUsd;
+  const isActive = signal.status === 'ACTIVE';
+  const info = describeSetup(signal);
+
+  // Live, unrealized P&L for an open position (only when we have a fresh price).
+  const live = isActive && livePrice != null
+    ? (() => {
+        const move = signal.direction === 'LONG' ? livePrice - signal.entryPrice : signal.entryPrice - livePrice;
+        const riskPerUnit = Math.abs(signal.entryPrice - signal.stopLoss);
+        const upnl = signal.quantity != null ? signal.quantity * move : null;
+        const rMultiple = riskPerUnit > 0 ? move / riskPerUnit : 0;
+        const toTp = ((Math.abs(signal.takeProfit - livePrice) / livePrice) * 100).toFixed(2);
+        const toSl = ((Math.abs(signal.stopLoss - livePrice) / livePrice) * 100).toFixed(2);
+        return { upnl, rMultiple, toTp, toSl };
+      })()
+    : null;
 
   return (
     <div className="dt-card">
@@ -68,12 +190,25 @@ function SignalCard({ signal }: { signal: DayTradingSignal }) {
         <span className={`dt-badge ${signal.mode === 'LIVE' ? 'dt-badge--live' : 'dt-badge--paper'}`}>
           {signal.mode === 'LIVE' ? 'LIVE' : 'PAPER'}
         </span>
-        {pnl != null && (
+        {pnl != null ? (
           <span className={`dt-pnl ${pnl >= 0 ? 'dt-pnl--pos' : 'dt-pnl--neg'}`}>
             {pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
           </span>
-        )}
+        ) : live?.upnl != null ? (
+          <span className={`dt-pnl ${live.upnl >= 0 ? 'dt-pnl--pos' : 'dt-pnl--neg'}`} title="Unrealized P&L (live)">
+            ~{live.upnl >= 0 ? '+' : '-'}${Math.abs(live.upnl).toFixed(2)} · {live.rMultiple >= 0 ? '+' : ''}{live.rMultiple.toFixed(2)}R
+          </span>
+        ) : null}
       </div>
+
+      {isActive && livePrice != null && live && (
+        <div className="dt-live">
+          <span className="dt-live-dot" />
+          <span className="dt-live-label">Live</span>
+          <span className="dt-live-price">{formatPrice(livePrice)}</span>
+          <span className="dt-live-dist">→ TP {live.toTp}% · SL {live.toSl}%</span>
+        </div>
+      )}
 
       <div className="dt-prices">
         <PriceCell label="Entry" value={formatPrice(signal.entryPrice)} />
@@ -87,6 +222,17 @@ function SignalCard({ signal }: { signal: DayTradingSignal }) {
           Closed @ {formatPrice(signal.closedPrice)}{signal.closedAt ? ` · ${formatTime(signal.closedAt)}` : ''}
         </div>
       )}
+
+      <details className="dt-why">
+        <summary className="dt-why-summary">Vì sao vào lệnh · {info.method}</summary>
+        <div className="dt-why-body">
+          <p><span className="dt-why-tag">Phương pháp</span>{info.how}</p>
+          <p><span className="dt-why-tag">Lý do vào lệnh</span>{info.reason}</p>
+          <p><span className="dt-why-tag">Kế hoạch thoát</span>{info.exit}</p>
+        </div>
+      </details>
+
+      <NoteBlock signal={signal} />
 
       <div className="dt-meta">
         Detected {formatTime(signal.detectedAt)} · Vol {signal.quantity != null ? `${signal.quantity.toFixed(6)} BTC` : '—'}
@@ -199,6 +345,28 @@ export function DayTradingFeed({ initialSignals, initialStats, initialSettings }
   const [showSettings, setShowSettings] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [loading, setLoading] = useState(false);
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+
+  const hasActive = signals.some((s) => s.status === 'ACTIVE');
+
+  // Poll the live BTC price every 5s — but only while an open position exists,
+  // so closed-only views don't keep hitting the endpoint.
+  useEffect(() => {
+    if (!hasActive) {
+      setLivePrice(null);
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const { price } = await createApiClient().fetchDayTradingPrice();
+        if (!cancelled) setLivePrice(price > 0 ? price : null);
+      } catch { /* ignore — keep last price */ }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 5_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [hasActive]);
 
   const refresh = useCallback(async (status: StatusFilter) => {
     setLoading(true);
@@ -273,7 +441,7 @@ export function DayTradingFeed({ initialSignals, initialStats, initialSettings }
         </div>
       ) : (
         <div className="dt-list">
-          {signals.map((s) => <SignalCard key={s.id} signal={s} />)}
+          {signals.map((s) => <SignalCard key={s.id} signal={s} livePrice={livePrice} />)}
         </div>
       )}
     </div>

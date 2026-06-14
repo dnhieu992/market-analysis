@@ -67,6 +67,11 @@ export function createDayTradingRepository(client = prisma) {
       return client.dayTradingSignal.update({ where: { id }, data });
     },
 
+    /** Manual trader note (markdown) attached to a signal — works for any status. */
+    updateNote(id: string, note: string | null) {
+      return client.dayTradingSignal.update({ where: { id }, data: { note } });
+    },
+
     countTodaySignals(symbol: string) {
       const startOfDay = new Date();
       startOfDay.setUTCHours(0, 0, 0, 0);

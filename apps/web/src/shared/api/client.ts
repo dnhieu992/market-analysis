@@ -41,6 +41,7 @@ import type {
   DayTradingSignalsResponse,
   DayTradingStats,
   DayTradingSettings,
+  DayTradingPrice,
   UpdateDayTradingSettingsInput,
   BinanceKline,
 } from './types';
@@ -838,8 +839,24 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<DayTradingStats>(fetchImpl, `${baseUrl}/day-trading/signals/stats`, withDefaults({}));
     },
 
+    async fetchDayTradingPrice(): Promise<DayTradingPrice> {
+      return fetchJson<DayTradingPrice>(fetchImpl, `${baseUrl}/day-trading/price`, withDefaults({}));
+    },
+
     async fetchDayTradingSignalById(id: string): Promise<DayTradingSignal | null> {
       return fetchJson<DayTradingSignal | null>(fetchImpl, `${baseUrl}/day-trading/signals/${encodeURIComponent(id)}`, withDefaults({}));
+    },
+
+    async updateDayTradingSignalNote(id: string, note: string): Promise<DayTradingSignal> {
+      return fetchJson<DayTradingSignal>(
+        fetchImpl,
+        `${baseUrl}/day-trading/signals/${encodeURIComponent(id)}/note`,
+        withDefaults({
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ note }),
+        }),
+      );
     },
 
     async fetchDayTradingSettings(): Promise<DayTradingSettings> {

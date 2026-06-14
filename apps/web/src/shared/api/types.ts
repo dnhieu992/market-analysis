@@ -481,6 +481,7 @@ export type DayTradingSignal = {
   closedAt: string | null;
   pnlUsd: number | null;
   setupJson: string;
+  note: string | null;
   detectedAt: string;
   createdAt: string;
 };
@@ -509,6 +510,11 @@ export type DayTradingSettings = {
 };
 
 export type UpdateDayTradingSettingsInput = Partial<DayTradingSettings>;
+
+export type DayTradingPrice = {
+  price: number;
+  at: string;
+};
 
 export type SmallCapCoinRow = {
   id: string;
