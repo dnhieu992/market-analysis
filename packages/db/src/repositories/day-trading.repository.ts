@@ -67,6 +67,14 @@ export function createDayTradingRepository(client = prisma) {
       return client.dayTradingSignal.update({ where: { id }, data });
     },
 
+    /** Move the stop to break-even (entry) once the trade reaches +1R. */
+    moveStopToBreakEven(id: string, entryPrice: number) {
+      return client.dayTradingSignal.update({
+        where: { id },
+        data: { stopLoss: entryPrice, breakEvenMoved: true },
+      });
+    },
+
     /** Manual trader note (markdown) attached to a signal — works for any status. */
     updateNote(id: string, note: string | null) {
       return client.dayTradingSignal.update({ where: { id }, data: { note } });

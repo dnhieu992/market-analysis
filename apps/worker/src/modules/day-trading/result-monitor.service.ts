@@ -24,6 +24,8 @@ export class ResultMonitorService implements OnModuleInit {
   // Signals whose close write is in flight — guards against a concurrent tick
   // closing the same signal twice while the DB update awaits.
   private readonly closing = new Set<string>();
+  // Signals whose break-even move is in flight — same guard for the BE update.
+  private readonly movingBE = new Set<string>();
 
   constructor(
     private readonly bitget: BitgetService,
@@ -91,7 +93,26 @@ export class ResultMonitorService implements OnModuleInit {
     for (const signal of this.active) {
       if (this.closing.has(signal.id)) continue;
 
-      const { id, direction, entryPrice, takeProfit, stopLoss } = signal;
+      const { id, direction, entryPrice, takeProfit } = signal;
+
+      // Trade management: once price reaches +1R, move the stop to break-even.
+      // Uses the ORIGINAL stop distance (still intact while breakEvenMoved=false).
+      if (!signal.breakEvenMoved && !this.movingBE.has(id)) {
+        const riskDist = Math.abs(entryPrice - signal.stopLoss);
+        const oneR = direction === 'LONG' ? entryPrice + riskDist : entryPrice - riskDist;
+        const reached = direction === 'LONG' ? price >= oneR : price <= oneR;
+        if (riskDist > 0 && reached) {
+          this.movingBE.add(id);
+          signal.breakEvenMoved = true;       // optimistic cache update (next ticks use new SL)
+          signal.stopLoss = entryPrice;
+          void this.repo.moveStopToBreakEven(id, entryPrice)
+            .then(() => this.logger.log(`Signal ${id} → break-even @ +1R (SL ${entryPrice})`))
+            .catch((err) => { this.logger.error(`Failed BE move ${id}: ${this.errMsg(err)}`); this.cacheAt = 0; })
+            .finally(() => this.movingBE.delete(id));
+        }
+      }
+
+      const stopLoss = signal.stopLoss;   // may have just moved to break-even
       let hit: 'TP_HIT' | 'SL_HIT' | null = null;
 
       if (direction === 'LONG') {

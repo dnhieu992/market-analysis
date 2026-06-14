@@ -465,7 +465,7 @@ export type CoinSetup = {
 export type DayTradingSignal = {
   id: string;
   symbol: string;
-  setupType: 'BREAK_RETEST' | 'LIQUIDITY_SWEEP';
+  setupType: 'BREAK_RETEST' | 'LIQUIDITY_SWEEP' | 'TREND_PULLBACK' | 'RANGE_FADE';
   direction: 'LONG' | 'SHORT';
   entryPrice: number;
   stopLoss: number;

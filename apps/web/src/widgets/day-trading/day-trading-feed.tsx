@@ -36,6 +36,8 @@ const STATUS_CLASS: Record<string, string> = {
 const SETUP_LABEL: Record<string, string> = {
   BREAK_RETEST: 'Break & Retest',
   LIQUIDITY_SWEEP: 'Liq. Sweep',
+  TREND_PULLBACK: 'Trend Pullback',
+  RANGE_FADE: 'Range Fade',
 };
 
 function formatPrice(p: number) {
@@ -90,6 +92,42 @@ function describeSetup(signal: DayTradingSignal): SetupInfo {
     };
   }
 
+  if (signal.setupType === 'TREND_PULLBACK') {
+    if (signal.direction === 'LONG') {
+      return {
+        method: 'Trend Pullback (trendline)',
+        how: 'Thuận xu hướng tăng (trendline H4 dốc lên, đáy sau cao hơn đáy trước): chờ giá hồi về đáy swing gần nhất rồi đóng nến tăng lấy lại → vào lệnh tiếp diễn.',
+        reason: `Xu hướng tăng theo trendline H4, giá hồi về đáy swing gần nhất ${lvl(num(ctx, 'pullbackLow'))} rồi đóng nến xanh lấy lại. ${trend}.`,
+        exit: `SL dưới đáy swing gần nhất + buffer; TP tại vùng S/R mạnh phía trên hoặc mục tiêu RR — ${rr}.`,
+      };
+    }
+    return {
+      method: 'Trend Pullback (trendline)',
+      how: 'Thuận xu hướng giảm (trendline H4 dốc xuống, đỉnh sau thấp hơn đỉnh trước): chờ giá hồi lên đỉnh swing gần nhất rồi đóng nến giảm bị từ chối → vào lệnh tiếp diễn.',
+      reason: `Xu hướng giảm theo trendline H4, giá hồi lên đỉnh swing gần nhất ${lvl(num(ctx, 'pullbackHigh'))} rồi đóng nến đỏ bị từ chối. ${trend}.`,
+      exit: `SL trên đỉnh swing gần nhất + buffer; TP tại vùng S/R mạnh phía dưới hoặc mục tiêu RR — ${rr}.`,
+    };
+  }
+
+  if (signal.setupType === 'RANGE_FADE') {
+    const band = `biên ${lvl(num(ctx, 'rangeLow'))}–${lvl(num(ctx, 'rangeHigh'))}`;
+    if (signal.direction === 'LONG') {
+      return {
+        method: 'Range Fade (mean reversion)',
+        how: 'Thị trường đi ngang (4H neutral): fade biên dưới của range — chọc xuống đáy range rồi đóng nến lấy lại → mua về phía giữa range.',
+        reason: `4H đi ngang, giá chọc đáy ${band} rồi đóng nến tăng lấy lại biên dưới. Kỳ vọng hồi về giữa range ${lvl(num(ctx, 'rangeMid'))}.`,
+        exit: `SL dưới đáy range; TP tại giữa range hoặc mục tiêu RR — ${rr}.`,
+      };
+    }
+    return {
+      method: 'Range Fade (mean reversion)',
+      how: 'Thị trường đi ngang (4H neutral): fade biên trên của range — chọc lên đỉnh range rồi đóng nến bị từ chối → bán về phía giữa range.',
+      reason: `4H đi ngang, giá chọc đỉnh ${band} rồi đóng nến giảm bị từ chối tại biên trên. Kỳ vọng hồi về giữa range ${lvl(num(ctx, 'rangeMid'))}.`,
+      exit: `SL trên đỉnh range; TP tại giữa range hoặc mục tiêu RR — ${rr}.`,
+    };
+  }
+
+  // Legacy BREAK_RETEST rows (no longer generated).
   const vm = volMult(ctx, 'breakCandleVolume');
   const volTxt = vm ? ` với volume ${vm}× trung bình 20 nến` : '';
   if (signal.direction === 'LONG') {

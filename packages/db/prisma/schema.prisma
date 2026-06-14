@@ -395,6 +395,7 @@ model DayTradingSignal {
   positionValue Float?
   status        String    @db.VarChar(20)
   mode          String    @default("PAPER") @db.VarChar(10)
+  breakEvenMoved Boolean  @default(false)
   closedPrice   Float?
   closedAt      DateTime?
   pnlUsd        Float?
