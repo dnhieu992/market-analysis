@@ -437,6 +437,8 @@ model SwingTradingSignal {
   positionValue Float?
   status        String    @db.VarChar(20)
   mode          String    @default("PAPER") @db.VarChar(10)
+  legKind       String    @default("BASE") @db.VarChar(10) // BASE | ADD (pullback scale-in)
+  pullbackArmed Boolean   @default(false)                  // re-arm state, only meaningful on the BASE leg
   breakEvenMoved Boolean  @default(false)
   closedPrice   Float?
   closedAt      DateTime?

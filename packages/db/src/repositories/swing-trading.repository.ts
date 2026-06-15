@@ -22,6 +22,8 @@ export function createSwingTradingRepository(client = prisma) {
       positionValue?: number;
       status: string;
       mode?: string;
+      legKind?: string;
+      pullbackArmed?: boolean;
       setupJson: string;
       detectedAt: Date;
     }) {
@@ -81,6 +83,11 @@ export function createSwingTradingRepository(client = prisma) {
     /** Update the trailing stop level on an open position (UTBot stop ratchets each candle). */
     updateStopLoss(id: string, stopLoss: number) {
       return client.swingTradingSignal.update({ where: { id }, data: { stopLoss } });
+    },
+
+    /** Toggle the pullback re-arm state on the BASE leg of an open trend. */
+    setPullbackArmed(id: string, pullbackArmed: boolean) {
+      return client.swingTradingSignal.update({ where: { id }, data: { pullbackArmed } });
     },
 
     /** Manual trader note (markdown) attached to a signal — works for any status. */

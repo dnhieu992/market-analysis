@@ -17,10 +17,12 @@ export class UpdateSwingTradingSettingsDto {
   @Max(200)
   atrPeriod?: number;
 
+  // 0 = "auto": resolve the optimal keyValue per symbol/timeframe (see utbot-kv-table.ts).
+  // Any value > 0 is an explicit manual override.
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  @Min(0.1)
+  @Min(0)
   @Max(20)
   keyValue?: number;
 

@@ -121,6 +121,9 @@ function SignalCard({ signal, livePrice }: { signal: SwingTradingSignal; livePri
           {signal.direction}
         </span>
         <span className="dt-badge dt-badge--setup">{signal.timeframe.toUpperCase()} · kv{signal.keyValue}</span>
+        {signal.legKind === 'ADD' && (
+          <span className="dt-badge dt-badge--setup" title="Lệnh nhồi pullback (scale-in về đường UTBot)">＋ pullback</span>
+        )}
         <span className={`dt-badge ${STATUS_CLASS[signal.status] ?? 'dt-badge--expired'}`}>
           {STATUS_LABEL[signal.status] ?? signal.status}
         </span>
@@ -215,7 +218,7 @@ const NUM_FIELDS: NumField[] = [
   { key: 'riskPerTrade', label: 'Vốn mỗi lệnh (USDT)', hint: 'Notional cơ sở; nhân với đòn bẩy', step: 50, min: 1 },
   { key: 'leverage', label: 'Đòn bẩy (x)', hint: 'Hệ số notional khi giao dịch thật', step: 1, min: 1 },
   { key: 'atrPeriod', label: 'ATR period', hint: 'Chu kỳ Wilder ATR cho UTBot (mặc định 10)', step: 1, min: 1 },
-  { key: 'keyValue', label: 'keyValue (ATR ×)', hint: 'Khoảng cách stop; cao = ít lệnh hơn (mặc định 2)', step: 0.5, min: 0.1 },
+  { key: 'keyValue', label: 'keyValue (ATR ×)', hint: 'Khoảng cách stop; cao = ít lệnh hơn. 0 = auto (tự chọn kv tối ưu theo coin + khung)', step: 0.5, min: 0 },
 ];
 
 function SettingsPanel({
@@ -370,7 +373,7 @@ export function SwingTradingFeed({ initialSignals, initialStats, initialSettings
         <div>
           <h1 className="dt-title">Swing Trading — {settings.symbol}</h1>
           <p className="dt-subtitle">
-            UTBot Stop-and-Reverse · {settings.timeframe.toUpperCase()} · kv {settings.keyValue} · vốn ${settings.riskPerTrade} × {settings.leverage}x · {settings.mode}
+            UTBot Stop-and-Reverse · {settings.timeframe.toUpperCase()} · kv {settings.keyValue > 0 ? settings.keyValue : 'auto'} · vốn ${settings.riskPerTrade} × {settings.leverage}x · {settings.mode}
           </p>
         </div>
         <div className="dt-header-actions">

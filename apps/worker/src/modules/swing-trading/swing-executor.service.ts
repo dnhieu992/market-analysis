@@ -17,6 +17,7 @@ export type OpenParams = {
   leverage: number;
   mode: string; // 'PAPER' | 'LIVE'
   atr: number;
+  legKind?: 'BASE' | 'ADD'; // 'ADD' = pullback scale-in toward the UTBot line
 };
 
 /**
@@ -32,15 +33,18 @@ export class SwingExecutorService {
   private readonly logger = new Logger(SwingExecutorService.name);
   private readonly repo = createSwingTradingRepository();
 
-  /** Open a new position in the trend direction. */
+  /** Open a new position in the trend direction (base entry or a pullback scale-in). */
   async openPosition(p: OpenParams): Promise<void> {
+    const legKind = p.legKind ?? 'BASE';
+    const isAdd = legKind === 'ADD';
     const positionValue = p.riskPerTrade * p.leverage;
     const quantity = p.entryPrice > 0 ? positionValue / p.entryPrice : 0;
 
     this.logger.log(
-      `🔔 SWING [${p.mode}] OPEN ${p.direction} ${p.symbol} ${p.timeframe} | ` +
+      `🔔 SWING [${p.mode}] OPEN ${isAdd ? 'ADD' : 'BASE'} ${p.direction} ${p.symbol} ${p.timeframe} | ` +
         `Entry ${p.entryPrice} | UTBot stop ${p.stopLevel.toFixed(2)} | kv=${p.keyValue} | ` +
-        `Qty ${quantity.toFixed(6)} (~$${positionValue.toFixed(0)} @ ${p.leverage}x)`,
+        `Qty ${quantity.toFixed(6)} (~$${positionValue.toFixed(0)} @ ${p.leverage}x)` +
+        (isAdd ? ' | pullback scale-in' : ''),
     );
 
     await this.repo.createSignal({
@@ -58,8 +62,12 @@ export class SwingExecutorService {
       positionValue,
       status: 'ACTIVE',
       mode: p.mode,
+      legKind,
+      // a fresh BASE leg starts un-armed; an ADD leg never carries arm state itself
+      pullbackArmed: false,
       setupJson: JSON.stringify({
         strategy: 'UTBOT_FLIP',
+        legKind,
         timeframe: p.timeframe,
         atrPeriod: p.atrPeriod,
         keyValue: p.keyValue,

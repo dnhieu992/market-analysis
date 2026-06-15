@@ -533,6 +533,7 @@ export type SwingTradingSignal = {
   positionValue: number | null;
   status: 'ACTIVE' | 'CLOSED';
   mode: 'PAPER' | 'LIVE';
+  legKind: 'BASE' | 'ADD';
   closedPrice: number | null;
   closedAt: string | null;
   pnlUsd: number | null;
