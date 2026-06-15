@@ -11,4 +11,9 @@ export interface IBackTestStrategy {
   /** If true, the engine skips the breakeven SL move for this strategy */
   readonly disableBreakeven?: boolean;
   evaluate(ctx: StrategyContext): TradeSignal | null;
+  /**
+   * Called each candle when the open trade has trailingStop=true.
+   * Returns the new desired SL level; the engine ratchets it in the favorable direction only.
+   */
+  getTrailingStopLoss?(ctx: StrategyContext, trade: { direction: 'long' | 'short'; currentStopLoss: number }): number;
 }

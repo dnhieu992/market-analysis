@@ -16,6 +16,8 @@ export type TradeSignal = {
   takeProfit: number;
   /** If set, force-close the trade at this UTC time regardless of price */
   forceCloseTime?: Date;
+  /** If true, the engine calls strategy.getTrailingStopLoss() each candle to ratchet the SL */
+  trailingStop?: boolean;
 };
 
 export type BackTestTrade = {

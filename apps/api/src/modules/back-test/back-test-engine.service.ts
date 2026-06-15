@@ -19,6 +19,7 @@ export class BackTestEngineService {
       breakevenTriggered: boolean;
       breakevenTriggerPrice: number;
       forceCloseTime: Date | null;
+      trailingStop: boolean;
     } | null = null;
 
     for (let i = 1; i < candles.length; i++) {
@@ -62,6 +63,17 @@ export class BackTestEngineService {
             outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
           });
           openTrade = null;
+        } else if (openTrade.trailingStop && strategy.getTrailingStopLoss) {
+          // Trailing stop: ratchet SL in the favorable direction using strategy's ATR stop
+          const newSl = strategy.getTrailingStopLoss(ctx, {
+            direction: openTrade.direction,
+            currentStopLoss: openTrade.stopLoss
+          });
+          if (openTrade.direction === 'long') {
+            openTrade.stopLoss = Math.max(openTrade.stopLoss, newSl);
+          } else {
+            openTrade.stopLoss = Math.min(openTrade.stopLoss, newSl);
+          }
         } else if (!openTrade.breakevenTriggered && !strategy.disableBreakeven) {
           // No exit this candle — check if price traveled 1R so we can move SL to entry
           const hit =
@@ -93,7 +105,8 @@ export class BackTestEngineService {
             originalStopLoss: signal.stopLoss,
             breakevenTriggered: false,
             breakevenTriggerPrice,
-            forceCloseTime: signal.forceCloseTime ?? null
+            forceCloseTime: signal.forceCloseTime ?? null,
+            trailingStop: signal.trailingStop ?? false
           };
         }
       }
