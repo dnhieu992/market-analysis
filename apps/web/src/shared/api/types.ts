@@ -515,6 +515,66 @@ export type DayTradingPrice = {
   at: string;
 };
 
+// ── Swing Trading (UTBot trend stop-and-reverse on candle close) ──────────────
+
+export type SwingTradingSignal = {
+  id: string;
+  symbol: string;
+  timeframe: string;
+  setupType: 'UTBOT_FLIP';
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  rrRatio: number;
+  riskAmount: number;
+  keyValue: number;
+  quantity: number | null;
+  positionValue: number | null;
+  status: 'ACTIVE' | 'CLOSED';
+  mode: 'PAPER' | 'LIVE';
+  closedPrice: number | null;
+  closedAt: string | null;
+  pnlUsd: number | null;
+  setupJson: string;
+  note: string | null;
+  detectedAt: string;
+  createdAt: string;
+};
+
+export type SwingTradingSignalsResponse = {
+  data: SwingTradingSignal[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type SwingTradingStats = {
+  total: number;
+  active: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalPnlUsd: number;
+};
+
+export type SwingTradingSettings = {
+  symbol: string;
+  timeframe: string;
+  atrPeriod: number;
+  keyValue: number;
+  riskPerTrade: number;
+  leverage: number;
+  mode: 'PAPER' | 'LIVE';
+};
+
+export type UpdateSwingTradingSettingsInput = Partial<SwingTradingSettings>;
+
+export type SwingTradingPrice = {
+  price: number;
+  at: string;
+};
+
 export type SmallCapCoinRow = {
   id: string;
   symbol: string;

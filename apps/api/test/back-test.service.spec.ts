@@ -153,7 +153,14 @@ describe('BackTestService', () => {
 
       await service.runBackTest(validDto);
 
-      expect(mockEngine.run).toHaveBeenCalledWith(mockStrategy, candles, 'BTCUSDT');
+      expect(mockEngine.run).toHaveBeenCalledWith(
+        mockStrategy,
+        candles,
+        'BTCUSDT',
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Number)
+      );
     });
   });
 

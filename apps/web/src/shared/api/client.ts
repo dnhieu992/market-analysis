@@ -43,6 +43,12 @@ import type {
   DayTradingSettings,
   DayTradingPrice,
   UpdateDayTradingSettingsInput,
+  SwingTradingSignal,
+  SwingTradingSignalsResponse,
+  SwingTradingStats,
+  SwingTradingSettings,
+  SwingTradingPrice,
+  UpdateSwingTradingSettingsInput,
   BinanceKline,
 } from './types';
 
@@ -867,6 +873,59 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<DayTradingSettings>(
         fetchImpl,
         `${baseUrl}/day-trading/settings`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    // ── Swing Trading ─────────────────────────────────────────────────────────
+
+    async fetchSwingTradingSignals(params: { status?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): Promise<SwingTradingSignalsResponse> {
+      const qs = new URLSearchParams();
+      if (params.status) qs.set('status', params.status);
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      if (params.limit != null) qs.set('limit', String(params.limit));
+      if (params.offset != null) qs.set('offset', String(params.offset));
+      const url = `${baseUrl}/swing-trading/signals${qs.toString() ? `?${qs}` : ''}`;
+      return fetchJson<SwingTradingSignalsResponse>(fetchImpl, url, withDefaults({}));
+    },
+
+    async fetchSwingTradingStats(): Promise<SwingTradingStats> {
+      return fetchJson<SwingTradingStats>(fetchImpl, `${baseUrl}/swing-trading/signals/stats`, withDefaults({}));
+    },
+
+    async fetchSwingTradingPrice(): Promise<SwingTradingPrice> {
+      return fetchJson<SwingTradingPrice>(fetchImpl, `${baseUrl}/swing-trading/price`, withDefaults({}));
+    },
+
+    async fetchSwingTradingSignalById(id: string): Promise<SwingTradingSignal | null> {
+      return fetchJson<SwingTradingSignal | null>(fetchImpl, `${baseUrl}/swing-trading/signals/${encodeURIComponent(id)}`, withDefaults({}));
+    },
+
+    async updateSwingTradingSignalNote(id: string, note: string): Promise<SwingTradingSignal> {
+      return fetchJson<SwingTradingSignal>(
+        fetchImpl,
+        `${baseUrl}/swing-trading/signals/${encodeURIComponent(id)}/note`,
+        withDefaults({
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ note }),
+        }),
+      );
+    },
+
+    async fetchSwingTradingSettings(): Promise<SwingTradingSettings> {
+      return fetchJson<SwingTradingSettings>(fetchImpl, `${baseUrl}/swing-trading/settings`, withDefaults({}));
+    },
+
+    async updateSwingTradingSettings(input: UpdateSwingTradingSettingsInput): Promise<SwingTradingSettings> {
+      return fetchJson<SwingTradingSettings>(
+        fetchImpl,
+        `${baseUrl}/swing-trading/settings`,
         withDefaults({
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 import { AnalysisModule } from './modules/analysis/analysis.module';
 import { DayTradingModule } from './modules/day-trading/day-trading.module';
+import { SwingTradingModule } from './modules/swing-trading/swing-trading.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
@@ -51,6 +52,7 @@ import { WorkerModule } from './modules/worker/worker.module';
     SmallCapRadarModule,
     TrackingCoinsModule,
     DayTradingModule,
+    SwingTradingModule,
   ],
   providers: [
     {

@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Backtesting
+
+When the user asks to **backtest** anything, ALWAYS:
+1. Read `claude-backtest/README.md` first — it documents the user's preferred flow
+   (UTBot trend **stop-and-reverse on candle close**, always in market) and the run scripts.
+2. Run the appropriate script in `scripts/` (no API/auth needed; fetches public Binance klines).
+   The flow script is `scripts/run-flip-backtest.ts`; the in-repo engine runner is `scripts/run-backtest.ts`.
+3. **Write a summary of every run** to `claude-backtest/runs/<YYYY-MM-DD>-<slug>.md` (see existing files for format).
+
+User's real trading fee is **0.05%/side** (0.1% per round-trip). Default capital assumption: **$1000 compounded**.
+
 ## Commands
 
 ```bash

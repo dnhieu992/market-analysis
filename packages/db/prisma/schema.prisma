@@ -421,6 +421,51 @@ model DayTradingSettings {
   @@map("day_trading_settings")
 }
 
+model SwingTradingSignal {
+  id          String    @id @default(cuid())
+  symbol      String    @db.VarChar(20)
+  timeframe   String    @default("4h") @db.VarChar(10)
+  setupType   String    @default("UTBOT_FLIP") @db.VarChar(30)
+  direction   String    @db.VarChar(5)
+  entryPrice  Float
+  stopLoss    Float
+  takeProfit  Float
+  rrRatio       Float     @default(0)
+  riskAmount    Float     @default(1000)
+  keyValue      Float     @default(2)
+  quantity      Float?
+  positionValue Float?
+  status        String    @db.VarChar(20)
+  mode          String    @default("PAPER") @db.VarChar(10)
+  breakEvenMoved Boolean  @default(false)
+  closedPrice   Float?
+  closedAt      DateTime?
+  pnlUsd        Float?
+  setupJson     String    @db.Text
+  note          String?   @db.Text
+  detectedAt  DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([symbol, status, detectedAt])
+  @@map("swing_trading_signals")
+}
+
+model SwingTradingSettings {
+  id              String   @id @default("singleton")
+  symbol          String   @default("ETHUSDT") @db.VarChar(20)
+  timeframe       String   @default("4h") @db.VarChar(10)
+  atrPeriod       Int      @default(10)
+  keyValue        Float    @default(2)
+  riskPerTrade    Float    @default(1000)
+  leverage        Int      @default(1)
+  mode            String   @default("PAPER") @db.VarChar(10)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("swing_trading_settings")
+}
+
 model SmallCapCoin {
   id          String           @id @default(cuid())
   symbol      String           @unique @db.VarChar(30)

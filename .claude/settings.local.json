@@ -96,7 +96,17 @@
       "Bash(claude --version)",
       "Bash(brew upgrade *)",
       "Bash(npm config *)",
-      "Bash(npx claude *)"
+      "Bash(npx claude *)",
+      "Bash(pm2 status *)",
+      "Bash(DATABASE_URL=\"mysql://market_user:Pass@word1!@127.0.0.1:3306/market_analysis\" pnpm *)",
+      "Bash(DATABASE_URL=\"mysql://market_user:Pass@word1!@127.0.0.1:3306/market_analysis\" node *)",
+      "Bash(DATABASE_URL=mysql://market_user:Pass@word1!@127.0.0.1:3306/market_analysis node -e ' *)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-backtest.ts supertrend-engulfing-mtf BTCUSDT 4h 365 1000)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 4h 365 1000 0 \"1,2,3,4\")",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 4h 365 1000 0.04 \"1,2,3,4\")",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 4h 365 1000 0.10 \"1,2,3,4\")",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts ETHUSDT 4h 365 1000 0.04 \"1,2,3,4\")",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 1d 365 1000 0.04 \"1,2,3\")"
     ]
   }
 }
