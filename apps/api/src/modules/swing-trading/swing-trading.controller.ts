@@ -24,9 +24,9 @@ export class SwingTradingController {
   }
 
   @Get('price')
-  @ApiOperation({ summary: 'Live price for the configured symbol (open-position monitoring)' })
-  getPrice() {
-    return this.service.getCurrentPrice();
+  @ApiOperation({ summary: 'Live price for a symbol (open-position monitoring)' })
+  getPrice(@Query('symbol') symbol?: string) {
+    return this.service.getCurrentPrice(symbol);
   }
 
   @Get('signals')

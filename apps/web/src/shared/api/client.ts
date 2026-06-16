@@ -898,8 +898,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<SwingTradingStats>(fetchImpl, `${baseUrl}/swing-trading/signals/stats`, withDefaults({}));
     },
 
-    async fetchSwingTradingPrice(): Promise<SwingTradingPrice> {
-      return fetchJson<SwingTradingPrice>(fetchImpl, `${baseUrl}/swing-trading/price`, withDefaults({}));
+    async fetchSwingTradingPrice(symbol: string): Promise<SwingTradingPrice> {
+      const url = `${baseUrl}/swing-trading/price?symbol=${encodeURIComponent(symbol)}`;
+      return fetchJson<SwingTradingPrice>(fetchImpl, url, withDefaults({}));
     },
 
     async fetchSwingTradingSignalById(id: string): Promise<SwingTradingSignal | null> {

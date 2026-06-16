@@ -4,15 +4,19 @@ import { createSwingTradingRepository } from '@app/db';
 import { SwingBitgetService, toBitgetGranularity } from './bitget.service';
 import { UtBotStrategyService } from './utbot-strategy.service';
 import { SwingExecutorService } from './swing-executor.service';
-import { resolveKeyValue } from './utbot-kv-table';
 import { pullbackEnabledFor, evaluateAddOn } from './pullback-addon';
+import { SWING_PAIRS, type SwingPair } from './swing-pairs';
 
 /**
  * Swing trading orchestrator — UTBot trend stop-and-reverse on candle close.
  *
- * On each closed candle of the configured timeframe (default ETHUSDT 4h):
- *   0. Resolve keyValue: settings.keyValue > 0 is an explicit override; <= 0 ("auto")
- *      looks up the per-symbol/timeframe optimum in `utbot-kv-table.ts`.
+ * Trades a hardcoded list of robust, backtested pairs (`swing-pairs.ts`), each with
+ * its own per-pair timeframe + keyValue and an independent position book. The cron
+ * fires every 4h-close and scans every pair; pairs on a daily timeframe simply act
+ * on the 00:01 run and no-op the intraday ones.
+ *
+ * For each pair, on its closed candle:
+ *   0. keyValue comes from the pair config (per backtest optimum, per coin).
  *   1. Fetch candles, drop the in-progress last one → evaluate UTBot trend.
  *   2. Compare the trend to the current open position(s).
  *      - no position        → open a BASE leg in the trend direction.
@@ -64,17 +68,31 @@ export class SwingTradingService {
 
   async scan(): Promise<void> {
     const settings = await this.repo.getSettings();
-    const { symbol, timeframe, atrPeriod, riskPerTrade, leverage, mode } = settings;
+    // symbol/timeframe/keyValue are per-pair now (see swing-pairs.ts); only the
+    // risk/execution knobs are global and shared across every pair.
+    const globals = {
+      atrPeriod: settings.atrPeriod,
+      riskPerTrade: settings.riskPerTrade,
+      leverage: settings.leverage,
+      mode: settings.mode,
+    };
 
-    // Resolve the keyValue to trade with: a positive settings.keyValue is an explicit
-    // override; otherwise (<= 0 = "auto") look up the per-symbol/timeframe optimum.
-    const resolved = resolveKeyValue(symbol, timeframe, settings.keyValue);
-    const keyValue = resolved.keyValue;
-    if (resolved.source !== 'settings') {
-      this.logger.debug(
-        `Swing ${symbol} ${timeframe}: auto keyValue=${keyValue} (source: ${resolved.source})`,
-      );
+    for (const pair of SWING_PAIRS) {
+      try {
+        await this.scanPair(pair, globals);
+      } catch (err) {
+        this.logger.error(`Swing scan failed for ${pair.symbol} ${pair.timeframe}: ${this.errMsg(err)}`);
+      }
     }
+  }
+
+  /** Scan a single pair: evaluate UTBot trend and open / flip / scale-in its position book. */
+  private async scanPair(
+    pair: SwingPair,
+    globals: { atrPeriod: number; riskPerTrade: number; leverage: number; mode: string },
+  ): Promise<void> {
+    const { symbol, timeframe, keyValue } = pair;
+    const { atrPeriod, riskPerTrade, leverage, mode } = globals;
 
     const granularity = toBitgetGranularity(timeframe);
     const candles = await this.bitget.fetchCandles(symbol, granularity, 300);

@@ -25,9 +25,8 @@ export class SwingTradingService {
   private priceCache = new Map<string, { price: number; at: number }>();
 
   /** Live futures mark price for the configured symbol from Bitget public REST (2s cached). */
-  async getCurrentPrice(): Promise<{ price: number; at: string }> {
-    const settings = await repo.getSettings();
-    const symbol = settings.symbol;
+  async getCurrentPrice(rawSymbol?: string): Promise<{ price: number; at: string }> {
+    const symbol = (rawSymbol && rawSymbol.trim() ? rawSymbol : 'ETHUSDT').trim().toUpperCase();
     const cached = this.priceCache.get(symbol);
     if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
       return { price: cached.price, at: new Date(cached.at).toISOString() };

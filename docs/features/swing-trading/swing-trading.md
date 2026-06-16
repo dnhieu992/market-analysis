@@ -2,19 +2,24 @@
 
 Swing Trading is a full-stack feature (web page + API + worker) that runs the
 **UTBot trend stop-and-reverse strategy on candle close** — the flow validated in
-`claude-backtest/` (ETH H4, keyValue=2 default). It mirrors the Day Trading feature
-but uses a single always-in-market position that flips direction whenever a closed
-candle confirms a UTBot trend change. Built to graduate from PAPER simulation to
-**live Bitget execution** via a localized executor seam.
+`claude-backtest/`. It trades a **hardcoded list of robust, backtested pairs**
+(`swing-pairs.ts`: ETH 4h kv2, BTC 1d kv2, BNB 4h kv4, SOL 1d kv2 — curve-fit
+rejects like XRP/SUI/LINK/DOGE/SHIB/ADA excluded), each with its own per-pair
+timeframe + keyValue and an **independent always-in-market position book** that
+flips direction whenever a closed candle confirms a UTBot trend change. It mirrors
+the Day Trading feature and is built to graduate from PAPER simulation to **live
+Bitget execution** via a localized executor seam.
 
 ## Main Flow
 
 1. **Worker scan** (`SwingTradingService`, cron `0 1 */4 * * *` UTC — just after each H4 close):
-   - Load `SwingTradingSettings` (symbol, timeframe, atrPeriod, keyValue, riskPerTrade, leverage, mode).
-   - **Resolve keyValue** (`resolveKeyValue` in `utbot-kv-table.ts`): a positive `settings.keyValue`
-     is an explicit override; `<= 0` ("auto") looks up the optimal kv for `SYMBOL:timeframe`
-     (e.g. ETHUSDT:4h→2, BNBUSDT:4h→4), falling back to `DEFAULT_KEY_VALUE` (2) for unknown combos.
-   - Fetch candles from Bitget (`SwingBitgetService`), **drop the in-progress last candle**.
+   - Load global risk knobs from `SwingTradingSettings` (atrPeriod, riskPerTrade, leverage, mode) —
+     these are shared across all pairs. `symbol`/`timeframe`/`keyValue` on the settings row are no
+     longer used by the engine (legacy single-coin fields).
+   - **Loop over `SWING_PAIRS`** (`swing-pairs.ts`): each pair carries its own `symbol`, `timeframe`
+     and per-coin `keyValue` (the backtest optimum — e.g. BNB 4h needs kv=4, not the global default).
+     Each pair runs `scanPair` independently; a failure on one pair is logged and does not abort the others.
+   - Per pair: fetch candles from Bitget (`SwingBitgetService`), **drop the in-progress last candle**.
    - Evaluate UTBot (`UtBotStrategyService`): `nLoss = keyValue × ATR(atrPeriod)`, `trend = close > stop ? bull : bear`.
    - Compare trend to the open position (which may be several legs — a BASE + pullback adds):
      - **no position** → open a BASE leg in the trend direction.
@@ -35,9 +40,13 @@ candle confirms a UTBot trend change. Built to graduate from PAPER simulation to
 
 ## Edge Cases
 
-- **Auto keyValue**: `settings.keyValue <= 0` means "auto" → per-symbol/timeframe optimum from
-  `utbot-kv-table.ts` (backtest-derived). Unknown symbol/timeframe → `DEFAULT_KEY_VALUE` (2).
-  The kv table reflects a single year/regime — re-run `claude-backtest/` and update it periodically.
+- **Hardcoded pairs**: the traded list lives in `swing-pairs.ts` (worker) and is mirrored in
+  `TRACKED_PAIRS` in `swing-trading-feed.tsx` (web settings display). Keep the two in sync. Each pair's
+  `keyValue` is used as-is (per-coin optimum) and bypasses `settings.keyValue`, since one global value
+  can't be right for every coin (BNB kv=4 vs ETH kv=2). The list reflects a single year/regime —
+  re-run `claude-backtest/` and update both files periodically.
+- **Per-pair position books**: each pair's legs are isolated by `symbol` in the repository, so flips /
+  adds on one coin never touch another. Multiple coins can hold open positions simultaneously.
 - **Pullback add-on gate**: scale-in legs only fire when the effective `keyValue === 4`
   (`PULLBACK_KEYVALUE`). At any other kv the add-on is inert — the flow is the plain stop-and-reverse.
 - **Pullback re-arm state**: `pullbackArmed` is tracked only on the BASE leg and reset to `false`
@@ -65,7 +74,8 @@ candle confirms a UTBot trend change. Built to graduate from PAPER simulation to
 - `apps/api/src/modules/swing-trading/swing-trading.service.ts` — signals/stats/settings + live Bitget price
 - `apps/api/src/modules/swing-trading/dto/*` — query/update-settings/update-note DTOs
 - `apps/api/src/app.module.ts` — registers `SwingTradingModule`
-- `apps/worker/src/modules/swing-trading/swing-trading.service.ts` — cron orchestrator + flip logic
+- `apps/worker/src/modules/swing-trading/swing-trading.service.ts` — cron orchestrator; loops `SWING_PAIRS`, per-pair flip logic
+- `apps/worker/src/modules/swing-trading/swing-pairs.ts` — hardcoded list of traded pairs (symbol/timeframe/keyValue)
 - `apps/worker/src/modules/swing-trading/utbot-strategy.service.ts` — UTBot ATR stop computation
 - `apps/worker/src/modules/swing-trading/utbot-kv-table.ts` — optimal keyValue lookup per symbol/timeframe (`resolveKeyValue`)
 - `apps/worker/src/modules/swing-trading/pullback-addon.ts` — pullback scale-in rule (gate + `evaluateAddOn`)

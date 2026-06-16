@@ -213,12 +213,20 @@ const FILTERS: { label: string; value: StatusFilter }[] = [
   { label: 'Đã đóng', value: 'CLOSED' },
 ];
 
-type NumField = { key: 'atrPeriod' | 'keyValue' | 'riskPerTrade' | 'leverage'; label: string; hint: string; step: number; min: number };
+type NumField = { key: 'atrPeriod' | 'riskPerTrade' | 'leverage'; label: string; hint: string; step: number; min: number };
 const NUM_FIELDS: NumField[] = [
   { key: 'riskPerTrade', label: 'Vốn mỗi lệnh (USDT)', hint: 'Notional cơ sở; nhân với đòn bẩy', step: 50, min: 1 },
   { key: 'leverage', label: 'Đòn bẩy (x)', hint: 'Hệ số notional khi giao dịch thật', step: 1, min: 1 },
   { key: 'atrPeriod', label: 'ATR period', hint: 'Chu kỳ Wilder ATR cho UTBot (mặc định 10)', step: 1, min: 1 },
-  { key: 'keyValue', label: 'keyValue (ATR ×)', hint: 'Khoảng cách stop; cao = ít lệnh hơn. 0 = auto (tự chọn kv tối ưu theo coin + khung)', step: 0.5, min: 0 },
+];
+
+// Hardcoded list of pairs the scanner trades — MUST mirror
+// apps/worker/src/modules/swing-trading/swing-pairs.ts.
+const TRACKED_PAIRS: { symbol: string; timeframe: string; keyValue: number; note: string }[] = [
+  { symbol: 'ETHUSDT', timeframe: '4h', keyValue: 2, note: '+88%/năm — core' },
+  { symbol: 'BTCUSDT', timeframe: '1d', keyValue: 2, note: '+37%/năm, DD 11.9% — risk-adjusted tốt nhất' },
+  { symbol: 'BNBUSDT', timeframe: '4h', keyValue: 4, note: '+71%/năm, có nhồi pullback (kv=4)' },
+  { symbol: 'SOLUSDT', timeframe: '1d', keyValue: 2, note: '+22.9%/năm — đa dạng hóa' },
 ];
 
 function SettingsPanel({
@@ -250,30 +258,22 @@ function SettingsPanel({
 
   return (
     <div className="dt-settings">
+      <div className="dt-settings-pairs">
+        <span className="dt-setting-label">Coin đang chạy (cố định theo backtest)</span>
+        <ul className="dt-pairs-list">
+          {TRACKED_PAIRS.map((p) => (
+            <li key={`${p.symbol}:${p.timeframe}`} className="dt-pair-row">
+              <span className="dt-symbol">{p.symbol}</span>
+              <span className="dt-badge dt-badge--setup">{p.timeframe.toUpperCase()} · kv{p.keyValue}</span>
+              <span className="dt-setting-hint">{p.note}</span>
+            </li>
+          ))}
+        </ul>
+        <span className="dt-setting-hint">
+          Danh sách coin + khung + keyValue được hardcode theo kết quả backtest. Các thông số bên dưới áp dụng chung cho mọi coin.
+        </span>
+      </div>
       <div className="dt-settings-grid">
-        <label className="dt-setting">
-          <span className="dt-setting-label">Symbol</span>
-          <input
-            className="dt-setting-input"
-            type="text"
-            value={form.symbol}
-            onChange={(e) => setForm((p) => ({ ...p, symbol: e.target.value.toUpperCase() }))}
-          />
-          <span className="dt-setting-hint">Cặp futures Bitget (vd ETHUSDT)</span>
-        </label>
-        <label className="dt-setting">
-          <span className="dt-setting-label">Timeframe</span>
-          <select
-            className="dt-setting-input"
-            value={form.timeframe}
-            onChange={(e) => setForm((p) => ({ ...p, timeframe: e.target.value }))}
-          >
-            <option value="4h">4h</option>
-            <option value="1d">1d</option>
-            <option value="1h">1h</option>
-          </select>
-          <span className="dt-setting-hint">Khung nến quyết định flip</span>
-        </label>
         {NUM_FIELDS.map((f) => (
           <label key={f.key} className="dt-setting">
             <span className="dt-setting-label">{f.label}</span>
@@ -319,27 +319,44 @@ export function SwingTradingFeed({ initialSignals, initialStats, initialSettings
   const [showSettings, setShowSettings] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [loading, setLoading] = useState(false);
-  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
 
-  const hasActive = signals.some((s) => s.status === 'ACTIVE');
+  // Distinct symbols with an open position — each needs its own live price.
+  const activeSymbolsKey = Array.from(
+    new Set(signals.filter((s) => s.status === 'ACTIVE').map((s) => s.symbol)),
+  ).sort().join(',');
 
-  // Poll the live price every 5s — but only while an open position exists.
+  // Poll the live price of every open-position symbol every 5s.
   useEffect(() => {
-    if (!hasActive) {
-      setLivePrice(null);
+    const symbols = activeSymbolsKey ? activeSymbolsKey.split(',') : [];
+    if (symbols.length === 0) {
+      setLivePrices({});
       return;
     }
     let cancelled = false;
     const tick = async () => {
-      try {
-        const { price } = await createApiClient().fetchSwingTradingPrice();
-        if (!cancelled) setLivePrice(price > 0 ? price : null);
-      } catch { /* ignore — keep last price */ }
+      const api = createApiClient();
+      const results = await Promise.all(
+        symbols.map(async (sym) => {
+          try {
+            const { price } = await api.fetchSwingTradingPrice(sym);
+            return [sym, price] as const;
+          } catch {
+            return [sym, 0] as const;
+          }
+        }),
+      );
+      if (cancelled) return;
+      setLivePrices((prev) => {
+        const next = { ...prev };
+        for (const [sym, price] of results) if (price > 0) next[sym] = price;
+        return next;
+      });
     };
     void tick();
     const id = setInterval(() => void tick(), 5_000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [hasActive]);
+  }, [activeSymbolsKey]);
 
   const refresh = useCallback(async (status: StatusFilter) => {
     setLoading(true);
@@ -371,9 +388,9 @@ export function SwingTradingFeed({ initialSignals, initialStats, initialSettings
     <div className="dt-page">
       <div className="dt-header">
         <div>
-          <h1 className="dt-title">Swing Trading — {settings.symbol}</h1>
+          <h1 className="dt-title">Swing Trading — {TRACKED_PAIRS.length} coin</h1>
           <p className="dt-subtitle">
-            UTBot Stop-and-Reverse · {settings.timeframe.toUpperCase()} · kv {settings.keyValue > 0 ? settings.keyValue : 'auto'} · vốn ${settings.riskPerTrade} × {settings.leverage}x · {settings.mode}
+            UTBot Stop-and-Reverse · {TRACKED_PAIRS.map((p) => `${p.symbol.replace('USDT', '')} ${p.timeframe}`).join(' · ')} · vốn ${settings.riskPerTrade} × {settings.leverage}x · {settings.mode}
           </p>
         </div>
         <div className="dt-header-actions">
@@ -410,11 +427,11 @@ export function SwingTradingFeed({ initialSignals, initialStats, initialSettings
 
       {signals.length === 0 ? (
         <div className="dt-empty">
-          Chưa có tín hiệu. Scanner kiểm tra UTBot flip sau mỗi nến {settings.timeframe.toUpperCase()} đóng.
+          Chưa có tín hiệu. Scanner kiểm tra UTBot flip cho {TRACKED_PAIRS.length} coin sau mỗi nến đóng (4h/1d).
         </div>
       ) : (
         <div className="dt-list">
-          {signals.map((s) => <SignalCard key={s.id} signal={s} livePrice={livePrice} />)}
+          {signals.map((s) => <SignalCard key={s.id} signal={s} livePrice={livePrices[s.symbol] ?? null} />)}
         </div>
       )}
     </div>
