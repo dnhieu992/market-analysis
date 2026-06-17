@@ -433,6 +433,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
       return rows.map(mapDailyAnalysis);
     },
+    async fetchTrackedSetups(symbol?: string): Promise<TrackedSetup[]> {
+      const url = symbol
+        ? `${baseUrl}/tracked-setups?symbol=${encodeURIComponent(symbol)}`
+        : `${baseUrl}/tracked-setups`;
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
+      return rows.map(mapTrackedSetup);
+    },
     async fetchTrackedSetupsByPlans(ids: string[]): Promise<TrackedSetup[]> {
       if (ids.length === 0) return [];
       const url = `${baseUrl}/tracked-setups/by-plans?ids=${encodeURIComponent(ids.join(','))}`;

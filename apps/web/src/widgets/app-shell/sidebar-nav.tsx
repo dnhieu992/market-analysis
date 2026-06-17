@@ -38,6 +38,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'BTC daily analysis'
   },
   {
+    href: '/tracked-setups',
+    label: 'Lệnh theo dõi',
+    description: 'Setup từ Daily Plan · trạng thái live'
+  },
+  {
     href: '/strategy',
     label: 'Strategies',
     description: 'Manage trading strategies'
