@@ -2940,33 +2940,8 @@ a {
     max-height: 92vh;
   }
 
-  /* Daily plan page */
-  .daily-plan-list {
-    grid-template-columns: 1fr;
-    padding: 0 0 24px;
-    gap: 14px;
-  }
-
-  .daily-plan-card {
-    padding: 16px;
-    gap: 12px;
-  }
-
-  .daily-plan-card-header {
-    gap: 8px;
-  }
-
-  .daily-plan-analysis-text {
-    font-size: 0.83rem;
-    padding: 10px 12px;
-    max-height: 260px;
-  }
-
-  .dp-card-grid {
-    grid-template-columns: 1fr;
-    column-gap: 10px;
-    row-gap: 10px;
-  }
+  /* Daily plan mobile overrides live after the base rules (search
+     "Daily plan mobile") so they aren't defeated by source order. */
 }
 
 /* ── Back-Test ─────────────────────────────────────────────── */
@@ -3173,7 +3148,9 @@ a {
 
 .daily-plan-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  /* min(480px, 100%) keeps columns from exceeding the viewport on mobile,
+     which would otherwise force horizontal scrolling. */
+  grid-template-columns: repeat(auto-fill, minmax(min(480px, 100%), 1fr));
   gap: 20px;
   padding: 0 24px 32px;
 }
@@ -3446,6 +3423,29 @@ a {
   color: var(--muted);
   opacity: 0.6;
   text-align: right;
+}
+
+/* Daily plan mobile — placed after the base rules above so these
+   overrides actually take effect (equal-specificity rules are won by
+   source order). Without this, the desktop 480px columns / 2-col field
+   grid leak onto mobile and force horizontal scrolling. */
+@media (max-width: 640px) {
+  .daily-plan-list {
+    grid-template-columns: 1fr;
+    padding: 0 0 24px;
+    gap: 14px;
+  }
+
+  .daily-plan-card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .dp-card-grid {
+    grid-template-columns: 1fr;
+    column-gap: 10px;
+    row-gap: 10px;
+  }
 }
 
 /* ── Feedback block ──────────────────────────────────────────── */
