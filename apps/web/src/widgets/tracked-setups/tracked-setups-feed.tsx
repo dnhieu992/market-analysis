@@ -2,15 +2,21 @@
 
 import { useMemo, useState } from 'react';
 import { formatPrice } from '@web/shared/lib/format';
-import { estimateSetupPnl, formatPnlPct } from '@web/shared/lib/setup-pnl';
+import { estimateSetupPnl, formatPnlAmount, formatPnlPct } from '@web/shared/lib/setup-pnl';
 import type { TrackedSetup } from '@web/shared/api/types';
 
 function PnlChip({ s }: { s: TrackedSetup }) {
   const pnl = estimateSetupPnl(s);
   if (!pnl) return <span className="ts-pnl ts-pnl--none">—</span>;
   const cls = pnl.pct >= 0 ? 'ts-pnl ts-pnl--up' : 'ts-pnl ts-pnl--down';
-  const title = pnl.realized ? 'PnL ước tính (đã chốt, gồm phí)' : 'PnL tạm tính theo giá hiện tại';
-  return <span className={cls} title={title}>{formatPnlPct(pnl)}</span>;
+  const title = pnl.realized
+    ? 'PnL ước tính trên vốn $1000 (đã chốt, gồm phí)'
+    : 'PnL tạm tính trên vốn $1000 theo giá hiện tại';
+  return (
+    <span className={cls} title={title}>
+      {formatPnlAmount(pnl)} <span className="ts-pnl-pct">{formatPnlPct(pnl)}</span>
+    </span>
+  );
 }
 
 const STATUS_LABEL: Record<string, string> = {

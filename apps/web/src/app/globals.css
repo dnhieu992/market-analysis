@@ -3571,6 +3571,8 @@ a {
 .ts-pnl--down { background: rgba(192,57,43,0.10); color: #c0392b; }
 .ts-pnl--none { background: rgba(23,18,13,0.06); color: var(--muted); }
 
+.ts-pnl-pct { font-size: 0.72rem; font-weight: 600; opacity: 0.75; }
+
 .ts-levels { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ts-last { font-size: 0.8rem; font-weight: 600; color: var(--fg); }
 

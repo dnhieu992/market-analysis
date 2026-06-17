@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { formatPrice } from '@web/shared/lib/format';
-import { estimateSetupPnl, formatPnlPct } from '@web/shared/lib/setup-pnl';
+import { estimateSetupPnl, formatPnlAmount, formatPnlPct } from '@web/shared/lib/setup-pnl';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { DailyAnalysis, TrackedSetup } from '@web/shared/api/types';
 import type { DailyAnalysisPlan } from '@app/core';
@@ -81,8 +81,14 @@ function SetupPnl({ setup }: { setup: TrackedSetup }) {
   const pnl = estimateSetupPnl(setup);
   if (!pnl) return null;
   const cls = pnl.pct >= 0 ? 'ts-pnl ts-pnl--up' : 'ts-pnl ts-pnl--down';
-  const title = pnl.realized ? 'PnL ước tính (đã chốt, gồm phí)' : 'PnL tạm tính theo giá hiện tại';
-  return <span className={cls} title={title}>{formatPnlPct(pnl)}</span>;
+  const title = pnl.realized
+    ? 'PnL ước tính trên vốn $1000 (đã chốt, gồm phí)'
+    : 'PnL tạm tính trên vốn $1000 theo giá hiện tại';
+  return (
+    <span className={cls} title={title}>
+      {formatPnlAmount(pnl)} <span className="ts-pnl-pct">{formatPnlPct(pnl)}</span>
+    </span>
+  );
 }
 
 function TrackedSetupsBlock({ setups }: { setups: TrackedSetup[] }) {
