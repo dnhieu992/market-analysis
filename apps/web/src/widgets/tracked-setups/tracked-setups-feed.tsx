@@ -2,7 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import { formatPrice } from '@web/shared/lib/format';
+import { estimateSetupPnl, formatPnlPct } from '@web/shared/lib/setup-pnl';
 import type { TrackedSetup } from '@web/shared/api/types';
+
+function PnlChip({ s }: { s: TrackedSetup }) {
+  const pnl = estimateSetupPnl(s);
+  if (!pnl) return <span className="ts-pnl ts-pnl--none">—</span>;
+  const cls = pnl.pct >= 0 ? 'ts-pnl ts-pnl--up' : 'ts-pnl ts-pnl--down';
+  const title = pnl.realized ? 'PnL ước tính (đã chốt, gồm phí)' : 'PnL tạm tính theo giá hiện tại';
+  return <span className={cls} title={title}>{formatPnlPct(pnl)}</span>;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Chờ khớp',
@@ -59,6 +68,7 @@ function SetupRow({ s }: { s: TrackedSetup }) {
         <DirBadge direction={s.direction} />
         <span className={statusClass(s.status)}>{STATUS_LABEL[s.status] ?? s.status}</span>
         <span className="ts-slot">{s.slot === 'secondary' ? 'Phụ' : 'Chính'}</span>
+        <PnlChip s={s} />
         <span className="ts-date">{planDate}</span>
       </div>
 

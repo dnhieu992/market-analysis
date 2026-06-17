@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { formatPrice } from '@web/shared/lib/format';
+import { estimateSetupPnl, formatPnlPct } from '@web/shared/lib/setup-pnl';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
 import type { DailyAnalysis, TrackedSetup } from '@web/shared/api/types';
 import type { DailyAnalysisPlan } from '@app/core';
@@ -76,6 +77,14 @@ function SetupStatusBadge({ status }: { status: string }) {
   return <span className={cls}>{SETUP_STATUS_LABEL[status] ?? status}</span>;
 }
 
+function SetupPnl({ setup }: { setup: TrackedSetup }) {
+  const pnl = estimateSetupPnl(setup);
+  if (!pnl) return null;
+  const cls = pnl.pct >= 0 ? 'ts-pnl ts-pnl--up' : 'ts-pnl ts-pnl--down';
+  const title = pnl.realized ? 'PnL ước tính (đã chốt, gồm phí)' : 'PnL tạm tính theo giá hiện tại';
+  return <span className={cls} title={title}>{formatPnlPct(pnl)}</span>;
+}
+
 function TrackedSetupsBlock({ setups }: { setups: TrackedSetup[] }) {
   if (!setups || setups.length === 0) return null;
   return (
@@ -87,6 +96,7 @@ function TrackedSetupsBlock({ setups }: { setups: TrackedSetup[] }) {
             <DirectionBadge direction={s.direction as DailyAnalysisSetup['direction']} />
             <SetupStatusBadge status={s.status} />
             <span className="dp-tracked-slot">{s.slot === 'secondary' ? 'Phụ' : 'Chính'}</span>
+            <SetupPnl setup={s} />
           </div>
           <div className="dp-tracked-levels">
             <span className="level">
