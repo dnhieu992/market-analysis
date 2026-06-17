@@ -124,6 +124,39 @@ export type DailyAnalysis = {
   createdAt: string;
 };
 
+export type TrackedSetupStatus =
+  | 'PENDING'
+  | 'ENTERED'
+  | 'TP1_HIT'
+  | 'TP2_HIT'
+  | 'SL_HIT'
+  | 'INVALID'
+  | 'EXPIRED'
+  | string;
+
+export type TrackedSetup = {
+  id: string;
+  dailyAnalysisId: string;
+  symbol: string;
+  planDate: string;
+  slot: 'primary' | 'secondary' | string;
+  direction: 'long' | 'short' | string;
+  entryLow: number;
+  entryHigh: number;
+  stopLoss: number;
+  takeProfit1: number | null;
+  takeProfit2: number | null;
+  status: TrackedSetupStatus;
+  enteredAt: string | null;
+  tp1HitAt: string | null;
+  tp2HitAt: string | null;
+  slHitAt: string | null;
+  closedAt: string | null;
+  invalidatedReason: string | null;
+  lastPrice: number | null;
+  lastCheckedAt: string | null;
+};
+
 export type TrackingSettings = {
   id: string;
   name: string;

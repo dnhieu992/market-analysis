@@ -3425,6 +3425,72 @@ a {
   text-align: right;
 }
 
+/* ── Tracked trade setups (live status on each plan card) ──── */
+.dp-tracked {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.dp-tracked-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.dp-tracked-item:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.dp-tracked-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dp-tracked-slot {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dp-tracked-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dp-tracked-reason {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dp-setup-status {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.dp-setup-status--pending { background: rgba(23,18,13,0.06); color: var(--muted); }
+.dp-setup-status--active  { background: rgba(245,158,11,0.14); color: #b45309; }
+.dp-setup-status--win     { background: rgba(31,111,91,0.12); color: var(--accent); }
+.dp-setup-status--loss    { background: rgba(192,57,43,0.10); color: #c0392b; }
+.dp-setup-status--dead    { background: rgba(23,18,13,0.08); color: var(--muted); text-decoration: line-through; }
+
 /* Daily plan mobile — placed after the base rules above so these
    overrides actually take effect (equal-specificity rules are won by
    source order). Without this, the desktop 480px columns / 2-col field

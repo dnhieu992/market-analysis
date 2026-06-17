@@ -4,6 +4,8 @@ import { Cron } from '@nestjs/schedule';
 import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
+import { SetupExtractionService } from '../setup-tracking/setup-extraction.service';
+import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TrackingCoinScanService } from '../tracking-coin-scan/tracking-coin-scan.service';
@@ -23,6 +25,8 @@ export class SchedulerService {
     private readonly dailySignalService: DailySignalService,
     private readonly smallCapScanService: SmallCapScanService,
     private readonly trackingCoinScanService: TrackingCoinScanService,
+    private readonly setupExtractionService: SetupExtractionService,
+    private readonly setupTrackingService: SetupTrackingService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -70,6 +74,31 @@ export class SchedulerService {
     }
   }
 
+  // Runs every hour — advance open tracked setups (ENTERED / TP / SL)
+  @Cron('0 * * * *', { timeZone: 'UTC' })
+  async runSetupTracking() {
+    this.logger.log('Running tracked-setup hourly check');
+    try {
+      await this.setupTrackingService.trackOpenSetups();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Setup tracking failed: ${msg}`);
+    }
+  }
+
+  // Runs every day at 00:45 UTC (after the 00:30 plan generation) — expire stale
+  // setups and invalidate those whose premise no longer holds.
+  @Cron('45 0 * * *', { timeZone: 'UTC' })
+  async runSetupReview() {
+    this.logger.log('Running tracked-setup daily review');
+    try {
+      await this.setupTrackingService.reviewStaleSetups();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Setup review failed: ${msg}`);
+    }
+  }
+
   // @Cron('0 1 * * *', { timeZone: 'UTC' })
   async runDailySwingScan() {
     this.logger.log('Running daily swing signal scan');
@@ -91,6 +120,9 @@ export class SchedulerService {
           messageType: 'daily-plan'
         });
         this.logger.log(`sendAnalysisMessage result for ${symbol}: ${JSON.stringify(msgResult)}`);
+
+        // Extract trackable trade setups from the freshly-saved plan (non-fatal).
+        await this.setupExtractionService.extractForSymbol(symbol);
 
         this.logger.log(`Daily analysis sent for ${symbol}`);
       } catch (error) {

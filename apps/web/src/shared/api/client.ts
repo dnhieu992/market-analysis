@@ -23,6 +23,7 @@ import type {
   QueryTransactionsInput,
   RunBackTestInput,
   Skill,
+  TrackedSetup,
   TrackingSettings,
   TradingStrategy,
   UpdateDashboardOrderInput,
@@ -231,6 +232,33 @@ function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
   };
 }
 
+function mapTrackedSetup(row: JsonRecord): TrackedSetup {
+  const num = (v: unknown): number | null => (v == null ? null : Number(v));
+  const str = (v: unknown): string | null => (v == null ? null : String(v));
+  return {
+    id: String(row.id),
+    dailyAnalysisId: String(row.dailyAnalysisId),
+    symbol: String(row.symbol),
+    planDate: String(row.planDate),
+    slot: String(row.slot) as TrackedSetup['slot'],
+    direction: String(row.direction) as TrackedSetup['direction'],
+    entryLow: Number(row.entryLow),
+    entryHigh: Number(row.entryHigh),
+    stopLoss: Number(row.stopLoss),
+    takeProfit1: num(row.takeProfit1),
+    takeProfit2: num(row.takeProfit2),
+    status: String(row.status ?? 'PENDING') as TrackedSetup['status'],
+    enteredAt: str(row.enteredAt),
+    tp1HitAt: str(row.tp1HitAt),
+    tp2HitAt: str(row.tp2HitAt),
+    slHitAt: str(row.slHitAt),
+    closedAt: str(row.closedAt),
+    invalidatedReason: str(row.invalidatedReason),
+    lastPrice: num(row.lastPrice),
+    lastCheckedAt: str(row.lastCheckedAt)
+  };
+}
+
 function mapSettings(row: JsonRecord): TrackingSettings {
   const symbols = Array.isArray(row.trackingSymbols)
     ? (row.trackingSymbols as unknown[]).map(String)
@@ -404,6 +432,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
         : `${baseUrl}/daily-analysis`;
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
       return rows.map(mapDailyAnalysis);
+    },
+    async fetchTrackedSetupsByPlans(ids: string[]): Promise<TrackedSetup[]> {
+      if (ids.length === 0) return [];
+      const url = `${baseUrl}/tracked-setups/by-plans?ids=${encodeURIComponent(ids.join(','))}`;
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
+      return rows.map(mapTrackedSetup);
     },
     async updateDailyAnalysisFeedback(id: string, score: number, note?: string): Promise<DailyAnalysis> {
       const response = await fetchImpl(`${baseUrl}/daily-analysis/${id}/feedback`, withDefaults({

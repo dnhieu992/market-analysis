@@ -61,6 +61,7 @@ describe('DailyPlanPage', () => {
       fetchAnalysisRuns: async () => [],
       fetchHealth: async () => ({ service: 'api', status: 'ok' }),
       fetchDailyAnalysis: async () => [mockRecord],
+      fetchTrackedSetupsByPlans: async () => [],
       createOrder: async () => { throw new Error('not used'); },
       closeOrder: async () => { throw new Error('not used'); }
     } as unknown as ReturnType<typeof createApiClient>);

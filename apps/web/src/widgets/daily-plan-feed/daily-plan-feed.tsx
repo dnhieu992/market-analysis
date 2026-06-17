@@ -4,7 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { formatPrice } from '@web/shared/lib/format';
 import { resolveApiBaseUrl } from '@web/shared/api/client';
-import type { DailyAnalysis } from '@web/shared/api/types';
+import type { DailyAnalysis, TrackedSetup } from '@web/shared/api/types';
 import type { DailyAnalysisPlan } from '@app/core';
 
 // Lazy-load the shared TipTap editor so its bundle only loads with the dialog.
@@ -52,6 +52,60 @@ function DirectionBadge({ direction }: { direction: DailyAnalysisSetup['directio
     direction === 'long' ? '▲ Long' :
     direction === 'short' ? '▼ Short' : '— No Trade';
   return <span className={cls}>{label}</span>;
+}
+
+/* ── tracked setup status ──────────────────────────────────── */
+
+const SETUP_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Chờ khớp',
+  ENTERED: 'Đã khớp',
+  TP1_HIT: 'Chạm TP1',
+  TP2_HIT: 'Chạm TP2',
+  SL_HIT: 'Dính SL',
+  INVALID: 'Không hợp lệ',
+  EXPIRED: 'Hết hạn',
+};
+
+function SetupStatusBadge({ status }: { status: string }) {
+  const cls =
+    status === 'TP1_HIT' || status === 'TP2_HIT' ? 'dp-setup-status dp-setup-status--win' :
+    status === 'SL_HIT'                          ? 'dp-setup-status dp-setup-status--loss' :
+    status === 'ENTERED'                         ? 'dp-setup-status dp-setup-status--active' :
+    status === 'INVALID' || status === 'EXPIRED' ? 'dp-setup-status dp-setup-status--dead' :
+    'dp-setup-status dp-setup-status--pending';
+  return <span className={cls}>{SETUP_STATUS_LABEL[status] ?? status}</span>;
+}
+
+function TrackedSetupsBlock({ setups }: { setups: TrackedSetup[] }) {
+  if (!setups || setups.length === 0) return null;
+  return (
+    <div className="dp-tracked">
+      <span className="dp-field-label">Lệnh theo dõi</span>
+      {setups.map((s) => (
+        <div key={s.id} className="dp-tracked-item">
+          <div className="dp-tracked-head">
+            <DirectionBadge direction={s.direction as DailyAnalysisSetup['direction']} />
+            <SetupStatusBadge status={s.status} />
+            <span className="dp-tracked-slot">{s.slot === 'secondary' ? 'Phụ' : 'Chính'}</span>
+          </div>
+          <div className="dp-tracked-levels">
+            <span className="level">
+              Entry {formatPrice(s.entryLow)}
+              {s.entryHigh !== s.entryLow ? `–${formatPrice(s.entryHigh)}` : ''}
+            </span>
+            <span className="level level--support">SL {formatPrice(s.stopLoss)}</span>
+            {s.takeProfit1 != null && (
+              <span className="level level--resistance">TP1 {formatPrice(s.takeProfit1)}</span>
+            )}
+            {s.takeProfit2 != null && (
+              <span className="level level--resistance">TP2 {formatPrice(s.takeProfit2)}</span>
+            )}
+          </div>
+          {s.invalidatedReason && <p className="dp-tracked-reason">{s.invalidatedReason}</p>}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /* ── generic labeled cell ──────────────────────────────────── */
@@ -315,7 +369,7 @@ function FeedbackDialog({
 
 /* ── card ──────────────────────────────────────────────────── */
 
-function DailyPlanCard({ record }: { record: DailyAnalysis }) {
+function DailyPlanCard({ record, setups }: { record: DailyAnalysis; setups: TrackedSetup[] }) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const dateLabel = new Date(record.date).toLocaleDateString('en-US', {
@@ -354,6 +408,9 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
           </span>
         )}
       </div>
+
+      {/* ── tracked trade setups (live status) ── */}
+      <TrackedSetupsBlock setups={setups} />
 
       {/* ── 2-col grid of fields ── */}
       <div className="dp-card-grid">
@@ -463,16 +520,21 @@ function DailyPlanCard({ record }: { record: DailyAnalysis }) {
 
 /* ── feed ──────────────────────────────────────────────────── */
 
-type DailyPlanFeedProps = Readonly<{ records: DailyAnalysis[] }>;
+type DailyPlanFeedProps = Readonly<{
+  records: DailyAnalysis[];
+  setupsByPlan?: Record<string, TrackedSetup[]>;
+}>;
 
-export function DailyPlanFeed({ records }: DailyPlanFeedProps) {
+export function DailyPlanFeed({ records, setupsByPlan = {} }: DailyPlanFeedProps) {
   return (
     <main className="dashboard-shell daily-plan-shell">
       <section className="daily-plan-list">
         {records.length === 0 ? (
           <p className="daily-plan-empty">No daily plans yet.</p>
         ) : (
-          records.map((record) => <DailyPlanCard key={record.id} record={record} />)
+          records.map((record) => (
+            <DailyPlanCard key={record.id} record={record} setups={setupsByPlan[record.id] ?? []} />
+          ))
         )}
       </section>
     </main>

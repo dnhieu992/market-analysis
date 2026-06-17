@@ -122,6 +122,36 @@ model DailyAnalysis {
   @@index([symbol, date])
 }
 
+model TrackedSetup {
+  id                String   @id @default(cuid())
+  dailyAnalysisId   String
+  symbol            String
+  planDate          DateTime @db.Date
+  slot              String   // "primary" | "secondary"
+  direction         String   // "long" | "short"
+  entryLow          Float
+  entryHigh         Float
+  stopLoss          Float
+  takeProfit1       Float?
+  takeProfit2       Float?
+  rawJson           String   @db.Text
+  status            String   @default("PENDING") // PENDING|ENTERED|TP1_HIT|TP2_HIT|SL_HIT|INVALID|EXPIRED
+  enteredAt         DateTime?
+  tp1HitAt          DateTime?
+  tp2HitAt          DateTime?
+  slHitAt           DateTime?
+  closedAt          DateTime?
+  invalidatedReason String?  @db.Text
+  lastCheckedAt     DateTime?
+  lastPrice         Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([dailyAnalysisId])
+  @@index([symbol, planDate])
+  @@index([status])
+}
+
 model Settings {
   id               String   @id @default("singleton")
   name             String
