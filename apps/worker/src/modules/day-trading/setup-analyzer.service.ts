@@ -123,8 +123,17 @@ export class SetupAnalyzerService {
     const n = candles.length - 1;
     const close = candles[n]!.close;
 
+    // Higher-high confirmation on the last two swing highs. The trendline alone
+    // lags: after a top, the last two swing LOWS can still be "rising" off the
+    // prior rally while price is already carving LOWER HIGHS — the topping/
+    // distribution phase that bled the LONG side. Requiring the matching HH drops
+    // those stale UP signals. (Asymmetric: the SHORT side backtests best on the
+    // falling-highs trendline ALONE — adding a lower-low gate there gutted its PF,
+    // so 'down' is intentionally left unconfirmed.)
+    const risingHighs = highs.length >= 2 && highs[highs.length - 1]!.price > highs[highs.length - 2]!.price;
+
     let up = false;
-    if (lows.length >= 2) {
+    if (lows.length >= 2 && risingHighs) {
       const a = lows[lows.length - 2]!;
       const b = lows[lows.length - 1]!;
       if (b.price > a.price && b.idx > a.idx) {

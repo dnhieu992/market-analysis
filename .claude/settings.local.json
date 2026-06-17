@@ -106,7 +106,20 @@
       "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 4h 365 1000 0.04 \"1,2,3,4\")",
       "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 4h 365 1000 0.10 \"1,2,3,4\")",
       "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts ETHUSDT 4h 365 1000 0.04 \"1,2,3,4\")",
-      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 1d 365 1000 0.04 \"1,2,3\")"
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts BTCUSDT 1d 365 1000 0.04 \"1,2,3\")",
+      "Bash(pm2 jlist *)",
+      "Bash(pm2 logs *)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json scripts/run-flip-backtest.ts SOLUSDT 4h 365 1000 0.05 1,2,3,4)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm exec *)",
+      "Bash(echo \"--- exit code: $? \\(1 = no matches\\) ---\")",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=365 --fee=0.0005)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=180 --fee=0.0005)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=365 --fee=0.0005 --allow-stack)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(awk '/model SwingTradingSettings/,/^}/' packages/db/prisma/schema.prisma)",
+      "Bash(awk '/model DayTradingSignal/,/^}/' packages/db/prisma/schema.prisma)",
+      "Bash(awk -F: '$1 < 2944')",
+      "Bash(awk -F: '$1 > 2970')"
     ]
   }
 }

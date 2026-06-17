@@ -73,6 +73,17 @@ export class DayTradingService implements OnModuleInit {
   async scan(): Promise<void> {
     const settings = await this.repo.getSettings();
 
+    // Single open position: never stack a second trade while one is still live.
+    // The daily-loss guard below only counts CLOSED losers, so without this a burst
+    // of correlated entries (e.g. 3 pullback LONGs within 45m) can all open before
+    // any closes — then a single adverse candle stops them all out, multiplying the
+    // drawdown. Backtest: stacking blew max DD from −17.5R to −182.4R at equal risk.
+    const open = await this.repo.findActiveSignals(SYMBOL);
+    if (open.length > 0) {
+      this.logger.debug(`Position already open for ${SYMBOL} — skipping (no stacking)`);
+      return;
+    }
+
     // Daily guards (configurable risk management rules).
     const todayCount = await this.repo.countTodaySignals(SYMBOL);
     if (todayCount >= settings.maxTradesPerDay) {
