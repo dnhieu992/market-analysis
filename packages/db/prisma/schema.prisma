@@ -142,6 +142,7 @@ model TrackedSetup {
   slHitAt           DateTime?
   closedAt          DateTime?
   invalidatedReason String?  @db.Text
+  notes             String?  @db.Text
   lastCheckedAt     DateTime?
   lastPrice         Float?
   createdAt         DateTime @default(now())

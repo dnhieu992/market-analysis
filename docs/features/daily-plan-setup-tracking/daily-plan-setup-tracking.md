@@ -31,6 +31,10 @@ concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses t
 6. `/tracked-setups` page (`TrackedSetupsFeed`) lists every setup with status-bucket filters and a
    summary bar: tỉ lệ thắng (wins/decided where decided = TP_HIT + SL_HIT), số lệnh thắng/thua, và
    tổng PnL đã chốt (realized, vốn $1000/lệnh).
+7. Each setup card has an editable **notes** field (`NotesSection`) using the shared `MarkdownEditor`
+   (TipTap, lazy-loaded). Notes are stored as a Markdown string on `TrackedSetup.notes` and saved via
+   `PATCH /tracked-setups/:id/notes`. Existing notes render read-only (toolbar hidden) with a "Sửa ghi
+   chú" link; empty notes show a "+ Thêm ghi chú" link.
 
 ## Edge Cases
 - Plan is NO_TRADE / has no actionable setup → extraction stores nothing.
@@ -43,16 +47,18 @@ concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses t
 ## Related Files (FE / BE / Worker)
 - `packages/db/prisma/schema.prisma` — `TrackedSetup` model.
 - `packages/db/prisma/migrations/20260617120000_add_tracked_setup/migration.sql` — table DDL.
-- `packages/db/src/repositories/tracked-setup.repository.ts` — repository (`createTrackedSetupRepository`).
+- `packages/db/prisma/migrations/20260618130000_add_tracked_setup_notes/migration.sql` — `notes` column DDL.
+- `packages/db/src/repositories/tracked-setup.repository.ts` — repository (`createTrackedSetupRepository`), incl. `updateNotes`.
 - `apps/worker/src/modules/setup-tracking/setup-extraction.service.ts` — LLM extraction → rows.
 - `apps/worker/src/modules/setup-tracking/setup-tracking.service.ts` — hourly tracking + daily review.
 - `apps/worker/src/modules/setup-tracking/setup-tracking.module.ts` — worker module.
 - `apps/worker/src/modules/scheduler/scheduler.service.ts` — extraction call + two crons.
-- `apps/api/src/modules/tracked-setups/*` — `GET /tracked-setups`, `GET /tracked-setups/by-plans`.
+- `apps/api/src/modules/tracked-setups/*` — `GET /tracked-setups`, `GET /tracked-setups/by-plans`, `PATCH /tracked-setups/:id/notes` (+ `dto/update-tracked-setup-notes.dto.ts`).
 - `apps/api/src/modules/database/database.providers.ts` — `TRACKED_SETUP_REPOSITORY` provider.
 - `apps/web/src/_pages/daily-plan-page/daily-plan-page.tsx` — fetches setups, groups by plan.
 - `apps/web/src/widgets/daily-plan-feed/daily-plan-feed.tsx` — "Lệnh theo dõi" block + status badge.
-- `apps/web/src/widgets/tracked-setups/tracked-setups-feed.tsx` — `/tracked-setups` list + win-rate/PnL summary bar.
+- `apps/web/src/widgets/tracked-setups/tracked-setups-feed.tsx` — `/tracked-setups` list + win-rate/PnL summary bar + `NotesSection` (MarkdownEditor).
+- `apps/web/src/shared/ui/markdown-editor/markdown-editor.tsx` — shared TipTap editor reused for setup notes.
 - `apps/web/src/shared/lib/setup-pnl.ts` — per-setup PnL estimate used by the summary + chips.
-- `apps/web/src/shared/api/client.ts` / `types.ts` — `TrackedSetup` type, mapper, `fetchTrackedSetupsByPlans`.
-- `apps/web/src/app/globals.css` — `.dp-tracked*` / `.dp-setup-status*` styles.
+- `apps/web/src/shared/api/client.ts` / `types.ts` — `TrackedSetup` type (incl. `notes`), mapper, `fetchTrackedSetupsByPlans`, `updateTrackedSetupNotes`.
+- `apps/web/src/app/globals.css` — `.dp-tracked*` / `.dp-setup-status*` / `.ts-notes*` styles.

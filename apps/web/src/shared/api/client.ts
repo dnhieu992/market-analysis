@@ -254,6 +254,7 @@ function mapTrackedSetup(row: JsonRecord): TrackedSetup {
     slHitAt: str(row.slHitAt),
     closedAt: str(row.closedAt),
     invalidatedReason: str(row.invalidatedReason),
+    notes: str(row.notes),
     lastPrice: num(row.lastPrice),
     lastCheckedAt: str(row.lastCheckedAt)
   };
@@ -445,6 +446,17 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const url = `${baseUrl}/tracked-setups/by-plans?ids=${encodeURIComponent(ids.join(','))}`;
       const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
       return rows.map(mapTrackedSetup);
+    },
+    async updateTrackedSetupNotes(id: string, notes: string | null): Promise<TrackedSetup> {
+      const response = await fetchImpl(`${baseUrl}/tracked-setups/${id}/notes`, withDefaults({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      }));
+      if (!response.ok) {
+        throw new Error(`Failed to update tracked setup notes: ${response.status}`);
+      }
+      return mapTrackedSetup((await response.json()) as JsonRecord);
     },
     async updateDailyAnalysisFeedback(id: string, score: number, note?: string): Promise<DailyAnalysis> {
       const response = await fetchImpl(`${baseUrl}/daily-analysis/${id}/feedback`, withDefaults({

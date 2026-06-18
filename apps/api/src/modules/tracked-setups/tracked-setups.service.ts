@@ -23,4 +23,9 @@ export class TrackedSetupsService {
   listByPlans(ids: string[]): Promise<TrackedSetupRecord[]> {
     return this.trackedSetupRepository.listByPlanIds(ids);
   }
+
+  updateNotes(id: string, notes: string | null): Promise<TrackedSetupRecord> {
+    const trimmed = notes?.trim();
+    return this.trackedSetupRepository.updateNotes(id, trimmed ? trimmed : null);
+  }
 }

@@ -153,6 +153,7 @@ export type TrackedSetup = {
   slHitAt: string | null;
   closedAt: string | null;
   invalidatedReason: string | null;
+  notes: string | null;
   lastPrice: number | null;
   lastCheckedAt: string | null;
 };

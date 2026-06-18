@@ -1,9 +1,17 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
+import { createApiClient } from '@web/shared/api/client';
 import { formatPrice } from '@web/shared/lib/format';
 import { estimateSetupPnl, formatPnlAmount, formatPnlPct } from '@web/shared/lib/setup-pnl';
 import type { TrackedSetup } from '@web/shared/api/types';
+
+// Lazy-load the TipTap editor so its bundle only loads when notes are opened.
+const MarkdownEditor = dynamic(
+  () => import('@web/shared/ui/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  { ssr: false },
+);
 
 function PnlChip({ s }: { s: TrackedSetup }) {
   const pnl = estimateSetupPnl(s);
@@ -63,6 +71,83 @@ function DirBadge({ direction }: { direction: string }) {
   return <span className={cls}>{label}</span>;
 }
 
+function NotesSection({ s }: { s: TrackedSetup }) {
+  const [notes, setNotes] = useState<string>(s.notes ?? '');
+  const [draft, setDraft] = useState<string>(s.notes ?? '');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startEdit = () => {
+    setDraft(notes);
+    setError(null);
+    setEditing(true);
+  };
+
+  const cancel = () => {
+    setDraft(notes);
+    setError(null);
+    setEditing(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await createApiClient().updateTrackedSetupNotes(s.id, draft);
+      const saved = updated.notes ?? '';
+      setNotes(saved);
+      setDraft(saved);
+      setEditing(false);
+    } catch {
+      setError('Lưu ghi chú thất bại. Thử lại.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="ts-notes ts-notes--editing">
+        <MarkdownEditor
+          value={draft}
+          onChange={setDraft}
+          minHeight={160}
+          placeholder="Ghi chú cho lệnh này…"
+        />
+        {error && <p className="ts-notes-error">{error}</p>}
+        <div className="ts-notes-actions">
+          <button className="ts-notes-btn ts-notes-btn--ghost" onClick={cancel} disabled={saving}>
+            Huỷ
+          </button>
+          <button className="ts-notes-btn" onClick={() => void save()} disabled={saving || draft === notes}>
+            {saving ? 'Đang lưu…' : 'Lưu'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ts-notes">
+      {notes ? (
+        <>
+          <div className="ts-notes-view">
+            <MarkdownEditor value={notes} onChange={() => {}} editable={false} hideToolbar minHeight={0} />
+          </div>
+          <button className="ts-notes-btn ts-notes-btn--link" onClick={startEdit}>
+            ✎ Sửa ghi chú
+          </button>
+        </>
+      ) : (
+        <button className="ts-notes-btn ts-notes-btn--link" onClick={startEdit}>
+          + Thêm ghi chú
+        </button>
+      )}
+    </div>
+  );
+}
+
 function SetupRow({ s }: { s: TrackedSetup }) {
   const planDate = new Date(s.planDate).toLocaleDateString('vi-VN', {
     day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC',
@@ -97,6 +182,8 @@ function SetupRow({ s }: { s: TrackedSetup }) {
       </div>
 
       {s.invalidatedReason && <p className="ts-reason">{s.invalidatedReason}</p>}
+
+      <NotesSection s={s} />
     </article>
   );
 }

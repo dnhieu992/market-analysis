@@ -1,6 +1,7 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { UpdateTrackedSetupNotesDto } from './dto/update-tracked-setup-notes.dto';
 import type { TrackedSetupRecord } from './tracked-setups.service';
 import { TrackedSetupsService } from './tracked-setups.service';
 
@@ -27,5 +28,14 @@ export class TrackedSetupsController {
       .map((id) => id.trim())
       .filter(Boolean);
     return this.trackedSetupsService.listByPlans(planIds);
+  }
+
+  @Patch(':id/notes')
+  @ApiOperation({ summary: 'Update the free-text notes for a tracked setup' })
+  updateNotes(
+    @Param('id') id: string,
+    @Body() dto: UpdateTrackedSetupNotesDto
+  ): Promise<TrackedSetupRecord> {
+    return this.trackedSetupsService.updateNotes(id, dto.notes ?? null);
   }
 }

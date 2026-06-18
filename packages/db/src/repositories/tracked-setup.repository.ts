@@ -42,6 +42,9 @@ export function createTrackedSetupRepository(client = prisma) {
     },
     update(id: string, data: Prisma.TrackedSetupUncheckedUpdateInput) {
       return client.trackedSetup.update({ where: { id }, data });
+    },
+    updateNotes(id: string, notes: string | null) {
+      return client.trackedSetup.update({ where: { id }, data: { notes } });
     }
   };
 }

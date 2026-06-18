@@ -3634,6 +3634,63 @@ a {
   color: var(--muted);
 }
 
+.ts-notes {
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ts-notes-view {
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.ts-notes-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ts-notes-error {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--danger, #e5484d);
+}
+
+.ts-notes-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ts-notes-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ts-notes-btn--ghost {
+  background: transparent;
+  color: var(--muted);
+}
+
+.ts-notes-btn--link {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--accent, #3b82f6);
+  font-size: 0.76rem;
+}
+
 @media (max-width: 640px) {
   .ts-list { grid-template-columns: 1fr; }
 }
