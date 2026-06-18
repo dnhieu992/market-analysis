@@ -28,6 +28,9 @@ concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses t
    zone) for the same symbol exists. ENTERED setups are skipped entirely — they run to TP/SL.
 5. `/daily-plan` server page fetches setups via `GET /tracked-setups/by-plans?ids=…` and renders a
    "Lệnh theo dõi" block with entry/SL/TP and a live status badge on each card.
+6. `/tracked-setups` page (`TrackedSetupsFeed`) lists every setup with status-bucket filters and a
+   summary bar: tỉ lệ thắng (wins/decided where decided = TP_HIT + SL_HIT), số lệnh thắng/thua, và
+   tổng PnL đã chốt (realized, vốn $1000/lệnh).
 
 ## Edge Cases
 - Plan is NO_TRADE / has no actionable setup → extraction stores nothing.
@@ -49,5 +52,7 @@ concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses t
 - `apps/api/src/modules/database/database.providers.ts` — `TRACKED_SETUP_REPOSITORY` provider.
 - `apps/web/src/_pages/daily-plan-page/daily-plan-page.tsx` — fetches setups, groups by plan.
 - `apps/web/src/widgets/daily-plan-feed/daily-plan-feed.tsx` — "Lệnh theo dõi" block + status badge.
+- `apps/web/src/widgets/tracked-setups/tracked-setups-feed.tsx` — `/tracked-setups` list + win-rate/PnL summary bar.
+- `apps/web/src/shared/lib/setup-pnl.ts` — per-setup PnL estimate used by the summary + chips.
 - `apps/web/src/shared/api/client.ts` / `types.ts` — `TrackedSetup` type, mapper, `fetchTrackedSetupsByPlans`.
 - `apps/web/src/app/globals.css` — `.dp-tracked*` / `.dp-setup-status*` styles.
