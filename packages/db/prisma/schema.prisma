@@ -464,6 +464,8 @@ model SwingTradingSignal {
   rrRatio       Float     @default(0)
   riskAmount    Float     @default(1000)
   keyValue      Float     @default(2)
+  // |entry − UTBot line| / entry × 100, captured AT ENTRY (the live stopLoss trails away later).
+  entryLineDistancePct Float?
   quantity      Float?
   positionValue Float?
   status        String    @db.VarChar(20)

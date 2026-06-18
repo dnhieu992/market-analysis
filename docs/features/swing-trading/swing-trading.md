@@ -43,7 +43,8 @@ Bitget execution** via a localized executor seam.
    LIVE (future) places the real Bitget order at the same seam. Sizing: `notional = riskPerTrade × leverage`, `qty = notional / entryPrice`.
 3. **API** (`/swing-trading/*`): list signals, stats (wins/losses/winRate/pnl), live price, per-signal note, settings GET/PUT.
 4. **Web** (`/swing-trading`): stats header, status filter (Tất cả / Đang mở / Đã đóng), signal cards
-   (entry, UTBot flip level, notional, live unrealized P&L + distance-to-flip), markdown note, settings panel.
+   (entry + **distance-from-trend-line at entry**, UTBot flip level, notional, live unrealized P&L +
+   distance-to-flip), markdown note, settings panel.
 
 ## Edge Cases
 
@@ -77,6 +78,12 @@ Bitget execution** via a localized executor seam.
   `✋` đóng do đảo trend. Rendered on `/swing-trading` in the note block. Appending is best-effort
   (`SwingExecutorService.appendNote` swallows errors). It shares the same field as the manual trader
   note, so a manual save can overwrite earlier auto lines — acceptable trade-off for simplicity.
+- **Entry distance from the trend line** (`entryLineDistancePct`): `|entry − UTBot line| / entry × 100`,
+  captured **at entry** in the executor (the live `stopLoss` trails the line as the trend runs, so the
+  entry value can't be recovered from it later). Stored on the signal, also appended to the `▶️` journal
+  line and shown under the Entry price + in the "vì sao vào lệnh" block. Old rows are backfilled in the
+  migration from `setupJson.utbotStop` (the entry-time line, which is preserved). Null only if `setupJson`
+  lacks `utbotStop` or `entryPrice` is 0.
 - **P&L is gross** (fees excluded) to mirror the day-trading monitor; real Bitget fees (~0.05%/side) reduce live results — see `claude-backtest/`.
 
 ## Related Files (FE / BE / Worker)
@@ -104,4 +111,5 @@ Bitget execution** via a localized executor seam.
 - `packages/db/prisma/migrations/20260615045030_add_swing_trading/migration.sql` — tables
 - `packages/db/prisma/migrations/20260615122530_swing_pullback_addon/migration.sql` — `legKind` + `pullbackArmed` columns
 - `packages/db/prisma/migrations/20260618140000_swing_partial_tp/migration.sql` — `partialClosed` + `realizedPnlUsd` columns
+- `packages/db/prisma/migrations/20260618150000_swing_entry_line_distance/migration.sql` — `entryLineDistancePct` column + backfill from `setupJson.utbotStop`
 - `packages/db/src/repositories/swing-trading.repository.ts` — `createSwingTradingRepository` (incl. `applyPartialTake`)

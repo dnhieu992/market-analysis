@@ -60,6 +60,10 @@ export class SwingExecutorService {
     const isAdd = legKind === 'ADD';
     const positionValue = p.riskPerTrade * p.leverage;
     const quantity = p.entryPrice > 0 ? positionValue / p.entryPrice : 0;
+    // How far the entry sat from the UTBot trend line at the moment of entry. Captured now
+    // because the stored stopLoss trails the line as the trend runs and loses this value.
+    const entryLineDistancePct =
+      p.entryPrice > 0 ? (Math.abs(p.entryPrice - p.stopLevel) / p.entryPrice) * 100 : undefined;
 
     this.logger.log(
       `🔔 SWING [${p.mode}] OPEN ${isAdd ? 'ADD' : 'BASE'} ${p.direction} ${p.symbol} ${p.timeframe} | ` +
@@ -79,6 +83,7 @@ export class SwingExecutorService {
       rrRatio: 0,
       riskAmount: p.riskPerTrade,
       keyValue: p.keyValue,
+      entryLineDistancePct,
       quantity,
       positionValue,
       status: 'ACTIVE',
@@ -87,7 +92,8 @@ export class SwingExecutorService {
       // a fresh BASE leg starts un-armed; an ADD leg never carries arm state itself
       pullbackArmed: false,
       // Auto-journal: first line records the entry.
-      note: `- ▶️ ${noteTs()} — Vào ${p.direction}${isAdd ? ' (nhồi pullback)' : ''} @ ${fmtNum(p.entryPrice)} · SL UTBot ${fmtNum(p.stopLevel)}`,
+      note: `- ▶️ ${noteTs()} — Vào ${p.direction}${isAdd ? ' (nhồi pullback)' : ''} @ ${fmtNum(p.entryPrice)} · SL UTBot ${fmtNum(p.stopLevel)}` +
+        (entryLineDistancePct != null ? ` · cách đường trend ${entryLineDistancePct.toFixed(2)}%` : ''),
       setupJson: JSON.stringify({
         strategy: 'UTBOT_FLIP',
         legKind,

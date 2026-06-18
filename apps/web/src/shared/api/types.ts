@@ -564,6 +564,8 @@ export type SwingTradingSignal = {
   rrRatio: number;
   riskAmount: number;
   keyValue: number;
+  /** |entry − UTBot line| / entry × 100, captured at entry. Null for rows predating the field. */
+  entryLineDistancePct: number | null;
   quantity: number | null;
   positionValue: number | null;
   status: 'ACTIVE' | 'CLOSED';

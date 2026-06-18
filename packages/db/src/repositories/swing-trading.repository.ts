@@ -18,6 +18,7 @@ export function createSwingTradingRepository(client = prisma) {
       rrRatio?: number;
       riskAmount: number;
       keyValue: number;
+      entryLineDistancePct?: number;
       quantity?: number;
       positionValue?: number;
       status: string;

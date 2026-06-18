@@ -44,7 +44,10 @@ function describeSetup(signal: SwingTradingSignal): { method: string; how: strin
   return {
     method: `UTBot Stop-and-Reverse · ${signal.timeframe.toUpperCase()} · kv=${signal.keyValue}`,
     how: 'Theo đường UTBot (ATR trailing stop). Khi nến ĐÓNG vượt qua đường stop → xác nhận đảo trend → vào lệnh và giữ tới khi nến đóng lật ngược lại.',
-    reason: `Nến ${signal.timeframe.toUpperCase()} đóng xác nhận trend ${dirVi}: giá đóng ${formatPrice(signal.entryPrice)} ${signal.direction === 'LONG' ? 'trên' : 'dưới'} đường UTBot ${formatPrice(signal.stopLoss)}.`,
+    reason: `Nến ${signal.timeframe.toUpperCase()} đóng xác nhận trend ${dirVi}: giá đóng ${formatPrice(signal.entryPrice)} ${signal.direction === 'LONG' ? 'trên' : 'dưới'} đường UTBot ${formatPrice(signal.stopLoss)}.` +
+      (signal.entryLineDistancePct != null
+        ? ` Lúc vào lệnh, điểm entry cách đường trend (UTBot) ${signal.entryLineDistancePct.toFixed(2)}% — càng gần đường thì rủi ro tới SL càng nhỏ.`
+        : ''),
     exit: 'Khi giá chạy +5% từ entry: chốt 1/2 vị thế và kéo SL về entry (hòa vốn). Phần còn lại đi theo trailing stop UTBot — thoát khi nến đóng lật trend, hoặc về entry nếu giá quay đầu trước khi đường UTBot vượt entry.',
   };
 }
@@ -161,7 +164,11 @@ function SignalCard({ signal, livePrice }: { signal: SwingTradingSignal; livePri
       )}
 
       <div className="dt-prices">
-        <PriceCell label="Entry" value={formatPrice(signal.entryPrice)} />
+        <PriceCell
+          label="Entry"
+          value={formatPrice(signal.entryPrice)}
+          sub={signal.entryLineDistancePct != null ? `cách trend ${signal.entryLineDistancePct.toFixed(2)}%` : undefined}
+        />
         <PriceCell label="UTBot Stop (lật)" value={formatPrice(signal.stopLoss)} modifier="dt-price-value--sl" />
         <PriceCell label="Vốn" value={`$${signal.riskAmount.toFixed(0)}`} />
         <PriceCell label="Qty" value={signal.quantity != null ? signal.quantity.toFixed(4) : '—'} />
