@@ -470,7 +470,9 @@ model SwingTradingSignal {
   mode          String    @default("PAPER") @db.VarChar(10)
   legKind       String    @default("BASE") @db.VarChar(10) // BASE | ADD (pullback scale-in)
   pullbackArmed Boolean   @default(false)                  // re-arm state, only meaningful on the BASE leg
-  breakEvenMoved Boolean  @default(false)
+  breakEvenMoved Boolean  @default(false)                  // SL ratcheted to entry after the +5% partial
+  partialClosed Boolean   @default(false)                  // the +5% half-close already fired
+  realizedPnlUsd Float    @default(0)                      // P&L banked from the partial close (added at full close)
   closedPrice   Float?
   closedAt      DateTime?
   pnlUsd        Float?

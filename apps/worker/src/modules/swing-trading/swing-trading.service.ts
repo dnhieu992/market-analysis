@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { createSwingTradingRepository } from '@app/db';
 import { SwingBitgetService, toBitgetGranularity } from './bitget.service';
 import { UtBotStrategyService } from './utbot-strategy.service';
-import { SwingExecutorService } from './swing-executor.service';
+import { SwingExecutorService, PARTIAL_TP_PCT } from './swing-executor.service';
 import { pullbackEnabledFor, evaluateAddOn } from './pullback-addon';
 import { SWING_PAIRS, type SwingPair } from './swing-pairs';
 
@@ -20,9 +20,17 @@ import { SWING_PAIRS, type SwingPair } from './swing-pairs';
  *   1. Fetch candles, drop the in-progress last one → evaluate UTBot trend.
  *   2. Compare the trend to the current open position(s).
  *      - no position        → open a BASE leg in the trend direction.
- *      - position == trend   → keep; sync the trailing UTBot stop on every leg, then
- *        (only when kv is gated for it) maybe fire a PULLBACK scale-in toward the line.
+ *      - position == trend   → keep; trail the UTBot stop on every leg, run the partial
+ *        take-profit / breakeven rule (see below), then (only when kv is gated for it)
+ *        maybe fire a PULLBACK scale-in toward the line.
  *      - position != trend   → FLIP: close ALL legs at the candle close, open the reverse.
+ *
+ * Partial take-profit + breakeven (every leg): once price has run +5% (PARTIAL_TP_PCT)
+ * from the leg's entry, close half the leg, bank the realized P&L, and ratchet the stop
+ * to breakeven (entry). The remaining half rides the UTBot trail (stop floored at entry)
+ * and exits either on the trend flip or at breakeven if a candle closes back through entry
+ * before the UTBot line has trailed past it. A breakeven stop-out of the BASE leg leaves
+ * the book flat for that candle; the next aligned close re-opens a fresh BASE.
  *
  * Pullback add-on (gated to kv=4, see `pullback-addon.ts`): while aligned with the trend,
  * when the close returns within 1% of the UTBot line, open one more leg in the trend
@@ -136,11 +144,49 @@ export class SwingTradingService {
       return;
     }
 
-    // Aligned with the trend → sync the trailing stop on every open leg.
+    // Aligned with the trend → manage each open leg:
+    //   1. Trail the stop on the UTBot line, but never below breakeven once half is banked.
+    //   2. At +PARTIAL_TP_PCT from entry, close half the leg and ratchet the stop to entry.
+    //   3. After the partial, stop the runner out at breakeven if a candle closes back
+    //      through entry before the UTBot line has trailed past it.
+    let baseLegClosed = false;
     for (const leg of legs) {
-      await this.executor.syncStop(leg.id, evalResult.stop);
+      // Trailing stop = UTBot line, floored at breakeven (entry) once the partial fired.
+      const trailStop = leg.breakEvenMoved
+        ? (desiredDir === 'LONG'
+            ? Math.max(leg.entryPrice, evalResult.stop)
+            : Math.min(leg.entryPrice, evalResult.stop))
+        : evalResult.stop;
+      await this.executor.syncStop(leg.id, trailStop);
+
+      // Breakeven stop-out for the runner: price came back to entry after the partial.
+      if (leg.breakEvenMoved) {
+        const backToEntry = desiredDir === 'LONG'
+          ? evalResult.close <= leg.entryPrice
+          : evalResult.close >= leg.entryPrice;
+        if (backToEntry) {
+          this.logger.log(`Swing ${symbol}: runner hit breakeven after partial → closing leg ${leg.legKind}`);
+          await this.executor.closePosition(leg, leg.entryPrice, 'breakeven');
+          if (leg.legKind === 'BASE') baseLegClosed = true;
+          continue;
+        }
+      }
+
+      // Partial take-profit: once price has run +PARTIAL_TP_PCT from entry, bank half.
+      if (!leg.partialClosed) {
+        const gainPct = desiredDir === 'LONG'
+          ? (evalResult.close - leg.entryPrice) / leg.entryPrice
+          : (leg.entryPrice - evalResult.close) / leg.entryPrice;
+        if (gainPct >= PARTIAL_TP_PCT) {
+          await this.executor.takePartialProfit(leg, evalResult.close);
+        }
+      }
     }
-    this.logger.debug(`Swing ${symbol}: trend ${evalResult.trend} unchanged, stop synced ${evalResult.stop.toFixed(2)} on ${legs.length} leg(s)`);
+    this.logger.debug(`Swing ${symbol}: trend ${evalResult.trend} unchanged, managed ${legs.length} leg(s)`);
+
+    // If the BASE leg was stopped out at breakeven, leave the book flat for this candle —
+    // the next aligned close re-opens a fresh BASE (re-entry on trend continuation).
+    if (baseLegClosed) return;
 
     // Pullback scale-in (gated to clean-trend keyValue only).
     if (!pullbackEnabledFor(keyValue)) return;

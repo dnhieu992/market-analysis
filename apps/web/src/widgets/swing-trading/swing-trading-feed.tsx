@@ -45,7 +45,7 @@ function describeSetup(signal: SwingTradingSignal): { method: string; how: strin
     method: `UTBot Stop-and-Reverse · ${signal.timeframe.toUpperCase()} · kv=${signal.keyValue}`,
     how: 'Theo đường UTBot (ATR trailing stop). Khi nến ĐÓNG vượt qua đường stop → xác nhận đảo trend → vào lệnh và giữ tới khi nến đóng lật ngược lại.',
     reason: `Nến ${signal.timeframe.toUpperCase()} đóng xác nhận trend ${dirVi}: giá đóng ${formatPrice(signal.entryPrice)} ${signal.direction === 'LONG' ? 'trên' : 'dưới'} đường UTBot ${formatPrice(signal.stopLoss)}.`,
-    exit: 'Thoát + đảo lệnh khi một nến đóng lật trend (giá đóng cắt qua đường UTBot theo chiều ngược lại). Không có TP cố định.',
+    exit: 'Khi giá chạy +5% từ entry: chốt 1/2 vị thế và kéo SL về entry (hòa vốn). Phần còn lại đi theo trailing stop UTBot — thoát khi nến đóng lật trend, hoặc về entry nếu giá quay đầu trước khi đường UTBot vượt entry.',
   };
 }
 
@@ -123,6 +123,14 @@ function SignalCard({ signal, livePrice }: { signal: SwingTradingSignal; livePri
         <span className="dt-badge dt-badge--setup">{signal.timeframe.toUpperCase()} · kv{signal.keyValue}</span>
         {signal.legKind === 'ADD' && (
           <span className="dt-badge dt-badge--setup" title="Lệnh nhồi pullback (scale-in về đường UTBot)">＋ pullback</span>
+        )}
+        {signal.partialClosed && (
+          <span
+            className="dt-badge dt-badge--setup"
+            title={`Đã chốt 1/2 ở +5% (đã bank ${signal.realizedPnlUsd >= 0 ? '+' : '-'}$${Math.abs(signal.realizedPnlUsd).toFixed(2)}) · SL kéo về entry`}
+          >
+            ½ chốt · hòa vốn
+          </span>
         )}
         <span className={`dt-badge ${STATUS_CLASS[signal.status] ?? 'dt-badge--expired'}`}>
           {STATUS_LABEL[signal.status] ?? signal.status}

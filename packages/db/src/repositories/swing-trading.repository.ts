@@ -25,6 +25,7 @@ export function createSwingTradingRepository(client = prisma) {
       legKind?: string;
       pullbackArmed?: boolean;
       setupJson: string;
+      note?: string | null;
       detectedAt: Date;
     }) {
       return client.swingTradingSignal.create({ data });
@@ -85,6 +86,24 @@ export function createSwingTradingRepository(client = prisma) {
       return client.swingTradingSignal.update({ where: { id }, data: { stopLoss } });
     },
 
+    /**
+     * Bank a partial take-profit: leave the remaining `quantity` open, store the
+     * realized P&L from the closed half, ratchet the stop to breakeven and flag the
+     * leg so the partial fires only once.
+     */
+    applyPartialTake(id: string, data: { quantity: number; realizedPnlUsd: number; stopLoss: number }) {
+      return client.swingTradingSignal.update({
+        where: { id },
+        data: {
+          quantity: data.quantity,
+          realizedPnlUsd: data.realizedPnlUsd,
+          stopLoss: data.stopLoss,
+          partialClosed: true,
+          breakEvenMoved: true,
+        },
+      });
+    },
+
     /** Toggle the pullback re-arm state on the BASE leg of an open trend. */
     setPullbackArmed(id: string, pullbackArmed: boolean) {
       return client.swingTradingSignal.update({ where: { id }, data: { pullbackArmed } });
@@ -92,6 +111,14 @@ export function createSwingTradingRepository(client = prisma) {
 
     /** Manual trader note (markdown) attached to a signal — works for any status. */
     updateNote(id: string, note: string | null) {
+      return client.swingTradingSignal.update({ where: { id }, data: { note } });
+    },
+
+    /** Append one markdown line to a signal's note (auto-journal of lifecycle events). */
+    async appendNote(id: string, line: string) {
+      const row = await client.swingTradingSignal.findUnique({ where: { id }, select: { note: true } });
+      const prev = row?.note?.trimEnd();
+      const note = prev ? `${prev}\n${line}` : line;
       return client.swingTradingSignal.update({ where: { id }, data: { note } });
     },
 

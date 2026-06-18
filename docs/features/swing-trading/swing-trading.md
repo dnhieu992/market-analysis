@@ -23,9 +23,16 @@ Bitget execution** via a localized executor seam.
    - Evaluate UTBot (`UtBotStrategyService`): `nLoss = keyValue × ATR(atrPeriod)`, `trend = close > stop ? bull : bear`.
    - Compare trend to the open position (which may be several legs — a BASE + pullback adds):
      - **no position** → open a BASE leg in the trend direction.
-     - **position == trend** → keep; sync the trailing UTBot stop on every leg (display);
-       then maybe fire a **pullback scale-in** (see below).
+     - **position == trend** → keep; trail the UTBot stop on every leg, run the **partial
+       take-profit / breakeven** rule (see below), then maybe fire a **pullback scale-in**.
      - **position != trend** → **flip**: close **ALL** legs at the candle close (gross P&L each), open the reverse BASE leg.
+   - **Partial take-profit + breakeven** (every leg): once price has run **+5%** (`PARTIAL_TP_PCT`)
+     from the leg's entry, close **half** the leg (`PARTIAL_FRACTION`), bank the realized P&L
+     (`realizedPnlUsd`), and ratchet the stop to **breakeven (entry)** (`breakEvenMoved`/`partialClosed`).
+     The remaining half rides the UTBot trail (stop floored at entry) and exits on the trend flip, or at
+     breakeven if a candle closes back through entry before the UTBot line has trailed past it. A
+     breakeven stop-out of the BASE leg leaves the book flat for that candle; the next aligned close
+     re-opens a fresh BASE (re-entry on trend continuation). The banked half is added to `pnlUsd` at full close.
    - **Pullback add-on** (`pullback-addon.ts`, gated to effective `keyValue === 4`): while aligned
      with the trend, when the close returns within **1%** of the UTBot line, open one more leg in the
      trend direction (`legKind: 'ADD'`). Re-arm only after price moves **>1%** away from the line and
@@ -59,7 +66,17 @@ Bitget execution** via a localized executor seam.
   because firing an add immediately clears `pullbackArmed`.
 - **Insufficient candles** (`< atrPeriod + 3`) → scan logs and returns.
 - **Bitget/price failure**: candle fetch returns `[]` (scan skips); live price falls back to last cached value, never throws.
-- **No fixed TP/SL**: `takeProfit` stored as 0; exit is purely the trend flip. Win/loss derived from realized `pnlUsd` sign.
+- **No fixed full-TP**: `takeProfit` stored as 0. The only profit target is the +5% partial (half the
+  leg); the runner has no fixed TP and exits on the trend flip or the breakeven stop. Win/loss derived
+  from realized `pnlUsd` sign (which already includes any banked `realizedPnlUsd`).
+- **Partial fires once per leg**: guarded by `partialClosed`; `quantity` is reduced to the remainder so
+  live unrealized P&L and the final close use the correct size. The `+5%` is a raw price move from entry
+  (not leverage-adjusted). Applies to BASE and ADD legs alike (each vs its own entry).
+- **Auto-journal on the note**: each lifecycle event appends one markdown bullet to the signal's `note`
+  (Vietnam time): `▶️` vào lệnh (set on create), `🎯` chốt 1/2 + kéo SL về entry, `🟰` đóng nốt hòa vốn,
+  `✋` đóng do đảo trend. Rendered on `/swing-trading` in the note block. Appending is best-effort
+  (`SwingExecutorService.appendNote` swallows errors). It shares the same field as the manual trader
+  note, so a manual save can overwrite earlier auto lines — acceptable trade-off for simplicity.
 - **P&L is gross** (fees excluded) to mirror the day-trading monitor; real Bitget fees (~0.05%/side) reduce live results — see `claude-backtest/`.
 
 ## Related Files (FE / BE / Worker)
@@ -80,10 +97,11 @@ Bitget execution** via a localized executor seam.
 - `apps/worker/src/modules/swing-trading/utbot-kv-table.ts` — optimal keyValue lookup per symbol/timeframe (`resolveKeyValue`)
 - `apps/worker/src/modules/swing-trading/pullback-addon.ts` — pullback scale-in rule (gate + `evaluateAddOn`)
 - `apps/worker/src/modules/swing-trading/bitget.service.ts` — Bitget candles + ticker (per-symbol)
-- `apps/worker/src/modules/swing-trading/swing-executor.service.ts` — open/close/sync position (PAPER now, Bitget LIVE seam)
+- `apps/worker/src/modules/swing-trading/swing-executor.service.ts` — open/partial-take/close/sync position (PAPER now, Bitget LIVE seam); `PARTIAL_TP_PCT`/`PARTIAL_FRACTION`
 - `apps/worker/src/modules/swing-trading/swing-trading.module.ts` — worker module
 - `apps/worker/src/worker.module.ts` — registers `SwingTradingModule`
 - `packages/db/prisma/schema.prisma` — `SwingTradingSignal` + `SwingTradingSettings` models
 - `packages/db/prisma/migrations/20260615045030_add_swing_trading/migration.sql` — tables
 - `packages/db/prisma/migrations/20260615122530_swing_pullback_addon/migration.sql` — `legKind` + `pullbackArmed` columns
-- `packages/db/src/repositories/swing-trading.repository.ts` — `createSwingTradingRepository`
+- `packages/db/prisma/migrations/20260618140000_swing_partial_tp/migration.sql` — `partialClosed` + `realizedPnlUsd` columns
+- `packages/db/src/repositories/swing-trading.repository.ts` — `createSwingTradingRepository` (incl. `applyPartialTake`)

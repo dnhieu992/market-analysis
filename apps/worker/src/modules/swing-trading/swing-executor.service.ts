@@ -5,6 +5,27 @@ type SwingSignal = Awaited<
   ReturnType<ReturnType<typeof createSwingTradingRepository>['findLatestSignal']>
 >;
 
+/** Favorable move from entry that triggers the partial take-profit + breakeven ratchet. */
+export const PARTIAL_TP_PCT = 0.05; // +5%
+/** Fraction of the leg closed at the partial take-profit (the rest rides the UTBot trail). */
+export const PARTIAL_FRACTION = 0.5; // close half
+
+/** Timestamp label (Vietnam time) for auto-journal note lines, e.g. "14:30 18/06". */
+function noteTs(): string {
+  return new Date().toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    hour12: false,
+  });
+}
+
+function fmtNum(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
 export type OpenParams = {
   symbol: string;
   timeframe: string;
@@ -65,6 +86,8 @@ export class SwingExecutorService {
       legKind,
       // a fresh BASE leg starts un-armed; an ADD leg never carries arm state itself
       pullbackArmed: false,
+      // Auto-journal: first line records the entry.
+      note: `- ▶️ ${noteTs()} — Vào ${p.direction}${isAdd ? ' (nhồi pullback)' : ''} @ ${fmtNum(p.entryPrice)} · SL UTBot ${fmtNum(p.stopLevel)}`,
       setupJson: JSON.stringify({
         strategy: 'UTBOT_FLIP',
         legKind,
@@ -80,11 +103,53 @@ export class SwingExecutorService {
     // PHASE 2 (future): if (p.mode === 'LIVE') place Bitget order + store order id.
   }
 
-  /** Close an open position at the candle close (trend flipped). Gross P&L (fees excluded). */
-  async closePosition(signal: NonNullable<SwingSignal>, exitPrice: number): Promise<number> {
+  /**
+   * Take a partial profit once price has run +PARTIAL_TP_PCT from entry: close
+   * PARTIAL_FRACTION of the leg, bank the realized P&L, keep the remainder open and
+   * ratchet its stop to breakeven (entry). The remaining half then rides the UTBot trail.
+   */
+  async takePartialProfit(leg: NonNullable<SwingSignal>, exitPrice: number): Promise<number> {
+    const qty = leg.quantity ?? 0;
+    const closedQty = qty * PARTIAL_FRACTION;
+    const remainingQty = qty - closedQty;
+    const priceMove = leg.direction === 'LONG' ? exitPrice - leg.entryPrice : leg.entryPrice - exitPrice;
+    const realized = closedQty * priceMove;
+    const bankedTotal = (leg.realizedPnlUsd ?? 0) + realized;
+
+    await this.repo.applyPartialTake(leg.id, {
+      quantity: remainingQty,
+      realizedPnlUsd: bankedTotal,
+      stopLoss: leg.entryPrice, // SL → breakeven
+    });
+
+    await this.appendNote(
+      leg.id,
+      `- 🎯 ${noteTs()} — Chốt 1/2 @ ${fmtNum(exitPrice)} (+$${realized.toFixed(2)}) · kéo SL về entry ${fmtNum(leg.entryPrice)}`,
+    );
+
+    this.logger.log(
+      `🎯 SWING [${leg.mode}] PARTIAL ${leg.direction} ${leg.symbol} @ ${exitPrice} → ` +
+        `+$${realized.toFixed(2)} (closed ${(PARTIAL_FRACTION * 100).toFixed(0)}% = ${closedQty.toFixed(6)}, ` +
+        `remaining ${remainingQty.toFixed(6)}) | SL → breakeven ${leg.entryPrice}`,
+    );
+
+    // PHASE 2 (future): if (leg.mode === 'LIVE') reduce the Bitget position by half + move SL to entry.
+    return realized;
+  }
+
+  /**
+   * Close an open position at the candle close. Gross P&L (fees excluded).
+   * `reason` annotates the auto-journal: 'flip' (trend reversed) | 'breakeven' (runner back to entry).
+   */
+  async closePosition(
+    signal: NonNullable<SwingSignal>,
+    exitPrice: number,
+    reason: 'flip' | 'breakeven' = 'flip',
+  ): Promise<number> {
     const priceMove = signal.direction === 'LONG' ? exitPrice - signal.entryPrice : signal.entryPrice - exitPrice;
     const qty = signal.quantity ?? 0;
-    const pnlUsd = qty * priceMove;
+    // Add any P&L already banked from an earlier partial close.
+    const pnlUsd = (signal.realizedPnlUsd ?? 0) + qty * priceMove;
 
     await this.repo.closeSignal(signal.id, {
       status: 'CLOSED',
@@ -93,9 +158,14 @@ export class SwingExecutorService {
       pnlUsd,
     });
 
+    const note = reason === 'breakeven'
+      ? `- 🟰 ${noteTs()} — Đóng nốt phần còn lại @ ${fmtNum(exitPrice)} · hòa vốn · P&L tổng $${pnlUsd.toFixed(2)}`
+      : `- ✋ ${noteTs()} — Đóng @ ${fmtNum(exitPrice)} (đảo trend) · P&L $${pnlUsd.toFixed(2)}`;
+    await this.appendNote(signal.id, note);
+
     this.logger.log(
       `✋ SWING [${signal.mode}] CLOSE ${signal.direction} ${signal.symbol} @ ${exitPrice} → ` +
-        `$${pnlUsd.toFixed(2)} (entry ${signal.entryPrice})`,
+        `$${pnlUsd.toFixed(2)} (entry ${signal.entryPrice}${signal.partialClosed ? ', after partial' : ''})`,
     );
 
     // PHASE 2 (future): if (signal.mode === 'LIVE') close the real Bitget order here.
@@ -105,5 +175,14 @@ export class SwingExecutorService {
   /** Keep the stored stop in sync with the ratcheting UTBot line (display/monitoring). */
   async syncStop(id: string, stopLevel: number): Promise<void> {
     await this.repo.updateStopLoss(id, stopLevel);
+  }
+
+  /** Append a line to the signal's markdown note — never throws (journaling is best-effort). */
+  private async appendNote(id: string, line: string): Promise<void> {
+    try {
+      await this.repo.appendNote(id, line);
+    } catch (err) {
+      this.logger.warn(`Failed to append swing note for ${id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }

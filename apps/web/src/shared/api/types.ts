@@ -568,6 +568,9 @@ export type SwingTradingSignal = {
   status: 'ACTIVE' | 'CLOSED';
   mode: 'PAPER' | 'LIVE';
   legKind: 'BASE' | 'ADD';
+  breakEvenMoved: boolean;
+  partialClosed: boolean;
+  realizedPnlUsd: number;
   closedPrice: number | null;
   closedAt: string | null;
   pnlUsd: number | null;
