@@ -510,6 +510,8 @@ export type DayTradingSignal = {
   positionValue: number | null;
   status: 'ACTIVE' | 'TP_HIT' | 'SL_HIT' | 'EXPIRED';
   mode: 'PAPER' | 'LIVE';
+  /** True once price reached +1R and the stop was ratcheted to break-even (entry). */
+  breakEvenMoved: boolean;
   closedPrice: number | null;
   closedAt: string | null;
   pnlUsd: number | null;

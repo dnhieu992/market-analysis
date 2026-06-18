@@ -225,6 +225,11 @@ function SignalCard({ signal, livePrice }: { signal: DayTradingSignal; livePrice
         <span className={`dt-badge ${STATUS_CLASS[signal.status] ?? 'dt-badge--expired'}`}>
           {STATUS_LABEL[signal.status] ?? signal.status}
         </span>
+        {signal.breakEvenMoved && (
+          <span className="dt-badge dt-badge--setup" title="Giá đã đạt +1R → SL đã kéo về điểm hoà vốn (entry)">
+            🛡 SL hoà vốn
+          </span>
+        )}
         <span className={`dt-badge ${signal.mode === 'LIVE' ? 'dt-badge--live' : 'dt-badge--paper'}`}>
           {signal.mode === 'LIVE' ? 'LIVE' : 'PAPER'}
         </span>
@@ -250,7 +255,12 @@ function SignalCard({ signal, livePrice }: { signal: DayTradingSignal; livePrice
 
       <div className="dt-prices">
         <PriceCell label="Entry" value={formatPrice(signal.entryPrice)} />
-        <PriceCell label="Stop Loss" value={formatPrice(signal.stopLoss)} modifier="dt-price-value--sl" sub={`-${riskPct}%`} />
+        <PriceCell
+          label="Stop Loss"
+          value={formatPrice(signal.stopLoss)}
+          modifier="dt-price-value--sl"
+          sub={signal.breakEvenMoved ? 'đã về hoà vốn (BE)' : `-${riskPct}%`}
+        />
         <PriceCell label="Take Profit" value={formatPrice(signal.takeProfit)} modifier="dt-price-value--tp" />
         <PriceCell label="R:R" value={`1:${signal.rrRatio.toFixed(1)}`} modifier="dt-price-value--rr" />
       </div>
@@ -267,6 +277,7 @@ function SignalCard({ signal, livePrice }: { signal: DayTradingSignal; livePrice
           <p><span className="dt-why-tag">Phương pháp</span>{info.how}</p>
           <p><span className="dt-why-tag">Lý do vào lệnh</span>{info.reason}</p>
           <p><span className="dt-why-tag">Kế hoạch thoát</span>{info.exit}</p>
+          <p><span className="dt-why-tag">Quản lý lệnh</span>Khi giá chạy đến +1R (lãi bằng đúng mức rủi ro ban đầu), tự động kéo SL về điểm hoà vốn (entry) — từ đó lệnh xấu nhất chỉ hoà, khoá rủi ro về 0.</p>
         </div>
       </details>
 

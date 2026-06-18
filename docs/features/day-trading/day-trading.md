@@ -80,7 +80,7 @@ Built in two phases:
 - `packages/db/prisma/migrations/20260614000001_add_day_trading_note/migration.sql` — `note` column
 - `packages/db/prisma/migrations/20260613000004_add_day_trading_signals/migration.sql` — table
 - `packages/db/prisma/migrations/20260613000005_add_day_trading_mode/migration.sql` — `mode` column
-- `apps/web/src/widgets/day-trading/day-trading-feed.tsx` — signal feed + stats + PAPER/LIVE badge; live-price polling, unrealized P&L for open positions, the `describeSetup()` entry-rationale disclosure, and the `NoteBlock` markdown trader note
+- `apps/web/src/widgets/day-trading/day-trading-feed.tsx` — signal feed + stats + PAPER/LIVE badge; live-price polling, unrealized P&L for open positions, the `describeSetup()` entry-rationale disclosure (incl. a fixed "Quản lý lệnh" line stating the +1R → break-even rule), a "🛡 SL hoà vốn" badge + "đã về hoà vốn (BE)" stop-loss sub-label when `breakEvenMoved`, and the `NoteBlock` markdown trader note
 - `apps/web/src/shared/ui/markdown-editor/markdown-editor.tsx` — shared TipTap editor reused for the trader note
 - `apps/web/src/app/globals.css` — `.dt-live*` (live banner), `.dt-why*` (rationale) and `.dt-note*` (trader note) styles
 - `apps/web/src/_pages/day-trading-page/day-trading-page.tsx` — server page (SSR data load)
