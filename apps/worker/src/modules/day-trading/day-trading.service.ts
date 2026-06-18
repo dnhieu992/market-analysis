@@ -10,6 +10,14 @@ import { ResultMonitorService } from './result-monitor.service';
 const SYMBOL = 'BTCUSDT';
 // One 15m candle + buffer — skip if we already fired the same setup this window.
 const DEDUP_WINDOW_MS = 14 * 60 * 1000;
+// Stand-aside window after a real (non-breakeven) loss. Stops the bot from
+// immediately re-entering the same failing idea candle-after-candle in chop —
+// the clustered-loss pattern seen on the live feed (multiple stops within ~1h).
+const COOLDOWN_AFTER_LOSS_MS = 90 * 60 * 1000;
+// Volatility-adaptive stop floor: minimum entry→SL distance = ATR_STOP_MULT ×
+// ATR(14) of the 15m entry TF, so stops sit outside normal intrabar noise
+// instead of a flat 0.5% that kept getting wicked out.
+const ATR_STOP_MULT = 1.0;
 
 @Injectable()
 export class DayTradingService implements OnModuleInit {
@@ -97,6 +105,15 @@ export class DayTradingService implements OnModuleInit {
       return;
     }
 
+    // Post-loss cooldown: after a real loss, stand aside for a fixed window so a
+    // burst of correlated re-entries in chop can't stack up losses.
+    const lastLossAt = await this.repo.lastLossClosedAt(SYMBOL);
+    if (lastLossAt && Date.now() - lastLossAt.getTime() < COOLDOWN_AFTER_LOSS_MS) {
+      const mins = Math.ceil((COOLDOWN_AFTER_LOSS_MS - (Date.now() - lastLossAt.getTime())) / 60000);
+      this.logger.log(`Post-loss cooldown for ${SYMBOL} — ${mins}m remaining, skipping`);
+      return;
+    }
+
     // Historical candle sets via REST (WS only streams recent candles).
     const [candles15m, candles1h, candles4h] = await Promise.all([
       this.bitget.fetchCandles('15m', 50),
@@ -112,6 +129,7 @@ export class DayTradingService implements OnModuleInit {
     const setup = this.analyzer.analyze(candles15m, candles1h, candles4h, {
       riskPerTrade: settings.riskPerTrade,
       minRR: settings.minRR,
+      atrMult: ATR_STOP_MULT,
     });
     if (!setup) {
       this.logger.debug('No setup detected');

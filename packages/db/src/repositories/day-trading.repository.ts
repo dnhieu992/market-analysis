@@ -86,13 +86,27 @@ export function createDayTradingRepository(client = prisma) {
       return client.dayTradingSignal.count({ where: { symbol, detectedAt: { gte: startOfDay } } });
     },
 
-    /** Number of losing (SL_HIT) trades closed today — used for the daily loss guard. */
+    /**
+     * Number of REAL losing trades closed today — used for the daily loss guard.
+     * Excludes break-even scratches (SL_HIT after the stop was moved to entry),
+     * which close at ~$0 and shouldn't count against the daily loss budget.
+     */
     countTodayLosses(symbol: string) {
       const startOfDay = new Date();
       startOfDay.setUTCHours(0, 0, 0, 0);
       return client.dayTradingSignal.count({
-        where: { symbol, status: 'SL_HIT', closedAt: { gte: startOfDay } },
+        where: { symbol, status: 'SL_HIT', breakEvenMoved: false, closedAt: { gte: startOfDay } },
       });
+    },
+
+    /** Close time of the most recent REAL loss (excludes break-even scratches) — for the cooldown. */
+    async lastLossClosedAt(symbol: string): Promise<Date | null> {
+      const row = await client.dayTradingSignal.findFirst({
+        where: { symbol, status: 'SL_HIT', breakEvenMoved: false, closedAt: { not: null } },
+        orderBy: { closedAt: 'desc' },
+        select: { closedAt: true },
+      });
+      return row?.closedAt ?? null;
     },
 
     /** Singleton config — created with defaults on first access. */
@@ -118,23 +132,28 @@ export function createDayTradingRepository(client = prisma) {
     },
 
     async getStats() {
-      const [total, tpHit, slHit, active, pnlAgg] = await Promise.all([
+      const [total, tpHit, slHit, scratch, active, pnlAgg] = await Promise.all([
         client.dayTradingSignal.count(),
         client.dayTradingSignal.count({ where: { status: 'TP_HIT' } }),
         client.dayTradingSignal.count({ where: { status: 'SL_HIT' } }),
+        // Break-even scratches: SL_HIT after the stop was ratcheted to entry (~$0 P&L).
+        client.dayTradingSignal.count({ where: { status: 'SL_HIT', breakEvenMoved: true } }),
         client.dayTradingSignal.count({ where: { status: 'ACTIVE' } }),
         client.dayTradingSignal.aggregate({
           _sum: { pnlUsd: true },
           where: { status: { in: ['TP_HIT', 'SL_HIT'] } },
         }),
       ]);
-      const closed = tpHit + slHit;
+      // Win rate counts only decided trades: wins vs REAL losses (scratches excluded).
+      const losses = slHit - scratch;
+      const decided = tpHit + losses;
       return {
         total,
         active,
         tpHit,
         slHit,
-        winRate: closed > 0 ? (tpHit / closed) * 100 : 0,
+        scratch,
+        winRate: decided > 0 ? (tpHit / decided) * 100 : 0,
         totalPnlUsd: pnlAgg._sum.pnlUsd ?? 0,
       };
     },

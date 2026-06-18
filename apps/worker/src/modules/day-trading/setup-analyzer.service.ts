@@ -53,6 +53,12 @@ export class SetupAnalyzerService {
   // analyze() and read by buildSignal() for the volatility-adaptive stop floor.
   private atrEntry = 0;
 
+  // EMA(50) of the entry timeframe — a momentum/price-location gate that keeps
+  // continuation entries on the right side of the real intraday trend. The
+  // trendline classifier alone lagged: it kept labelling "up" while price had
+  // already rolled over, bleeding the LONG side. Set in analyze().
+  private ema50Entry = 0;
+
   /**
    * Multi-setup intraday scanner for BTCUSDT, modelled on a discretionary PA
    * workflow: read the H4/H1 TREND from trendlines (rising lows / falling highs),
@@ -71,6 +77,7 @@ export class SetupAnalyzerService {
     }
 
     this.atrEntry = this.calcAtr(candles15m, 14);
+    this.ema50Entry = this.ema(candles15m, 50);
     const trend4h = this.trendlineTrend(candles4h);
     const trend1h = this.trendlineTrend(candles1h);
 
@@ -200,6 +207,15 @@ export class SetupAnalyzerService {
     return trs.slice(-period).reduce((s, x) => s + x, 0) / period;
   }
 
+  /** Exponential moving average of close over `period` — latest value (0 if too few candles). */
+  private ema(candles: Candle[], period: number): number {
+    if (candles.length < period) return 0;
+    const k = 2 / (period + 1);
+    let ema = candles[0]!.close;
+    for (let i = 1; i < candles.length; i++) ema = candles[i]!.close * k + ema * (1 - k);
+    return ema;
+  }
+
   // ── Candle helpers ──────────────────────────────────────────────────────────
 
   private yn(v: boolean): string { return v ? 'Y' : 'N'; }
@@ -231,7 +247,7 @@ export class SetupAnalyzerService {
     structuralTp: number | null,
     config: RiskConfig,
   ): number {
-    const targetRR = Math.max(config.minRR, 1.5);
+    const targetRR = Math.max(config.minRR, 2);
     const fallback = direction === 'LONG' ? entry + targetRR * risk : entry - targetRR * risk;
     if (structuralTp == null) return fallback;
     const validDir = direction === 'LONG' ? structuralTp > entry : structuralTp < entry;
@@ -377,15 +393,19 @@ export class SetupAnalyzerService {
       // an engulfing) — NOT a full engulfing; requiring one hurt this setup in backtest.
       const bullishReclaim = latest.close > latest.open && (latest.close > prev.high || this.isBullishEngulfing(prev, latest));
       const aboveLow = lastLow != null && latest.close > lastLow.price;
-      if (recent && bullishReclaim && aboveLow) {
+      // Price-location gate: only take the LONG if price is on the bullish side of
+      // EMA50 (degrade open if EMA unavailable). Blocks counter-trend longs that
+      // the lagging trendline still tagged "up".
+      const aboveEma = this.ema50Entry === 0 || latest.close > this.ema50Entry;
+      if (recent && bullishReclaim && aboveLow && aboveEma) {
         const sl = lastLow!.price * (1 - SL_BUFFER);            // below the nearest swing low
         const tp = this.nearestStrongAbove(latest.close, zones);
         const sig = this.buildSignal('TREND_PULLBACK', 'LONG', latest.close, sl, tp, {
-          pullbackLow: lastLow!.price, trend4h, trend1h,
+          pullbackLow: lastLow!.price, trend4h, trend1h, ema50: this.ema50Entry,
         }, config, reasons);
         if (sig) return sig;
       } else {
-        reasons.push(`Pullback-LONG: recentLow=${this.yn(recent)} reclaim=${this.yn(bullishReclaim)} aboveLow=${this.yn(aboveLow)}`);
+        reasons.push(`Pullback-LONG: recentLow=${this.yn(recent)} reclaim=${this.yn(bullishReclaim)} aboveLow=${this.yn(aboveLow)} aboveEma=${this.yn(aboveEma)}`);
       }
     }
 
@@ -398,15 +418,17 @@ export class SetupAnalyzerService {
       // an engulfing) — NOT a full engulfing (see LONG note above).
       const bearishReject = latest.close < latest.open && (latest.close < prev.low || this.isBearishEngulfing(prev, latest));
       const belowHigh = lastHigh != null && latest.close < lastHigh.price;
-      if (recent && bearishReject && belowHigh) {
+      // Price-location gate: only take the SHORT if price is on the bearish side of EMA50.
+      const belowEma = this.ema50Entry === 0 || latest.close < this.ema50Entry;
+      if (recent && bearishReject && belowHigh && belowEma) {
         const sl = lastHigh!.price * (1 + SL_BUFFER);           // above the nearest swing high
         const tp = this.nearestStrongBelow(latest.close, zones);
         const sig = this.buildSignal('TREND_PULLBACK', 'SHORT', latest.close, sl, tp, {
-          pullbackHigh: lastHigh!.price, trend4h, trend1h,
+          pullbackHigh: lastHigh!.price, trend4h, trend1h, ema50: this.ema50Entry,
         }, config, reasons);
         if (sig) return sig;
       } else {
-        reasons.push(`Pullback-SHORT: recentHigh=${this.yn(recent)} reject=${this.yn(bearishReject)} belowHigh=${this.yn(belowHigh)}`);
+        reasons.push(`Pullback-SHORT: recentHigh=${this.yn(recent)} reject=${this.yn(bearishReject)} belowHigh=${this.yn(belowHigh)} belowEma=${this.yn(belowEma)}`);
       }
     }
 

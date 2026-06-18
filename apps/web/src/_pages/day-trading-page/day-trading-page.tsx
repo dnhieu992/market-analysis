@@ -25,7 +25,7 @@ async function loadData(): Promise<{
   } catch {
     return {
       signals: [],
-      stats: { total: 0, active: 0, tpHit: 0, slHit: 0, winRate: 0, totalPnlUsd: 0 },
+      stats: { total: 0, active: 0, tpHit: 0, slHit: 0, scratch: 0, winRate: 0, totalPnlUsd: 0 },
       settings: DEFAULT_SETTINGS,
     };
   }

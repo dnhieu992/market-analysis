@@ -531,6 +531,7 @@ export type DayTradingStats = {
   active: number;
   tpHit: number;
   slHit: number;
+  scratch: number;
   winRate: number;
   totalPnlUsd: number;
 };

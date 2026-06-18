@@ -20,7 +20,7 @@ type Props = {
 type StatusFilter = 'ALL' | 'ACTIVE' | 'TP_HIT' | 'SL_HIT';
 
 const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: 'Active',
+  ACTIVE: 'Open',
   TP_HIT: 'TP Hit',
   SL_HIT: 'SL Hit',
   EXPIRED: 'Expired',
@@ -294,9 +294,12 @@ function StatsHeader({ stats }: { stats: DayTradingStats }) {
   return (
     <div className="dt-stats">
       <StatCard label="Signals" value={stats.total} />
-      <StatCard label="Active" value={stats.active} modifier="dt-stat-value--accent" />
+      <StatCard label="Open" value={stats.active} modifier="dt-stat-value--accent" />
       <StatCard label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} modifier={stats.winRate >= 50 ? 'dt-stat-value--pos' : 'dt-stat-value--neg'} />
-      <StatCard label="TP / SL" value={`${stats.tpHit} / ${stats.slHit}`} />
+      <StatCard
+        label="TP / SL"
+        value={`${stats.tpHit} / ${stats.slHit - stats.scratch}${stats.scratch > 0 ? ` · BE ${stats.scratch}` : ''}`}
+      />
       <StatCard
         label="Total P&L"
         value={`${totalPnlUsd >= 0 ? '+' : '-'}$${Math.abs(totalPnlUsd).toFixed(2)}`}
@@ -308,7 +311,7 @@ function StatsHeader({ stats }: { stats: DayTradingStats }) {
 
 const FILTERS: { label: string; value: StatusFilter }[] = [
   { label: 'All', value: 'ALL' },
-  { label: 'Active', value: 'ACTIVE' },
+  { label: 'Open', value: 'ACTIVE' },
   { label: 'TP Hit', value: 'TP_HIT' },
   { label: 'SL Hit', value: 'SL_HIT' },
 ];
