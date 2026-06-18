@@ -3492,7 +3492,7 @@ a {
 .dp-setup-status--dead    { background: rgba(23,18,13,0.08); color: var(--muted); text-decoration: line-through; }
 
 /* ── Tracked setups page (/tracked-setups) ─────────────────── */
-.ts-shell { gap: 28px; }
+.ts-shell { display: flex; flex-direction: column; gap: 24px; }
 
 .ts-header { display: flex; flex-direction: column; gap: 6px; }
 .ts-title { margin: 0; font-size: 1.4rem; font-weight: 700; color: var(--fg); }
@@ -3568,15 +3568,15 @@ a {
 
 .ts-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+  gap: 16px;
 }
 
 .ts-row {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 20px;
+  gap: 10px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card-bg);
@@ -3586,9 +3586,9 @@ a {
 .ts-row-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  padding-bottom: 14px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
 }
 
