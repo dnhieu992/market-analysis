@@ -108,8 +108,9 @@ function SignalCard({ signal, livePrice }: { signal: SwingTradingSignal; livePri
     ? (() => {
         const move = signal.direction === 'LONG' ? livePrice - signal.entryPrice : signal.entryPrice - livePrice;
         const upnl = signal.quantity != null ? signal.quantity * move : null;
+        const upnlPct = upnl != null && signal.riskAmount > 0 ? (upnl / signal.riskAmount) * 100 : null;
         const toFlip = ((Math.abs(signal.stopLoss - livePrice) / livePrice) * 100).toFixed(2);
-        return { upnl, toFlip };
+        return { upnl, upnlPct, toFlip };
       })()
     : null;
 
@@ -143,8 +144,9 @@ function SignalCard({ signal, livePrice }: { signal: SwingTradingSignal; livePri
             {pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
           </span>
         ) : live?.upnl != null ? (
-          <span className={`dt-pnl ${live.upnl >= 0 ? 'dt-pnl--pos' : 'dt-pnl--neg'}`} title="Unrealized P&L (live)">
+          <span className={`dt-pnl ${live.upnl >= 0 ? 'dt-pnl--pos' : 'dt-pnl--neg'}`} title="Unrealized P&L (live) · % trên vốn">
             ~{live.upnl >= 0 ? '+' : '-'}${Math.abs(live.upnl).toFixed(2)}
+            {live.upnlPct != null && ` (${live.upnlPct >= 0 ? '+' : ''}${live.upnlPct.toFixed(1)}%)`}
           </span>
         ) : null}
       </div>

@@ -62,6 +62,15 @@ function fmtDate(value: string | null): string {
   });
 }
 
+function PriceCell({ label, value, modifier }: { label: string; value: string; modifier?: string }) {
+  return (
+    <div className="ts-price">
+      <span className="ts-price-label">{label}</span>
+      <span className={`ts-price-value${modifier ? ` ${modifier}` : ''}`}>{value}</span>
+    </div>
+  );
+}
+
 function DirBadge({ direction }: { direction: string }) {
   const cls =
     direction === 'long' ? 'dp-dir-badge dp-dir-badge--long' :
@@ -160,20 +169,21 @@ function SetupRow({ s }: { s: TrackedSetup }) {
         <span className={statusClass(s.status)}>{STATUS_LABEL[s.status] ?? s.status}</span>
         <span className="ts-slot">{s.slot === 'secondary' ? 'Phụ' : 'Chính'}</span>
         <PnlChip s={s} />
-        <span className="ts-date">{planDate}</span>
       </div>
 
-      <div className="ts-levels">
-        <span className="level">
-          Entry {formatPrice(s.entryLow)}{s.entryHigh !== s.entryLow ? `–${formatPrice(s.entryHigh)}` : ''}
-        </span>
-        <span className="level level--support">SL {formatPrice(s.stopLoss)}</span>
-        {s.takeProfit1 != null && <span className="level level--resistance">TP1 {formatPrice(s.takeProfit1)}</span>}
-        {s.takeProfit2 != null && <span className="level level--resistance">TP2 {formatPrice(s.takeProfit2)}</span>}
-        {s.lastPrice != null && <span className="ts-last">Giá: {formatPrice(s.lastPrice)}</span>}
+      <div className="ts-prices">
+        <PriceCell
+          label="Entry"
+          value={`${formatPrice(s.entryLow)}${s.entryHigh !== s.entryLow ? `–${formatPrice(s.entryHigh)}` : ''}`}
+        />
+        <PriceCell label="SL" value={formatPrice(s.stopLoss)} modifier="ts-price-value--sl" />
+        {s.takeProfit1 != null && <PriceCell label="TP1" value={formatPrice(s.takeProfit1)} modifier="ts-price-value--tp" />}
+        {s.takeProfit2 != null && <PriceCell label="TP2" value={formatPrice(s.takeProfit2)} modifier="ts-price-value--tp" />}
+        {s.lastPrice != null && <PriceCell label="Giá hiện tại" value={formatPrice(s.lastPrice)} />}
       </div>
 
       <div className="ts-meta">
+        <span>Lên KH: {planDate}</span>
         {s.enteredAt && <span>Khớp: {fmtDate(s.enteredAt)}</span>}
         {s.tp1HitAt && <span>TP1: {fmtDate(s.tp1HitAt)}</span>}
         {s.tp2HitAt && <span>TP2: {fmtDate(s.tp2HitAt)}</span>}
