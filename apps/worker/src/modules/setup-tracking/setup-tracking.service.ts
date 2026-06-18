@@ -1,5 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
-import axios, { type AxiosInstance } from 'axios';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Candle } from '@app/core';
 import { createTrackedSetupRepository } from '@app/db';
 
@@ -9,62 +8,31 @@ import { TelegramService } from '../telegram/telegram.service';
 type TrackedSetupRepository = ReturnType<typeof createTrackedSetupRepository>;
 type TrackedSetupRow = Awaited<ReturnType<TrackedSetupRepository['listOpen']>>[number];
 
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
-
 // A PENDING setup that never fills within this many days is auto-expired.
 const EXPIRY_DAYS = 3;
 // Number of 1h candles fetched per symbol for the hourly tracking pass.
 const TRACK_CANDLE_LIMIT = 48;
 
-type ClaudeToolUseResponse = {
-  content?: Array<{ type: string; name?: string; input?: unknown }>;
-};
-
-const VALIDITY_TOOL = {
-  name: 'judge_setup_validity',
-  description:
-    'Judge whether a previously-planned, not-yet-filled trade setup is still valid given how price ' +
-    'has moved since. Mark invalid when the premise is broken (e.g. structure flipped, level decisively ' +
-    'lost, price ran away from the entry making the R:R no longer reasonable).',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      valid: { type: 'boolean' },
-      reason: { type: 'string', description: 'Short Vietnamese explanation (1-2 sentences).' }
-    },
-    required: ['valid', 'reason']
-  }
-};
-
 /**
  * Tracks the lifecycle of extracted trade setups:
  *  - trackOpenSetups()  hourly  → PENDING→ENTERED→TP/SL using 1h candles.
- *  - reviewStaleSetups() daily   → EXPIRED (stale PENDING) + LLM INVALID check.
- * All Telegram / LLM calls are non-fatal.
+ *  - reviewStaleSetups() daily   → EXPIRED (stale PENDING) + INVALID when superseded.
+ * All Telegram calls are non-fatal.
+ *
+ * Invalidation rule: a setup is only invalidated while it is still PENDING (never
+ * filled) and a newer, *different* setup for the same symbol has appeared on a later
+ * day. Once a setup has filled (ENTERED) it is never invalidated — it runs to TP/SL.
  */
 @Injectable()
 export class SetupTrackingService {
   private readonly logger = new Logger(SetupTrackingService.name);
   private readonly trackedSetupRepository: TrackedSetupRepository;
-  private readonly httpClient: AxiosInstance;
 
   constructor(
     private readonly marketDataService: MarketDataService,
-    private readonly telegramService: TelegramService,
-    @Optional() httpClient?: AxiosInstance
+    private readonly telegramService: TelegramService
   ) {
     this.trackedSetupRepository = createTrackedSetupRepository();
-    this.httpClient =
-      httpClient ??
-      axios.create({
-        baseURL: 'https://api.anthropic.com',
-        timeout: 60_000,
-        headers: {
-          'x-api-key': process.env.CLAUDE_API_KEY ?? '',
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json'
-        }
-      });
   }
 
   /** Hourly: advance every open setup against fresh 1h candles. */
@@ -170,7 +138,11 @@ export class SetupTrackingService {
     }
   }
 
-  /** Daily: expire stale PENDING setups and ask the LLM if older open setups are still valid. */
+  /**
+   * Daily: expire stale never-filled PENDING setups, and invalidate a still-PENDING
+   * setup once a newer, different setup for the same symbol has superseded it.
+   * ENTERED (already filled) setups are left untouched — they run to TP/SL.
+   */
   async reviewStaleSetups(): Promise<void> {
     const open = await this.trackedSetupRepository.listOpen();
     if (open.length === 0) {
@@ -180,15 +152,18 @@ export class SetupTrackingService {
 
     const todayUtc = new Date();
     todayUtc.setUTCHours(0, 0, 0, 0);
-    const candleCache = new Map<string, Candle[]>();
+    const symbolSetupsCache = new Map<string, TrackedSetupRow[]>();
 
     for (const setup of open) {
       try {
+        // Once a setup has filled it is never invalidated — let it run to TP/SL.
+        if (setup.status !== 'PENDING') continue;
+
         const planTime = new Date(setup.planDate).getTime();
         const ageDays = (todayUtc.getTime() - planTime) / 86_400_000;
 
         // Deterministic expiry for never-filled setups.
-        if (setup.status === 'PENDING' && ageDays >= EXPIRY_DAYS) {
+        if (ageDays >= EXPIRY_DAYS) {
           await this.trackedSetupRepository.update(setup.id, {
             status: 'EXPIRED',
             closedAt: new Date(),
@@ -198,25 +173,33 @@ export class SetupTrackingService {
           continue;
         }
 
-        // LLM validity check only for setups from a previous day (skip today's fresh ones).
+        // Only previous-day setups can be superseded (skip today's fresh ones).
         if (planTime >= todayUtc.getTime()) continue;
 
-        let candles = candleCache.get(setup.symbol);
-        if (!candles) {
-          candles = await this.marketDataService.getCandles(setup.symbol, '1d', 10);
-          candleCache.set(setup.symbol, candles);
+        let symbolSetups = symbolSetupsCache.get(setup.symbol);
+        if (!symbolSetups) {
+          symbolSetups = await this.trackedSetupRepository.listBySymbol(setup.symbol);
+          symbolSetupsCache.set(setup.symbol, symbolSetups);
         }
 
-        const verdict = await this.callClaudeValidity(setup, candles);
-        if (verdict && verdict.valid === false) {
-          await this.trackedSetupRepository.update(setup.id, {
-            status: 'INVALID',
-            closedAt: new Date(),
-            invalidatedReason: verdict.reason || 'Setup không còn hợp lệ'
-          });
-          await this.notify(setup, 'INVALID', candles[candles.length - 1]?.close ?? 0, verdict.reason);
-          this.logger.log(`Setup ${setup.id} (${setup.symbol}) marked INVALID: ${verdict.reason}`);
-        }
+        // Invalid only when a newer, different setup for this symbol has appeared.
+        const newer = symbolSetups.find(
+          (s) =>
+            s.id !== setup.id &&
+            new Date(s.planDate).getTime() > planTime &&
+            this.isDifferentSetup(setup, s)
+        );
+        if (!newer) continue;
+
+        const newerDate = new Date(newer.planDate).toISOString().slice(0, 10);
+        const reason = `Lệnh chưa khớp, đã có setup mới khác biệt ngày ${newerDate}`;
+        await this.trackedSetupRepository.update(setup.id, {
+          status: 'INVALID',
+          closedAt: new Date(),
+          invalidatedReason: reason
+        });
+        await this.notify(setup, 'INVALID', setup.lastPrice ?? 0, reason);
+        this.logger.log(`Setup ${setup.id} (${setup.symbol}) marked INVALID: ${reason}`);
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'unknown error';
         this.logger.warn(`Review failed for setup ${setup.id} (non-fatal): ${msg}`);
@@ -224,53 +207,11 @@ export class SetupTrackingService {
     }
   }
 
-  private async callClaudeValidity(
-    setup: TrackedSetupRow,
-    candles: Candle[]
-  ): Promise<{ valid: boolean; reason: string } | null> {
-    const priceLines = candles
-      .slice(-7)
-      .map((c) => {
-        const d = c.openTime ? c.openTime.toISOString().slice(0, 10) : '?';
-        return `${d}: O=${c.open} H=${c.high} L=${c.low} C=${c.close}`;
-      })
-      .join('\n');
-    const currentPrice = candles[candles.length - 1]?.close ?? 0;
-
-    const response = await this.httpClient.post<ClaudeToolUseResponse>('/v1/messages', {
-      model: CLAUDE_MODEL,
-      max_tokens: 512,
-      tools: [VALIDITY_TOOL],
-      tool_choice: { type: 'tool', name: VALIDITY_TOOL.name },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: [
-                `Setup ${setup.symbol} (${setup.direction}) lập ngày ${new Date(setup.planDate)
-                  .toISOString()
-                  .slice(0, 10)}, hiện chưa kết thúc (status=${setup.status}).`,
-                `Entry: ${setup.entryLow}-${setup.entryHigh} | SL: ${setup.stopLoss} | ` +
-                  `TP1: ${setup.takeProfit1 ?? '-'} | TP2: ${setup.takeProfit2 ?? '-'}`,
-                `Giá hiện tại: ${currentPrice}`,
-                '',
-                'Diễn biến giá D1 gần đây:',
-                priceLines || '(không có dữ liệu)',
-                '',
-                'Setup này còn hợp lệ để chờ vào lệnh / giữ lệnh không? Dùng tool để trả lời.'
-              ].join('\n')
-            }
-          ]
-        }
-      ]
-    });
-
-    const toolUse = response.data.content?.find((b) => b.type === 'tool_use' && b.name === VALIDITY_TOOL.name);
-    const input = toolUse?.input as { valid?: boolean; reason?: string } | undefined;
-    if (input == null || typeof input.valid !== 'boolean') return null;
-    return { valid: input.valid, reason: input.reason ?? '' };
+  /** Two setups differ when their direction flips or their entry zones don't overlap. */
+  private isDifferentSetup(a: TrackedSetupRow, b: TrackedSetupRow): boolean {
+    if (a.direction !== b.direction) return true;
+    const overlap = a.entryHigh >= b.entryLow && b.entryHigh >= a.entryLow;
+    return !overlap;
   }
 
   private async notify(setup: TrackedSetupRow, event: string, price: number, reason?: string): Promise<void> {

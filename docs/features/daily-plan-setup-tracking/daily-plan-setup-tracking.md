@@ -2,7 +2,12 @@
 Turns the trade setup(s) embedded in each AI daily plan into structured, machine-trackable
 records (`TrackedSetup`) and follows their lifecycle automatically: khớp lệnh (ENTERED),
 chạm TP (TP1/TP2_HIT), dính SL (SL_HIT), plus a daily review that expires never-filled setups
-and invalidates ones whose premise no longer holds. Status is surfaced live on `/daily-plan`.
+and invalidates a still-PENDING setup once a newer, different setup supersedes it. Status is
+surfaced live on `/daily-plan`.
+
+A setup is only marked INVALID while it is still PENDING (never filled) **and** a newer,
+*different* setup for the same symbol has appeared on a later day. Once a setup has filled
+(ENTERED) it is never invalidated — it runs to TP or SL.
 
 The daily plan is generated as free-form Vietnamese markdown (`VisualAnalysisService`), so the
 concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses them into numbers.
@@ -18,8 +23,9 @@ concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses t
    - SHORT: mirrored. SL is scored before TP within a candle (conservative). TP2 closes; TP1 closes
      only when there is no TP2. Telegram notification on each transition.
 4. Daily review cron (`runSetupReview`, `45 0 * * *`) → `SetupTrackingService.reviewStaleSetups()`:
-   PENDING older than `EXPIRY_DAYS` (3) → EXPIRED; for previous-day open setups, an LLM check
-   (`judge_setup_validity`) marks INVALID + reason when the premise is broken.
+   PENDING older than `EXPIRY_DAYS` (3) → EXPIRED; a previous-day PENDING setup → INVALID only
+   when a newer, different setup (`isDifferentSetup`: direction flip or non-overlapping entry
+   zone) for the same symbol exists. ENTERED setups are skipped entirely — they run to TP/SL.
 5. `/daily-plan` server page fetches setups via `GET /tracked-setups/by-plans?ids=…` and renders a
    "Lệnh theo dõi" block with entry/SL/TP and a live status badge on each card.
 
