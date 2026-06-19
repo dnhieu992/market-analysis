@@ -3591,6 +3591,29 @@ a {
   flex-wrap: wrap;
 }
 
+.ts-copy-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.82rem;
+  line-height: 1;
+  color: var(--muted);
+  background: var(--surface-2, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.ts-copy-id:hover {
+  color: var(--fg);
+  border-color: var(--border, rgba(255, 255, 255, 0.25));
+}
+.ts-copy-id.is-copied {
+  color: #34d399;
+  border-color: #34d399;
+}
 .ts-symbol { font-size: 0.95rem; font-weight: 700; color: var(--fg); }
 .ts-slot { font-size: 0.7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .ts-date { font-size: 0.78rem; color: var(--muted); }

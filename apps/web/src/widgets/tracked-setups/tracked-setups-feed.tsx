@@ -71,6 +71,32 @@ function PriceCell({ label, value, modifier }: { label: string; value: string; m
   );
 }
 
+function CopyIdButton({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard may be unavailable (insecure context); silently ignore.
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className={`ts-copy-id${copied ? ' is-copied' : ''}`}
+      onClick={() => void copy()}
+      title={copied ? 'Đã copy ID' : 'Copy ID lệnh'}
+      aria-label="Copy ID lệnh"
+    >
+      {copied ? '✓' : '⧉'}
+    </button>
+  );
+}
+
 function DirBadge({ direction }: { direction: string }) {
   const cls =
     direction === 'long' ? 'dp-dir-badge dp-dir-badge--long' :
@@ -165,6 +191,7 @@ function SetupRow({ s }: { s: TrackedSetup }) {
     <article className="ts-row">
       <div className="ts-row-head">
         <span className="ts-symbol">{s.symbol}</span>
+        <CopyIdButton id={s.id} />
         <DirBadge direction={s.direction} />
         <span className={statusClass(s.status)}>{STATUS_LABEL[s.status] ?? s.status}</span>
         <span className="ts-slot">{s.slot === 'secondary' ? 'Phụ' : 'Chính'}</span>
