@@ -28,7 +28,7 @@ describe('llm gateway module', () => {
 
     expect(resolveLlmGatewayConfig()).toEqual({
       provider: 'claude',
-      claudeModelVariant: 'sonnet'
+      claudeModelVariant: 'claude-sonnet-4-6'
     });
   });
 

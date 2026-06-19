@@ -918,6 +918,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
+    async closeDayTradingSignal(id: string): Promise<DayTradingSignal> {
+      return fetchJson<DayTradingSignal>(
+        fetchImpl,
+        `${baseUrl}/day-trading/signals/${encodeURIComponent(id)}/close`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
     async fetchDayTradingSettings(): Promise<DayTradingSettings> {
       return fetchJson<DayTradingSettings>(fetchImpl, `${baseUrl}/day-trading/settings`, withDefaults({}));
     },

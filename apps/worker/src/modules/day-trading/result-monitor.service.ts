@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createDayTradingRepository } from '@app/db';
 import { BitgetService } from './bitget.service';
 import { BitgetWebSocketService } from './bitget-websocket.service';
+import { withRetry } from './retry.util';
+import { audit } from './audit.util';
 
 type ActiveSignal = Awaited<
   ReturnType<ReturnType<typeof createDayTradingRepository>['findActiveSignals']>
@@ -106,7 +108,14 @@ export class ResultMonitorService implements OnModuleInit {
           signal.breakEvenMoved = true;       // optimistic cache update (next ticks use new SL)
           signal.stopLoss = entryPrice;
           void this.repo.moveStopToBreakEven(id, entryPrice)
-            .then(() => this.logger.log(`Signal ${id} → break-even @ +1R (SL ${entryPrice})`))
+            .then(() => {
+              this.logger.log(`Signal ${id} → break-even @ +1R (SL ${entryPrice})`);
+              audit(this.repo, this.logger, {
+                action: 'BE_MOVED', signalId: id, symbol: signal.symbol,
+                message: `Stop moved to break-even @ +1R (SL ${entryPrice})`,
+                detail: { entryPrice, oneR, price },
+              });
+            })
             .catch((err) => { this.logger.error(`Failed BE move ${id}: ${this.errMsg(err)}`); this.cacheAt = 0; })
             .finally(() => this.movingBE.delete(id));
         }
@@ -141,15 +150,32 @@ export class ResultMonitorService implements OnModuleInit {
         : (hit === 'TP_HIT' ? signal.rrRatio * signal.riskAmount : -signal.riskAmount);
 
       try {
-        await this.repo.updateSignalResult(id, {
-          status: hit,
-          closedPrice: price,
-          closedAt: new Date(),
-          pnlUsd,
-        });
-        this.logger.log(
-          `Signal ${id} closed: ${hit} @ ${price} → $${pnlUsd.toFixed(2)} (entry ${entryPrice}, SL ${stopLoss}, TP ${takeProfit})`,
+        // Closing write is critical: a dropped update leaves a phantom open
+        // position. Retry x3 before falling back to re-arm. `closeActiveSignal`
+        // only writes while status is still ACTIVE, so it's both idempotent on
+        // repeat AND race-safe against a manual close from the API process — the
+        // loser of the race gets `false` and simply stops.
+        const won = await withRetry(
+          () => this.repo.closeActiveSignal(id, {
+            status: hit,
+            closedPrice: price,
+            closedAt: new Date(),
+            pnlUsd,
+          }),
+          { label: `close signal ${id}`, logger: this.logger },
         );
+        if (!won) {
+          this.logger.log(`Signal ${id} already closed by another path — skipping`);
+        } else {
+          this.logger.log(
+            `Signal ${id} closed: ${hit} @ ${price} → $${pnlUsd.toFixed(2)} (entry ${entryPrice}, SL ${stopLoss}, TP ${takeProfit})`,
+          );
+          audit(this.repo, this.logger, {
+            action: 'CLOSED', signalId: id, symbol: signal.symbol,
+            message: `${hit} @ ${price} → $${pnlUsd.toFixed(2)}`,
+            detail: { hit, closedPrice: price, pnlUsd, entryPrice, stopLoss, takeProfit, direction },
+          });
+        }
       } catch (err) {
         // Close write failed — re-arm so the next tick/cron retries this signal.
         this.logger.error(`Failed to close signal ${id}: ${this.errMsg(err)}`);

@@ -452,6 +452,28 @@ model DayTradingSettings {
   @@map("day_trading_settings")
 }
 
+/// Append-only audit trail of important day-trading bot actions. Survives pm2
+/// log rotation so we can reconstruct *why* the bot entered/closed a trade.
+model DayTradingActionLog {
+  id        String   @id @default(cuid())
+  /// SCAN_START, SETUP_DETECTED, SETUP_SKIPPED, ORDER_PLACED, ORDER_FAILED,
+  /// BE_MOVED, CLOSED, MANUAL_CLOSE, RETRY, RECONCILE_FIX, …
+  action    String   @db.VarChar(40)
+  /// FK to the related DayTradingSignal when applicable (no relation constraint
+  /// so a log row outlives any signal cleanup).
+  signalId  String?  @db.VarChar(30)
+  symbol    String?  @db.VarChar(20)
+  /// Short human-readable summary for quick scanning.
+  message   String   @db.Text
+  /// Optional structured context (prices, error, attempt count) as JSON.
+  detailJson String? @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([signalId, createdAt])
+  @@index([action, createdAt])
+  @@map("day_trading_action_logs")
+}
+
 model SwingTradingSignal {
   id          String    @id @default(cuid())
   symbol      String    @db.VarChar(20)

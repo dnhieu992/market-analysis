@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'Open',
   TP_HIT: 'TP Hit',
   SL_HIT: 'SL Hit',
+  MANUAL_CLOSE: 'Đóng tay',
   EXPIRED: 'Expired',
 };
 
@@ -30,6 +31,7 @@ const STATUS_CLASS: Record<string, string> = {
   ACTIVE: 'dt-badge--active',
   TP_HIT: 'dt-badge--tp',
   SL_HIT: 'dt-badge--sl',
+  MANUAL_CLOSE: 'dt-badge--expired',
   EXPIRED: 'dt-badge--expired',
 };
 
@@ -195,7 +197,34 @@ function NoteBlock({ signal }: { signal: DayTradingSignal }) {
   );
 }
 
-function SignalCard({ signal, livePrice }: { signal: DayTradingSignal; livePrice: number | null }) {
+function CloseButton({ signal, onClosed }: { signal: DayTradingSignal; onClosed: () => void }) {
+  const [closing, setClosing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const close = async () => {
+    if (!window.confirm(`Đóng lệnh ${signal.direction} ${signal.symbol} theo giá thị trường ngay bây giờ?`)) return;
+    setClosing(true);
+    setError(null);
+    try {
+      await createApiClient().closeDayTradingSignal(signal.id);
+      onClosed();
+    } catch {
+      setError('Đóng lệnh thất bại — lệnh có thể đã đóng. Thử lại.');
+      setClosing(false);
+    }
+  };
+
+  return (
+    <div className="dt-close-action">
+      <button type="button" className="dt-close-btn" onClick={() => void close()} disabled={closing}>
+        {closing ? 'Đang đóng…' : '✕ Đóng lệnh (market)'}
+      </button>
+      {error && <span className="dt-close-error">{error}</span>}
+    </div>
+  );
+}
+
+function SignalCard({ signal, livePrice, onClosed }: { signal: DayTradingSignal; livePrice: number | null; onClosed: () => void }) {
   const riskPct = ((Math.abs(signal.entryPrice - signal.stopLoss) / signal.entryPrice) * 100).toFixed(2);
   const pnl = signal.pnlUsd;
   const isActive = signal.status === 'ACTIVE';
@@ -287,6 +316,8 @@ function SignalCard({ signal, livePrice }: { signal: DayTradingSignal; livePrice
         Detected {formatTime(signal.detectedAt)} · Vol {signal.quantity != null ? `${signal.quantity.toFixed(6)} BTC` : '—'}
         {signal.positionValue != null ? ` (~$${signal.positionValue.toFixed(0)})` : ''} · Risk ${signal.riskAmount.toFixed(0)}
       </div>
+
+      {isActive && <CloseButton signal={signal} onClosed={onClosed} />}
     </div>
   );
 }
@@ -493,7 +524,9 @@ export function DayTradingFeed({ initialSignals, initialStats, initialSettings }
         </div>
       ) : (
         <div className="dt-list">
-          {signals.map((s) => <SignalCard key={s.id} signal={s} livePrice={livePrice} />)}
+          {signals.map((s) => (
+            <SignalCard key={s.id} signal={s} livePrice={livePrice} onClosed={() => void refresh(filter)} />
+          ))}
         </div>
       )}
     </div>

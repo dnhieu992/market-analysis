@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DayTradingService } from './day-trading.service';
 import { QuerySignalsDto } from './dto/query-signals.dto';
@@ -51,5 +51,11 @@ export class DayTradingController {
   @ApiOperation({ summary: 'Add or update the trader note on a signal' })
   updateNote(@Param('id') id: string, @Body() dto: UpdateNoteDto) {
     return this.service.updateNote(id, dto.note);
+  }
+
+  @Post('signals/:id/close')
+  @ApiOperation({ summary: 'Force-close an open position at the current market price' })
+  closeSignal(@Param('id') id: string) {
+    return this.service.closeSignal(id);
   }
 }

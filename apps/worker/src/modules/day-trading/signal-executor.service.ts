@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createDayTradingRepository } from '@app/db';
 import type { SetupResult } from './setup-analyzer.service';
+import { audit } from './audit.util';
 
 /**
  * The execution seam between PHASE 1 and PHASE 2.
@@ -25,7 +26,7 @@ export class SignalExecutorService {
         `Vol ${setup.quantity.toFixed(6)} BTC (~$${setup.positionValue.toFixed(0)}) | Risk $${setup.riskAmount}`,
     );
 
-    await this.repo.createSignal({
+    const signal = await this.repo.createSignal({
       symbol,
       setupType: setup.setupType,
       direction: setup.direction,
@@ -40,6 +41,24 @@ export class SignalExecutorService {
       mode: 'PAPER',
       setupJson: setup.setupJson,
       detectedAt: new Date(),
+    });
+
+    audit(this.repo, this.logger, {
+      action: 'ORDER_PLACED',
+      signalId: signal.id,
+      symbol,
+      message: `[PAPER] ${setup.direction} ${setup.setupType} entry ${setup.entryPrice} SL ${setup.stopLoss} TP ${setup.takeProfit}`,
+      detail: {
+        mode: 'PAPER',
+        direction: setup.direction,
+        setupType: setup.setupType,
+        entryPrice: setup.entryPrice,
+        stopLoss: setup.stopLoss,
+        takeProfit: setup.takeProfit,
+        rrRatio: setup.rrRatio,
+        quantity: setup.quantity,
+        riskAmount: setup.riskAmount,
+      },
     });
 
     // PHASE 2 (future):

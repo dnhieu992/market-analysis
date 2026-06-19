@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
 import { createDayTradingRepository } from '@app/db';
 import type { QuerySignalsDto } from './dto/query-signals.dto';
@@ -87,6 +93,55 @@ export class DayTradingService {
     // Treat empty/whitespace as clearing the note.
     const value = note && note.trim() !== '' ? note : null;
     return repo.updateNote(id, value);
+  }
+
+  /**
+   * Force-close an OPEN position at the current market price (manual override).
+   * In PAPER mode this just records the exit; in LIVE mode this is where the
+   * market-close order would be sent (see docs: idempotency, REQUIRED before live).
+   * The DB write is race-safe (`closeActiveSignal` only fires while ACTIVE), so it
+   * can't double-close against a concurrent TP/SL tick in the worker.
+   */
+  async closeSignal(id: string) {
+    const signal = await repo.findById(id);
+    if (!signal) throw new NotFoundException(`Signal ${id} not found`);
+    if (signal.status !== 'ACTIVE') {
+      throw new ConflictException(`Signal is not open (status: ${signal.status})`);
+    }
+
+    const { price } = await this.getCurrentPrice();
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new ServiceUnavailableException('No live price available to close at market');
+    }
+
+    const move = signal.direction === 'LONG' ? price - signal.entryPrice : signal.entryPrice - price;
+    const riskPerUnit = Math.abs(signal.entryPrice - signal.stopLoss);
+    const qty = signal.quantity ?? (riskPerUnit > 0 ? signal.riskAmount / riskPerUnit : 0);
+    const pnlUsd = qty * move;
+
+    const closed = await repo.closeActiveSignal(id, {
+      status: 'MANUAL_CLOSE',
+      closedPrice: price,
+      closedAt: new Date(),
+      pnlUsd,
+    });
+    if (!closed) {
+      // Lost the race — a TP/SL tick (or another click) closed it first.
+      throw new ConflictException('Signal was already closed');
+    }
+
+    void repo
+      .logAction({
+        action: 'MANUAL_CLOSE',
+        signalId: id,
+        symbol: signal.symbol,
+        message: `Manual market close @ ${price} → $${pnlUsd.toFixed(2)}`,
+        detailJson: JSON.stringify({ closedPrice: price, pnlUsd, entryPrice: signal.entryPrice, direction: signal.direction }),
+      })
+      .catch((err) => this.logger.warn(`audit MANUAL_CLOSE failed: ${err instanceof Error ? err.message : String(err)}`));
+
+    this.logger.log(`Signal ${id} manually closed @ ${price} → $${pnlUsd.toFixed(2)}`);
+    return repo.findById(id);
   }
 
   getSettings() {

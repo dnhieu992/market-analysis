@@ -6,6 +6,7 @@ import { BitgetWebSocketService } from './bitget-websocket.service';
 import { SetupAnalyzerService } from './setup-analyzer.service';
 import { SignalExecutorService } from './signal-executor.service';
 import { ResultMonitorService } from './result-monitor.service';
+import { audit } from './audit.util';
 
 const SYMBOL = 'BTCUSDT';
 // One 15m candle + buffer — skip if we already fired the same setup this window.
@@ -81,14 +82,18 @@ export class DayTradingService implements OnModuleInit {
   async scan(): Promise<void> {
     const settings = await this.repo.getSettings();
 
-    // Single open position: never stack a second trade while one is still live.
-    // The daily-loss guard below only counts CLOSED losers, so without this a burst
-    // of correlated entries (e.g. 3 pullback LONGs within 45m) can all open before
-    // any closes — then a single adverse candle stops them all out, multiplying the
-    // drawdown. Backtest: stacking blew max DD from −17.5R to −182.4R at equal risk.
+    // One open position PER SIDE: never stack a second trade of the SAME
+    // direction while one is still live. An opposite-direction setup is still
+    // allowed (a LONG may open while a SHORT is running, and vice-versa) — only
+    // same-side stacking is blocked, since that's what multiplied drawdown when
+    // correlated same-side entries all stopped out on one adverse candle.
+    // Backtest: same-side stacking blew max DD from −17.5R to −182.4R at equal risk.
+    // The same-side check itself runs after the setup direction is known (below);
+    // here we only short-circuit when BOTH sides are already open.
     const open = await this.repo.findActiveSignals(SYMBOL);
-    if (open.length > 0) {
-      this.logger.debug(`Position already open for ${SYMBOL} — skipping (no stacking)`);
+    const openDirections = new Set(open.map((s) => s.direction));
+    if (openDirections.size >= 2) {
+      this.logger.debug(`Both LONG and SHORT already open for ${SYMBOL} — skipping`);
       return;
     }
 
@@ -136,6 +141,19 @@ export class DayTradingService implements OnModuleInit {
       return;
     }
 
+    // Same-side stacking guard (see open-position note above): block this setup
+    // only if a live position of the SAME direction already exists. An opposite
+    // open position does not block it.
+    if (openDirections.has(setup.direction)) {
+      this.logger.debug(`${setup.direction} position already open for ${SYMBOL} — skipping (no same-side stacking)`);
+      audit(this.repo, this.logger, {
+        action: 'SETUP_SKIPPED', symbol: SYMBOL,
+        message: `${setup.direction} ${setup.setupType} skipped — same-side position already open`,
+        detail: { reason: 'same_side_open', direction: setup.direction, setupType: setup.setupType },
+      });
+      return;
+    }
+
     // Dedup: don't re-fire the same setup+direction within one candle window.
     const latest = await this.repo.findLatestSignal(SYMBOL);
     if (
@@ -145,8 +163,19 @@ export class DayTradingService implements OnModuleInit {
       Date.now() - new Date(latest.detectedAt).getTime() < DEDUP_WINDOW_MS
     ) {
       this.logger.debug(`Duplicate setup ${setup.setupType} ${setup.direction} — skipping`);
+      audit(this.repo, this.logger, {
+        action: 'SETUP_SKIPPED', symbol: SYMBOL,
+        message: `${setup.direction} ${setup.setupType} skipped — duplicate within dedup window`,
+        detail: { reason: 'dedup', direction: setup.direction, setupType: setup.setupType },
+      });
       return;
     }
+
+    audit(this.repo, this.logger, {
+      action: 'SETUP_DETECTED', symbol: SYMBOL,
+      message: `${setup.direction} ${setup.setupType} @ ${setup.entryPrice} (R:R 1:${setup.rrRatio})`,
+      detail: { direction: setup.direction, setupType: setup.setupType, entryPrice: setup.entryPrice, rrRatio: setup.rrRatio },
+    });
 
     await this.executor.execute(SYMBOL, setup);
   }

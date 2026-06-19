@@ -24,6 +24,11 @@ pnpm prisma:generate
 echo "── Run DB migrations"
 pnpm --filter @app/db exec prisma migrate deploy
 
+echo "── Run worker tests (gate — aborts deploy on failure)"
+# The day-trading bot lives in the worker. A red suite here means a regression
+# in entry/exit/risk logic — stop before it reaches production (set -e aborts).
+pnpm --filter worker test
+
 echo "── Build all apps"
 pnpm -r build
 

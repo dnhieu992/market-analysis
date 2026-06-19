@@ -219,7 +219,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
           topGainers,
           topLosers,
           highProfitHoldings,
-          holdingCount: holdings.length,
+          holdingCount: holdings.filter((h) => h.totalAmount > 0).length,
           cashValue,
         });
       });

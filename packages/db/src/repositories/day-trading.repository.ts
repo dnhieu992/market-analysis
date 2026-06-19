@@ -67,6 +67,35 @@ export function createDayTradingRepository(client = prisma) {
       return client.dayTradingSignal.update({ where: { id }, data });
     },
 
+    /**
+     * Race-safe close: only succeeds if the signal is still ACTIVE. Returns true
+     * if THIS call closed it, false if it was already closed (by a concurrent
+     * TP/SL tick, another process, etc.). Uses updateMany so the status check and
+     * the write are a single atomic DB operation — the cross-process guard that
+     * the in-memory `closing` Set cannot provide.
+     */
+    async closeActiveSignal(
+      id: string,
+      data: { status: string; closedPrice: number; closedAt: Date; pnlUsd: number },
+    ): Promise<boolean> {
+      const res = await client.dayTradingSignal.updateMany({
+        where: { id, status: 'ACTIVE' },
+        data,
+      });
+      return res.count > 0;
+    },
+
+    /** Append-only audit log of an important bot action. Never throws-critical. */
+    logAction(data: {
+      action: string;
+      signalId?: string | null;
+      symbol?: string | null;
+      message: string;
+      detailJson?: string | null;
+    }) {
+      return client.dayTradingActionLog.create({ data });
+    },
+
     /** Move the stop to break-even (entry) once the trade reaches +1R. */
     moveStopToBreakEven(id: string, entryPrice: number) {
       return client.dayTradingSignal.update({
@@ -132,19 +161,22 @@ export function createDayTradingRepository(client = prisma) {
     },
 
     async getStats() {
-      const [total, tpHit, slHit, scratch, active, pnlAgg] = await Promise.all([
+      const [total, tpHit, slHit, scratch, active, manualClose, pnlAgg] = await Promise.all([
         client.dayTradingSignal.count(),
         client.dayTradingSignal.count({ where: { status: 'TP_HIT' } }),
         client.dayTradingSignal.count({ where: { status: 'SL_HIT' } }),
         // Break-even scratches: SL_HIT after the stop was ratcheted to entry (~$0 P&L).
         client.dayTradingSignal.count({ where: { status: 'SL_HIT', breakEvenMoved: true } }),
         client.dayTradingSignal.count({ where: { status: 'ACTIVE' } }),
+        client.dayTradingSignal.count({ where: { status: 'MANUAL_CLOSE' } }),
         client.dayTradingSignal.aggregate({
           _sum: { pnlUsd: true },
-          where: { status: { in: ['TP_HIT', 'SL_HIT'] } },
+          // Realized P&L includes manual market closes alongside TP/SL exits.
+          where: { status: { in: ['TP_HIT', 'SL_HIT', 'MANUAL_CLOSE'] } },
         }),
       ]);
-      // Win rate counts only decided trades: wins vs REAL losses (scratches excluded).
+      // Win rate counts only decided TP/SL trades: wins vs REAL losses (scratches
+      // and discretionary manual closes excluded — they aren't a strategy verdict).
       const losses = slHit - scratch;
       const decided = tpHit + losses;
       return {
@@ -153,6 +185,7 @@ export function createDayTradingRepository(client = prisma) {
         tpHit,
         slHit,
         scratch,
+        manualClose,
         winRate: decided > 0 ? (tpHit / decided) * 100 : 0,
         totalPnlUsd: pnlAgg._sum.pnlUsd ?? 0,
       };

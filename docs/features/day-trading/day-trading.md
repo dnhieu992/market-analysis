@@ -13,6 +13,7 @@ Built in two phases:
    It handles ping/pong (literal `"ping"` every 25s) and reconnects with exponential backoff.
 2. On `candleClose`, `DayTradingService` runs a scan (a re-entrancy guard prevents overlap).
 3. Scan loads `DayTradingSettings` and checks daily guards: stop if today's signal count ≥ `maxTradesPerDay`, or today's SL_HIT count ≥ `maxLossesPerDay`.
+   - **One open position per side**: a new entry is blocked only when a live (ACTIVE) signal of the **same direction** already exists. An opposite-direction setup is allowed — e.g. a SHORT can still be running while a fresh LONG setup opens. Only **same-side** stacking is forbidden (the pattern that multiplied drawdown when correlated same-side entries all stopped out on one adverse candle). If both LONG and SHORT are already open, the scan short-circuits before fetching candles.
 4. Historical candle sets (50×15m, 40×1H, 30×4H) are fetched via REST (`BitgetService`) for swing-structure lookback.
 5. **Trend (H4/H1)** is read from **trendlines** (no EMAs): `trendlineTrend()` finds swing pivots, then `up` = last two swing **lows rising** with price still above the projected support line; `down` = last two swing **highs falling** with price still below the projected resistance line; conflict / no clean structure → `neutral`. This mirrors a discretionary trader drawing trendlines on H4 and H1.
 6. `SetupAnalyzerService` runs two detectors in quality order; the first to trigger wins for the candle:
@@ -32,6 +33,11 @@ Built in two phases:
 14. **Open-position live view**: while any ACTIVE signal exists, the page polls `GET /day-trading/price` every 5s (live BTCUSDT price from Bitget REST, 2s server-side cache). For each open position the card shows: a **Live price** banner with distance to TP/SL (%), and a header **unrealized P&L** chip (`~$X · ±N.NNR`) = `quantity × (live − entry)` signed by direction, plus the current R multiple. The polling stops automatically when there are no open positions.
 15. **Entry rationale / methodology**: every card has a "Vì sao vào lệnh" disclosure that reconstructs the exact setup from `setupJson` — the method (Liquidity Sweep / Trend Pullback, and legacy Range Fade / Break & Retest), how it works, the concrete reason (levels swept, pullback swing, trendline H4/H1), and the SL/TP exit plan with R:R.
 16. **Trader note**: every card (active and closed) has a "📝 Ghi chú" disclosure with the shared `MarkdownEditor` (TipTap). The note is saved via `PATCH /day-trading/signals/:id/note` and persisted on `DayTradingSignal.note` (markdown text). Empty/whitespace clears it. The editor bundle is lazy-loaded (`next/dynamic`, `ssr: false`).
+17. **Force-close at market** (manual override): each OPEN card shows an "✕ Đóng lệnh (market)" button. It calls `POST /day-trading/signals/:id/close`, which prices the exit at the current Bitget price and writes the signal as `MANUAL_CLOSE` with the realized P&L. The write goes through `repo.closeActiveSignal` (an atomic `updateMany WHERE status='ACTIVE'`), so it is **race-safe across processes** — if the worker's result monitor closes the same signal via TP/SL at the same moment, exactly one side wins and the other is a no-op (the API returns `409 Conflict`, the monitor logs "already closed"). `MANUAL_CLOSE` P&L is included in **Total P&L** but excluded from **win rate** (it isn't a strategy verdict).
+
+### Reliability (live-readiness, Phase 1 foundations)
+- **Retry with backoff** (`retry.util.ts` → `withRetry`): wraps the critical I/O — Bitget candle/price fetch and the result-monitor close write — retrying up to 3× with exponential backoff (500ms→1s→2s) so a transient network/DB hiccup doesn't drop a scan or leave a phantom-open position. Only repeat-safe operations are wrapped.
+- **Audit trail** (`DayTradingActionLog` table, `audit.util.ts`): append-only log of important actions — `SETUP_DETECTED`, `SETUP_SKIPPED` (with reason: same-side-open / dedup), `ORDER_PLACED`, `BE_MOVED`, `CLOSED`, `MANUAL_CLOSE` — with `signalId`, message and JSON detail. Survives pm2 log rotation so the *why* behind any trade is reconstructable. Writes are fire-and-forget and never break the trading flow.
 
 ## Edge Cases
 - **WS disconnect**: auto-reconnects with backoff. A cron fallback (`:02/:17/:32/:47`) runs the scan only when `ws.isHealthy()` is false, so candle closes are not missed.
@@ -44,11 +50,21 @@ Built in two phases:
 - Overlapping triggers (WS + cron): re-entrancy guard + dedup prevent duplicate signals.
 - **Close price ≠ TP/SL level (expected)**: detection is price-touch based on observed WS ticks, so `closedPrice` is the first tick at/through the level, which can overshoot the target on a fast move. The gap is real slippage from a *market-exit* model, not a bug. See the LIVE note below — a real TP **limit** order removes most of this gap.
 - Real-time evaluation runs many times per second; the in-memory active-signal cache (5s TTL) keeps this off the DB hot path. A close write failure re-arms the cache so the next tick/cron retries.
+- **Manual close vs auto TP/SL race**: a "Đóng lệnh (market)" click and a TP/SL tick can land at the same instant from two different processes. `closeActiveSignal` (`updateMany WHERE status='ACTIVE'`) makes the close atomic, so exactly one wins; the loser returns `false` (worker logs "already closed", API returns `409 Conflict`). No double-close, no overwritten exit.
+- **Force-close with no live price**: if Bitget price can't be fetched, the close endpoint returns `503` rather than closing at a bad/zero price.
 
 ## Phase 2 hand-off (placing real orders later)
 - Add an authenticated Bitget trade service (account API keys).
 - In `SignalExecutorService.execute()`, after persisting, place the order and store the broker order id (see the commented Phase 2 block). Set `mode = LIVE`.
 - Optionally gate with an env flag (e.g. `LIVE_TRADING_ENABLED`).
+
+### 🔴 REQUIRED before enabling LIVE (when the Bitget account API key exists)
+These are deferred on purpose — they only matter once real orders are placed. **Do not flip `mode = LIVE` until both are implemented.**
+
+1. **Idempotency on order place/close.** Generate a stable `clientOrderId` per signal (e.g. the `DayTradingSignal.id`) and pass it to Bitget (`clientOid`). The exchange then rejects duplicates, which is what makes `withRetry` safe for the order calls — without it, a retry after a timeout can place/close a **second real order**. Wrap the place/close calls in `withRetry` only **after** this is in place. Store the returned `brokerOrderId`.
+2. **Reconciliation on startup + periodic.** In-memory state is lost on every worker restart (i.e. every `./deploy.sh`). Add a job that, for each `ACTIVE` signal in the DB, queries Bitget for the real order/position state and repairs drift (exchange closed but DB still ACTIVE, or vice-versa); log fixes as `RECONCILE_FIX` in the audit trail. This is the primary guard against state divergence caused by deploying new code mid-trade. Use the broker fill as the source of truth for `closedPrice`/`pnlUsd` (see the LIVE note below).
+
+Recommended companions (not strictly blocking, but do before sizing up): a **kill switch** (`tradingEnabled` flag checked in `scan()` + before execute, toggleable from the UI without a deploy) and **Telegram alerts** for order-place failures after retries, reconciliation fixes, and a stalled WS feed.
 
 > ⚠️ **LIVE mode MUST place a real TP limit order (and an SL stop) on Bitget — do not rely on the result monitor to "exit" the trade.**
 >
@@ -66,16 +82,19 @@ Built in two phases:
 - `apps/worker/src/modules/day-trading/setup-analyzer.service.ts` — setup detection (Liquidity Sweep, Trend Pullback), trendline trend (no EMA), swing-based SL, strong S/R-zone TP, stop-distance floor
 - `apps/worker/src/scripts/backtest-day-trading.ts` — walk-forward backtest harness for the strategy (`pnpm --filter worker backtest:daytrading`); reuses the real `SetupAnalyzerService`, models fees + stop floor
 - `apps/worker/src/modules/day-trading/signal-executor.service.ts` — **execution seam**: Phase 1 paper print/persist; Phase 2 live orders
-- `apps/worker/src/modules/day-trading/result-monitor.service.ts` — TP/SL detection using WS price (REST fallback) + break-even stop move at +1R
+- `apps/worker/src/modules/day-trading/result-monitor.service.ts` — TP/SL detection using WS price (REST fallback) + break-even stop move at +1R; race-safe close via `closeActiveSignal`, retry-wrapped close write, audit logging
+- `apps/worker/src/modules/day-trading/retry.util.ts` — `withRetry()` (3× exponential backoff) for critical I/O; **wrap order place/close only after idempotency is added**
+- `apps/worker/src/modules/day-trading/audit.util.ts` — fire-and-forget `audit()` helper writing `DayTradingActionLog` rows (never throws)
 - `apps/worker/src/scripts/backtest-day-trading.ts` — walk-forward backtest (`pnpm --filter worker backtest:daytrading`); parameterised TF, stop floor / ATR, RR, and `--managed` trade-management (partial + break-even)
 - `apps/worker/src/modules/day-trading/day-trading.service.ts` — orchestrator: WS-triggered scan + cron fallback + dedup + guards
 - `apps/worker/src/modules/day-trading/day-trading.module.ts` — NestJS module
-- `apps/api/src/modules/day-trading/day-trading.controller.ts` — REST endpoints (`GET /day-trading/signals`, `/stats`, `/:id`, `GET /day-trading/price`, `PATCH /day-trading/signals/:id/note`, `GET|PUT /day-trading/settings`)
-- `apps/api/src/modules/day-trading/day-trading.service.ts` — API service layer (incl. `getCurrentPrice()` — live Bitget price with 2s cache + stale fallback; `updateNote()`)
+- `apps/api/src/modules/day-trading/day-trading.controller.ts` — REST endpoints (`GET /day-trading/signals`, `/stats`, `/:id`, `GET /day-trading/price`, `PATCH /day-trading/signals/:id/note`, `POST /day-trading/signals/:id/close`, `GET|PUT /day-trading/settings`)
+- `apps/api/src/modules/day-trading/day-trading.service.ts` — API service layer (incl. `getCurrentPrice()` — live Bitget price with 2s cache + stale fallback; `updateNote()`; `closeSignal()` — race-safe manual market close)
 - `apps/api/src/modules/day-trading/dto/update-note.dto.ts` — trader-note update validation
 - `apps/api/src/modules/day-trading/dto/update-settings.dto.ts` — settings update validation
-- `packages/db/src/repositories/day-trading.repository.ts` — DB repository (incl. `findLatestSignal` dedup, `getSettings`/`updateSettings`, `countTodayLosses`, `updateNote`)
-- `packages/db/prisma/schema.prisma` — `DayTradingSignal` (incl. `note`, `breakEvenMoved`) + `DayTradingSettings` models
+- `packages/db/src/repositories/day-trading.repository.ts` — DB repository (incl. `findLatestSignal` dedup, `getSettings`/`updateSettings`, `countTodayLosses`, `updateNote`, race-safe `closeActiveSignal`, `logAction`)
+- `packages/db/prisma/schema.prisma` — `DayTradingSignal` (incl. `note`, `breakEvenMoved`) + `DayTradingSettings` + `DayTradingActionLog` models
+- `packages/db/prisma/migrations/20260619120000_add_day_trading_action_log/migration.sql` — `day_trading_action_logs` audit table
 - `packages/db/prisma/migrations/20260614120000_add_day_trading_break_even/migration.sql` — `breakEvenMoved` column
 - `packages/db/prisma/migrations/20260614000001_add_day_trading_note/migration.sql` — `note` column
 - `packages/db/prisma/migrations/20260613000004_add_day_trading_signals/migration.sql` — table
@@ -86,4 +105,6 @@ Built in two phases:
 - `apps/web/src/_pages/day-trading-page/day-trading-page.tsx` — server page (SSR data load)
 - `apps/web/src/app/day-trading/page.tsx` — App Router entry
 - `apps/web/src/shared/api/types.ts` — `DayTradingSignal` (incl. `mode`, `note`), `DayTradingStats`, `DayTradingPrice`
-- `apps/web/src/shared/api/client.ts` — `fetchDayTradingSignals`, `fetchDayTradingStats`, `fetchDayTradingSignalById`, `fetchDayTradingPrice`, `updateDayTradingSignalNote`
+- `apps/web/src/shared/api/client.ts` — `fetchDayTradingSignals`, `fetchDayTradingStats`, `fetchDayTradingSignalById`, `fetchDayTradingPrice`, `updateDayTradingSignalNote`, `closeDayTradingSignal`
+- `apps/web/src/widgets/day-trading/day-trading-feed.tsx` (`CloseButton`) — force-close button on open cards (confirm → `POST …/close` → refresh)
+- `apps/worker/test/day-trading-retry.util.spec.ts`, `day-trading-scan.spec.ts`, `day-trading-result-monitor.spec.ts` — unit tests (retry, one-per-side rule, TP/SL/BE/race-safe close); the worker suite is a `deploy.sh` gate

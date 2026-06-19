@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
+import { withRetry } from './retry.util';
 
 export type Candle = {
   timestamp: number;
@@ -39,9 +40,13 @@ export class BitgetService {
 
   async fetchCandles(granularity: BitgetGranularity, limit = 100): Promise<Candle[]> {
     try {
-      const response = await this.client.get<BitgetCandleResponse>('/api/v2/mix/market/candles', {
-        params: { symbol: 'BTCUSDT', productType: 'usdt-futures', granularity, limit },
-      });
+      // Transient network/5xx hiccups shouldn't drop a whole scan — retry x3.
+      const response = await withRetry(
+        () => this.client.get<BitgetCandleResponse>('/api/v2/mix/market/candles', {
+          params: { symbol: 'BTCUSDT', productType: 'usdt-futures', granularity, limit },
+        }),
+        { label: `fetchCandles(${granularity})`, logger: this.logger },
+      );
       if (response.data.code !== '00000') {
         this.logger.warn(`Bitget candles error: ${response.data.msg}`);
         return [];
@@ -63,9 +68,12 @@ export class BitgetService {
 
   async fetchCurrentPrice(): Promise<number | null> {
     try {
-      const response = await this.client.get<BitgetTickerResponse>('/api/v2/mix/market/ticker', {
-        params: { symbol: 'BTCUSDT', productType: 'usdt-futures' },
-      });
+      const response = await withRetry(
+        () => this.client.get<BitgetTickerResponse>('/api/v2/mix/market/ticker', {
+          params: { symbol: 'BTCUSDT', productType: 'usdt-futures' },
+        }),
+        { label: 'fetchCurrentPrice', logger: this.logger },
+      );
       if (response.data.code !== '00000' || !response.data.data.length) return null;
       const ticker = response.data.data[0];
       return ticker ? parseFloat(ticker.lastPr) : null;

@@ -8589,6 +8589,36 @@ a.metric-card--link:hover {
   cursor: default;
 }
 
+.dt-close-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+.dt-close-btn {
+  padding: 7px 14px;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dt-close-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+.dt-close-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dt-close-error {
+  font-size: 0.74rem;
+  color: #ef4444;
+}
+
 .dt-empty {
   text-align: center;
   color: var(--muted);
