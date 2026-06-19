@@ -58,9 +58,9 @@ type ComputedData = {
 };
 
 const COLORS = [
-  '#1a1f2e', '#6b7280', '#9ca3af', '#d1d5db',
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
-  '#8b5cf6', '#06b6d4', '#f97316', '#6366f1',
+  '#60a5fa', '#34d399', '#fbbf24', '#f87171',
+  '#a78bfa', '#22d3ee', '#fb923c', '#818cf8',
+  '#f472b6', '#4ade80', '#facc15', '#38bdf8',
 ];
 
 const STABLE_COINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD']);
