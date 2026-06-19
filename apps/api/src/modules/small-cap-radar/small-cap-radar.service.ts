@@ -62,6 +62,7 @@ export type SmallCapCoinWithSignal = {
     ema200Above: boolean;
     stage: string;
     signalScore: number;
+    extPct: number | null;
     sparkline: number[];
     trend: string;
     swingStructure: string;
@@ -99,6 +100,7 @@ export class SmallCapRadarService {
               ema200Above: sig.ema200Above,
               stage: sig.stage,
               signalScore: sig.signalScore,
+              extPct: sig.extPct,
               sparkline: this.parseSparkline(sig.sparklineJson),
               trend: sig.trend,
               swingStructure: sig.swingStructure,
@@ -283,6 +285,7 @@ export class SmallCapRadarService {
       ema200Above: result.ema200Above,
       stage: result.stage,
       signalScore: result.signalScore,
+      extPct: result.extPct,
       sparklineJson: JSON.stringify(result.sparkline),
       trend: result.trend,
       swingStructure: result.swingStructure,

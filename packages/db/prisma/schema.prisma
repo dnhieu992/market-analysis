@@ -548,6 +548,7 @@ model SmallCapSignal {
   ema200Above    Boolean      @default(false)
   stage          String       @default("Quiet") @db.VarChar(20)
   signalScore    Int          @default(0)
+  extPct         Float?
   sparklineJson  String       @db.Text
   trend          String       @default("Neutral") @db.VarChar(15)
   swingStructure String       @default("Mixed") @db.VarChar(10)

@@ -410,7 +410,7 @@ export type PaginatedOrders = {
   openOrders: DashboardOrder[];
 };
 
-export type SmallCapStage = 'Breakout' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
+export type SmallCapStage = 'Breakout' | 'Trending' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
 
 export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
 export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
@@ -633,6 +633,7 @@ export type SmallCapCoinRow = {
     ema200Above: boolean;
     stage: SmallCapStage;
     signalScore: number;
+    extPct: number | null;
     sparkline: number[];
     trend: PaTrend;
     swingStructure: SwingStructure;

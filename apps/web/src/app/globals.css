@@ -7053,6 +7053,7 @@ a.metric-card--link:hover {
 .scr-filter-chip--off { opacity: 0.35; }
 
 .scr-filter-chip--breakout    { background: rgba(34,197,94,0.12);  border-color: rgba(34,197,94,0.3);  color: #16a34a; }
+.scr-filter-chip--trending    { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.4); color: #0d9488; }
 .scr-filter-chip--accumulating{ background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.3); color: #2563eb; }
 .scr-filter-chip--waking      { background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.3); color: #b45309; }
 .scr-filter-chip--extended    { background: rgba(239,68,68,0.10);  border-color: rgba(239,68,68,0.3);  color: #dc2626; }
@@ -7176,8 +7177,19 @@ a.metric-card--link:hover {
   transition: width 0.3s;
 }
 .scr-bar--active   { background: var(--accent, #1f6f5b); }
+.scr-bar--trending { background: #10b981; }
 .scr-bar--extended { background: #ef4444; }
 .scr-bar--quiet    { background: #9ca3af; }
+
+/* ── extension % (distance above EMA34) ── */
+.scr-ext {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.scr-ext--up   { color: #0d9488; }
+.scr-ext--hot  { color: #dc2626; }       /* overheated: trail / take profit */
+.scr-ext--down { color: var(--muted); }
 
 .scr-signal-num {
   font-size: 0.82rem;

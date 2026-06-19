@@ -2,7 +2,7 @@ import { calculateEma } from '../indicators/ema';
 import { calculateRsi } from '../indicators/rsi';
 import { calculateVolumeRatio } from '../indicators/volume';
 
-export type SmallCapStage = 'Breakout' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
+export type SmallCapStage = 'Breakout' | 'Trending' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
 export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
 export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
 
@@ -14,6 +14,8 @@ export type SmallCapSignalResult = {
   ema200Above: boolean;
   stage: SmallCapStage;
   signalScore: number;
+  /** % distance of last close above (or below) EMA34 — overheat/extension gauge for exit timing */
+  extPct: number;
   sparkline: number[];
   trend: PaTrend;
   swingStructure: SwingStructure;
@@ -50,13 +52,20 @@ export function computeSmallCapSignal(
   const ema89Above = lastClose > ema89;
   const ema200Above = lastClose > ema200;
 
+  // EMA34 slope: compare against EMA34 one candle ago to detect a rising trend
+  const ema34Prev = calculateEma(closes.slice(0, -1), 34);
+  const ema34Rising = ema34 > ema34Prev;
+
+  // Extension above EMA34, in % — used to separate a healthy trend from an overheated one
+  const extPct = Number((((lastClose - ema34) / ema34) * 100).toFixed(1));
+
   const sparkline = closes.slice(-30).map((v) => Number(v.toFixed(8)));
 
-  const stage = classifyStage({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above });
+  const stage = classifyStage({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above, ema34Rising });
   const signalScore = computeScore({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above });
   const { trend, swingStructure } = computePaTrend(closes, highs, lows, ema34, ema89);
 
-  return { rsi, volMultiplier, ema34Above, ema89Above, ema200Above, stage, signalScore, sparkline, trend, swingStructure };
+  return { rsi, volMultiplier, ema34Above, ema89Above, ema200Above, stage, signalScore, extPct, sparkline, trend, swingStructure };
 }
 
 /* ── PA Trend ────────────────────────────────────────────────────────────── */
@@ -156,8 +165,9 @@ function classifyStage(p: {
   ema34Above: boolean;
   ema89Above: boolean;
   ema200Above: boolean;
+  ema34Rising: boolean;
 }): SmallCapStage {
-  const { rsi, volMultiplier, ema34Above, ema89Above, ema200Above } = p;
+  const { rsi, volMultiplier, ema34Above, ema89Above, ema200Above, ema34Rising } = p;
 
   if (rsi > 70 || (ema34Above && ema89Above && ema200Above && rsi > 68 && volMultiplier >= 1.5)) {
     return 'Extended';
@@ -165,6 +175,13 @@ function classifyStage(p: {
 
   if (ema34Above && volMultiplier >= 2 && rsi >= 30 && rsi <= 65) {
     return 'Breakout';
+  }
+
+  // Trending — a confirmed uptrend that grinds up on quiet volume (the ATM case).
+  // Price reclaimed both EMA34 & EMA89 with EMA34 sloping up; volume need NOT spike.
+  // This is the "hold / trend confirmed" zone, distinct from "Waking" (just stirring).
+  if (ema34Above && ema89Above && ema34Rising && rsi >= 50 && rsi <= 68) {
+    return 'Trending';
   }
 
   if (!ema34Above && rsi >= 25 && rsi <= 50 && volMultiplier >= 0.7) {

@@ -71,6 +71,7 @@ export class SmallCapScanService {
       ema200Above: result.ema200Above,
       stage: result.stage,
       signalScore: result.signalScore,
+      extPct: result.extPct,
       sparklineJson: JSON.stringify(result.sparkline),
       trend: result.trend,
       swingStructure: result.swingStructure,

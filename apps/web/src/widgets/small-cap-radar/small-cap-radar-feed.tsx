@@ -8,9 +8,9 @@ import type { SmallCapCoinRow, SmallCapStage } from '@web/shared/api/types';
 
 type Props = { initialCoins: SmallCapCoinRow[] };
 
-type SortKey = 'signal' | 'rsi' | 'vol' | 'coin';
+type SortKey = 'signal' | 'rsi' | 'vol' | 'ext' | 'coin';
 
-const ALL_STAGES: SmallCapStage[] = ['Breakout', 'Accumulating', 'Waking', 'Extended', 'Quiet'];
+const ALL_STAGES: SmallCapStage[] = ['Breakout', 'Trending', 'Accumulating', 'Waking', 'Extended', 'Quiet'];
 const PAGE_SIZE = 50;
 
 /* ── stage badge ─────────────────────────────────────────────── */
@@ -18,6 +18,7 @@ const PAGE_SIZE = 50;
 function StageBadge({ stage }: { stage: SmallCapStage }) {
   const cls: Record<SmallCapStage, string> = {
     Breakout: 'scr-stage scr-stage--breakout',
+    Trending: 'scr-stage scr-stage--trending',
     Accumulating: 'scr-stage scr-stage--accumulating',
     Waking: 'scr-stage scr-stage--waking',
     Extended: 'scr-stage scr-stage--extended',
@@ -33,6 +34,7 @@ function SignalBar({ score, stage }: { score: number; stage: SmallCapStage }) {
   const barCls =
     stage === 'Extended' ? 'scr-bar scr-bar--extended' :
     stage === 'Quiet'    ? 'scr-bar scr-bar--quiet' :
+    stage === 'Trending' ? 'scr-bar scr-bar--trending' :
     'scr-bar scr-bar--active';
   return (
     <div className="scr-bar-wrap">
@@ -59,6 +61,19 @@ function VolCell({ vol }: { vol: number | null }) {
   if (vol == null) return <span className="scr-muted">—</span>;
   const cls = vol >= 1.5 ? 'scr-vol scr-vol--high' : vol >= 1.0 ? 'scr-vol' : 'scr-vol scr-vol--low';
   return <span className={cls}>{vol.toFixed(1)}×</span>;
+}
+
+/* ── extension % cell (distance above EMA34 — exit-timing gauge) ── */
+
+function ExtCell({ ext }: { ext: number | null }) {
+  if (ext == null) return <span className="scr-muted">—</span>;
+  // >= +20% above EMA34 = overheated → trail / take profit, don't chase.
+  const cls =
+    ext >= 20 ? 'scr-ext scr-ext--hot' :
+    ext >= 0  ? 'scr-ext scr-ext--up' :
+    'scr-ext scr-ext--down';
+  const sign = ext > 0 ? '+' : '';
+  return <span className={cls}>{`${sign}${ext.toFixed(1)}%`}</span>;
 }
 
 /* ── market cap cell ─────────────────────────────────────────── */
@@ -275,6 +290,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
       if (sortKey === 'signal') return (b.signal?.signalScore ?? 0) - (a.signal?.signalScore ?? 0);
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
+      if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
       return a.symbol.localeCompare(b.symbol);
     });
   }, [coins, sortKey, hiddenStages, nameFilter]);
@@ -376,6 +392,9 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
               <th className="scr-th scr-th--num" onClick={() => setSortKey('vol')}>
                 Vol× {sortKey === 'vol' && '↓'}
               </th>
+              <th className="scr-th scr-th--num" onClick={() => setSortKey('ext')}>
+                Ext% {sortKey === 'ext' && '↓'}
+              </th>
               <th className="scr-th">vs EMA</th>
               <th className="scr-th">30d</th>
               <th className="scr-th scr-th--num">Mkt Cap</th>
@@ -385,7 +404,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={9} className="scr-empty">
+                <td colSpan={10} className="scr-empty">
                   {coins.length === 0
                     ? 'Add coins to start tracking.'
                     : nameFilter
@@ -420,6 +439,9 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
                   </td>
                   <td className="scr-td scr-td--num">
                     <VolCell vol={sig?.volMultiplier ?? null} />
+                  </td>
+                  <td className="scr-td scr-td--num">
+                    <ExtCell ext={sig?.extPct ?? null} />
                   </td>
                   <td className="scr-td">
                     {sig ? (
@@ -491,6 +513,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
       {/* ── legend ── */}
       <div className="scr-legend">
         <span className="scr-stage scr-stage--breakout">Breakout</span><span>vào soi ngay</span>
+        <span className="scr-stage scr-stage--trending">Trending</span><span>trend xác nhận, giữ lệnh</span>
         <span className="scr-stage scr-stage--accumulating">Accumulating</span><span>theo dõi</span>
         <span className="scr-stage scr-stage--waking">Waking</span><span>chớm động</span>
         <span className="scr-stage scr-stage--extended">Extended</span><span>đã chạy, tránh đu</span>

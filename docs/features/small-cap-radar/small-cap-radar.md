@@ -13,8 +13,9 @@ Each coin also stores **market cap** (synced from CoinGecko during Sync Coins) a
 3. If `listingDate` is not yet stored, fires a non-blocking Binance call (`startTime=2017-01-01, limit=1`) to record the coin's first ever candle date.
 4. Computes `computeSmallCapSignal(closes, volumes)` from `@app/core`:
    - RSI(14), EMA(34/89/200), Vol× = volume / SMA20(volume)
-   - Classifies **Stage**: Breakout → Accumulating → Waking → Extended → Quiet
+   - Classifies **Stage**: Breakout → Trending → Accumulating → Waking → Extended → Quiet
    - Computes **Signal score** (0–100): vol bonus + RSI factor + EMA position bonus − extended penalty
+   - Computes **extPct** = % distance of last close above/below EMA34 (extension / overheat gauge for exit timing)
    - Extracts last-30-closes as sparkline array
 5. Upserts result into `small_cap_signals` (unique on `coinId + date`).
 6. User opens `/small-cap-radar` — Server Component loads latest signals via `GET /small-cap-radar`.
@@ -35,10 +36,15 @@ Each coin also stores **market cap** (synced from CoinGecko during Sync Coins) a
 | Stage | Meaning | Conditions |
 |---|---|---|
 | 🟢 Breakout | Open chart immediately | above EMA34 + Vol× ≥ 2 + RSI 30–65 |
+| 🟩 Trending | Confirmed trend — hold | above EMA34 **and** EMA89 + EMA34 sloping up + RSI 50–68 (volume need NOT spike) |
 | 🔵 Accumulating | Watch closely | below EMA34 + RSI 25–50 + Vol× ≥ 0.7 |
 | 🟡 Waking | Early signs | one weak signal (above34 OR Vol×≥1.2 OR RSI 40–62) |
 | 🔴 Extended | Already ran — avoid chasing | RSI > 70 OR (all EMAs above + RSI>68 + Vol×≥1.5) |
 | ⚪ Quiet | Skip | everything else |
+
+**Why Trending exists:** the strongest legs in small caps often grind up on quiet volume and never trip the Vol×≥2 Breakout rule, so they used to stay labelled "Waking" (chớm động) the whole way up — which made it easy to take profit far too early. Trending separates a *confirmed, hold-worthy* uptrend (price reclaimed EMA34 & EMA89, EMA34 rising) from a coin that is merely stirring. Evaluated **after** Breakout and Extended, so a volume-spike breakout or an overheated coin still take priority.
+
+**extPct (Ext% column):** distance of the close above EMA34, in %. It is the exit-timing gauge — a healthy trend sits a few % above EMA34; once extPct climbs past ~+20% the move is overheated (usually paired with the Extended stage) and the table flags it red as a trail / take-profit cue rather than an entry.
 
 ## Signal Score Algorithm
 
@@ -77,6 +83,7 @@ score = clamp(base + volBonus + rsiFactor + emaBonus + extPenalty, 0, 100)
 - `packages/db/prisma/schema.prisma` — `SmallCapCoin` (id, symbol, name, marketCap, listingDate, addedAt) + `SmallCapSignal` models
 - `packages/db/prisma/migrations/20260608000500_add_small_cap_radar/migration.sql` — initial migration
 - `packages/db/prisma/migrations/20260608140000_small_cap_market_info/migration.sql` — adds `marketCap`, `listingDate`
+- `packages/db/prisma/migrations/20260619130000_add_extpct_to_small_cap_signal/migration.sql` — adds `extPct` column to `small_cap_signals`
 - `packages/db/src/repositories/small-cap-radar.repository.ts` — `addCoin(symbol, name, marketCap?)`, `updateListingDate()`, `findCoinsWithLatestSignal()`, `deleteCoinsNotInSymbols()`
 - `packages/db/src/index.ts` — exports `createSmallCapRadarRepository`
 
@@ -97,7 +104,7 @@ score = clamp(base + volBonus + rsiFactor + emaBonus + extPenalty, 0, 100)
 **Web**
 - `apps/web/src/app/small-cap-radar/page.tsx` — Next.js route entry
 - `apps/web/src/_pages/small-cap-radar-page/small-cap-radar-page.tsx` — Server Component, loads initial data
-- `apps/web/src/widgets/small-cap-radar/small-cap-radar-feed.tsx` — Client Component: table with sort/filter/sparkline, Mkt Cap column, Listed column, Re-analyze button
+- `apps/web/src/widgets/small-cap-radar/small-cap-radar-feed.tsx` — Client Component: table with sort/filter/sparkline, Trending stage chip + bar, Ext% column (sortable), Mkt Cap column, Listed column, Re-analyze button
 - `apps/web/src/shared/api/types.ts` — `SmallCapCoinRow` (includes `marketCap`, `listingDate`), `SmallCapStage`
 - `apps/web/src/shared/api/client.ts` — `fetchSmallCapRadar`, `addSmallCapCoin`, `removeSmallCapCoin`, `triggerSmallCapScan`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav item
