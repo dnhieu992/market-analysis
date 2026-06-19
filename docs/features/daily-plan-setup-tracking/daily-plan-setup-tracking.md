@@ -18,7 +18,9 @@ concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses t
 2. Extraction loads today's `DailyAnalysis`, sends `analysisText` to Claude via `tool_use`
    (`record_trade_setups`), and persists one `TrackedSetup` per actionable setup (PENDING).
 3. Hourly cron (`runSetupTracking`, `0 * * * *`) → `SetupTrackingService.trackOpenSetups()`:
-   fetches 1h candles per symbol and replays candles newer than `lastCheckedAt`:
+   fetches 1h candles per symbol and replays candles newer than `lastCheckedAt` **and** not
+   earlier than the setup's `planDate` (a fresh setup has `lastCheckedAt = null`, so the plan-day
+   floor prevents it from filling on the ~2 days of historical candles in the fetch window):
    - LONG: ENTERED when `low ≤ entryHigh`; SL_HIT when `low ≤ stopLoss`; TP when `high ≥ tpN`.
    - SHORT: mirrored. SL is scored before TP within a candle (conservative). TP2 closes; TP1 closes
      only when there is no TP2. Telegram notification on each transition.
@@ -30,7 +32,9 @@ concrete entry/SL/TP levels only exist as prose. An LLM extraction step parses t
    "Lệnh theo dõi" block with entry/SL/TP and a live status badge on each card.
 6. `/tracked-setups` page (`TrackedSetupsFeed`) lists every setup with status-bucket filters and a
    summary bar: tỉ lệ thắng (wins/decided where decided = TP_HIT + SL_HIT), số lệnh thắng/thua, và
-   tổng PnL đã chốt (realized, vốn $1000/lệnh).
+   tổng PnL đã chốt (realized, vốn $1000/lệnh). The raw setup id is no longer shown; instead a copy
+   icon next to the coin symbol copies the id to the clipboard (`CopyIdButton`/`copyText`, with a
+   hidden-textarea `execCommand` fallback for the plain-HTTP, non-secure-context dashboard).
 7. Each setup card has an editable **notes** field (`NotesSection`) using the shared `MarkdownEditor`
    (TipTap, lazy-loaded). Notes are stored as a Markdown string on `TrackedSetup.notes` and saved via
    `PATCH /tracked-setups/:id/notes`. Existing notes render read-only (toolbar hidden) with a "Sửa ghi

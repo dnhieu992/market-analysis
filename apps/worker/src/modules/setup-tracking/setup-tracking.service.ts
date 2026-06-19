@@ -67,7 +67,14 @@ export class SetupTrackingService {
 
   private async processSetup(setup: TrackedSetupRow, candles: Candle[], lastPrice: number): Promise<void> {
     const since = setup.lastCheckedAt ? new Date(setup.lastCheckedAt).getTime() : 0;
-    const fresh = candles.filter((c) => (c.openTime?.getTime() ?? 0) > since);
+    // A setup must never fill on candles that closed *before* its plan day — otherwise a
+    // freshly-created setup (lastCheckedAt = null, since = 0) back-fills against ~2 days of
+    // historical 1h candles and gets marked ENTERED at a candle predating the plan.
+    const planStart = new Date(setup.planDate).getTime();
+    const fresh = candles.filter((c) => {
+      const t = c.openTime?.getTime() ?? 0;
+      return t > since && t >= planStart;
+    });
 
     const isLong = setup.direction === 'long';
     let status = setup.status;

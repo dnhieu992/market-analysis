@@ -71,16 +71,44 @@ function PriceCell({ label, value, modifier }: { label: string; value: string; m
   );
 }
 
+/**
+ * Copy `text` to the clipboard. The async Clipboard API only works in secure
+ * contexts (HTTPS or localhost); the dashboard is served over plain HTTP, so we
+ * fall back to a hidden-textarea + execCommand('copy') there.
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to the legacy path
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function CopyIdButton({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(id);
+    const ok = await copyText(id);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard may be unavailable (insecure context); silently ignore.
     }
   };
 
