@@ -53,18 +53,32 @@ Built in two phases:
 - **Manual close vs auto TP/SL race**: a "Đóng lệnh (market)" click and a TP/SL tick can land at the same instant from two different processes. `closeActiveSignal` (`updateMany WHERE status='ACTIVE'`) makes the close atomic, so exactly one wins; the loser returns `false` (worker logs "already closed", API returns `409 Conflict`). No double-close, no overwritten exit.
 - **Force-close with no live price**: if Bitget price can't be fetched, the close endpoint returns `503` rather than closing at a bad/zero price.
 
-## Phase 2 hand-off (placing real orders later)
-- Add an authenticated Bitget trade service (account API keys).
-- In `SignalExecutorService.execute()`, after persisting, place the order and store the broker order id (see the commented Phase 2 block). Set `mode = LIVE`.
-- Optionally gate with an env flag (e.g. `LIVE_TRADING_ENABLED`).
+## Phase 2 — LIVE order placement
 
-### 🔴 REQUIRED before enabling LIVE (when the Bitget account API key exists)
-These are deferred on purpose — they only matter once real orders are placed. **Do not flip `mode = LIVE` until both are implemented.**
+The execution seam now has a real LIVE path. `SignalExecutorService.execute()` branches on `LIVE_TRADING_ENABLED` (+ credentials present):
+- **PAPER** (default): print + persist `mode='PAPER'`, no order.
+- **LIVE**: persist `mode='LIVE'` (the signal id is the broker `clientOid` → idempotency) → `setLeverage()` → `placeOrder()` with **required preset TP/SL** attached → store `brokerOrderId`. On failure the signal is set `status='FAILED'` (no phantom ACTIVE) and an `ORDER_FAILED` audit row captures the Bitget code + message.
 
-1. **Idempotency on order place/close.** Generate a stable `clientOrderId` per signal (e.g. the `DayTradingSignal.id`) and pass it to Bitget (`clientOid`). The exchange then rejects duplicates, which is what makes `withRetry` safe for the order calls — without it, a retry after a timeout can place/close a **second real order**. Wrap the place/close calls in `withRetry` only **after** this is in place. Store the returned `brokerOrderId`.
-2. **Reconciliation on startup + periodic.** In-memory state is lost on every worker restart (i.e. every `./deploy.sh`). Add a job that, for each `ACTIVE` signal in the DB, queries Bitget for the real order/position state and repairs drift (exchange closed but DB still ACTIVE, or vice-versa); log fixes as `RECONCILE_FIX` in the audit trail. This is the primary guard against state divergence caused by deploying new code mid-trade. Use the broker fill as the source of truth for `closedPrice`/`pnlUsd` (see the LIVE note below).
+`BitgetTradeService` (`bitget-trade.service.ts`) is the authenticated Bitget v2 mix REST client (HMAC-signed): `setLeverage`, `placeOrder` (market + preset TP/SL, **TP and SL are mandatory** — a naked position is refused before hitting the exchange), `closePosition` (flash-close), `getPosition`/`getOrder` (read-only, `withRetry`-wrapped). Credentials are read lazily so the worker still boots in PAPER without keys (`isConfigured()` gates the LIVE path). Leverage defaults to `BITGET_LEVERAGE=10` (isolated); position **size is risk-based, independent of leverage**.
 
-Recommended companions (not strictly blocking, but do before sizing up): a **kill switch** (`tradingEnabled` flag checked in `scan()` + before execute, toggleable from the UI without a deploy) and **Telegram alerts** for order-place failures after retries, reconciliation fixes, and a stalled WS feed.
+Env: `BITGET_API_KEY` / `BITGET_API_SECRET` / `BITGET_API_PASSPHRASE` (account key, Trade-only, IP-whitelisted), `BITGET_PRODUCT_TYPE` (`usdt-futures` real | `susdt-futures` demo), `BITGET_LEVERAGE`, `LIVE_TRADING_ENABLED`.
+
+> 💵 **Small-account sizing**: with ~$50 capital, lower `riskPerTrade` to ~$0.5 in ⚙ Cấu hình. The default $2 risk at a 0.5% stop = $400 notional (~$40 margin at 10x), and the bot may hold LONG+SHORT at once → would exceed the account.
+
+### LIVE result-monitor + reconciliation (implemented)
+
+LIVE signals do **not** exit on a WS tick. The exchange owns their preset TP/SL; the bot reconciles the DB against the real broker state:
+- The WS-tick `evaluate()` path skips `mode==='LIVE'` (and skips bot-side break-even for LIVE — it would only diverge the DB stop from the exchange's actual SL order).
+- `ResultMonitorService.reconcileLiveSignals()` runs **at startup** (5s after boot) and **every minute** (`DayTradingService.runResultMonitor`). For each ACTIVE LIVE signal: `getPosition(symbol, holdSide)` — if still open, leave it; if the exchange is flat, `getClosedPosition()` reads the real fill (`closeAvgPrice` + `netProfit` after fees), the DB row is closed race-safely (`closeActiveSignal`), classified TP_HIT/SL_HIT by which level the fill is nearer, and an `RECONCILE_FIX` audit row records the broker-sourced exit. A lagging history feed returns null → the row is left ACTIVE for the next pass. This is the restart-safety sync (state is lost on every `./deploy.sh`).
+
+### 🟡 Before sizing up (recommended, not strictly blocking)
+1. **Retry-wrap the order place/close calls** (now safe given `clientOid` idempotency) so a transient network hiccup on entry doesn't drop a setup.
+2. **Kill switch** (`tradingEnabled` flag in the UI, checked before execute, no deploy) and **Telegram alerts** for order-place failures / reconciliation fixes / stalled WS.
+3. **Verify before first real order**: `PRICE_DECIMALS`/`SIZE_DECIMALS` vs the BTCUSDT contract, account margin mode = isolated (or send `crossed`), and lower `riskPerTrade` to ~$0.5 for a ~$50 account.
+
+**Manual force-close (LIVE) — wired.** `POST /day-trading/signals/:id/close` now flash-closes the REAL Bitget position before writing the DB row. Order of operations is deliberate: check position → `closePosition` on the exchange → then `closeActiveSignal` MANUAL_CLOSE. If the exchange close fails the request throws (`503`) and the row stays ACTIVE (never orphan an open position). If the exchange is already flat (TP/SL filled meanwhile) it returns `409` so the worker reconciliation records the real fill instead of a MANUAL_CLOSE estimate. Uses a small scoped `BitgetTradeClient` in the API (the API can't import the worker's service); keep its HMAC signing in sync with the worker client. MANUAL_CLOSE PnL is still the price-estimate (excluded from win rate).
+
+> ✅ **Done**: idempotent `clientOid` (= signal id), `brokerOrderId` column + persistence, mandatory preset TP/SL, deterministic leverage, immediate error logging + durable `ORDER_FAILED` audit, LIVE reconciliation (startup + per-minute) reading real broker fills, WS-tick path PAPER-only.
 
 > ⚠️ **LIVE mode MUST place a real TP limit order (and an SL stop) on Bitget — do not rely on the result monitor to "exit" the trade.**
 >
@@ -81,7 +95,11 @@ Recommended companions (not strictly blocking, but do before sizing up): a **kil
 - `apps/worker/src/modules/day-trading/bitget.service.ts` — Bitget REST client (historical candles + price fallback)
 - `apps/worker/src/modules/day-trading/setup-analyzer.service.ts` — setup detection (Liquidity Sweep, Trend Pullback), trendline trend (no EMA), swing-based SL, strong S/R-zone TP, stop-distance floor
 - `apps/worker/src/scripts/backtest-day-trading.ts` — walk-forward backtest harness for the strategy (`pnpm --filter worker backtest:daytrading`); reuses the real `SetupAnalyzerService`, models fees + stop floor
-- `apps/worker/src/modules/day-trading/signal-executor.service.ts` — **execution seam**: Phase 1 paper print/persist; Phase 2 live orders
+- `apps/worker/src/modules/day-trading/signal-executor.service.ts` — **execution seam**: PAPER print/persist; LIVE setLeverage→placeOrder(preset TP/SL)→attach `brokerOrderId`, `ORDER_FAILED` audit on failure
+- `apps/worker/src/modules/day-trading/bitget-trade.service.ts` — authenticated Bitget v2 mix client (HMAC): `setLeverage`, `placeOrder` (market + mandatory preset TP/SL), `closePosition`, `getPosition(symbol, holdSide?)`, `getOrder`, `getClosedPosition` (real fill + netProfit for reconciliation); `BitgetApiError` carries the exchange code
+- `apps/worker/src/modules/day-trading/result-monitor.service.ts` (LIVE) — `reconcileLiveSignals()`/`reconcileOne()`: startup + per-minute broker reconciliation closing LIVE rows from the real fill; WS-tick path skips LIVE
+- `packages/db/prisma/migrations/20260620000000_add_day_trading_broker_order_id/migration.sql` — `brokerOrderId` column
+- `packages/db/prisma/migrations/20260620000001_clear_day_trading_signals/migration.sql` — one-time wipe of existing signals before going LIVE
 - `apps/worker/src/modules/day-trading/result-monitor.service.ts` — TP/SL detection using WS price (REST fallback) + break-even stop move at +1R; race-safe close via `closeActiveSignal`, retry-wrapped close write, audit logging
 - `apps/worker/src/modules/day-trading/retry.util.ts` — `withRetry()` (3× exponential backoff) for critical I/O; **wrap order place/close only after idempotency is added**
 - `apps/worker/src/modules/day-trading/audit.util.ts` — fire-and-forget `audit()` helper writing `DayTradingActionLog` rows (never throws)
@@ -89,7 +107,8 @@ Recommended companions (not strictly blocking, but do before sizing up): a **kil
 - `apps/worker/src/modules/day-trading/day-trading.service.ts` — orchestrator: WS-triggered scan + cron fallback + dedup + guards
 - `apps/worker/src/modules/day-trading/day-trading.module.ts` — NestJS module
 - `apps/api/src/modules/day-trading/day-trading.controller.ts` — REST endpoints (`GET /day-trading/signals`, `/stats`, `/:id`, `GET /day-trading/price`, `PATCH /day-trading/signals/:id/note`, `POST /day-trading/signals/:id/close`, `GET|PUT /day-trading/settings`)
-- `apps/api/src/modules/day-trading/day-trading.service.ts` — API service layer (incl. `getCurrentPrice()` — live Bitget price with 2s cache + stale fallback; `updateNote()`; `closeSignal()` — race-safe manual market close)
+- `apps/api/src/modules/day-trading/day-trading.service.ts` — API service layer (incl. `getCurrentPrice()` — live Bitget price with 2s cache + stale fallback; `updateNote()`; `closeSignal()` — race-safe manual market close, **flash-closes the real Bitget position first for LIVE**)
+- `apps/api/src/modules/day-trading/bitget-trade.client.ts` — scoped authenticated Bitget client for the API force-close (`getPositionSize`, `closePosition`); HMAC signing mirrors the worker's `BitgetTradeService`
 - `apps/api/src/modules/day-trading/dto/update-note.dto.ts` — trader-note update validation
 - `apps/api/src/modules/day-trading/dto/update-settings.dto.ts` — settings update validation
 - `packages/db/src/repositories/day-trading.repository.ts` — DB repository (incl. `findLatestSignal` dedup, `getSettings`/`updateSettings`, `countTodayLosses`, `updateNote`, race-safe `closeActiveSignal`, `logAction`)

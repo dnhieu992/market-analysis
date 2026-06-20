@@ -62,6 +62,14 @@ export class DayTradingService implements OnModuleInit {
     } catch (err) {
       this.logger.error(`Result monitor failed: ${this.errMsg(err)}`);
     }
+    // LIVE positions are exited by the exchange's preset TP/SL; reconcile the DB
+    // against the real broker state (also the restart-safety sync). Separate
+    // try/catch so a broker hiccup never masks the PAPER monitor above.
+    try {
+      await this.monitor.reconcileLiveSignals();
+    } catch (err) {
+      this.logger.error(`LIVE reconciliation failed: ${this.errMsg(err)}`);
+    }
   }
 
   private async runScan(trigger: string): Promise<void> {

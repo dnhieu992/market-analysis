@@ -15,10 +15,24 @@ export function createDayTradingRepository(client = prisma) {
       positionValue?: number;
       status: string;
       mode?: string;
+      brokerOrderId?: string | null;
       setupJson: string;
       detectedAt: Date;
     }) {
       return client.dayTradingSignal.create({ data });
+    },
+
+    /** Store the Bitget order id once a LIVE order is placed. */
+    attachBrokerOrder(id: string, brokerOrderId: string) {
+      return client.dayTradingSignal.update({ where: { id }, data: { brokerOrderId } });
+    },
+
+    /**
+     * Mark a signal FAILED when the LIVE order could not be placed, so a phantom
+     * ACTIVE row never lingers (the result monitor only looks at ACTIVE).
+     */
+    markSignalFailed(id: string) {
+      return client.dayTradingSignal.update({ where: { id }, data: { status: 'FAILED' } });
     },
 
     /** Most recent signal for dedup — avoid re-firing the same setup across consecutive candles. */

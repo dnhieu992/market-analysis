@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
 import { createDayTradingRepository } from '@app/db';
+import { BitgetTradeClient } from './bitget-trade.client';
 import type { QuerySignalsDto } from './dto/query-signals.dto';
 import type { UpdateDayTradingSettingsDto } from './dto/update-settings.dto';
 
@@ -29,6 +30,7 @@ export class DayTradingService {
     timeout: 8_000,
   });
   private priceCache: { price: number; at: number } | null = null;
+  private readonly trade = new BitgetTradeClient();
 
   /** Live BTCUSDT futures mark price from Bitget public REST (2s cached). */
   async getCurrentPrice(): Promise<{ price: number; at: string }> {
@@ -97,16 +99,22 @@ export class DayTradingService {
 
   /**
    * Force-close an OPEN position at the current market price (manual override).
-   * In PAPER mode this just records the exit; in LIVE mode this is where the
-   * market-close order would be sent (see docs: idempotency, REQUIRED before live).
-   * The DB write is race-safe (`closeActiveSignal` only fires while ACTIVE), so it
-   * can't double-close against a concurrent TP/SL tick in the worker.
+   * PAPER just records the exit. LIVE first flash-closes the REAL Bitget position
+   * (so the click can never orphan an open position), then records it — the
+   * exchange close happens BEFORE the DB write on purpose: if it fails we throw
+   * and leave the row ACTIVE rather than mark it closed while money is still at
+   * risk. The DB write is race-safe (`closeActiveSignal` only fires while ACTIVE),
+   * so it can't double-close against a concurrent TP/SL tick in the worker.
    */
   async closeSignal(id: string) {
     const signal = await repo.findById(id);
     if (!signal) throw new NotFoundException(`Signal ${id} not found`);
     if (signal.status !== 'ACTIVE') {
       throw new ConflictException(`Signal is not open (status: ${signal.status})`);
+    }
+
+    if (signal.mode === 'LIVE') {
+      await this.closeLivePosition(signal.symbol, signal.direction, id);
     }
 
     const { price } = await this.getCurrentPrice();
@@ -142,6 +150,33 @@ export class DayTradingService {
 
     this.logger.log(`Signal ${id} manually closed @ ${price} → $${pnlUsd.toFixed(2)}`);
     return repo.findById(id);
+  }
+
+  /**
+   * Flash-close the real Bitget position for a LIVE signal. Throws (aborting the
+   * DB close) if credentials are missing or the exchange call fails — never mark
+   * a row closed while the real position might still be open. If the exchange is
+   * already flat (TP/SL filled meanwhile), abort with 409 so the worker's
+   * reconciliation records the real fill instead of a MANUAL_CLOSE estimate.
+   */
+  private async closeLivePosition(symbol: string, direction: string, id: string): Promise<void> {
+    if (!this.trade.isConfigured()) {
+      throw new ServiceUnavailableException('Bitget credentials not configured — cannot close a LIVE position');
+    }
+    const holdSide = direction === 'LONG' ? 'long' : 'short';
+    try {
+      const size = await this.trade.getPositionSize(symbol, holdSide);
+      if (size <= 0) {
+        throw new ConflictException('Position already closed on the exchange — it will be reconciled');
+      }
+      await this.trade.closePosition(symbol, holdSide);
+      this.logger.log(`LIVE position flash-closed on Bitget: ${symbol} ${holdSide} (signal ${id})`);
+    } catch (err) {
+      if (err instanceof ConflictException) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to close LIVE position ${symbol} (signal ${id}): ${msg}`);
+      throw new ServiceUnavailableException(`Could not close LIVE position on Bitget: ${msg}`);
+    }
   }
 
   getSettings() {

@@ -426,6 +426,9 @@ model DayTradingSignal {
   positionValue Float?
   status        String    @db.VarChar(20)
   mode          String    @default("PAPER") @db.VarChar(10)
+  /// Bitget order id returned when a LIVE order is placed; null in PAPER mode.
+  /// Used by reconciliation and to read the real fill price/PnL from the broker.
+  brokerOrderId String?   @db.VarChar(64)
   breakEvenMoved Boolean  @default(false)
   closedPrice   Float?
   closedAt      DateTime?

@@ -1,0 +1,90 @@
+import { createHmac } from 'node:crypto';
+import axios, { type AxiosInstance, type Method } from 'axios';
+
+/**
+ * Minimal authenticated Bitget v2 mix client for the API — only what the manual
+ * force-close needs: read the open position and flash-close it at market. The
+ * worker has the full trading client (`apps/worker/.../bitget-trade.service.ts`);
+ * this is a deliberately small, scoped copy so the API can close a REAL LIVE
+ * position without depending on the worker process. Keep the signing in sync
+ * with the worker version if Bitget ever changes it.
+ */
+
+const BASE_URL = 'https://api.bitget.com';
+const MARGIN_COIN = 'USDT';
+
+type BitgetEnvelope<T> = { code: string; msg: string; data: T };
+
+export class BitgetTradeClient {
+  private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 8_000 });
+  private readonly apiKey = process.env.BITGET_API_KEY ?? '';
+  private readonly apiSecret = process.env.BITGET_API_SECRET ?? '';
+  private readonly passphrase = process.env.BITGET_API_PASSPHRASE ?? '';
+  private readonly productType = process.env.BITGET_PRODUCT_TYPE ?? 'usdt-futures';
+
+  isConfigured(): boolean {
+    return Boolean(this.apiKey && this.apiSecret && this.passphrase);
+  }
+
+  /** Open size for a side, or 0 if the exchange is flat. */
+  async getPositionSize(symbol: string, holdSide: 'long' | 'short'): Promise<number> {
+    const data = await this.request<
+      Array<{ holdSide: 'long' | 'short'; total: string }>
+    >('GET', '/api/v2/mix/position/single-position', {
+      symbol,
+      productType: this.productType,
+      marginCoin: MARGIN_COIN,
+    });
+    const open = data.find((p) => p.holdSide === holdSide && Number(p.total) > 0);
+    return open ? Number(open.total) : 0;
+  }
+
+  /** Flash-close the open position for a side at market (reduce-only). */
+  async closePosition(symbol: string, holdSide: 'long' | 'short'): Promise<void> {
+    await this.request<unknown>('POST', '/api/v2/mix/order/close-positions', undefined, {
+      symbol,
+      productType: this.productType,
+      holdSide,
+    });
+  }
+
+  private async request<T>(
+    method: Extract<Method, 'GET' | 'POST'>,
+    path: string,
+    query?: Record<string, string>,
+    body?: Record<string, string>,
+  ): Promise<T> {
+    const timestamp = Date.now().toString();
+    const queryString = query
+      ? new URLSearchParams(
+          Object.keys(query)
+            .sort()
+            .map((k) => [k, query[k]] as [string, string]),
+        ).toString()
+      : '';
+    const requestPath = queryString ? `${path}?${queryString}` : path;
+    const bodyString = body ? JSON.stringify(body) : '';
+
+    const prehash = timestamp + method + requestPath + bodyString;
+    const sign = createHmac('sha256', this.apiSecret).update(prehash).digest('base64');
+
+    const res = await this.client.request<BitgetEnvelope<T>>({
+      method,
+      url: requestPath,
+      data: method === 'POST' ? bodyString : undefined,
+      headers: {
+        'ACCESS-KEY': this.apiKey,
+        'ACCESS-SIGN': sign,
+        'ACCESS-TIMESTAMP': timestamp,
+        'ACCESS-PASSPHRASE': this.passphrase,
+        'Content-Type': 'application/json',
+        locale: 'en-US',
+      },
+    });
+
+    if (res.data.code !== '00000') {
+      throw new Error(`Bitget ${path} error ${res.data.code}: ${res.data.msg}`);
+    }
+    return res.data.data;
+  }
+}

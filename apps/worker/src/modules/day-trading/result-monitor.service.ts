@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createDayTradingRepository } from '@app/db';
 import { BitgetService } from './bitget.service';
+import { BitgetTradeService } from './bitget-trade.service';
 import { BitgetWebSocketService } from './bitget-websocket.service';
 import { withRetry } from './retry.util';
 import { audit } from './audit.util';
@@ -32,6 +33,7 @@ export class ResultMonitorService implements OnModuleInit {
   constructor(
     private readonly bitget: BitgetService,
     private readonly ws: BitgetWebSocketService,
+    private readonly trade: BitgetTradeService,
   ) {}
 
   onModuleInit(): void {
@@ -39,9 +41,19 @@ export class ResultMonitorService implements OnModuleInit {
     // detected as close to the actual touch as the public feed allows. We record
     // the real observed price as the close (no idealised fill) — this mirrors a
     // market exit and surfaces the true gap vs the TP/SL level for review.
+    // NOTE: this path is PAPER-only; LIVE signals are reconciled against the
+    // broker (the exchange owns their preset TP/SL — see reconcileLiveSignals).
     this.ws.on('price', (price: number) => {
       void this.onTick(price);
     });
+
+    // Startup reconciliation: in-memory state is lost on every worker restart
+    // (i.e. every ./deploy.sh). Sync DB-ACTIVE LIVE signals against the real
+    // Bitget position state once at boot, after a short settle delay. The
+    // per-minute cron keeps it in sync thereafter.
+    if (this.trade.isConfigured()) {
+      setTimeout(() => void this.reconcileLiveSignals(), 5_000);
+    }
   }
 
   /** Real-time path — runs on each WS tick against the cached active set. */
@@ -94,6 +106,11 @@ export class ResultMonitorService implements OnModuleInit {
   private async evaluate(price: number): Promise<void> {
     for (const signal of this.active) {
       if (this.closing.has(signal.id)) continue;
+      // LIVE signals exit via the exchange's preset TP/SL, not a WS tick — they
+      // are closed by reconcileLiveSignals() reading the real broker fill. The
+      // bot-side break-even is also skipped for LIVE (it would only diverge the
+      // DB stop from the exchange's actual SL order).
+      if (signal.mode === 'LIVE') continue;
 
       const { id, direction, entryPrice, takeProfit } = signal;
 
@@ -183,6 +200,91 @@ export class ResultMonitorService implements OnModuleInit {
       } finally {
         this.closing.delete(id);
       }
+    }
+  }
+
+  /**
+   * LIVE reconciliation — the source-of-truth sync for real positions.
+   *
+   * For each DB-ACTIVE LIVE signal, ask Bitget whether its position is still
+   * open. If the exchange has closed it (preset TP or SL filled), read the REAL
+   * fill (close price + net realized PnL after fees) and close the DB row to
+   * match, classifying TP_HIT vs SL_HIT by which level the fill is nearer. This
+   * is what keeps the DB in step with the broker across worker restarts and
+   * replaces the WS-tick close for LIVE. Runs at startup and every minute.
+   */
+  async reconcileLiveSignals(): Promise<void> {
+    if (!this.trade.isConfigured()) return;
+
+    let live: ActiveSignal[];
+    try {
+      live = (await this.repo.findActiveSignals('BTCUSDT')).filter((s) => s.mode === 'LIVE');
+    } catch (err) {
+      this.logger.warn(`Reconcile: failed to load LIVE signals: ${this.errMsg(err)}`);
+      return;
+    }
+    for (const signal of live) {
+      if (this.closing.has(signal.id)) continue;
+      await this.reconcileOne(signal);
+    }
+  }
+
+  private async reconcileOne(signal: ActiveSignal): Promise<void> {
+    const holdSide = signal.direction === 'LONG' ? 'long' : 'short';
+    try {
+      const pos = await this.trade.getPosition(signal.symbol, holdSide);
+      if (pos && pos.size > 0) return; // still open on the exchange → leave ACTIVE
+
+      // Exchange is flat for this side. Find the matching closed position to read
+      // the real fill. If the history feed lags (null), leave it for the next
+      // pass rather than guessing a close price.
+      const closed = await this.trade.getClosedPosition(
+        signal.symbol,
+        holdSide,
+        new Date(signal.detectedAt).getTime(),
+      );
+      if (!closed) return;
+
+      const closePrice = closed.closeAvgPrice;
+      const hit: 'TP_HIT' | 'SL_HIT' =
+        Math.abs(closePrice - signal.takeProfit) <= Math.abs(closePrice - signal.stopLoss)
+          ? 'TP_HIT'
+          : 'SL_HIT';
+
+      this.closing.add(signal.id);
+      try {
+        // Race-safe: closeActiveSignal only writes while still ACTIVE.
+        const won = await this.repo.closeActiveSignal(signal.id, {
+          status: hit,
+          closedPrice: closePrice,
+          closedAt: new Date(closed.closedAtMs),
+          pnlUsd: closed.netProfit, // REAL realized PnL from the broker (after fees)
+        });
+        if (!won) return; // already closed by another path
+
+        this.logger.log(
+          `Reconcile: LIVE signal ${signal.id} closed ${hit} @ ${closePrice} → $${closed.netProfit.toFixed(2)} (broker fill)`,
+        );
+        audit(this.repo, this.logger, {
+          action: 'RECONCILE_FIX',
+          signalId: signal.id,
+          symbol: signal.symbol,
+          message: `LIVE ${hit} reconciled from broker @ ${closePrice} → $${closed.netProfit.toFixed(2)}`,
+          detail: {
+            hit,
+            closedPrice: closePrice,
+            pnlUsd: closed.netProfit,
+            takeProfit: signal.takeProfit,
+            stopLoss: signal.stopLoss,
+            direction: signal.direction,
+            source: 'broker',
+          },
+        });
+      } finally {
+        this.closing.delete(signal.id);
+      }
+    } catch (err) {
+      this.logger.warn(`Reconcile ${signal.id} failed: ${this.errMsg(err)}`);
     }
   }
 

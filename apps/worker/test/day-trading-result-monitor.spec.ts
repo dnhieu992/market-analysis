@@ -25,10 +25,21 @@ function makeMonitor(signal: Record<string, unknown>, closeResult = true) {
     logAction: jest.fn().mockResolvedValue(undefined),
     findActiveSignals: jest.fn().mockResolvedValue([signal]),
   };
-  const svc = new ResultMonitorService({} as any, {} as any);
+  const svc = new ResultMonitorService({} as any, {} as any, { isConfigured: () => false } as any);
   (svc as any).repo = repo;
   (svc as any).active = [signal];
   (svc as any).cacheAt = Date.now();
+  return { svc, repo };
+}
+
+function makeReconciler(signal: Record<string, unknown>, trade: Record<string, unknown>, closeResult = true) {
+  const repo = {
+    closeActiveSignal: jest.fn().mockResolvedValue(closeResult),
+    logAction: jest.fn().mockResolvedValue(undefined),
+    findActiveSignals: jest.fn().mockResolvedValue([signal]),
+  };
+  const svc = new ResultMonitorService({} as any, {} as any, { isConfigured: () => true, ...trade } as any);
+  (svc as any).repo = repo;
   return { svc, repo };
 }
 
@@ -70,9 +81,67 @@ describe('ResultMonitorService.evaluate', () => {
     expect(repo.logAction).not.toHaveBeenCalled();
   });
 
+  it('skips LIVE signals on the WS tick path (exchange owns their TP/SL)', async () => {
+    const { svc, repo } = makeMonitor(baseSignal({ mode: 'LIVE' }));
+    await (svc as any).evaluate(103); // would be a TP for a PAPER signal
+    expect(repo.closeActiveSignal).not.toHaveBeenCalled();
+  });
+
   it('ignores non-finite prices', async () => {
     const { svc, repo } = makeMonitor(baseSignal());
     await (svc as any).onTick(Number.NaN);
+    expect(repo.closeActiveSignal).not.toHaveBeenCalled();
+  });
+});
+
+describe('ResultMonitorService.reconcileLiveSignals', () => {
+  const liveSignal = (over = {}) =>
+    baseSignal({ mode: 'LIVE', brokerOrderId: 'ord1', detectedAt: new Date(), ...over });
+
+  it('leaves a LIVE signal open while the exchange position is still open', async () => {
+    const trade = {
+      getPosition: jest.fn().mockResolvedValue({ size: 0.1, holdSide: 'long' }),
+      getClosedPosition: jest.fn(),
+    };
+    const { svc, repo } = makeReconciler(liveSignal(), trade);
+    await svc.reconcileLiveSignals();
+    expect(trade.getClosedPosition).not.toHaveBeenCalled();
+    expect(repo.closeActiveSignal).not.toHaveBeenCalled();
+  });
+
+  it('closes a LIVE signal as TP_HIT from the real broker fill when the exchange is flat', async () => {
+    const trade = {
+      getPosition: jest.fn().mockResolvedValue(null), // flat
+      getClosedPosition: jest.fn().mockResolvedValue({ closeAvgPrice: 102, netProfit: 0.18, closedAtMs: Date.now() }),
+    };
+    const { svc, repo } = makeReconciler(liveSignal(), trade);
+    await svc.reconcileLiveSignals();
+    expect(repo.closeActiveSignal).toHaveBeenCalledWith(
+      'sig1',
+      expect.objectContaining({ status: 'TP_HIT', closedPrice: 102, pnlUsd: 0.18 }),
+    );
+  });
+
+  it('classifies SL_HIT when the fill is nearer the stop, using real netProfit', async () => {
+    const trade = {
+      getPosition: jest.fn().mockResolvedValue(null),
+      getClosedPosition: jest.fn().mockResolvedValue({ closeAvgPrice: 99, netProfit: -0.11, closedAtMs: Date.now() }),
+    };
+    const { svc, repo } = makeReconciler(liveSignal(), trade);
+    await svc.reconcileLiveSignals();
+    expect(repo.closeActiveSignal).toHaveBeenCalledWith(
+      'sig1',
+      expect.objectContaining({ status: 'SL_HIT', pnlUsd: -0.11 }),
+    );
+  });
+
+  it('leaves the row ACTIVE when the broker close-history still lags (null)', async () => {
+    const trade = {
+      getPosition: jest.fn().mockResolvedValue(null),
+      getClosedPosition: jest.fn().mockResolvedValue(null),
+    };
+    const { svc, repo } = makeReconciler(liveSignal(), trade);
+    await svc.reconcileLiveSignals();
     expect(repo.closeActiveSignal).not.toHaveBeenCalled();
   });
 });
