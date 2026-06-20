@@ -61,7 +61,9 @@ The execution seam now has a real LIVE path. `SignalExecutorService.execute()` b
 
 `BitgetTradeService` (`bitget-trade.service.ts`) is the authenticated Bitget v2 mix REST client (HMAC-signed): `setLeverage`, `placeOrder` (market + preset TP/SL, **TP and SL are mandatory** — a naked position is refused before hitting the exchange), `closePosition` (flash-close), `getPosition`/`getOrder` (read-only, `withRetry`-wrapped). Credentials are read lazily so the worker still boots in PAPER without keys (`isConfigured()` gates the LIVE path). Leverage defaults to `BITGET_LEVERAGE=10` (isolated); position **size is risk-based, independent of leverage**.
 
-Env: `BITGET_API_KEY` / `BITGET_API_SECRET` / `BITGET_API_PASSPHRASE` (account key, Trade-only, IP-whitelisted), `BITGET_PRODUCT_TYPE` (`usdt-futures` real | `susdt-futures` demo), `BITGET_LEVERAGE`, `LIVE_TRADING_ENABLED`.
+Env: `BITGET_API_KEY` / `BITGET_API_SECRET` / `BITGET_API_PASSPHRASE` (account key, Trade-only, IP-whitelisted), `BITGET_PRODUCT_TYPE` (`usdt-futures` real | `susdt-futures` demo), `BITGET_LEVERAGE`, `LIVE_TRADING_ENABLED`, `BITGET_POSITION_MODE` (`hedge` default | `one-way`).
+
+**Position mode**: Bitget hedge-mode accounts require `tradeSide` on `place-order`; one-way accounts must omit it. `placeOrder` adds `tradeSide:'open'` when `BITGET_POSITION_MODE` is `hedge` (the default — must match the Bitget account's actual mode, or every order is rejected with HTTP 400). The signed `request()` parses the Bitget `{code,msg}` envelope **even on HTTP 4xx** (`validateStatus: () => true`) so a business rejection surfaces its real Bitget code instead of a bare "status code 400". Order size is floored to the contract `volumePlace` (BTCUSDT = **4** dp, `minTradeNum` 0.0001) and a zero-after-floor size is refused before sending.
 
 > 💵 **Small-account sizing**: with ~$50 capital, lower `riskPerTrade` to ~$0.5 in ⚙ Cấu hình. The default $2 risk at a 0.5% stop = $400 notional (~$40 margin at 10x), and the bot may hold LONG+SHORT at once → would exceed the account.
 
