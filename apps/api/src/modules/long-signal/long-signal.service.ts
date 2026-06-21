@@ -163,4 +163,16 @@ export class LongSignalService {
   updateSettings(dto: UpdateLongSignalSettingsDto) {
     return repo.updateSettings(dto);
   }
+
+  /**
+   * Whether LIVE orders can actually reach Bitget. The UI toggle flips the DB
+   * `mode`, but a real order also needs the server env gate AND credentials —
+   * `armed` is the AND of all three so the dashboard can warn when LIVE is
+   * selected but would still fall back to PAPER on the worker.
+   */
+  getLiveStatus() {
+    const envEnabled = process.env.LIVE_TRADING_ENABLED === 'true';
+    const bitgetConfigured = this.trade.isConfigured();
+    return { envEnabled, bitgetConfigured, armed: envEnabled && bitgetConfigured };
+  }
 }

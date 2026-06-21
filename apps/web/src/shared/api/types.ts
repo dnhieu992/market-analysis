@@ -677,6 +677,15 @@ export type LongSignalSettings = {
 
 export type UpdateLongSignalSettingsInput = Partial<LongSignalSettings>;
 
+export type LongSignalLiveStatus = {
+  /** Server env LIVE_TRADING_ENABLED === 'true'. */
+  envEnabled: boolean;
+  /** Bitget API key/secret/passphrase all present on the server. */
+  bitgetConfigured: boolean;
+  /** envEnabled && bitgetConfigured — real orders only fire when this is true. */
+  armed: boolean;
+};
+
 export type LongSignalPrices = {
   prices: Record<string, number>;
   at: string;

@@ -3,7 +3,7 @@ import { LongSignalFeed } from '@web/widgets/long-signal/long-signal-feed';
 import type { LongSignal, LongSignalStats, LongSignalSettings } from '@web/shared/api/types';
 
 const DEFAULT_SETTINGS: LongSignalSettings = {
-  notional: 100,
+  notional: 50,
   keyValue: 1,
   atrPeriod: 10,
   tpPct: 2,

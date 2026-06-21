@@ -49,6 +49,7 @@ import type {
   LongSignalStats,
   LongSignalSettings,
   LongSignalPrices,
+  LongSignalLiveStatus,
   UpdateLongSignalSettingsInput,
   SwingTradingSignal,
   SwingTradingSignalsResponse,
@@ -965,6 +966,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async fetchLongSignalPrices(): Promise<LongSignalPrices> {
       return fetchJson<LongSignalPrices>(fetchImpl, `${baseUrl}/long-signal/prices`, withDefaults({}));
+    },
+
+    async fetchLongSignalLiveStatus(): Promise<LongSignalLiveStatus> {
+      return fetchJson<LongSignalLiveStatus>(fetchImpl, `${baseUrl}/long-signal/live-status`, withDefaults({}));
     },
 
     async updateLongSignalNote(id: string, note: string): Promise<LongSignal> {

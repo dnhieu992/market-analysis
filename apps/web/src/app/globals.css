@@ -8710,6 +8710,75 @@ a.metric-card--link:hover {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  align-items: flex-start;
+}
+
+.dt-livetoggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.dt-livetoggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.dt-livetoggle-btn:hover:not(:disabled) { border-color: var(--accent); }
+.dt-livetoggle-btn:disabled { opacity: 0.6; cursor: default; }
+
+.dt-livetoggle-knob {
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.dt-livetoggle-knob::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+
+.dt-livetoggle-btn--on {
+  background: rgba(194, 69, 58, 0.1);
+  border-color: #c2453a;
+  color: #c2453a;
+}
+.dt-livetoggle-btn--on .dt-livetoggle-knob { background: #c2453a; }
+.dt-livetoggle-btn--on .dt-livetoggle-knob::after { transform: translateX(16px); }
+
+.dt-livetoggle-warn {
+  font-size: 0.68rem;
+  color: #c2453a;
+  font-weight: 600;
+  max-width: 220px;
+  text-align: right;
+}
+
+.dt-settings-note {
+  margin-top: 14px;
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
 .dt-settings {
