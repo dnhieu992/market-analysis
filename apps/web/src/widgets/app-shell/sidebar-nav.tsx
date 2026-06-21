@@ -73,6 +73,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'UTBot stop-and-reverse · ETH H4 kv2'
   },
   {
+    href: '/long-signal',
+    label: 'Long Signal',
+    description: 'LONG sáng · lọc M30 UTBot · POL/XRP/SOL/TAO'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

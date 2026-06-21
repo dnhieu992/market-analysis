@@ -44,6 +44,12 @@ import type {
   DayTradingSettings,
   DayTradingPrice,
   UpdateDayTradingSettingsInput,
+  LongSignal,
+  LongSignalsResponse,
+  LongSignalStats,
+  LongSignalSettings,
+  LongSignalPrices,
+  UpdateLongSignalSettingsInput,
   SwingTradingSignal,
   SwingTradingSignalsResponse,
   SwingTradingStats,
@@ -934,6 +940,61 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<DayTradingSettings>(
         fetchImpl,
         `${baseUrl}/day-trading/settings`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async fetchLongSignals(params: { status?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): Promise<LongSignalsResponse> {
+      const qs = new URLSearchParams();
+      if (params.status) qs.set('status', params.status);
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      if (params.limit != null) qs.set('limit', String(params.limit));
+      if (params.offset != null) qs.set('offset', String(params.offset));
+      const url = `${baseUrl}/long-signal/signals${qs.toString() ? `?${qs}` : ''}`;
+      return fetchJson<LongSignalsResponse>(fetchImpl, url, withDefaults({}));
+    },
+
+    async fetchLongSignalStats(): Promise<LongSignalStats> {
+      return fetchJson<LongSignalStats>(fetchImpl, `${baseUrl}/long-signal/signals/stats`, withDefaults({}));
+    },
+
+    async fetchLongSignalPrices(): Promise<LongSignalPrices> {
+      return fetchJson<LongSignalPrices>(fetchImpl, `${baseUrl}/long-signal/prices`, withDefaults({}));
+    },
+
+    async updateLongSignalNote(id: string, note: string): Promise<LongSignal> {
+      return fetchJson<LongSignal>(
+        fetchImpl,
+        `${baseUrl}/long-signal/signals/${encodeURIComponent(id)}/note`,
+        withDefaults({
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ note }),
+        }),
+      );
+    },
+
+    async closeLongSignal(id: string): Promise<LongSignal> {
+      return fetchJson<LongSignal>(
+        fetchImpl,
+        `${baseUrl}/long-signal/signals/${encodeURIComponent(id)}/close`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
+    async fetchLongSignalSettings(): Promise<LongSignalSettings> {
+      return fetchJson<LongSignalSettings>(fetchImpl, `${baseUrl}/long-signal/settings`, withDefaults({}));
+    },
+
+    async updateLongSignalSettings(input: UpdateLongSignalSettingsInput): Promise<LongSignalSettings> {
+      return fetchJson<LongSignalSettings>(
+        fetchImpl,
+        `${baseUrl}/long-signal/settings`,
         withDefaults({
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
