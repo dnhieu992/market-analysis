@@ -44,6 +44,7 @@ Built in two phases:
 - **WS price stale**: result monitor falls back to REST `fetchCurrentPrice`.
 - Bitget REST failure: logged as warning, scan skipped (non-fatal).
 - Insufficient candle data (<30×15m, <20×1H, <10×4H): scan skipped.
+- **EMA50 price-location gate is fail-CLOSED**: the Trend Pullback entry requires price on the trend side of the 15m EMA50. If the EMA can't be computed (too few candles → `ema50Entry = 0`), the gate now **blocks** the entry instead of waving it through. Earlier it failed *open* (`ema50Entry === 0 || …`), which silently disabled the filter — two LIVE shorts with `ema50: 0` in their `setupJson` slipped through and stopped out even though the committed logic (EMA active) rejected both. Fail-closed means a missing EMA can never again disable a core filter.
 - Daily limit reached (`maxTradesPerDay` signals or `maxLossesPerDay` losses): scan returns early.
 - Settings are a singleton row, created with defaults (risk $2, minRR 2, 5 trades, 2 losses) on first access; editable from the `/day-trading` page (⚙ Cấu hình). The stop-distance floor (`minStopPct`, default 0.5%) lives in `SetupAnalyzerService`.
 - Multiple setups trigger on one candle: only the first in quality order (Liquidity Sweep → Trend Pullback) is used.

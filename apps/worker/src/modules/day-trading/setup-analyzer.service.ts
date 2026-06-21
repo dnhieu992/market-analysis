@@ -394,9 +394,10 @@ export class SetupAnalyzerService {
       const bullishReclaim = latest.close > latest.open && (latest.close > prev.high || this.isBullishEngulfing(prev, latest));
       const aboveLow = lastLow != null && latest.close > lastLow.price;
       // Price-location gate: only take the LONG if price is on the bullish side of
-      // EMA50 (degrade open if EMA unavailable). Blocks counter-trend longs that
-      // the lagging trendline still tagged "up".
-      const aboveEma = this.ema50Entry === 0 || latest.close > this.ema50Entry;
+      // EMA50. Fail-CLOSED: if the EMA can't be computed (too few candles → 0) the
+      // gate blocks rather than waving the trade through — a missing EMA silently
+      // disabling this filter is exactly how two bad LIVE shorts got placed.
+      const aboveEma = this.ema50Entry > 0 && latest.close > this.ema50Entry;
       if (recent && bullishReclaim && aboveLow && aboveEma) {
         const sl = lastLow!.price * (1 - SL_BUFFER);            // below the nearest swing low
         const tp = this.nearestStrongAbove(latest.close, zones);
@@ -418,8 +419,9 @@ export class SetupAnalyzerService {
       // an engulfing) — NOT a full engulfing (see LONG note above).
       const bearishReject = latest.close < latest.open && (latest.close < prev.low || this.isBearishEngulfing(prev, latest));
       const belowHigh = lastHigh != null && latest.close < lastHigh.price;
-      // Price-location gate: only take the SHORT if price is on the bearish side of EMA50.
-      const belowEma = this.ema50Entry === 0 || latest.close < this.ema50Entry;
+      // Price-location gate: only take the SHORT if price is on the bearish side of
+      // EMA50. Fail-CLOSED (see LONG note): a missing/zero EMA blocks the trade.
+      const belowEma = this.ema50Entry > 0 && latest.close < this.ema50Entry;
       if (recent && bearishReject && belowHigh && belowEma) {
         const sl = lastHigh!.price * (1 + SL_BUFFER);           // above the nearest swing high
         const tp = this.nearestStrongBelow(latest.close, zones);
