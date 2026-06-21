@@ -8672,8 +8672,24 @@ a.metric-card--link:hover {
 @media (max-width: 600px) {
   .dt-page { padding: 16px 12px; }
 
+  /* Stack the header: title block on top, action toolbar full-width below. */
+  .dt-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .dt-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .dt-livetoggle-btn { flex: 1 1 auto; justify-content: center; }
+  .dt-header-actions .dt-refresh { flex: 1 1 auto; justify-content: center; }
+
   .dt-title { font-size: 1.25rem; }
   .dt-subtitle { font-size: 0.78rem; }
+
+  .dt-live-banner { margin-bottom: 14px; }
 
   .dt-stats {
     grid-template-columns: repeat(2, 1fr);
@@ -8710,36 +8726,39 @@ a.metric-card--link:hover {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-  align-items: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.dt-livetoggle {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
+/* Header controls share one height so the row reads as a clean toolbar. */
+.dt-refresh,
+.dt-livetoggle-btn {
+  height: 38px;
+  box-sizing: border-box;
 }
 
 .dt-livetoggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px 7px 8px;
+  gap: 9px;
+  padding: 0 15px 0 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.dt-livetoggle-btn:hover:not(:disabled) { border-color: var(--accent); }
+.dt-livetoggle-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--foreground); }
 .dt-livetoggle-btn:disabled { opacity: 0.6; cursor: default; }
 
 .dt-livetoggle-knob {
-  width: 34px;
-  height: 18px;
+  width: 36px;
+  height: 22px;
   border-radius: 999px;
   background: var(--border);
   position: relative;
@@ -8751,8 +8770,8 @@ a.metric-card--link:hover {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
@@ -8765,15 +8784,23 @@ a.metric-card--link:hover {
   color: #c2453a;
 }
 .dt-livetoggle-btn--on .dt-livetoggle-knob { background: #c2453a; }
-.dt-livetoggle-btn--on .dt-livetoggle-knob::after { transform: translateX(16px); }
+.dt-livetoggle-btn--on .dt-livetoggle-knob::after { transform: translateX(14px); }
 
-.dt-livetoggle-warn {
-  font-size: 0.68rem;
-  color: #c2453a;
-  font-weight: 600;
-  max-width: 220px;
-  text-align: right;
+/* Full-width warning banner shown when LIVE is selected but server isn't armed. */
+.dt-live-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(194, 69, 58, 0.08);
+  border: 1px solid rgba(194, 69, 58, 0.35);
+  color: #a23a31;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
+.dt-live-banner-icon { flex-shrink: 0; }
 
 .dt-settings-note {
   margin-top: 14px;

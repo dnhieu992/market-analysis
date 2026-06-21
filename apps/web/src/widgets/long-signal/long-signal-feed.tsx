@@ -322,47 +322,43 @@ function SettingsPanel({
 }
 
 /**
+ * Reason LIVE is selected but real orders still won't fire (server not armed),
+ * or null when armed / status unknown. Rendered as a banner under the header.
+ */
+function liveWarn(liveStatus: LongSignalLiveStatus | null): string | null {
+  if (!liveStatus || liveStatus.armed) return null;
+  if (!liveStatus.envEnabled) return 'Server chưa bật env LIVE_TRADING_ENABLED';
+  if (!liveStatus.bitgetConfigured) return 'Thiếu API key Bitget trên server';
+  return 'Server chưa sẵn sàng cho LIVE';
+}
+
+/**
  * Header on/off switch for LIVE trading. Flips the DB `mode` between PAPER and
- * LIVE (persisted immediately). A real order also needs the server env gate +
- * Bitget credentials, so when LIVE is selected but not `armed` we warn that the
- * bot still runs PAPER until the server side is enabled.
+ * LIVE (persisted immediately). Pure presentational pill — the "not armed"
+ * warning lives in a separate banner so the header row stays clean.
  */
 function LiveToggle({
   mode,
-  liveStatus,
   busy,
   onToggle,
 }: {
   mode: 'PAPER' | 'LIVE';
-  liveStatus: LongSignalLiveStatus | null;
   busy: boolean;
   onToggle: () => void;
 }) {
   const isLive = mode === 'LIVE';
-  const notArmed = isLive && liveStatus != null && !liveStatus.armed;
-  const warn = liveStatus && !liveStatus.envEnabled
-    ? 'Server chưa bật env LIVE_TRADING_ENABLED'
-    : liveStatus && !liveStatus.bitgetConfigured
-      ? 'Thiếu API key Bitget trên server'
-      : null;
-
   return (
-    <div className="dt-livetoggle">
-      <button
-        type="button"
-        className={`dt-livetoggle-btn${isLive ? ' dt-livetoggle-btn--on' : ''}`}
-        onClick={onToggle}
-        disabled={busy}
-        aria-pressed={isLive}
-        title="Bật/tắt giao dịch thật trên Bitget"
-      >
-        <span className="dt-livetoggle-knob" />
-        <span className="dt-livetoggle-text">
-          {busy ? 'Đang đổi…' : isLive ? '🔴 LIVE đang BẬT' : '⚪ LIVE đang TẮT (PAPER)'}
-        </span>
-      </button>
-      {notArmed && warn && <span className="dt-livetoggle-warn" title={warn}>⚠️ {warn} → vẫn chạy PAPER</span>}
-    </div>
+    <button
+      type="button"
+      className={`dt-livetoggle-btn${isLive ? ' dt-livetoggle-btn--on' : ''}`}
+      onClick={onToggle}
+      disabled={busy}
+      aria-pressed={isLive}
+      title="Bật/tắt giao dịch thật trên Bitget"
+    >
+      <span className="dt-livetoggle-knob" />
+      <span className="dt-livetoggle-text">{busy ? 'Đang đổi…' : isLive ? 'LIVE: BẬT' : 'LIVE: TẮT'}</span>
+    </button>
   );
 }
 
@@ -466,7 +462,7 @@ export function LongSignalFeed({ initialSignals, initialStats, initialSettings }
           </p>
         </div>
         <div className="dt-header-actions">
-          <LiveToggle mode={settings.mode} liveStatus={liveStatus} busy={togglingMode} onToggle={() => void toggleMode()} />
+          <LiveToggle mode={settings.mode} busy={togglingMode} onToggle={() => void toggleMode()} />
           <button className="dt-refresh" onClick={() => setShowSettings((v) => !v)}>
             ⚙ Cấu hình
           </button>
@@ -475,6 +471,13 @@ export function LongSignalFeed({ initialSignals, initialStats, initialSettings }
           </button>
         </div>
       </div>
+
+      {settings.mode === 'LIVE' && liveWarn(liveStatus) && (
+        <div className="dt-live-banner">
+          <span className="dt-live-banner-icon">⚠️</span>
+          <span>{liveWarn(liveStatus)} — bot vẫn chạy <b>PAPER</b> cho tới khi server bật LIVE.</span>
+        </div>
+      )}
 
       {showSettings && (
         <SettingsPanel
