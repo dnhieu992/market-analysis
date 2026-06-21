@@ -119,7 +119,25 @@
       "Bash(awk '/model SwingTradingSettings/,/^}/' packages/db/prisma/schema.prisma)",
       "Bash(awk '/model DayTradingSignal/,/^}/' packages/db/prisma/schema.prisma)",
       "Bash(awk -F: '$1 < 2944')",
-      "Bash(awk -F: '$1 > 2970')"
+      "Bash(awk -F: '$1 > 2970')",
+      "Bash(npx eslint *)",
+      "Bash(command -v mysql)",
+      "Bash(echo \"=== exit code $? \\(1=no errors found, good\\) ===\")",
+      "WebFetch(domain:14.225.220.202)",
+      "Bash(awk '/model DayTradingSettings/,/^}/' packages/db/prisma/schema.prisma)",
+      "Bash(command -v pm2)",
+      "Bash(pm2 ls *)",
+      "Bash(awk *)",
+      "Bash(echo \"rows: $\\(python3 -c \"import json;print\\(len\\(json.load\\(open\\('/tmp/atm_1d.json'\\)\\)\\)\\)\"\\)\")",
+      "WebSearch",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=90)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=180)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=60)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=180 --csv=/tmp/dt180.csv)",
+      "Read(//tmp/**)",
+      "Bash(SYMBOLS=POLUSDT,XRPUSDT,SOLUSDT,TAOUSDT TS_NODE_TRANSPILE_ONLY=1 pnpm exec *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"TSC EXIT: $?\")"
     ]
   }
 }
