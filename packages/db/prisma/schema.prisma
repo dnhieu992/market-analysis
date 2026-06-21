@@ -567,7 +567,8 @@ model LongSignal {
 model LongSignalSettings {
   id                 String   @id @default("singleton")
   /// Fixed USD notional opened per coin per day (no compounding).
-  notional           Float    @default(100)
+  /// Default $50 → at 5x leverage that is ~$10 margin per order.
+  notional           Float    @default(50)
   keyValue           Float    @default(1)
   atrPeriod          Int      @default(10)
   /// Take-profit percent above entry (e.g. 2 = +2%).

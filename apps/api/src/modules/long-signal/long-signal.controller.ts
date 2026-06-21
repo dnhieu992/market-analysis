@@ -29,6 +29,12 @@ export class LongSignalController {
     return this.service.getCurrentPrices();
   }
 
+  @Get('live-status')
+  @ApiOperation({ summary: 'Whether LIVE orders are armed (env gate + Bitget credentials)' })
+  getLiveStatus() {
+    return this.service.getLiveStatus();
+  }
+
   @Get('signals')
   @ApiOperation({ summary: 'List long-signal trades' })
   getSignals(@Query() query: QuerySignalsDto) {

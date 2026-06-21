@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { createApiClient } from '@web/shared/api/client';
-import type { LongSignal, LongSignalStats, LongSignalSettings } from '@web/shared/api/types';
+import type { LongSignal, LongSignalStats, LongSignalSettings, LongSignalLiveStatus } from '@web/shared/api/types';
 
 // Lazy-load the shared TipTap editor so its bundle only loads when a note opens.
 const MarkdownEditor = dynamic(
@@ -306,18 +306,9 @@ function SettingsPanel({
           />
           <span className="dt-setting-hint">Phân tách bằng dấu phẩy</span>
         </label>
-        <label className="dt-setting">
-          <span className="dt-setting-label">Chế độ</span>
-          <select
-            className="dt-setting-input"
-            value={form.mode}
-            onChange={(e) => setForm((prev) => ({ ...prev, mode: e.target.value as 'PAPER' | 'LIVE' }))}
-          >
-            <option value="PAPER">PAPER</option>
-            <option value="LIVE">LIVE</option>
-          </select>
-          <span className="dt-setting-hint">LIVE đặt lệnh thật trên Bitget</span>
-        </label>
+      </div>
+      <div className="dt-settings-note">
+        PAPER/LIVE điều khiển bằng công tắc ở đầu trang. Lệnh thật luôn đặt theo ký quỹ <b>cô lập (isolated)</b>.
       </div>
       {error && <div className="dt-settings-error">{error}</div>}
       <div className="dt-settings-actions">
@@ -330,6 +321,51 @@ function SettingsPanel({
   );
 }
 
+/**
+ * Header on/off switch for LIVE trading. Flips the DB `mode` between PAPER and
+ * LIVE (persisted immediately). A real order also needs the server env gate +
+ * Bitget credentials, so when LIVE is selected but not `armed` we warn that the
+ * bot still runs PAPER until the server side is enabled.
+ */
+function LiveToggle({
+  mode,
+  liveStatus,
+  busy,
+  onToggle,
+}: {
+  mode: 'PAPER' | 'LIVE';
+  liveStatus: LongSignalLiveStatus | null;
+  busy: boolean;
+  onToggle: () => void;
+}) {
+  const isLive = mode === 'LIVE';
+  const notArmed = isLive && liveStatus != null && !liveStatus.armed;
+  const warn = liveStatus && !liveStatus.envEnabled
+    ? 'Server chưa bật env LIVE_TRADING_ENABLED'
+    : liveStatus && !liveStatus.bitgetConfigured
+      ? 'Thiếu API key Bitget trên server'
+      : null;
+
+  return (
+    <div className="dt-livetoggle">
+      <button
+        type="button"
+        className={`dt-livetoggle-btn${isLive ? ' dt-livetoggle-btn--on' : ''}`}
+        onClick={onToggle}
+        disabled={busy}
+        aria-pressed={isLive}
+        title="Bật/tắt giao dịch thật trên Bitget"
+      >
+        <span className="dt-livetoggle-knob" />
+        <span className="dt-livetoggle-text">
+          {busy ? 'Đang đổi…' : isLive ? '🔴 LIVE đang BẬT' : '⚪ LIVE đang TẮT (PAPER)'}
+        </span>
+      </button>
+      {notArmed && warn && <span className="dt-livetoggle-warn" title={warn}>⚠️ {warn} → vẫn chạy PAPER</span>}
+    </div>
+  );
+}
+
 export function LongSignalFeed({ initialSignals, initialStats, initialSettings }: Props) {
   const [signals, setSignals] = useState<LongSignal[]>(initialSignals);
   const [stats, setStats] = useState<LongSignalStats>(initialStats);
@@ -338,8 +374,39 @@ export function LongSignalFeed({ initialSignals, initialStats, initialSettings }
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [loading, setLoading] = useState(false);
   const [prices, setPrices] = useState<Record<string, number>>({});
+  const [liveStatus, setLiveStatus] = useState<LongSignalLiveStatus | null>(null);
+  const [togglingMode, setTogglingMode] = useState(false);
 
   const hasActive = signals.some((s) => s.status === 'ACTIVE');
+
+  // Load the server LIVE arm-state (env gate + Bitget creds) for the header toggle.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const s = await createApiClient().fetchLongSignalLiveStatus();
+        if (!cancelled) setLiveStatus(s);
+      } catch { /* ignore — toggle still works, just no warning */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggleMode = useCallback(async () => {
+    const next: 'PAPER' | 'LIVE' = settings.mode === 'LIVE' ? 'PAPER' : 'LIVE';
+    if (next === 'LIVE') {
+      const armWarn = liveStatus && !liveStatus.armed
+        ? '\n\n⚠️ Server chưa kích hoạt LIVE (env/credentials) nên lệnh vẫn chạy PAPER cho tới khi bật.'
+        : '';
+      if (!window.confirm(`Bật GIAO DỊCH THẬT (LIVE)?\nBot sẽ đặt lệnh thật trên Bitget (ký quỹ cô lập).${armWarn}`)) return;
+    }
+    setTogglingMode(true);
+    try {
+      const saved = await createApiClient().updateLongSignalSettings({ mode: next });
+      setSettings(saved);
+    } catch { /* ignore — leave mode unchanged */ } finally {
+      setTogglingMode(false);
+    }
+  }, [settings.mode, liveStatus]);
 
   // Poll the basket prices every 5s — only while an open position exists.
   useEffect(() => {
@@ -399,6 +466,7 @@ export function LongSignalFeed({ initialSignals, initialStats, initialSettings }
           </p>
         </div>
         <div className="dt-header-actions">
+          <LiveToggle mode={settings.mode} liveStatus={liveStatus} busy={togglingMode} onToggle={() => void toggleMode()} />
           <button className="dt-refresh" onClick={() => setShowSettings((v) => !v)}>
             ⚙ Cấu hình
           </button>

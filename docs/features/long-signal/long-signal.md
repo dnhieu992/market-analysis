@@ -35,6 +35,18 @@ on $100/coin (~+23%/yr on $400), win rate 61.1%.
 4. **Web feed** (`/long-signal`) — stats header, status filters, per-trade cards
    (entry/TP/SL/notional, live unrealized P&L while open, why-this-trade, markdown
    note, manual close). Settings panel edits the strategy knobs.
+   - **LIVE on/off toggle** (header) — flips the DB `mode` (PAPER ↔ LIVE) and
+     persists immediately. It reads `GET /long-signal/live-status`
+     (`envEnabled && bitgetConfigured = armed`) and, when LIVE is selected but
+     the server side isn't armed, warns that the bot still runs PAPER.
+
+## Defaults & Margin
+
+- **Default notional `$50` per order**; at the default `5x` leverage that is
+  ~`$10` margin per coin per day. Leverage only changes the margin used, not P&L
+  (P&L = `qty × Δprice`, `qty = notional / entry`).
+- LIVE orders are always placed with **isolated** margin
+  (`marginMode: 'isolated'` in `placeLong`).
 
 ## Edge Cases
 
@@ -60,6 +72,7 @@ on $100/coin (~+23%/yr on $400), win rate 61.1%.
 
 - `packages/db/prisma/schema.prisma` — `LongSignal` + `LongSignalSettings` models
 - `packages/db/prisma/migrations/20260620140000_add_long_signal/migration.sql` — tables
+- `packages/db/prisma/migrations/20260621150000_long_signal_default_notional_50/migration.sql` — default notional → $50
 - `packages/db/src/repositories/long-signal.repository.ts` — repository
 - `apps/worker/src/modules/long-signal/long-signal.service.ts` — orchestrator (entry/exit/monitor crons)
 - `apps/worker/src/modules/long-signal/long-signal-executor.service.ts` — PAPER/LIVE open
@@ -67,7 +80,7 @@ on $100/coin (~+23%/yr on $400), win rate 61.1%.
 - `apps/worker/src/modules/long-signal/bitget.service.ts` — public candle/ticker reads
 - `apps/worker/src/modules/long-signal/utbot.ts` — UTBot trend evaluation
 - `apps/worker/src/modules/long-signal/long-signal.module.ts` + `worker.module.ts` — wiring
-- `apps/api/src/modules/long-signal/long-signal.controller.ts` / `.service.ts` — REST API (signals/stats/settings/prices/close)
+- `apps/api/src/modules/long-signal/long-signal.controller.ts` / `.service.ts` — REST API (signals/stats/settings/prices/live-status/close)
 - `apps/api/src/modules/long-signal/dto/*` — request DTOs
 - `apps/web/src/_pages/long-signal-page/long-signal-page.tsx` + `app/long-signal/page.tsx` — route
 - `apps/web/src/widgets/long-signal/long-signal-feed.tsx` — feed UI (reuses `dt-*` styles)
