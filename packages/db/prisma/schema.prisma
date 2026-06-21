@@ -528,6 +528,65 @@ model SwingTradingSettings {
   @@map("swing_trading_settings")
 }
 
+/// "Long Signal" strategy — LONG-only intraday FOMO gated by the M30 UTBot trend.
+/// Each day at entryHour UTC, if the M30 UTBot trend is bull for a symbol, open a
+/// LONG with a +tpPct take-profit and a wide catastrophe stop; force-close at
+/// exitHour UTC if neither fired. Fixed notional per coin, no compounding.
+model LongSignal {
+  id            String    @id @default(cuid())
+  symbol        String    @db.VarChar(20)
+  direction     String    @default("LONG") @db.VarChar(5)
+  entryPrice    Float
+  /// Catastrophe stop (LIVE safety net — the backtest had no stop). Wide; the real
+  /// exits are the +tpPct TP and the exitHour force-close.
+  stopLoss      Float
+  takeProfit    Float
+  keyValue      Float     @default(1)
+  /// |entry − UTBot line| / entry × 100, captured at entry (the M30 trend distance).
+  entryLineDistancePct Float?
+  quantity      Float?
+  positionValue Float?
+  /// ACTIVE | TP_HIT | SL_HIT | FORCE_CLOSE | MANUAL_CLOSE | FAILED
+  status        String    @db.VarChar(20)
+  mode          String    @default("PAPER") @db.VarChar(10)
+  /// Bitget order id returned when a LIVE order is placed; null in PAPER mode.
+  brokerOrderId String?   @db.VarChar(64)
+  closedPrice   Float?
+  closedAt      DateTime?
+  pnlUsd        Float?
+  setupJson     String    @db.Text
+  note          String?   @db.Text
+  detectedAt    DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([symbol, status, detectedAt])
+  @@map("long_signals")
+}
+
+model LongSignalSettings {
+  id                 String   @id @default("singleton")
+  /// Fixed USD notional opened per coin per day (no compounding).
+  notional           Float    @default(100)
+  keyValue           Float    @default(1)
+  atrPeriod          Int      @default(10)
+  /// Take-profit percent above entry (e.g. 2 = +2%).
+  tpPct              Float    @default(2)
+  /// Wide catastrophe stop percent below entry (LIVE safety net).
+  catastropheStopPct Float    @default(5)
+  /// Entry hour UTC (00:00 = best in backtest) and force-close hour UTC.
+  entryHour          Int      @default(0)
+  exitHour           Int      @default(8)
+  leverage           Int      @default(5)
+  /// Comma-separated basket traded by the bot.
+  symbols            String   @default("POLUSDT,XRPUSDT,SOLUSDT,TAOUSDT") @db.VarChar(255)
+  mode               String   @default("PAPER") @db.VarChar(10)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("long_signal_settings")
+}
+
 model SmallCapCoin {
   id          String           @id @default(cuid())
   symbol      String           @unique @db.VarChar(30)

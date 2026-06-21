@@ -8,9 +8,10 @@ import { MarketModule } from './modules/market/market.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { SwingSignalModule } from './modules/swing-signal/swing-signal.module';
 import { SwingTradingModule } from './modules/swing-trading/swing-trading.module';
+import { LongSignalModule } from './modules/long-signal/long-signal.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), SchedulerModule, AnalysisModule, DayTradingModule, EmaSignalModule, MarketModule, TelegramModule, SwingSignalModule, SwingTradingModule]
+  imports: [ScheduleModule.forRoot(), SchedulerModule, AnalysisModule, DayTradingModule, EmaSignalModule, MarketModule, TelegramModule, SwingSignalModule, SwingTradingModule, LongSignalModule]
 })
 export class WorkerModule {}

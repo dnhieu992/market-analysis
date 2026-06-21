@@ -618,6 +618,70 @@ export type SwingTradingPrice = {
   at: string;
 };
 
+// ── Long Signal (LONG-only intraday FOMO gated by the M30 UTBot trend) ─────────
+
+export type LongSignal = {
+  id: string;
+  symbol: string;
+  direction: 'LONG';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  keyValue: number;
+  entryLineDistancePct: number | null;
+  quantity: number | null;
+  positionValue: number | null;
+  status: 'ACTIVE' | 'TP_HIT' | 'SL_HIT' | 'FORCE_CLOSE' | 'MANUAL_CLOSE' | 'FAILED';
+  mode: 'PAPER' | 'LIVE';
+  brokerOrderId: string | null;
+  closedPrice: number | null;
+  closedAt: string | null;
+  pnlUsd: number | null;
+  setupJson: string;
+  note: string | null;
+  detectedAt: string;
+  createdAt: string;
+};
+
+export type LongSignalsResponse = {
+  data: LongSignal[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type LongSignalStats = {
+  total: number;
+  active: number;
+  tpHit: number;
+  slHit: number;
+  forceClose: number;
+  manualClose: number;
+  wins: number;
+  winRate: number;
+  totalPnlUsd: number;
+};
+
+export type LongSignalSettings = {
+  notional: number;
+  keyValue: number;
+  atrPeriod: number;
+  tpPct: number;
+  catastropheStopPct: number;
+  entryHour: number;
+  exitHour: number;
+  leverage: number;
+  symbols: string;
+  mode: 'PAPER' | 'LIVE';
+};
+
+export type UpdateLongSignalSettingsInput = Partial<LongSignalSettings>;
+
+export type LongSignalPrices = {
+  prices: Record<string, number>;
+  at: string;
+};
+
 export type SmallCapCoinRow = {
   id: string;
   symbol: string;
