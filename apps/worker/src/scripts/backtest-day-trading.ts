@@ -50,6 +50,7 @@ type Args = {
   midTf: Granularity;     // mid regime timeframe (the "1H" slot)
   highTf: Granularity;    // high regime timeframe (the "4H" slot)
   mgmt: Mgmt | null;      // trade management (partial + break-even); null = static
+  side: 'both' | 'long' | 'short';  // restrict which direction may be traded
   csv: string | null;
 };
 
@@ -80,6 +81,7 @@ function parseArgs(argv: string[]): Args {
     mgmt: argv.includes('--managed')
       ? { partialFraction: num(get('partial'), 0.5), partialAtR: num(get('partial-at-r'), 1) }
       : null,
+    side: get('side') === 'long' ? 'long' : get('side') === 'short' ? 'short' : 'both',
     csv: get('csv'),
   };
 }
@@ -286,7 +288,8 @@ async function main() {
       `(round-trip ${(args.feePerSide * 2 * 100).toFixed(3)}%)  expiry=${args.expiryBars} bars  ` +
       `mode=${args.allowStack ? 'STACKED' : 'single-position'}  tie-break=${args.tie.toUpperCase()}-first  ` +
       `TF=${args.entryTf}/${args.midTf}/${args.highTf}  ` +
-      `mgmt=${args.mgmt ? `partial ${args.mgmt.partialFraction * 100}%@${args.mgmt.partialAtR}R→BE` : 'static'}\n`,
+      `mgmt=${args.mgmt ? `partial ${args.mgmt.partialFraction * 100}%@${args.mgmt.partialAtR}R→BE` : 'static'}  ` +
+      `side=${args.side}\n`,
   );
 
   const fromMs = Date.now() - (args.days + 5) * DAY_MS;
@@ -323,6 +326,11 @@ async function main() {
       ...(args.atrMult > 0 ? { atrMult: args.atrMult } : {}),
     });
     if (!setup) continue;
+
+    // Side restriction: a filtered-out direction is treated as no-signal, so the
+    // single-position slot stays free for the allowed side (faithful, not a post-hoc
+    // row delete — a skipped LONG no longer blocks subsequent SHORT entries).
+    if (args.side !== 'both' && setup.direction.toLowerCase() !== args.side) continue;
 
     const fwd = cEntry.slice(i + 1);
     if (fwd.length < 1) continue;
