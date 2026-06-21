@@ -44,6 +44,7 @@ Built in two phases:
 - **WS price stale**: result monitor falls back to REST `fetchCurrentPrice`.
 - Bitget REST failure: logged as warning, scan skipped (non-fatal).
 - Insufficient candle data (<30×15m, <20×1H, <10×4H): scan skipped.
+- **EMA50 price-location gate is fail-CLOSED**: the Trend Pullback entry requires price on the trend side of the 15m EMA50. If the EMA can't be computed (too few candles → `ema50Entry = 0`), the gate now **blocks** the entry instead of waving it through. Earlier it failed *open* (`ema50Entry === 0 || …`), which silently disabled the filter — two LIVE shorts with `ema50: 0` in their `setupJson` slipped through and stopped out even though the committed logic (EMA active) rejected both. Fail-closed means a missing EMA can never again disable a core filter.
 - Daily limit reached (`maxTradesPerDay` signals or `maxLossesPerDay` losses): scan returns early.
 - Settings are a singleton row, created with defaults (risk $2, minRR 2, 5 trades, 2 losses) on first access; editable from the `/day-trading` page (⚙ Cấu hình). The stop-distance floor (`minStopPct`, default 0.5%) lives in `SetupAnalyzerService`.
 - Multiple setups trigger on one candle: only the first in quality order (Liquidity Sweep → Trend Pullback) is used.
@@ -61,7 +62,9 @@ The execution seam now has a real LIVE path. `SignalExecutorService.execute()` b
 
 `BitgetTradeService` (`bitget-trade.service.ts`) is the authenticated Bitget v2 mix REST client (HMAC-signed): `setLeverage`, `placeOrder` (market + preset TP/SL, **TP and SL are mandatory** — a naked position is refused before hitting the exchange), `closePosition` (flash-close), `getPosition`/`getOrder` (read-only, `withRetry`-wrapped). Credentials are read lazily so the worker still boots in PAPER without keys (`isConfigured()` gates the LIVE path). Leverage defaults to `BITGET_LEVERAGE=10` (isolated); position **size is risk-based, independent of leverage**.
 
-Env: `BITGET_API_KEY` / `BITGET_API_SECRET` / `BITGET_API_PASSPHRASE` (account key, Trade-only, IP-whitelisted), `BITGET_PRODUCT_TYPE` (`usdt-futures` real | `susdt-futures` demo), `BITGET_LEVERAGE`, `LIVE_TRADING_ENABLED`.
+Env: `BITGET_API_KEY` / `BITGET_API_SECRET` / `BITGET_API_PASSPHRASE` (account key, Trade-only, IP-whitelisted), `BITGET_PRODUCT_TYPE` (`usdt-futures` real | `susdt-futures` demo), `BITGET_LEVERAGE`, `LIVE_TRADING_ENABLED`, `BITGET_POSITION_MODE` (`hedge` default | `one-way`).
+
+**Position mode**: Bitget hedge-mode accounts require `tradeSide` on `place-order`; one-way accounts must omit it. `placeOrder` adds `tradeSide:'open'` when `BITGET_POSITION_MODE` is `hedge` (the default — must match the Bitget account's actual mode, or every order is rejected with HTTP 400). The signed `request()` parses the Bitget `{code,msg}` envelope **even on HTTP 4xx** (`validateStatus: () => true`) so a business rejection surfaces its real Bitget code instead of a bare "status code 400". Order size is floored to the contract `volumePlace` (BTCUSDT = **4** dp, `minTradeNum` 0.0001) and a zero-after-floor size is refused before sending.
 
 > 💵 **Small-account sizing**: with ~$50 capital, lower `riskPerTrade` to ~$0.5 in ⚙ Cấu hình. The default $2 risk at a 0.5% stop = $400 notional (~$40 margin at 10x), and the bot may hold LONG+SHORT at once → would exceed the account.
 

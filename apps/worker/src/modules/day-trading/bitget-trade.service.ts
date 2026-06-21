@@ -94,7 +94,7 @@ type BitgetEnvelope<T> = {
 // BTCUSDT futures precision on Bitget. Sizes/prices outside the contract's
 // volumePlace/pricePlace are rejected, so we floor to these before sending.
 // TODO: for symbols other than BTCUSDT, read these from /api/v2/mix/market/contracts.
-const SIZE_DECIMALS = 3;  // BTCUSDT volumePlace
+const SIZE_DECIMALS = 4;  // BTCUSDT volumePlace (minTradeNum 0.0001)
 const PRICE_DECIMALS = 1; // BTCUSDT pricePlace
 
 @Injectable()
@@ -108,6 +108,11 @@ export class BitgetTradeService {
   // usdt-futures (real) | susdt-futures (demo)
   private readonly productType = process.env.BITGET_PRODUCT_TYPE ?? 'usdt-futures';
   private readonly leverage = process.env.BITGET_LEVERAGE ?? DEFAULT_LEVERAGE;
+  // Bitget account position mode. In hedge_mode, place-order REQUIRES `tradeSide`
+  // ('open'/'close') alongside `side`; one_way_mode must omit it. Defaults to hedge
+  // to match the current LIVE account — set BITGET_POSITION_MODE=one-way if the
+  // account is switched to One-Way mode.
+  private readonly hedgeMode = (process.env.BITGET_POSITION_MODE ?? 'hedge') !== 'one-way';
 
   constructor() {
     this.client = axios.create({ baseURL: BASE_URL, timeout: 10_000 });
@@ -161,18 +166,26 @@ export class BitgetTradeService {
         `placeOrder refused: TP and SL are required (got TP=${params.takeProfit}, SL=${params.stopLoss})`,
       );
     }
+    const size = this.fmt(params.size, SIZE_DECIMALS);
+    if (Number(size) <= 0) {
+      throw new Error(
+        `placeOrder refused: size ${params.size} floors to ${size} at ${SIZE_DECIMALS}dp (below the contract minimum)`,
+      );
+    }
     const body: Record<string, string> = {
       symbol: params.symbol,
       productType: this.productType,
       marginMode: params.marginMode ?? 'isolated',
       marginCoin: MARGIN_COIN,
-      size: this.fmt(params.size, SIZE_DECIMALS),
+      size,
       side: params.direction === 'LONG' ? 'buy' : 'sell',
       orderType: 'market',
       clientOid: params.clientOid,
       presetStopSurplusPrice: this.fmt(params.takeProfit, PRICE_DECIMALS), // TP limit
       presetStopLossPrice: this.fmt(params.stopLoss, PRICE_DECIMALS), // SL stop
     };
+    // Hedge mode requires the open/close intent explicitly; one-way mode forbids it.
+    if (this.hedgeMode) body.tradeSide = 'open';
 
     try {
       const data = await this.request<{ orderId: string; clientOid: string }>(
@@ -382,16 +395,22 @@ export class BitgetTradeService {
         'Content-Type': 'application/json',
         locale: 'en-US',
       },
+      // Parse the Bitget envelope ourselves even on 4xx: Bitget returns its real
+      // business {code,msg} (e.g. param errors) with an HTTP 400, which axios would
+      // otherwise throw as a bare "status code 400" — losing the actual reason.
+      validateStatus: () => true,
     });
 
-    if (response.data.code !== '00000') {
-      throw new BitgetApiError(
-        response.data.code,
-        path,
-        `Bitget ${path} error ${response.data.code}: ${response.data.msg}`,
-      );
+    const env = response.data as unknown as Partial<BitgetEnvelope<T>> | string | undefined;
+    if (!env || typeof env !== 'object' || typeof env.code !== 'string') {
+      // Non-envelope body (gateway error / HTML / empty) — surface status + raw body.
+      const raw = typeof response.data === 'string' ? response.data : JSON.stringify(response.data ?? '');
+      throw new BitgetApiError(`http_${response.status}`, path, `Bitget ${path} HTTP ${response.status}: ${raw.slice(0, 300)}`);
     }
-    return response.data.data;
+    if (env.code !== '00000') {
+      throw new BitgetApiError(env.code, path, `Bitget ${path} error ${env.code}: ${env.msg}`);
+    }
+    return env.data as T;
   }
 
   /**
@@ -419,9 +438,13 @@ export class BitgetTradeService {
  * permanent — fail fast instead of hammering.
  */
 function isNetworkError(err: unknown): boolean {
+  // 5xx surfaced from the validateStatus envelope parse → transient, retry.
+  if (err instanceof BitgetApiError) {
+    return err.code.startsWith('http_5');
+  }
   if (axios.isAxiosError(err)) {
     return !err.response || err.response.status >= 500;
   }
-  // request() throws plain Error for business codes → not retryable.
+  // A Bitget business code (non-`00000`) is permanent → not retryable.
   return false;
 }
