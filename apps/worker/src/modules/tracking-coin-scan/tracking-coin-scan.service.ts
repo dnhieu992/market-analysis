@@ -78,11 +78,12 @@ export class TrackingCoinScanService {
   ): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
-    const [klines, h4Klines, m30Klines, h1Klines] = await Promise.all([
+    const [klines, h4Klines, m30Klines, h1Klines, wKlines] = await Promise.all([
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1h', limit: 72 }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1w', limit: 300 }),
     ]);
 
     if (klines.length < 210) return;
@@ -127,6 +128,24 @@ export class TrackingCoinScanService {
       : [];
     const utBotH4Bullish = h4Candles.length >= 2 ? (calcUtBotResult(h4Candles, 1, 3)?.uptrend ?? null) : null;
 
+    // ── Weekly (W1) timeframe — same indicators/setup as D1/H4 ──────────
+    const wCloses  = wKlines.map((k) => parseFloat(k[4]));
+    const wHighs   = wKlines.map((k) => parseFloat(k[2]));
+    const wLows    = wKlines.map((k) => parseFloat(k[3]));
+    const wVolumes = wKlines.map((k) => parseFloat(k[5]));
+    const wLastClose = wCloses[wCloses.length - 1] ?? 0;
+
+    const weekTrend = wKlines.length >= 20 ? computeTimeframeTrend(wCloses, wHighs, wLows) : 'Neutral';
+    const wEma34Above  = wCloses.length >= 34  ? wLastClose > calculateEma(wCloses, 34)  : null;
+    const wEma89Above  = wCloses.length >= 89  ? wLastClose > calculateEma(wCloses, 89)  : null;
+    const wEma200Above = wCloses.length >= 200 ? wLastClose > calculateEma(wCloses, 200) : null;
+    const wRsi           = wCloses.length > 14  ? calculateRsi(wCloses, 14) : null;
+    const wVolMultiplier = wVolumes.length >= 20 ? calculateVolumeRatio(wVolumes, 20) : null;
+    const wCandles = wCloses.length >= 2
+      ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
+      : [];
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 1, 3)?.uptrend ?? null) : null;
+
     const { longScore, shortScore } = computeLongShortScore({
       closes,
       highs,
@@ -154,17 +173,24 @@ export class TrackingCoinScanService {
       stage: result.stage,
       signalScore: result.signalScore,
       sparklineJson: JSON.stringify(result.sparkline),
+      weekTrend,
       trend: result.trend,
       h4Trend,
       m30Trend,
       swingStructure: result.swingStructure,
       longScore,
       shortScore,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      wEma34Above,
+      wEma89Above,
+      wEma200Above,
+      wRsi,
+      wVolMultiplier,
       h4Ema34Above,
       h4Ema89Above,
       h4Ema200Above,
-      utBotD1Bullish,
-      utBotH4Bullish,
       h4Rsi,
       h4VolMultiplier,
     });

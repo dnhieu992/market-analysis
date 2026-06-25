@@ -7,7 +7,7 @@ import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/t
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'rsi' | 'vol' | 'coin';
+type SortKey = 'mktcap' | 'rsi' | 'vol' | 'coin';
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
@@ -67,11 +67,24 @@ function useLivePrices(symbols: string[]) {
   return { prices, flash };
 }
 
-/* ── shared: D1/H4 stacked layout ──────────────────────────────── */
+/* ── market cap formatter ───────────────────────────────────────── */
 
-function TfStack({ d1, h4 }: { d1: ReactNode; h4: ReactNode }) {
+function fmtMarketCap(cap: number | null): string | null {
+  if (cap == null) return null;
+  if (cap >= 1_000_000_000) return `$${(cap / 1_000_000_000).toFixed(1)}B`;
+  if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(1)}M`;
+  return `$${cap.toLocaleString()}`;
+}
+
+/* ── shared: W/D1/H4 stacked layout ─────────────────────────────── */
+
+function TfStack({ w, d1, h4 }: { w: ReactNode; d1: ReactNode; h4: ReactNode }) {
   return (
     <div className="tc-tf-stack">
+      <div className="tc-tf-stack-row">
+        <span className="tc-tf-label">W</span>
+        <span className="tc-tf-stack-val">{w}</span>
+      </div>
       <div className="tc-tf-stack-row">
         <span className="tc-tf-label">D1</span>
         <span className="tc-tf-stack-val">{d1}</span>
@@ -257,6 +270,7 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
   }
 
   const rows = [
+    { tf: 'W',  trend: sig.weekTrend, utBot: sig.utBotW1Bullish, e34: sig.wEma34Above,  e89: sig.wEma89Above,  e200: sig.wEma200Above,  rsi: sig.wRsi,  vol: sig.wVolMultiplier },
     { tf: 'D1', trend: sig.trend,   utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,   vol: sig.volMultiplier },
     { tf: 'H4', trend: sig.h4Trend, utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi, vol: sig.h4VolMultiplier },
   ];
@@ -677,7 +691,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as { id: string; symbol: string; name: string };
-      onAdded({ ...data, addedAt: new Date().toISOString(), signal: null });
+      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), signal: null });
       setSymbol('');
       setName('');
     } catch (err) {
@@ -705,7 +719,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const { prices, flash } = useLivePrices(symbols);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('coin');
+  const [sortKey, setSortKey] = useState<SortKey>('mktcap');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -764,6 +778,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)
     );
     return [...filtered].sort((a, b) => {
+      if (sortKey === 'mktcap') return (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity);
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
@@ -877,52 +892,58 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className="scr-td scr-td--coin">
                       <span className="scr-symbol">{coin.symbol}</span>
                       {coin.name && <span className="scr-name">{coin.name}</span>}
+                      {coin.marketCap != null && <span className="scr-name">{fmtMarketCap(coin.marketCap)}</span>}
                       {prices.has(coin.symbol) && (
                         <span className={`tc-live-price tc-live-price--${flash.get(coin.symbol) ?? 'idle'}`}>
                           ${formatPrice(prices.get(coin.symbol)!)}
                         </span>
                       )}
                     </td>
-                    {/* Trend D1 / H4 */}
+                    {/* Trend W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<TrendBadge trend={sig.weekTrend} />}
                             d1={<TrendBadge trend={sig.trend} />}
                             h4={<TrendBadge trend={sig.h4Trend} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* UT Bot D1 / H4 */}
+                    {/* UT Bot W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<UtBotBadge bullish={sig.utBotW1Bullish} />}
                             d1={<UtBotBadge bullish={sig.utBotD1Bullish} />}
                             h4={<UtBotBadge bullish={sig.utBotH4Bullish} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* EMA D1 / H4 */}
+                    {/* EMA W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<EmaPips e34={sig.wEma34Above} e89={sig.wEma89Above} e200={sig.wEma200Above} />}
                             d1={<EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />}
                             h4={<EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* RSI D1 / H4 */}
+                    {/* RSI W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<RsiCell rsi={sig.wRsi} />}
                             d1={<RsiCell rsi={sig.rsi} />}
                             h4={<RsiCell rsi={sig.h4Rsi} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* Vol D1 / H4 */}
+                    {/* Vol W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<VolCell vol={sig.wVolMultiplier} />}
                             d1={<VolCell vol={sig.volMultiplier} />}
                             h4={<VolCell vol={sig.h4VolMultiplier} />}
                           />

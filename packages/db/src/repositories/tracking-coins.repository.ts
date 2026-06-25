@@ -12,11 +12,11 @@ export function createTrackingCoinsRepository(client = prisma) {
       return client.trackingCoin.findUnique({ where: { symbol } });
     },
 
-    addCoin(symbol: string, name = '') {
+    addCoin(symbol: string, name = '', marketCap?: number | null) {
       return client.trackingCoin.upsert({
         where: { symbol },
-        create: { symbol, name },
-        update: { name },
+        create: { symbol, name, marketCap: marketCap ?? null },
+        update: { name, ...(marketCap !== undefined ? { marketCap } : {}) },
       });
     },
 
@@ -44,7 +44,8 @@ export function createTrackingCoinsRepository(client = prisma) {
             take: 1,
           },
         },
-        orderBy: { addedAt: 'asc' },
+        // Market cap desc (MySQL sorts NULL last on DESC), then insertion order.
+        orderBy: [{ marketCap: 'desc' }, { addedAt: 'asc' }],
       });
     },
 

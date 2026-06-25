@@ -325,6 +325,7 @@ model TrackingCoin {
   id              String                  @id @default(cuid())
   symbol          String                  @unique @db.VarChar(30)
   name            String                  @default("") @db.VarChar(100)
+  marketCap       Float?
   addedAt         DateTime                @default(now())
   swingMaxLoss    Float?
   swingMinRR      Float?
@@ -391,14 +392,21 @@ model TrackingCoinSignal {
   stage          String       @default("Quiet") @db.VarChar(20)
   signalScore    Int          @default(0)
   sparklineJson  String       @db.Text
+  weekTrend      String       @default("Neutral") @db.VarChar(15)
   trend          String       @default("Neutral") @db.VarChar(15)
   h4Trend        String       @default("Neutral") @db.VarChar(15)
   m30Trend       String       @default("Neutral") @db.VarChar(15)
   swingStructure String       @default("Mixed") @db.VarChar(10)
   longScore      Float?
   shortScore     Float?
+  utBotW1Bullish  Boolean?
   utBotD1Bullish  Boolean?
   utBotH4Bullish  Boolean?
+  wEma34Above     Boolean?
+  wEma89Above     Boolean?
+  wEma200Above    Boolean?
+  wRsi            Float?
+  wVolMultiplier  Float?
   h4Ema34Above    Boolean?
   h4Ema89Above    Boolean?
   h4Ema200Above   Boolean?

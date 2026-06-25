@@ -422,6 +422,7 @@ export type TrackingCoinRow = {
   id: string;
   symbol: string;
   name: string;
+  marketCap: number | null;
   addedAt: string;
   signal: {
     rsi: number | null;
@@ -429,17 +430,24 @@ export type TrackingCoinRow = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
+    wEma34Above: boolean | null;
+    wEma89Above: boolean | null;
+    wEma200Above: boolean | null;
     h4Ema34Above: boolean | null;
     h4Ema89Above: boolean | null;
     h4Ema200Above: boolean | null;
+    utBotW1Bullish: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    wRsi: number | null;
+    wVolMultiplier: number | null;
     h4Rsi: number | null;
     h4VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
     sparkline: number[];
+    weekTrend: PaTrend;
     trend: PaTrend;
     h4Trend: PaTrend;
     m30Trend: PaTrend;

@@ -36,6 +36,7 @@ export type TrackingCoinWithSignal = {
   id: string;
   symbol: string;
   name: string;
+  marketCap: number | null;
   addedAt: Date;
   signal: {
     rsi: number | null;
@@ -43,17 +44,24 @@ export type TrackingCoinWithSignal = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
+    wEma34Above: boolean | null;
+    wEma89Above: boolean | null;
+    wEma200Above: boolean | null;
     h4Ema34Above: boolean | null;
     h4Ema89Above: boolean | null;
     h4Ema200Above: boolean | null;
+    utBotW1Bullish: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    wRsi: number | null;
+    wVolMultiplier: number | null;
     h4Rsi: number | null;
     h4VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
     sparkline: number[];
+    weekTrend: string;
     trend: string;
     h4Trend: string;
     m30Trend: string;
@@ -94,6 +102,7 @@ export class TrackingCoinsService {
         id: coin.id,
         symbol: coin.symbol,
         name: coin.name,
+        marketCap: coin.marketCap,
         addedAt: coin.addedAt,
         signal: sig
           ? {
@@ -102,17 +111,24 @@ export class TrackingCoinsService {
               ema34Above: sig.ema34Above,
               ema89Above: sig.ema89Above,
               ema200Above: sig.ema200Above,
+              wEma34Above: sig.wEma34Above,
+              wEma89Above: sig.wEma89Above,
+              wEma200Above: sig.wEma200Above,
               h4Ema34Above: sig.h4Ema34Above,
               h4Ema89Above: sig.h4Ema89Above,
               h4Ema200Above: sig.h4Ema200Above,
+              utBotW1Bullish: sig.utBotW1Bullish,
               utBotD1Bullish: sig.utBotD1Bullish,
               utBotH4Bullish: sig.utBotH4Bullish,
+              wRsi: sig.wRsi,
+              wVolMultiplier: sig.wVolMultiplier,
               h4Rsi: sig.h4Rsi,
               h4VolMultiplier: sig.h4VolMultiplier,
               longScore: sig.longScore,
               shortScore: sig.shortScore,
               signalScore: sig.signalScore,
               sparkline: this.parseSparkline(sig.sparklineJson),
+              weekTrend: sig.weekTrend,
               trend: sig.trend,
               h4Trend: sig.h4Trend,
               m30Trend: sig.m30Trend,
@@ -310,10 +326,11 @@ export class TrackingCoinsService {
   private async scanOneCoin(coinId: string, symbol: string, setup?: CoinSetup | null): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
-    const [klines, h4Klines, m30Klines] = await Promise.all([
+    const [klines, h4Klines, m30Klines, wKlines] = await Promise.all([
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1w', limit: 300 }),
     ]);
 
     if (klines.length < 210) return;
@@ -367,6 +384,24 @@ export class TrackingCoinsService {
     const utBotH4 = h4Candles.length >= 2 ? calcUtBotResult(h4Candles, 1, 3) : null;
     const utBotH4Bullish = utBotH4?.uptrend ?? null;
 
+    // Weekly (W1) — same indicators/setup as D1/H4
+    const wCloses  = wKlines.map((k) => parseFloat(k[4]));
+    const wHighs   = wKlines.map((k) => parseFloat(k[2]));
+    const wLows    = wKlines.map((k) => parseFloat(k[3]));
+    const wVolumes = wKlines.map((k) => parseFloat(k[5]));
+    const wLastClose = wCloses[wCloses.length - 1] ?? 0;
+
+    const weekTrend = wKlines.length >= 20 ? computeTimeframeTrend(wCloses, wHighs, wLows) : 'Neutral';
+    const wEma34Above  = wCloses.length >= 34  ? wLastClose > calculateEma(wCloses, 34)  : null;
+    const wEma89Above  = wCloses.length >= 89  ? wLastClose > calculateEma(wCloses, 89)  : null;
+    const wEma200Above = wCloses.length >= 200 ? wLastClose > calculateEma(wCloses, 200) : null;
+    const wRsi           = wCloses.length > 14  ? calculateRsi(wCloses, 14) : null;
+    const wVolMultiplier = wVolumes.length >= 20 ? calculateVolumeRatio(wVolumes, 20) : null;
+    const wCandles = wCloses.length >= 2
+      ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
+      : [];
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 1, 3)?.uptrend ?? null) : null;
+
     const { longScore, shortScore } = computeLongShortScore({
       closes,
       highs,
@@ -394,17 +429,24 @@ export class TrackingCoinsService {
       stage: result.stage,
       signalScore: result.signalScore,
       sparklineJson: JSON.stringify(result.sparkline),
+      weekTrend,
       trend: result.trend,
       h4Trend,
       m30Trend,
       swingStructure: result.swingStructure,
       longScore,
       shortScore,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      wEma34Above,
+      wEma89Above,
+      wEma200Above,
+      wRsi,
+      wVolMultiplier,
       h4Ema34Above,
       h4Ema89Above,
       h4Ema200Above,
-      utBotD1Bullish,
-      utBotH4Bullish,
       h4Rsi,
       h4VolMultiplier,
     });
