@@ -374,14 +374,14 @@ export class TrackingCoinsService {
 
     // UT Bot D1
     const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
-    const utBotD1 = calcUtBotResult(d1Candles, 1, 3);
+    const utBotD1 = calcUtBotResult(d1Candles, 10, 2);
     const utBotD1Bullish = utBotD1?.uptrend ?? null;
 
     // UT Bot H4
     const h4Candles = h4Closes.length >= 2
       ? h4Closes.map((c, i) => ({ open: c, high: h4Highs[i]!, low: h4Lows[i]!, close: c }))
       : [];
-    const utBotH4 = h4Candles.length >= 2 ? calcUtBotResult(h4Candles, 1, 3) : null;
+    const utBotH4 = h4Candles.length >= 2 ? calcUtBotResult(h4Candles, 10, 2) : null;
     const utBotH4Bullish = utBotH4?.uptrend ?? null;
 
     // Weekly (W1) — same indicators/setup as D1/H4
@@ -400,7 +400,7 @@ export class TrackingCoinsService {
     const wCandles = wCloses.length >= 2
       ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
       : [];
-    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 1, 3)?.uptrend ?? null) : null;
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
 
     const { longScore, shortScore } = computeLongShortScore({
       closes,

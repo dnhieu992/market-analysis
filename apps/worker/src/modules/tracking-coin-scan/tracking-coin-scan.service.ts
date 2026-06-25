@@ -121,12 +121,12 @@ export class TrackingCoinScanService {
     const h4VolMultiplier = h4Volumes.length >= 20 ? calculateVolumeRatio(h4Volumes, 20) : null;
 
     const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
-    const utBotD1Bullish = calcUtBotResult(d1Candles, 1, 3)?.uptrend ?? null;
+    const utBotD1Bullish = calcUtBotResult(d1Candles, 10, 2)?.uptrend ?? null;
 
     const h4Candles = h4Closes.length >= 2
       ? h4Closes.map((c, i) => ({ open: c, high: h4Highs[i]!, low: h4Lows[i]!, close: c }))
       : [];
-    const utBotH4Bullish = h4Candles.length >= 2 ? (calcUtBotResult(h4Candles, 1, 3)?.uptrend ?? null) : null;
+    const utBotH4Bullish = h4Candles.length >= 2 ? (calcUtBotResult(h4Candles, 10, 2)?.uptrend ?? null) : null;
 
     // ── Weekly (W1) timeframe — same indicators/setup as D1/H4 ──────────
     const wCloses  = wKlines.map((k) => parseFloat(k[4]));
@@ -144,7 +144,7 @@ export class TrackingCoinScanService {
     const wCandles = wCloses.length >= 2
       ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
       : [];
-    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 1, 3)?.uptrend ?? null) : null;
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
 
     const { longScore, shortScore } = computeLongShortScore({
       closes,
