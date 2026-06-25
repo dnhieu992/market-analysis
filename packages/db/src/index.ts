@@ -18,5 +18,4 @@ export { createConversationRepository } from './repositories/conversation.reposi
 export { createSmallCapRadarRepository } from './repositories/small-cap-radar.repository';
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
 export { createDayTradingRepository } from './repositories/day-trading.repository';
-export { createSwingTradingRepository } from './repositories/swing-trading.repository';
 export { createLongSignalRepository } from './repositories/long-signal.repository';

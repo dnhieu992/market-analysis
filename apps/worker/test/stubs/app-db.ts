@@ -50,7 +50,6 @@ function noopRepository() {
 }
 
 export const createSettingsRepository = noopRepository;
-export const createSwingTradingRepository = noopRepository;
 export const createTrackedSetupRepository = noopRepository;
 export const createTrackingCoinsRepository = noopRepository;
 export const createSmallCapRadarRepository = noopRepository;

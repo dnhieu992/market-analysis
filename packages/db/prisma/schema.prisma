@@ -477,57 +477,6 @@ model DayTradingActionLog {
   @@map("day_trading_action_logs")
 }
 
-model SwingTradingSignal {
-  id          String    @id @default(cuid())
-  symbol      String    @db.VarChar(20)
-  timeframe   String    @default("4h") @db.VarChar(10)
-  setupType   String    @default("UTBOT_FLIP") @db.VarChar(30)
-  direction   String    @db.VarChar(5)
-  entryPrice  Float
-  stopLoss    Float
-  takeProfit  Float
-  rrRatio       Float     @default(0)
-  riskAmount    Float     @default(1000)
-  keyValue      Float     @default(2)
-  // |entry − UTBot line| / entry × 100, captured AT ENTRY (the live stopLoss trails away later).
-  entryLineDistancePct Float?
-  quantity      Float?
-  positionValue Float?
-  status        String    @db.VarChar(20)
-  mode          String    @default("PAPER") @db.VarChar(10)
-  legKind       String    @default("BASE") @db.VarChar(10) // BASE | ADD (pullback scale-in)
-  pullbackArmed Boolean   @default(false)                  // re-arm state, only meaningful on the BASE leg
-  breakEvenMoved Boolean  @default(false)                  // SL ratcheted to entry after the +5% partial
-  partialClosed Boolean   @default(false)                  // the +5% half-close already fired
-  realizedPnlUsd Float    @default(0)                      // P&L banked from the partial close (added at full close)
-  closedPrice   Float?
-  closedAt      DateTime?
-  pnlUsd        Float?
-  setupJson     String    @db.Text
-  note          String?   @db.Text
-  detectedAt  DateTime
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([symbol, status, detectedAt])
-  @@map("swing_trading_signals")
-}
-
-model SwingTradingSettings {
-  id              String   @id @default("singleton")
-  symbol          String   @default("ETHUSDT") @db.VarChar(20)
-  timeframe       String   @default("4h") @db.VarChar(10)
-  atrPeriod       Int      @default(10)
-  keyValue        Float    @default(2)
-  riskPerTrade    Float    @default(1000)
-  leverage        Int      @default(1)
-  mode            String   @default("PAPER") @db.VarChar(10)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@map("swing_trading_settings")
-}
-
 /// "Long Signal" strategy — LONG-only intraday FOMO gated by the M30 UTBot trend.
 /// Each day at entryHour UTC, if the M30 UTBot trend is bull for a symbol, open a
 /// LONG with a +tpPct take-profit and a wide catastrophe stop; force-close at

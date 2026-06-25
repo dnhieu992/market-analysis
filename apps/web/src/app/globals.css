@@ -3635,7 +3635,7 @@ a {
 
 .ts-pnl-pct { font-size: 0.72rem; font-weight: 600; opacity: 0.75; }
 
-/* Price-cell grid — mirrors the swing-trading card (.dt-prices/.dt-price). */
+/* Price-cell grid — mirrors the day-trading card (.dt-prices/.dt-price). */
 .ts-prices {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
