@@ -8,7 +8,7 @@ import type { TopCapCoinRow, SmallCapStage } from '@web/shared/api/types';
 
 type Props = { initialCoins: TopCapCoinRow[] };
 
-type SortKey = 'signal' | 'rsi' | 'vol' | 'ext' | 'coin';
+type SortKey = 'mktcap' | 'signal' | 'rsi' | 'vol' | 'ext' | 'coin';
 
 const ALL_STAGES: SmallCapStage[] = ['Breakout', 'Trending', 'Accumulating', 'Waking', 'Extended', 'Quiet'];
 const PAGE_SIZE = 50;
@@ -204,7 +204,7 @@ export function TopCapRadarFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<TopCapCoinRow[]>(initialCoins);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [scanMsg, setScanMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('signal');
+  const [sortKey, setSortKey] = useState<SortKey>('mktcap');
   const [hiddenStages, setHiddenStages] = useState<Set<SmallCapStage>>(new Set<SmallCapStage>());
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
@@ -262,6 +262,7 @@ export function TopCapRadarFeed({ initialCoins }: Props) {
       return !hiddenStages.has(stage);
     });
     return [...filtered].sort((a, b) => {
+      if (sortKey === 'mktcap') return (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity);
       if (sortKey === 'signal') return (b.signal?.signalScore ?? 0) - (a.signal?.signalScore ?? 0);
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
@@ -365,7 +366,9 @@ export function TopCapRadarFeed({ initialCoins }: Props) {
               </th>
               <th className="scr-th">vs EMA</th>
               <th className="scr-th">30d</th>
-              <th className="scr-th scr-th--num">Mkt Cap</th>
+              <th className="scr-th scr-th--num" onClick={() => setSortKey('mktcap')}>
+                Mkt Cap {sortKey === 'mktcap' && '↓'}
+              </th>
               <th className="scr-th scr-th--num">Listed</th>
             </tr>
           </thead>
