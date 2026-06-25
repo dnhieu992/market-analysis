@@ -8376,6 +8376,26 @@ a.metric-card--link:hover {
   font-weight: 500;
   transition: all 0.15s;
 }
+.dt-filters-count {
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dt-filters-count strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+.dt-filters-upnl {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  font-weight: 700;
+}
+
 .dt-filter:hover { border-color: var(--accent); color: var(--foreground); }
 .dt-filter--active {
   background: var(--accent);

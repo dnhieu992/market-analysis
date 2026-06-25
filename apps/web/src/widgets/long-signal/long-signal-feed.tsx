@@ -367,13 +367,22 @@ export function LongSignalFeed({ initialSignals, initialStats, initialSettings }
   const [stats, setStats] = useState<LongSignalStats>(initialStats);
   const [settings, setSettings] = useState<LongSignalSettings>(initialSettings);
   const [showSettings, setShowSettings] = useState(false);
-  const [filter, setFilter] = useState<StatusFilter>('ALL');
+  const [filter, setFilter] = useState<StatusFilter>('ACTIVE');
   const [loading, setLoading] = useState(false);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [liveStatus, setLiveStatus] = useState<LongSignalLiveStatus | null>(null);
   const [togglingMode, setTogglingMode] = useState(false);
 
   const hasActive = signals.some((s) => s.status === 'ACTIVE');
+
+  // Aggregate live unrealized P&L across open positions (only those with a fresh price + known qty).
+  let unrealizedPnl: number | null = null;
+  for (const s of signals) {
+    if (s.status !== 'ACTIVE' || s.quantity == null) continue;
+    const price = prices[s.symbol];
+    if (price == null) continue;
+    unrealizedPnl = (unrealizedPnl ?? 0) + s.quantity * (price - s.entryPrice);
+  }
 
   // Load the server LIVE arm-state (env gate + Bitget creds) for the header toggle.
   useEffect(() => {
@@ -437,6 +446,12 @@ export function LongSignalFeed({ initialSignals, initialStats, initialSettings }
     }
   }, []);
 
+  // Server pre-fetches all statuses, but the default filter is "Open" (ACTIVE).
+  // Refresh once on mount so the rendered list matches the active filter.
+  useEffect(() => {
+    void refresh('ACTIVE');
+  }, [refresh]);
+
   // Auto-refresh every 60s to pick up new signals and result updates
   useEffect(() => {
     const id = setInterval(() => { void refresh(filter); }, 60_000);
@@ -499,6 +514,17 @@ export function LongSignalFeed({ initialSignals, initialStats, initialSettings }
             {f.label}
           </button>
         ))}
+        <span className="dt-filters-count">
+          Open <strong>{stats.active}</strong>
+          {unrealizedPnl != null && (
+            <span
+              className={`dt-filters-upnl ${unrealizedPnl >= 0 ? 'dt-pnl--pos' : 'dt-pnl--neg'}`}
+              title="Unrealized P&L (live, open positions)"
+            >
+              ~{unrealizedPnl >= 0 ? '+' : '-'}${Math.abs(unrealizedPnl).toFixed(2)}
+            </span>
+          )}
+        </span>
       </div>
 
       {signals.length === 0 ? (
