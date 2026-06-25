@@ -647,3 +647,6 @@ export type SmallCapCoinRow = {
     scannedAt: string;
   } | null;
 };
+
+// Top Cap Radar shares the Small Cap row shape — same daily signal scan, manual watchlist.
+export type TopCapCoinRow = SmallCapCoinRow;
