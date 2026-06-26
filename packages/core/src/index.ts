@@ -5,6 +5,8 @@ export { computeLongShortScore } from './analysis/long-short-score';
 export type { LongShortScore, LongShortScoreParams } from './analysis/long-short-score';
 export { computeEntryScore } from './analysis/entry-score';
 export type { EntryScoreParams, EntryScoreResult } from './analysis/entry-score';
+export { computeDcaScore, dcaZone } from './analysis/dca-signal';
+export type { DcaScoreParams, DcaZoneParams, DcaZone } from './analysis/dca-signal';
 export { analyzeMarketStructure } from './analysis/market-structure';
 export type {
   MarketStructure,

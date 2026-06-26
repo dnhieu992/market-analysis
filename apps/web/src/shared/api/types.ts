@@ -447,7 +447,10 @@ export type TrackingCoinRow = {
     shortScore: number | null;
     signalScore: number;
     entryScore: number;
+    dcaScore: number;
+    dcaZone: 'GOM' | 'CHO' | 'CHOT';
     extPct: number | null;
+    low20Pct: number | null;
     sparkline: number[];
     weekTrend: PaTrend;
     trend: PaTrend;

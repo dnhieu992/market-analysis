@@ -4,6 +4,7 @@ import {
   computeTimeframeTrend,
   computeLongShortScore,
   computeEntryScore,
+  computeDcaScore,
   calculateEma,
   calculateRsi,
   calculateVolumeRatio,
@@ -71,6 +72,7 @@ export class TrackingCoinScanService {
     coinId: string,
     symbol: string,
     setup?: {
+      marketCap?: number | null;
       swingMaxLoss?: number | null;
       daytradeMaxLoss?: number | null;
       swingMinRR?: number | null;
@@ -96,6 +98,11 @@ export class TrackingCoinScanService {
 
     const result = computeSmallCapSignal(closes, highs, lows, volumes);
     if (!result) return;
+
+    // % the last close sits above the rolling 20-day low (DCA dip-depth gauge).
+    const lastClose = closes[closes.length - 1]!;
+    const low20 = Math.min(...lows.slice(-20));
+    const low20Pct = low20 > 0 ? Number((((lastClose - low20) / low20) * 100).toFixed(1)) : null;
 
     const h4Closes  = h4Klines.map((k) => parseFloat(k[4]));
     const h4Highs   = h4Klines.map((k) => parseFloat(k[2]));
@@ -199,6 +206,15 @@ export class TrackingCoinScanService {
       rrRatio: rawSwingOrder?.rrRatio ?? null,
     });
 
+    // DCA-worthiness — "how safe is it to DCA this coin?" (market-cap + weekly trend).
+    const dcaScore = computeDcaScore({
+      marketCap: setup?.marketCap ?? null,
+      weekTrend: weekTrend as PaTrend,
+      wEma89Above,
+      wEma200Above,
+      utBotW1Bullish,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -211,7 +227,9 @@ export class TrackingCoinScanService {
       stage: result.stage,
       signalScore: result.signalScore,
       entryScore,
+      dcaScore,
       extPct: result.extPct,
+      low20Pct,
       sparklineJson: JSON.stringify(result.sparkline),
       weekTrend,
       trend: result.trend,

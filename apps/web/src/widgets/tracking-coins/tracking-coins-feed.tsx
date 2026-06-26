@@ -7,7 +7,7 @@ import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/t
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'entry' | 'ext' | 'mktcap' | 'rsi' | 'vol' | 'coin';
+type SortKey = 'dca' | 'ext' | 'mktcap' | 'rsi' | 'vol' | 'coin';
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
@@ -142,22 +142,32 @@ function VolCell({ vol }: { vol: number | null }) {
   return <span className={cls}>{vol.toFixed(1)}×</span>;
 }
 
-/* ── Entry Score badge — low-risk-entry gauge (0–100) ───────────── */
+/* ── DCA cell — "đáng DCA" quality score + action zone ──────────── */
 
-function entryLabel(score: number): { label: string; cls: string } {
-  if (score >= 75) return { label: 'Prime', cls: 'tc-entry--prime' };
-  if (score >= 60) return { label: 'Good', cls: 'tc-entry--good' };
-  if (score >= 40) return { label: 'Watch', cls: 'tc-entry--watch' };
-  return { label: 'Avoid', cls: 'tc-entry--avoid' };
+function dcaQuality(score: number): { label: string; cls: string } {
+  if (score >= 70) return { label: 'An toàn', cls: 'tc-dca--safe' };
+  if (score >= 50) return { label: 'Khá', cls: 'tc-dca--ok' };
+  if (score >= 30) return { label: 'Rủi ro', cls: 'tc-dca--risky' };
+  return { label: 'Tránh', cls: 'tc-dca--avoid' };
 }
 
-function EntryBadge({ score }: { score: number | null | undefined }) {
+const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; title: string }> = {
+  GOM:  { label: 'GOM',  cls: 'tc-zone--gom',  title: 'Quá bán + gần đáy 20 ngày → vùng gom thêm (add layer)' },
+  CHOT: { label: 'CHỐT', cls: 'tc-zone--chot', title: 'Giá đã reclaim EMA34 → chốt nếu đang ôm' },
+  CHO:  { label: 'Chờ',  cls: 'tc-zone--cho',  title: 'Dưới EMA34 nhưng chưa đủ sâu để gom' },
+};
+
+function DcaCell({ score, zone }: { score: number | null | undefined; zone: 'GOM' | 'CHO' | 'CHOT' | null | undefined }) {
   if (score == null) return <span className="scr-muted">—</span>;
-  const { label, cls } = entryLabel(score);
+  const q = dcaQuality(score);
+  const z = zone ? ZONE_META[zone] : null;
   return (
-    <span className={`tc-entry ${cls}`} title="Điểm vào lệnh rủi ro thấp (0–100). Càng cao = pullback về hỗ trợ, SL gọn, R:R tốt.">
-      <span className="tc-entry-score">{score}</span>
-      <span className="tc-entry-tag">{label}</span>
+    <span className="tc-dca" title={`Đáng DCA ${score}/100 (market-cap + trend tuần). ${q.label}.`}>
+      <span className={`tc-dca-badge ${q.cls}`}>
+        <span className="tc-dca-score">{score}</span>
+        <span className="tc-dca-tag">{q.label}</span>
+      </span>
+      {z && <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span>}
     </span>
   );
 }
@@ -751,7 +761,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const { prices, flash } = useLivePrices(symbols);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('entry');
+  const [sortKey, setSortKey] = useState<SortKey>('dca');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -810,7 +820,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)
     );
     return [...filtered].sort((a, b) => {
-      if (sortKey === 'entry') return (b.signal?.entryScore ?? -Infinity) - (a.signal?.entryScore ?? -Infinity);
+      if (sortKey === 'dca') return (b.signal?.dcaScore ?? -Infinity) - (a.signal?.dcaScore ?? -Infinity);
       if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
       if (sortKey === 'mktcap') return (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity);
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
@@ -894,8 +904,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
                   Coin {sortKey === 'coin' && '↑'}
                 </th>
-                <th className="scr-th scr-th--num" onClick={() => setSortKey('entry')}>
-                  Entry {sortKey === 'entry' && '↓'}
+                <th className="scr-th scr-th--num" onClick={() => setSortKey('dca')}>
+                  DCA {sortKey === 'dca' && '↓'}
                 </th>
                 <th className="scr-th tc-th--stacked">Trend (PA)</th>
                 <th className="scr-th tc-th--stacked">UT Bot</th>
@@ -939,9 +949,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </span>
                       )}
                     </td>
-                    {/* Entry Score — low-risk-entry gauge */}
+                    {/* DCA — đáng DCA (quality) + vùng hành động */}
                     <td className="scr-td scr-td--num">
-                      <EntryBadge score={sig?.entryScore} />
+                      <DcaCell score={sig?.dcaScore} zone={sig?.dcaZone} />
                     </td>
                     {/* Trend W / D1 / H4 */}
                     <td className="scr-td">

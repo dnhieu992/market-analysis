@@ -7191,8 +7191,14 @@ a.metric-card--link:hover {
 .scr-ext--hot  { color: #dc2626; }       /* overheated: trail / take profit */
 .scr-ext--down { color: var(--muted); }
 
-/* ── Entry Score badge (low-risk-entry gauge) ── */
-.tc-entry {
+/* ── DCA cell: "đáng DCA" quality badge + action zone ── */
+.tc-dca {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.tc-dca-badge {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -7202,21 +7208,32 @@ a.metric-card--link:hover {
   line-height: 1.1;
   border: 1px solid transparent;
 }
-.tc-entry-score {
+.tc-dca-score {
   font-size: 0.95rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.tc-entry-tag {
+.tc-dca-tag {
   font-size: 0.62rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.tc-entry--prime { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.4); color: #059669; }
-.tc-entry--good  { background: rgba(13, 148, 136, 0.12); border-color: rgba(13, 148, 136, 0.3); color: #0d9488; }
-.tc-entry--watch { background: rgba(148, 163, 184, 0.14); border-color: rgba(148, 163, 184, 0.3); color: var(--muted); }
-.tc-entry--avoid { background: rgba(220, 38, 38, 0.12); border-color: rgba(220, 38, 38, 0.3); color: #dc2626; }
+.tc-dca--safe  { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.4); color: #059669; }
+.tc-dca--ok    { background: rgba(234, 179, 8, 0.14);  border-color: rgba(234, 179, 8, 0.35); color: #b45309; }
+.tc-dca--risky { background: rgba(148, 163, 184, 0.14); border-color: rgba(148, 163, 184, 0.3); color: var(--muted); }
+.tc-dca--avoid { background: rgba(220, 38, 38, 0.12); border-color: rgba(220, 38, 38, 0.3); color: #dc2626; }
+
+.tc-zone {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.tc-zone--gom  { background: rgba(16, 185, 129, 0.18); color: #059669; }
+.tc-zone--chot { background: rgba(37, 99, 235, 0.16); color: #2563eb; }
+.tc-zone--cho  { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
 
 .scr-signal-num {
   font-size: 0.82rem;

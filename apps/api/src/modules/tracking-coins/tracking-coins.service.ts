@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
-import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, dcaZone, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
+import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
@@ -61,7 +61,10 @@ export type TrackingCoinWithSignal = {
     shortScore: number | null;
     signalScore: number;
     entryScore: number;
+    dcaScore: number;
+    dcaZone: DcaZone;
     extPct: number | null;
+    low20Pct: number | null;
     sparkline: number[];
     weekTrend: string;
     trend: string;
@@ -130,7 +133,10 @@ export class TrackingCoinsService {
               shortScore: sig.shortScore,
               signalScore: sig.signalScore,
               entryScore: sig.entryScore,
+              dcaScore: sig.dcaScore,
+              dcaZone: dcaZone({ ema34Above: sig.ema34Above, rsi: sig.rsi ?? 50, low20Pct: sig.low20Pct }),
               extPct: sig.extPct,
+              low20Pct: sig.low20Pct,
               sparkline: this.parseSparkline(sig.sparklineJson),
               weekTrend: sig.weekTrend,
               trend: sig.trend,
@@ -328,7 +334,7 @@ export class TrackingCoinsService {
     return { symbol: symbol.toUpperCase(), ...data };
   }
 
-  private async scanOneCoin(coinId: string, symbol: string, setup?: CoinSetup | null): Promise<void> {
+  private async scanOneCoin(coinId: string, symbol: string, setup?: (CoinSetup & { marketCap?: number | null }) | null): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
     const [klines, h4Klines, m30Klines, wKlines] = await Promise.all([
@@ -347,6 +353,11 @@ export class TrackingCoinsService {
 
     const result = computeSmallCapSignal(closes, highs, lows, volumes);
     if (!result) return;
+
+    // % the last close sits above the rolling 20-day low (DCA dip-depth gauge).
+    const lastClose = closes[closes.length - 1]!;
+    const low20 = Math.min(...lows.slice(-20));
+    const low20Pct = low20 > 0 ? Number((((lastClose - low20) / low20) * 100).toFixed(1)) : null;
 
     const h4Trend = h4Klines.length >= 20
       ? computeTimeframeTrend(
@@ -457,6 +468,15 @@ export class TrackingCoinsService {
       rrRatio: swingOrder?.rrRatio ?? null,
     });
 
+    // DCA-worthiness — "how safe is it to DCA this coin?" (market-cap + weekly trend).
+    const dcaScore = computeDcaScore({
+      marketCap: setup?.marketCap ?? null,
+      weekTrend: weekTrend as PaTrend,
+      wEma89Above,
+      wEma200Above,
+      utBotW1Bullish,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -469,7 +489,9 @@ export class TrackingCoinsService {
       stage: result.stage,
       signalScore: result.signalScore,
       entryScore,
+      dcaScore,
       extPct: result.extPct,
+      low20Pct,
       sparklineJson: JSON.stringify(result.sparkline),
       weekTrend,
       trend: result.trend,
