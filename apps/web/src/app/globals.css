@@ -7191,6 +7191,33 @@ a.metric-card--link:hover {
 .scr-ext--hot  { color: #dc2626; }       /* overheated: trail / take profit */
 .scr-ext--down { color: var(--muted); }
 
+/* ── Entry Score badge (low-risk-entry gauge) ── */
+.tc-entry {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  line-height: 1.1;
+  border: 1px solid transparent;
+}
+.tc-entry-score {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tc-entry-tag {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tc-entry--prime { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.4); color: #059669; }
+.tc-entry--good  { background: rgba(13, 148, 136, 0.12); border-color: rgba(13, 148, 136, 0.3); color: #0d9488; }
+.tc-entry--watch { background: rgba(148, 163, 184, 0.14); border-color: rgba(148, 163, 184, 0.3); color: var(--muted); }
+.tc-entry--avoid { background: rgba(220, 38, 38, 0.12); border-color: rgba(220, 38, 38, 0.3); color: #dc2626; }
+
 .scr-signal-num {
   font-size: 0.82rem;
   font-weight: 700;

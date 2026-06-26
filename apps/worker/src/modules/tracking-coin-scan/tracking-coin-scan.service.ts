@@ -3,6 +3,7 @@ import {
   computeSmallCapSignal,
   computeTimeframeTrend,
   computeLongShortScore,
+  computeEntryScore,
   calculateEma,
   calculateRsi,
   calculateVolumeRatio,
@@ -161,6 +162,43 @@ export class TrackingCoinScanService {
       sparkline: result.sparkline,
     });
 
+    // Build today's swing order first so its R:R can feed the entry score.
+    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
+    const sigSnap: OrderSigSnapshot = {
+      trend: result.trend,
+      h4Trend,
+      m30Trend,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      utBotW1Bullish,
+      longScore,
+      shortScore,
+      ema200Above: result.ema200Above,
+      rsi: result.rsi,
+      h4Rsi,
+      swingStructure: result.swingStructure,
+    };
+    const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
+    const rawSwingOrder = currentPrice > 0
+      ? computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr)
+      : null;
+
+    // Entry Score — low-risk-entry gauge (risk-management oriented).
+    // Uses the raw order's R:R (pre minRR-gate) so the score reflects setup
+    // quality independent of the coin's user-configured minRR.
+    const { entryScore } = computeEntryScore({
+      extPct: result.extPct,
+      ema200Above: result.ema200Above,
+      d1Trend: result.trend as PaTrend,
+      weekTrend: weekTrend as PaTrend,
+      rsi: result.rsi,
+      volMultiplier: result.volMultiplier,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      rrRatio: rawSwingOrder?.rrRatio ?? null,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -172,6 +210,8 @@ export class TrackingCoinScanService {
       ema200Above: result.ema200Above,
       stage: result.stage,
       signalScore: result.signalScore,
+      entryScore,
+      extPct: result.extPct,
       sparklineJson: JSON.stringify(result.sparkline),
       weekTrend,
       trend: result.trend,
@@ -196,25 +236,8 @@ export class TrackingCoinScanService {
     });
 
     // ── Generate & persist today's orders ──────────────────────────────
-    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
     if (currentPrice > 0) {
-      const sigSnap: OrderSigSnapshot = {
-        trend: result.trend,
-        h4Trend,
-        m30Trend,
-        utBotD1Bullish,
-        utBotH4Bullish,
-        utBotW1Bullish,
-        longScore,
-        shortScore,
-        ema200Above: result.ema200Above,
-        rsi: result.rsi,
-        h4Rsi,
-        swingStructure: result.swingStructure,
-      };
-
-      const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
-      const swingOrder = this.gateByMinRr(computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr), setup?.swingMinRR);
+      const swingOrder = this.gateByMinRr(rawSwingOrder, setup?.swingMinRR);
 
       // Day-trade removed from tracking-coins — only swing; clear stale day-trade order.
       await Promise.all([

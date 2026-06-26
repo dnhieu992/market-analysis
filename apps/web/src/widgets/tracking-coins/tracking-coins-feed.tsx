@@ -7,7 +7,7 @@ import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/t
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'mktcap' | 'rsi' | 'vol' | 'coin';
+type SortKey = 'entry' | 'ext' | 'mktcap' | 'rsi' | 'vol' | 'coin';
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
@@ -140,6 +140,38 @@ function VolCell({ vol }: { vol: number | null }) {
   if (vol == null) return <span className="scr-muted">—</span>;
   const cls = vol >= 1.5 ? 'scr-vol scr-vol--high' : vol >= 1.0 ? 'scr-vol' : 'scr-vol scr-vol--low';
   return <span className={cls}>{vol.toFixed(1)}×</span>;
+}
+
+/* ── Entry Score badge — low-risk-entry gauge (0–100) ───────────── */
+
+function entryLabel(score: number): { label: string; cls: string } {
+  if (score >= 75) return { label: 'Prime', cls: 'tc-entry--prime' };
+  if (score >= 60) return { label: 'Good', cls: 'tc-entry--good' };
+  if (score >= 40) return { label: 'Watch', cls: 'tc-entry--watch' };
+  return { label: 'Avoid', cls: 'tc-entry--avoid' };
+}
+
+function EntryBadge({ score }: { score: number | null | undefined }) {
+  if (score == null) return <span className="scr-muted">—</span>;
+  const { label, cls } = entryLabel(score);
+  return (
+    <span className={`tc-entry ${cls}`} title="Điểm vào lệnh rủi ro thấp (0–100). Càng cao = pullback về hỗ trợ, SL gọn, R:R tốt.">
+      <span className="tc-entry-score">{score}</span>
+      <span className="tc-entry-tag">{label}</span>
+    </span>
+  );
+}
+
+/* ── extension % cell (distance above EMA34 — exit/overheat gauge) ── */
+
+function ExtCell({ ext }: { ext: number | null }) {
+  if (ext == null) return <span className="scr-muted">—</span>;
+  const cls =
+    ext >= 20 ? 'scr-ext scr-ext--hot' :
+    ext >= 0 ? 'scr-ext scr-ext--up' :
+    'scr-ext scr-ext--down';
+  const sign = ext > 0 ? '+' : '';
+  return <span className={cls}>{`${sign}${ext.toFixed(1)}%`}</span>;
 }
 
 /* ── Trend badge ────────────────────────────────────────────────── */
@@ -719,7 +751,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const { prices, flash } = useLivePrices(symbols);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('mktcap');
+  const [sortKey, setSortKey] = useState<SortKey>('entry');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -778,6 +810,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)
     );
     return [...filtered].sort((a, b) => {
+      if (sortKey === 'entry') return (b.signal?.entryScore ?? -Infinity) - (a.signal?.entryScore ?? -Infinity);
+      if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
       if (sortKey === 'mktcap') return (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity);
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
@@ -860,9 +894,15 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
                   Coin {sortKey === 'coin' && '↑'}
                 </th>
+                <th className="scr-th scr-th--num" onClick={() => setSortKey('entry')}>
+                  Entry {sortKey === 'entry' && '↓'}
+                </th>
                 <th className="scr-th tc-th--stacked">Trend (PA)</th>
                 <th className="scr-th tc-th--stacked">UT Bot</th>
                 <th className="scr-th tc-th--stacked">EMA</th>
+                <th className="scr-th scr-th--num" onClick={() => setSortKey('ext')}>
+                  Ext% {sortKey === 'ext' && '↓'}
+                </th>
                 <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
                   RSI {sortKey === 'rsi' && '↓'}
                 </th>
@@ -876,7 +916,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="scr-empty">
+                  <td colSpan={10} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -898,6 +938,10 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                           ${formatPrice(prices.get(coin.symbol)!)}
                         </span>
                       )}
+                    </td>
+                    {/* Entry Score — low-risk-entry gauge */}
+                    <td className="scr-td scr-td--num">
+                      <EntryBadge score={sig?.entryScore} />
                     </td>
                     {/* Trend W / D1 / H4 */}
                     <td className="scr-td">
@@ -928,6 +972,10 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             h4={<EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />}
                           />
                         : <span className="scr-muted">—</span>}
+                    </td>
+                    {/* Ext% — distance above EMA34 (D1) */}
+                    <td className="scr-td scr-td--num">
+                      <ExtCell ext={sig?.extPct ?? null} />
                     </td>
                     {/* RSI W / D1 / H4 */}
                     <td className="scr-td">

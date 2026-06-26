@@ -391,6 +391,8 @@ model TrackingCoinSignal {
   ema200Above    Boolean      @default(false)
   stage          String       @default("Quiet") @db.VarChar(20)
   signalScore    Int          @default(0)
+  entryScore     Int          @default(0)
+  extPct         Float?
   sparklineJson  String       @db.Text
   weekTrend      String       @default("Neutral") @db.VarChar(15)
   trend          String       @default("Neutral") @db.VarChar(15)

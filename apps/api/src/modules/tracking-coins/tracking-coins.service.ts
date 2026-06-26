@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
 import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
@@ -60,6 +60,8 @@ export type TrackingCoinWithSignal = {
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
+    entryScore: number;
+    extPct: number | null;
     sparkline: number[];
     weekTrend: string;
     trend: string;
@@ -127,6 +129,8 @@ export class TrackingCoinsService {
               longScore: sig.longScore,
               shortScore: sig.shortScore,
               signalScore: sig.signalScore,
+              entryScore: sig.entryScore,
+              extPct: sig.extPct,
               sparkline: this.parseSparkline(sig.sparklineJson),
               weekTrend: sig.weekTrend,
               trend: sig.trend,
@@ -418,6 +422,41 @@ export class TrackingCoinsService {
       sparkline: result.sparkline,
     });
 
+    // Build today's swing order first so its R:R can feed the entry score.
+    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
+    const sigSnap: OrderSigSnapshot = {
+      trend: result.trend,
+      h4Trend,
+      m30Trend,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      utBotW1Bullish,
+      longScore,
+      shortScore,
+      ema200Above: result.ema200Above,
+      rsi: result.rsi,
+      h4Rsi,
+      swingStructure: result.swingStructure,
+    };
+    const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
+    const swingOrder = currentPrice > 0
+      ? computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr)
+      : null;
+
+    // Entry Score — low-risk-entry gauge; uses the raw order's R:R (pre minRR-gate).
+    const { entryScore } = computeEntryScore({
+      extPct: result.extPct,
+      ema200Above: result.ema200Above,
+      d1Trend: result.trend as PaTrend,
+      weekTrend: weekTrend as PaTrend,
+      rsi: result.rsi,
+      volMultiplier: result.volMultiplier,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      rrRatio: swingOrder?.rrRatio ?? null,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -429,6 +468,8 @@ export class TrackingCoinsService {
       ema200Above: result.ema200Above,
       stage: result.stage,
       signalScore: result.signalScore,
+      entryScore,
+      extPct: result.extPct,
       sparklineJson: JSON.stringify(result.sparkline),
       weekTrend,
       trend: result.trend,
@@ -453,24 +494,7 @@ export class TrackingCoinsService {
     });
 
     // Regenerate today's orders so re-analyze keeps limit levels fresh
-    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
     if (currentPrice > 0) {
-      const sigSnap: OrderSigSnapshot = {
-        trend: result.trend,
-        h4Trend,
-        m30Trend,
-        utBotD1Bullish,
-        utBotH4Bullish,
-        utBotW1Bullish,
-        longScore,
-        shortScore,
-        ema200Above: result.ema200Above,
-        rsi: result.rsi,
-        h4Rsi,
-        swingStructure: result.swingStructure,
-      };
-      const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
-      const swingOrder = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr);
       await Promise.all([
         this.persistSuggestion(coinId, today, 'swing', swingOrder, setup?.swingMaxLoss ?? null, setup?.swingMinRR ?? null),
         this.repo.deleteOrder(coinId, today, 'daytrade'),  // day-trade removed

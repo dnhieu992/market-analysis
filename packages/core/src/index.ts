@@ -3,6 +3,8 @@ export { computeSmallCapSignal, computeTimeframeTrend } from './analysis/small-c
 export type { SmallCapStage, SmallCapSignalResult, PaTrend, SwingStructure } from './analysis/small-cap-signal';
 export { computeLongShortScore } from './analysis/long-short-score';
 export type { LongShortScore, LongShortScoreParams } from './analysis/long-short-score';
+export { computeEntryScore } from './analysis/entry-score';
+export type { EntryScoreParams, EntryScoreResult } from './analysis/entry-score';
 export { analyzeMarketStructure } from './analysis/market-structure';
 export type {
   MarketStructure,

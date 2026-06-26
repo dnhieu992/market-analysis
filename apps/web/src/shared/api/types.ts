@@ -446,6 +446,8 @@ export type TrackingCoinRow = {
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
+    entryScore: number;
+    extPct: number | null;
     sparkline: number[];
     weekTrend: PaTrend;
     trend: PaTrend;
