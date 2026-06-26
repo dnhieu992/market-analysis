@@ -120,6 +120,7 @@ export class TrackingCoinsController {
       swingMinRR:      body.swingMinRR      ?? null,
       daytradeMaxLoss: body.daytradeMaxLoss ?? null,
       daytradeMinRR:   body.daytradeMinRR   ?? null,
+      dcaMaxLayers:    body.dcaMaxLayers    ?? null,
     });
   }
 }

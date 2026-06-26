@@ -12,7 +12,10 @@ type CoinSetup = {
   swingMinRR: number | null;
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
+  dcaMaxLayers: number | null;
 };
+
+const DEFAULT_DCA_MAX_LAYERS = 5;
 
 type DcaBuyRow = { id: string; price: number; usd: number; boughtAt: Date };
 
@@ -324,6 +327,7 @@ export class TrackingCoinsService {
     return {
       symbol: upper,
       currentPrice,
+      maxLayers: coin.dcaMaxLayers ?? DEFAULT_DCA_MAX_LAYERS,
       layers: agg?.layers ?? 0,
       avgEntry: agg?.avgEntry ?? null,
       capitalDeployed: agg?.capitalDeployed ?? 0,
@@ -400,6 +404,7 @@ export class TrackingCoinsService {
       swingMinRR: coin.swingMinRR ?? null,
       daytradeMaxLoss: coin.daytradeMaxLoss ?? null,
       daytradeMinRR: coin.daytradeMinRR ?? null,
+      dcaMaxLayers: coin.dcaMaxLayers ?? null,
     };
   }
 

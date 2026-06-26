@@ -640,7 +640,7 @@ function CoinHistorySignal({ symbol }: { symbol: string }) {
 /* ── setup settings dialog ──────────────────────────────────────── */
 
 function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
-  const [form, setForm] = useState<CoinSetup>({ swingMaxLoss: null, swingMinRR: null, daytradeMaxLoss: null, daytradeMinRR: null });
+  const [form, setForm] = useState<CoinSetup>({ swingMaxLoss: null, swingMinRR: null, daytradeMaxLoss: null, daytradeMinRR: null, dcaMaxLayers: null });
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
@@ -706,6 +706,16 @@ function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => v
                   </label>
                 </div>
               </div>
+              <div className="setup-section">
+                <div className="setup-section__title">DCA</div>
+                <div className="setup-fields">
+                  <label className="setup-label">
+                    <span>Trần số layer</span>
+                    <input className="setup-input" type="number" min="1" step="1" placeholder="mặc định 5"
+                      value={field('dcaMaxLayers')} onChange={(e) => setField('dcaMaxLayers', e.target.value)} />
+                  </label>
+                </div>
+              </div>
               {error && <p className="scr-muted ord-error">{error}</p>}
               <div className="setup-actions">
                 {saved && <span className="setup-saved">✓ Đã lưu</span>}
@@ -756,6 +766,8 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
 
   const cur = livePrice ?? pos?.currentPrice ?? 0;
   const avg = pos?.avgEntry ?? null;
+  const maxLayers = pos?.maxLayers ?? DCA_MAX_LAYERS;
+  const atCap = (pos?.layers ?? 0) >= maxLayers;
   const livePnlPct = avg && avg > 0 && cur > 0 ? ((cur - avg) / avg) * 100 : null;
   const inProfit = livePnlPct != null && livePnlPct >= 0;
 
@@ -799,7 +811,7 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
             <>
               {/* summary */}
               <div className="dcapos-summary">
-                <div className="dcapos-stat"><span>Layer</span><strong>{pos?.layers ?? 0} / {DCA_MAX_LAYERS}</strong></div>
+                <div className="dcapos-stat"><span>Layer</span><strong>{pos?.layers ?? 0} / {maxLayers}</strong></div>
                 <div className="dcapos-stat"><span>Giá TB</span><strong>{avg ? `$${fmtNum(avg)}` : '—'}</strong></div>
                 <div className="dcapos-stat"><span>Vốn đã vào</span><strong>${(pos?.capitalDeployed ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong></div>
                 <div className="dcapos-stat">
@@ -825,11 +837,11 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
                   value={price} onChange={(e) => setPrice(e.target.value)} />
                 <input className="setup-input" type="number" step="any" min="0" placeholder="Số USD"
                   value={usd} onChange={(e) => setUsd(e.target.value)} />
-                <button className="btn btn--primary" type="submit" disabled={busy || (pos?.layers ?? 0) >= DCA_MAX_LAYERS}>
+                <button className="btn btn--primary" type="submit" disabled={busy || atCap}>
                   + Gom
                 </button>
               </form>
-              {(pos?.layers ?? 0) >= DCA_MAX_LAYERS && <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Đã đạt trần {DCA_MAX_LAYERS} layer — ngừng gom, chờ hồi.</p>}
+              {atCap && <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Đã đạt trần {maxLayers} layer — ngừng gom, chờ hồi.</p>}
               {error && <p className="scr-muted ord-error">{error}</p>}
 
               {/* buy list */}

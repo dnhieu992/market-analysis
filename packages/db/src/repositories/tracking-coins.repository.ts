@@ -99,6 +99,7 @@ export function createTrackingCoinsRepository(client = prisma) {
         swingMinRR?: number | null;
         daytradeMaxLoss?: number | null;
         daytradeMinRR?: number | null;
+        dcaMaxLayers?: number | null;
       },
     ) {
       return client.trackingCoin.update({ where: { id: coinId }, data });

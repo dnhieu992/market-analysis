@@ -472,6 +472,7 @@ export type DcaBuy = {
 export type DcaPosition = {
   symbol: string;
   currentPrice: number;
+  maxLayers: number;
   layers: number;
   avgEntry: number | null;
   capitalDeployed: number;
@@ -526,6 +527,7 @@ export type CoinSetup = {
   swingMinRR: number | null;
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
+  dcaMaxLayers: number | null;
 };
 
 export type DayTradingSignal = {

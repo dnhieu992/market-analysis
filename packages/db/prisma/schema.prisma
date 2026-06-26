@@ -331,6 +331,7 @@ model TrackingCoin {
   swingMinRR      Float?
   daytradeMaxLoss Float?
   daytradeMinRR   Float?
+  dcaMaxLayers    Int?
   signals         TrackingCoinSignal[]
   journals        TrackingCoinJournal[]
   orders          TrackingCoinOrder[]
