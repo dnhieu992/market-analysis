@@ -240,6 +240,58 @@ function TableActions({ onAddTrade, onAddMultiple }: { onAddTrade: () => void; o
   );
 }
 
+function BtcPriceCard() {
+  const [price, setPrice] = useState<number | null>(null);
+  const [changePct, setChangePct] = useState<number | null>(null);
+  const prevPriceRef = useRef<number | null>(null);
+  const [dir, setDir] = useState<'up' | 'down' | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPrice() {
+      try {
+        const r = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+        const data = (await r.json()) as { lastPrice: string; priceChangePercent: string };
+        if (cancelled) return;
+        const next = Number(data.lastPrice);
+        setPrice(prev => {
+          prevPriceRef.current = prev;
+          if (prev != null && next !== prev) setDir(next > prev ? 'up' : 'down');
+          return next;
+        });
+        setChangePct(Number(data.priceChangePercent));
+      } catch {
+        /* silent */
+      }
+    }
+    void fetchPrice();
+    const id = setInterval(() => void fetchPrice(), 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const isPositive = (changePct ?? 0) >= 0;
+
+  return (
+    <div className="tt-pnl-card">
+      <span className="tt-pnl-card__label">BTC Price (Live)</span>
+      {price == null ? (
+        <span className="tt-pnl-card__value tt-muted">…</span>
+      ) : (
+        <span className={`tt-pnl-card__value ${dir === 'up' ? 'tt-pnl-card__value--positive' : dir === 'down' ? 'tt-pnl-card__value--negative' : ''}`}>
+          ${formatVolume(price)}
+        </span>
+      )}
+      {changePct != null ? (
+        <span className={`tt-pnl-card__note ${isPositive ? 'tt-pnl-positive' : 'tt-pnl-negative'}`}>
+          {isPositive ? '+' : ''}{changePct.toFixed(2)}% (24h)
+        </span>
+      ) : (
+        <span className="tt-pnl-card__note">BTCUSDT · Binance</span>
+      )}
+    </div>
+  );
+}
+
 function TotalPnlCard({ closedPnlSum }: { closedPnlSum: number }) {
   const isPositive = closedPnlSum >= 0;
   return (
@@ -523,12 +575,15 @@ export function TradesTable({
         <TableActions onAddTrade={onAddTrade} onAddMultiple={onAddMultiple} />
       </div>
 
-      {hasOrders && (
-        <div className="tt-summary-bar">
-          <TotalUnrealPnlCard openOrders={openOrders} livePrices={livePrices} />
-          <TotalPnlCard closedPnlSum={closedPnlSum} />
-        </div>
-      )}
+      <div className="tt-summary-bar">
+        <BtcPriceCard />
+        {hasOrders && (
+          <>
+            <TotalUnrealPnlCard openOrders={openOrders} livePrices={livePrices} />
+            <TotalPnlCard closedPnlSum={closedPnlSum} />
+          </>
+        )}
+      </div>
 
       <div className="trades-filter-bar">
         {/* 1. Symbol search */}
