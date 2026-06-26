@@ -53,7 +53,6 @@ export const createSettingsRepository = noopRepository;
 export const createTrackedSetupRepository = noopRepository;
 export const createTrackingCoinsRepository = noopRepository;
 export const createSmallCapRadarRepository = noopRepository;
-export const createTopCapRadarRepository = noopRepository;
 export const createUserRepository = noopRepository;
 export const createLongSignalRepository = noopRepository;
 

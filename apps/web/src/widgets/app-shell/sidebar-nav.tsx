@@ -58,11 +58,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Daily signal scan for small-cap watchlist'
   },
   {
-    href: '/top-cap-radar',
-    label: 'Top Cap Radar',
-    description: 'Daily signal scan for manual top-cap watchlist'
-  },
-  {
     href: '/tracking-coins',
     label: 'Tracking Coins',
     description: 'Theo dõi coin tự nhập tay'

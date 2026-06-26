@@ -7,7 +7,6 @@ import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { SetupExtractionService } from '../setup-tracking/setup-extraction.service';
 import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
-import { TopCapScanService } from '../top-cap-scan/top-cap-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TrackingCoinScanService } from '../tracking-coin-scan/tracking-coin-scan.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -25,7 +24,6 @@ export class SchedulerService {
     private readonly swingSignalService: SwingSignalService,
     private readonly dailySignalService: DailySignalService,
     private readonly smallCapScanService: SmallCapScanService,
-    private readonly topCapScanService: TopCapScanService,
     private readonly trackingCoinScanService: TrackingCoinScanService,
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
@@ -60,18 +58,6 @@ export class SchedulerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Small-cap scan failed: ${msg}`);
-    }
-  }
-
-  // Runs every day at 00:10 UTC — scan all top-cap watchlist coins
-  @Cron('10 0 * * *', { timeZone: 'UTC' })
-  async runTopCapScan() {
-    this.logger.log('Running top-cap radar scan');
-    try {
-      await this.topCapScanService.scanAll();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Top-cap scan failed: ${msg}`);
     }
   }
 

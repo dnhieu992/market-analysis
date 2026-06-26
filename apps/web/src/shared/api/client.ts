@@ -34,7 +34,6 @@ import type {
   Conversation,
   ChatMessage,
   SmallCapCoinRow,
-  TopCapCoinRow,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
@@ -853,34 +852,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<{ scanned: number; failed: number }>(
         fetchImpl,
         `${baseUrl}/small-cap-radar/scan`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    async fetchTopCapRadar(): Promise<TopCapCoinRow[]> {
-      return fetchJson<TopCapCoinRow[]>(fetchImpl, `${baseUrl}/top-cap-radar`, withDefaults());
-    },
-
-    async addTopCapCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {
-      return fetchJson<{ id: string; symbol: string; name: string }>(
-        fetchImpl,
-        `${baseUrl}/top-cap-radar/coins`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, name }),
-        }),
-      );
-    },
-
-    async removeTopCapCoin(symbol: string): Promise<void> {
-      await fetchImpl(`${baseUrl}/top-cap-radar/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    async triggerTopCapScan(): Promise<{ scanned: number; failed: number }> {
-      return fetchJson<{ scanned: number; failed: number }>(
-        fetchImpl,
-        `${baseUrl}/top-cap-radar/scan`,
         withDefaults({ method: 'POST' }),
       );
     },
