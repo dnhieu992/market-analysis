@@ -6,6 +6,7 @@ export type OrderSigSnapshot = {
   m30Trend: string;
   utBotD1Bullish: boolean | null;
   utBotH4Bullish: boolean | null;
+  utBotW1Bullish: boolean | null;
   longScore: number | null;
   shortScore: number | null;
   ema200Above: boolean;
@@ -105,6 +106,14 @@ function resolveD1Regime(sig: OrderSigSnapshot | null): D1Regime {
   // (P5, 1y) showed longs in mild/non-strong uptrends are net-negative, while shorts
   // perform well unrestricted.
   if (side === 'LONG' && sig.trend !== 'StrongUp') return null;
+
+  // Weekly (W1) UT Bot alignment — don't fight the higher-timeframe trend. Block
+  // LONGs when the weekly UT Bot is bearish and SHORTs when it is bullish; a null
+  // (insufficient weekly history) does not block. Validated 2026-06-26 walk-forward
+  // (see claude-backtest/runs/2026-06-26-tracking-coins-w1-filter.md): lifted basket
+  // E[R] 0.137→0.179, PF 1.33→1.43, and reduced drawdown across windows.
+  if (side === 'LONG'  && sig.utBotW1Bullish === false) return null;
+  if (side === 'SHORT' && sig.utBotW1Bullish === true)  return null;
 
   return { side };
 }

@@ -204,6 +204,7 @@ export class TrackingCoinScanService {
         m30Trend,
         utBotD1Bullish,
         utBotH4Bullish,
+        utBotW1Bullish,
         longScore,
         shortScore,
         ema200Above: result.ema200Above,

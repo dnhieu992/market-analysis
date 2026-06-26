@@ -19,7 +19,7 @@ function series(n: number, base: number): { highs: number[]; lows: number[] } {
 
 const bullish: OrderSigSnapshot = {
   trend: 'StrongUp', h4Trend: 'Up', m30Trend: 'Up',  // StrongUp required for LONG (asymmetric filter)
-  utBotD1Bullish: true, utBotH4Bullish: true,
+  utBotD1Bullish: true, utBotH4Bullish: true, utBotW1Bullish: true,  // W1 bullish → LONG allowed
   longScore: 7, shortScore: 2,
   ema200Above: true, rsi: 45, h4Rsi: 50, swingStructure: 'HH-HL',
 };
@@ -28,14 +28,14 @@ const mildUp: OrderSigSnapshot = { ...bullish, trend: 'Up' }; // mild uptrend �
 
 const bearish: OrderSigSnapshot = {
   trend: 'Down', h4Trend: 'Down', m30Trend: 'Down',
-  utBotD1Bullish: false, utBotH4Bullish: false,
+  utBotD1Bullish: false, utBotH4Bullish: false, utBotW1Bullish: false,  // W1 bearish → SHORT allowed
   longScore: 2, shortScore: 7,
   ema200Above: false, rsi: 55, h4Rsi: 50, swingStructure: 'LH-LL',
 };
 
 const rangebound: OrderSigSnapshot = {
   trend: 'Neutral', h4Trend: 'Neutral', m30Trend: 'Neutral',
-  utBotD1Bullish: null, utBotH4Bullish: null,
+  utBotD1Bullish: null, utBotH4Bullish: null, utBotW1Bullish: null,
   longScore: 5, shortScore: 5,
   ema200Above: true, rsi: 50, h4Rsi: 50, swingStructure: 'Mixed',
 };
@@ -58,6 +58,23 @@ describe('tracking-coin orders — P1 ATR stop + P2 regime/direction', () => {
 
   it('LONG filter: mild Up (not StrongUp) → no swing trade', () => {
     expect(computeSwingLimitOrder(price, h4H, h4L, mildUp, atr)).toBeNull();
+  });
+
+  describe('W1 alignment filter (weekly UT Bot)', () => {
+    it('blocks SHORT when weekly UT Bot is bullish', () => {
+      const sig = { ...bearish, utBotW1Bullish: true };
+      expect(computeSwingLimitOrder(price, h4H, h4L, sig, atr)).toBeNull();
+    });
+
+    it('blocks LONG when weekly UT Bot is bearish', () => {
+      const sig = { ...bullish, utBotW1Bullish: false };
+      expect(computeSwingLimitOrder(price, h4H, h4L, sig, atr)).toBeNull();
+    });
+
+    it('null weekly UT Bot does NOT block (insufficient history)', () => {
+      expect(computeSwingLimitOrder(price, h4H, h4L, { ...bearish, utBotW1Bullish: null }, atr)!.side).toBe('SHORT');
+      expect(computeSwingLimitOrder(price, h4H, h4L, { ...bullish, utBotW1Bullish: null }, atr)!.side).toBe('LONG');
+    });
   });
 
   it('P2 direction sync: day-trade does NOT oppose D1 bias (no strong reversal)', () => {
