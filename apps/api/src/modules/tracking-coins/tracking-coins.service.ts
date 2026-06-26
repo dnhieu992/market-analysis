@@ -14,6 +14,24 @@ type CoinSetup = {
   daytradeMinRR: number | null;
 };
 
+type DcaBuyRow = { id: string; price: number; usd: number; boughtAt: Date };
+
+// Aggregate a coin's DCA buy log into the position summary the dashboard shows.
+function aggregateDca(buys: DcaBuyRow[]): { layers: number; avgEntry: number; capitalDeployed: number } | null {
+  if (!buys || buys.length === 0) return null;
+  let coins = 0;
+  let cost = 0;
+  for (const b of buys) {
+    if (b.price > 0) coins += b.usd / b.price;
+    cost += b.usd;
+  }
+  return {
+    layers: buys.length,
+    avgEntry: coins > 0 ? cost / coins : 0,
+    capitalDeployed: cost,
+  };
+}
+
 function calcVolume(order: LimitOrderResult, maxLoss: number | null): { positionSize: number; positionValue: number } | null {
   if (!maxLoss || maxLoss <= 0) return null;
   const entryMid = (order.entryLow + order.entryHigh) / 2;
@@ -73,6 +91,7 @@ export type TrackingCoinWithSignal = {
     swingStructure: string;
     scannedAt: Date;
   } | null;
+  dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
 };
 
 @Injectable()
@@ -146,6 +165,7 @@ export class TrackingCoinsService {
               scannedAt: sig.scannedAt,
             }
           : null,
+        dcaPosition: aggregateDca(coin.dcaBuys),
       };
     });
   }
@@ -288,6 +308,62 @@ export class TrackingCoinsService {
 
   async updateOrderNotes(orderId: string, notes: string | null): Promise<void> {
     await this.repo.updateOrderNotes(orderId, notes);
+  }
+
+  // ── DCA position (manual buy log) ────────────────────────────────────────
+
+  async getDcaPosition(symbol: string) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+    const buys = await this.repo.findDcaBuysByCoin(coin.id);
+    const agg = aggregateDca(buys);
+    const currentPrice = await this.binance.fetchCurrentPrice(`${upper}USDT`).catch(() => 0);
+    const lastAdd = buys.length > 0 ? buys[buys.length - 1]!.price : null;
+
+    return {
+      symbol: upper,
+      currentPrice,
+      layers: agg?.layers ?? 0,
+      avgEntry: agg?.avgEntry ?? null,
+      capitalDeployed: agg?.capitalDeployed ?? 0,
+      // Next layer triggers 8% below the last add (matches the backtested -8% step).
+      nextAddPrice: lastAdd != null ? Number((lastAdd * 0.92).toFixed(8)) : null,
+      pnlPct: agg && agg.avgEntry > 0 && currentPrice > 0
+        ? Number((((currentPrice - agg.avgEntry) / agg.avgEntry) * 100).toFixed(2))
+        : null,
+      buys: buys.map((b) => ({
+        id: b.id,
+        price: b.price,
+        usd: b.usd,
+        boughtAt: b.boughtAt.toISOString(),
+      })),
+    };
+  }
+
+  async addDcaBuy(symbol: string, data: { price: number; usd: number; boughtAt?: string }) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+    await this.repo.addDcaBuy(coin.id, {
+      price: data.price,
+      usd: data.usd,
+      boughtAt: data.boughtAt ? new Date(data.boughtAt) : undefined,
+    });
+    return this.getDcaPosition(upper);
+  }
+
+  async deleteDcaBuy(symbol: string, buyId: string) {
+    await this.repo.deleteDcaBuy(buyId);
+    return this.getDcaPosition(symbol);
+  }
+
+  async closeDcaPosition(symbol: string) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+    await this.repo.deleteAllDcaBuys(coin.id);
+    return this.getDcaPosition(upper);
   }
 
   async listOrders(symbol: string) {

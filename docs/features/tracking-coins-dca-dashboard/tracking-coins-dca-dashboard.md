@@ -23,21 +23,39 @@ its column/logic remain in the DB and scan (harmless) — see that doc.
 4. The feed shows a **DCA** column (quality badge + zone tag) and defaults to sorting by `dcaScore` desc
    so the safest-to-DCA coins surface first.
 
+## DCA position tracking (manual buy log)
+Each DCA buy (layer) is logged per coin via the **DCA position dialog** (layers icon in the row
+actions; shows the layer count when holding). From the buy log the API derives:
+- **avgEntry** = Σusd / Σ(usd/price) — the real break-even, since "reclaim EMA34" only profits above it.
+- **capitalDeployed** = Σusd, **layers** = buy count (capped at 5 in the UI).
+- **nextAddPrice** = lastAdd × 0.92 (the backtested −8% step).
+- **live P&L** = (livePrice − avgEntry) / avgEntry, computed client-side from the feed's live price.
+
+The dialog shows a **profit-aware take-profit hint**: green when livePrice ≥ avgEntry ("reclaim EMA34
+= chốt có lãi"), amber otherwise ("EMA34 có thể vẫn lỗ; chốt khi giá ≥ giá TB"). "Đóng vị thế" clears
+all buys after taking profit. The row's list view also shows a lightweight `dcaPosition` aggregate
+(layers / avgEntry / capitalDeployed) so a holding is visible at a glance.
+
 ## Edge Cases
 - **Micro-cap / unknown market cap** → 0 cap points → can never reach "An toàn" (high death risk).
 - **Missing signal** (never scanned) → DCA cell shows "—".
 - **Null RSI** in zone derivation defaults to 50 (treated as not-oversold → not GOM).
-- Layer/position/capital tracking is **not** in this version — the dashboard is a screener
-  (which coin is safe + in a gom zone now); tracking actual buys is a planned follow-up.
+- **No buys logged** → `dcaPosition` is null; the action button shows the layers icon, not a count.
+- Adding a buy is blocked in the UI once 5 layers are reached (the strategy cap).
 
 ## Related Files (FE / BE / Worker)
 - `packages/core/src/analysis/dca-signal.ts` — `computeDcaScore` + `dcaZone`
 - `packages/core/src/analysis/dca-signal.spec.ts` — unit tests
 - `packages/core/src/index.ts` — exports
-- `packages/db/prisma/schema.prisma` — `TrackingCoinSignal.dcaScore`, `low20Pct`
+- `packages/db/prisma/schema.prisma` — `TrackingCoinSignal.dcaScore`/`low20Pct`, `TrackingCoinDcaBuy` model
 - `packages/db/prisma/migrations/20260626140000_tracking_coin_dca_score/migration.sql`
+- `packages/db/prisma/migrations/20260626160000_tracking_coin_dca_buys/migration.sql`
+- `packages/db/src/repositories/tracking-coins.repository.ts` — DCA-buy CRUD + buys in list query
 - `apps/worker/src/modules/tracking-coin-scan/tracking-coin-scan.service.ts`
-- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — computes score, derives zone, exposes fields
-- `apps/web/src/shared/api/types.ts` — `TrackingCoinRow.signal.dcaScore` / `dcaZone` / `low20Pct`
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, sort/column
-- `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*` styles
+- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — score/zone + `aggregateDca` + position CRUD
+- `apps/api/src/modules/tracking-coins/tracking-coins.controller.ts` — dca-position / dca-buys routes
+- `apps/api/src/modules/tracking-coins/dto/add-dca-buy.dto.ts`
+- `apps/web/src/shared/api/types.ts` — `dcaScore`/`dcaZone`/`low20Pct`, `dcaPosition`, `DcaPosition`/`DcaBuy`
+- `apps/web/src/shared/api/client.ts` — `fetchDcaPosition`/`addDcaBuy`/`deleteDcaBuy`/`closeDcaPosition`
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `DcaPositionDialog`, sort/column
+- `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*`, `.dcapos-*` styles

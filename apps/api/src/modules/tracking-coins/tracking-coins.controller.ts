@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { AddDcaBuyDto } from './dto/add-dca-buy.dto';
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpsertJournalEntryDto } from './dto/upsert-journal-entry.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
@@ -78,6 +79,30 @@ export class TrackingCoinsController {
   @ApiOperation({ summary: 'Get risk setup settings for a coin' })
   getSetup(@Param('symbol') symbol: string) {
     return this.service.getSetup(symbol);
+  }
+
+  @Get('coins/:symbol/dca-position')
+  @ApiOperation({ summary: 'Get the DCA position (buy log + average + P&L) for a coin' })
+  getDcaPosition(@Param('symbol') symbol: string) {
+    return this.service.getDcaPosition(symbol);
+  }
+
+  @Post('coins/:symbol/dca-buys')
+  @ApiOperation({ summary: 'Log a DCA buy (layer) for a coin' })
+  addDcaBuy(@Param('symbol') symbol: string, @Body() body: AddDcaBuyDto) {
+    return this.service.addDcaBuy(symbol, body);
+  }
+
+  @Delete('coins/:symbol/dca-buys/:buyId')
+  @ApiOperation({ summary: 'Delete a single DCA buy' })
+  deleteDcaBuy(@Param('symbol') symbol: string, @Param('buyId') buyId: string) {
+    return this.service.deleteDcaBuy(symbol, buyId);
+  }
+
+  @Delete('coins/:symbol/dca-position')
+  @ApiOperation({ summary: 'Close (clear) the entire DCA position for a coin' })
+  closeDcaPosition(@Param('symbol') symbol: string) {
+    return this.service.closeDcaPosition(symbol);
   }
 
   @Patch('coins/orders/:orderId/notes')

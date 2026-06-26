@@ -38,6 +38,7 @@ import type {
   OrderSuggestions,
   TrackingCoinOrder,
   CoinSetup,
+  DcaPosition,
   DayTradingSignal,
   DayTradingSignalsResponse,
   DayTradingStats,
@@ -762,6 +763,33 @@ export function createApiClient(options: ApiClientOptions = {}) {
         method: 'PUT',
         headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+      });
+    },
+
+    fetchDcaPosition(symbol: string): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, withDefaults());
+    },
+
+    addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string }): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys`, {
+        ...withDefaults(),
+        method: 'POST',
+        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    },
+
+    deleteDcaBuy(symbol: string, buyId: string): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys/${encodeURIComponent(buyId)}`, {
+        ...withDefaults(),
+        method: 'DELETE',
+      });
+    },
+
+    closeDcaPosition(symbol: string): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, {
+        ...withDefaults(),
+        method: 'DELETE',
       });
     },
 

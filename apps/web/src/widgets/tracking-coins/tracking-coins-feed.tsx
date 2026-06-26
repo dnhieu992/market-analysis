@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, OrderSuggestions, OrderSuggestion, TrackingCoinOrder, CoinSetup } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, OrderSuggestions, OrderSuggestion, TrackingCoinOrder, CoinSetup, DcaPosition } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -232,6 +232,16 @@ function IconSetup() {
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function IconLayers() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
     </svg>
   );
 }
@@ -711,6 +721,147 @@ function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => v
   );
 }
 
+/* ── DCA position dialog — buy log, average, P&L, profit-aware chốt ─ */
+
+const DCA_MAX_LAYERS = 5;
+
+function fmtNum(n: number): string {
+  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (n >= 1) return n.toFixed(4);
+  if (n >= 0.01) return n.toFixed(5);
+  return n.toFixed(8);
+}
+
+function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
+  symbol: string;
+  livePrice: number | null;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [pos, setPos] = useState<DcaPosition | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [price, setPrice] = useState('');
+  const [usd, setUsd] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    createApiClient().fetchDcaPosition(symbol)
+      .then((r) => { setPos(r); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [symbol]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const cur = livePrice ?? pos?.currentPrice ?? 0;
+  const avg = pos?.avgEntry ?? null;
+  const livePnlPct = avg && avg > 0 && cur > 0 ? ((cur - avg) / avg) * 100 : null;
+  const inProfit = livePnlPct != null && livePnlPct >= 0;
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    const p = parseFloat(price), u = parseFloat(usd);
+    if (!(p > 0) || !(u > 0)) { setError('Nhập giá và số USD hợp lệ.'); return; }
+    setBusy(true); setError(null);
+    try {
+      const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u });
+      setPos(r); setPrice(''); setUsd(''); onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi lưu.');
+    } finally { setBusy(false); }
+  }
+
+  async function handleDelete(buyId: string) {
+    setBusy(true);
+    try { const r = await createApiClient().deleteDcaBuy(symbol, buyId); setPos(r); onChanged(); }
+    catch { /* ignore */ } finally { setBusy(false); }
+  }
+
+  async function handleClose() {
+    if (!confirm(`Đóng (xóa) toàn bộ vị thế DCA của ${symbol}?`)) return;
+    setBusy(true);
+    try { const r = await createApiClient().closeDcaPosition(symbol); setPos(r); onChanged(); }
+    catch { /* ignore */ } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog setup-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">DCA position — {symbol}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body setup-body">
+          {loading ? (
+            <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
+          ) : (
+            <>
+              {/* summary */}
+              <div className="dcapos-summary">
+                <div className="dcapos-stat"><span>Layer</span><strong>{pos?.layers ?? 0} / {DCA_MAX_LAYERS}</strong></div>
+                <div className="dcapos-stat"><span>Giá TB</span><strong>{avg ? `$${fmtNum(avg)}` : '—'}</strong></div>
+                <div className="dcapos-stat"><span>Vốn đã vào</span><strong>${(pos?.capitalDeployed ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong></div>
+                <div className="dcapos-stat">
+                  <span>P&L</span>
+                  <strong className={livePnlPct == null ? '' : inProfit ? 'dcapos-pos' : 'dcapos-neg'}>
+                    {livePnlPct == null ? '—' : `${livePnlPct >= 0 ? '+' : ''}${livePnlPct.toFixed(2)}%`}
+                  </strong>
+                </div>
+              </div>
+
+              {avg != null && (
+                <p className={`dcapos-hint ${inProfit ? 'dcapos-hint--ok' : 'dcapos-hint--warn'}`}>
+                  {inProfit
+                    ? '✓ Giá hiện > giá TB → khi reclaim EMA34/EMA89 là CHỐT có lãi.'
+                    : '⚠ Giá hiện < giá TB → reclaim EMA34 có thể vẫn lỗ. Chốt khi giá ≥ giá TB.'}
+                  {pos?.nextAddPrice != null && ` · Gom layer kế ở ~$${fmtNum(pos.nextAddPrice)} (−8%).`}
+                </p>
+              )}
+
+              {/* add buy */}
+              <form className="dcapos-add" onSubmit={handleAdd}>
+                <input className="setup-input" type="number" step="any" min="0" placeholder="Giá mua"
+                  value={price} onChange={(e) => setPrice(e.target.value)} />
+                <input className="setup-input" type="number" step="any" min="0" placeholder="Số USD"
+                  value={usd} onChange={(e) => setUsd(e.target.value)} />
+                <button className="btn btn--primary" type="submit" disabled={busy || (pos?.layers ?? 0) >= DCA_MAX_LAYERS}>
+                  + Gom
+                </button>
+              </form>
+              {(pos?.layers ?? 0) >= DCA_MAX_LAYERS && <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Đã đạt trần {DCA_MAX_LAYERS} layer — ngừng gom, chờ hồi.</p>}
+              {error && <p className="scr-muted ord-error">{error}</p>}
+
+              {/* buy list */}
+              {pos && pos.buys.length > 0 && (
+                <table className="dcapos-table">
+                  <thead><tr><th>Ngày</th><th>Giá</th><th>USD</th><th></th></tr></thead>
+                  <tbody>
+                    {pos.buys.map((b) => (
+                      <tr key={b.id}>
+                        <td>{b.boughtAt.slice(0, 10)}</td>
+                        <td>${fmtNum(b.price)}</td>
+                        <td>${b.usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+                        <td><button className="dcapos-del" onClick={() => handleDelete(b.id)} disabled={busy} aria-label="Xóa">✕</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {pos && pos.buys.length > 0 && (
+                <div className="setup-actions">
+                  <button className="btn btn--danger" onClick={handleClose} disabled={busy}>Đóng vị thế (đã chốt)</button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── add coin form ──────────────────────────────────────────────── */
 
 function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) {
@@ -733,7 +884,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as { id: string; symbol: string; name: string };
-      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), signal: null });
+      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), signal: null, dcaPosition: null });
       setSymbol('');
       setName('');
     } catch (err) {
@@ -770,6 +921,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [setupCoin, setSetupCoin] = useState<string | null>(null);
+  const [dcaCoin, setDcaCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
 
@@ -852,6 +1004,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         />
       )}
       {setupCoin && <CoinSetupDialog symbol={setupCoin} onClose={() => setSetupCoin(null)} />}
+      {dcaCoin && (
+        <DcaPositionDialog
+          symbol={dcaCoin}
+          livePrice={prices.get(dcaCoin) ?? null}
+          onClose={() => setDcaCoin(null)}
+          onChanged={reloadCoins}
+        />
+      )}
 
       <main className="dashboard-shell scr-shell">
         {/* header */}
@@ -1014,6 +1174,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                       <div className="tt-actions">
                         <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconPrompt />
+                        </button>
+                        <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => setDcaCoin(coin.symbol)}>
+                          {coin.dcaPosition ? `${coin.dcaPosition.layers}L` : <IconLayers />}
                         </button>
                         <button className="tt-btn tt-btn--setup" data-tooltip="Setup" aria-label={`Setup ${coin.symbol}`} onClick={() => setSetupCoin(coin.symbol)}>
                           <IconSetup />

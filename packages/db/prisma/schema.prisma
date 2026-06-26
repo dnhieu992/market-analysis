@@ -334,8 +334,22 @@ model TrackingCoin {
   signals         TrackingCoinSignal[]
   journals        TrackingCoinJournal[]
   orders          TrackingCoinOrder[]
+  dcaBuys         TrackingCoinDcaBuy[]
 
   @@map("tracking_coins")
+}
+
+model TrackingCoinDcaBuy {
+  id        String       @id @default(cuid())
+  coinId    String
+  price     Float
+  usd       Float
+  boughtAt  DateTime     @default(now())
+  createdAt DateTime     @default(now())
+  coin      TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([coinId, boughtAt(sort: Asc)])
+  @@map("tracking_coin_dca_buys")
 }
 
 model TrackingCoinOrder {

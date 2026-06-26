@@ -43,10 +43,34 @@ export function createTrackingCoinsRepository(client = prisma) {
             orderBy: { date: 'desc' },
             take: 1,
           },
+          dcaBuys: { orderBy: { boughtAt: 'asc' } },
         },
         // Market cap desc (MySQL sorts NULL last on DESC), then insertion order.
         orderBy: [{ marketCap: 'desc' }, { addedAt: 'asc' }],
       });
+    },
+
+    // ── DCA position (manual buy log) ──────────────────────────────────────
+
+    findDcaBuysByCoin(coinId: string) {
+      return client.trackingCoinDcaBuy.findMany({
+        where: { coinId },
+        orderBy: { boughtAt: 'asc' },
+      });
+    },
+
+    addDcaBuy(coinId: string, data: { price: number; usd: number; boughtAt?: Date }) {
+      return client.trackingCoinDcaBuy.create({
+        data: { coinId, price: data.price, usd: data.usd, ...(data.boughtAt ? { boughtAt: data.boughtAt } : {}) },
+      });
+    },
+
+    deleteDcaBuy(id: string) {
+      return client.trackingCoinDcaBuy.delete({ where: { id } });
+    },
+
+    deleteAllDcaBuys(coinId: string) {
+      return client.trackingCoinDcaBuy.deleteMany({ where: { coinId } });
     },
 
     // ── Journal ──────────────────────────────────────────────────────────

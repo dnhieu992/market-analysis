@@ -459,6 +459,25 @@ export type TrackingCoinRow = {
     swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
+  dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
+};
+
+export type DcaBuy = {
+  id: string;
+  price: number;
+  usd: number;
+  boughtAt: string;
+};
+
+export type DcaPosition = {
+  symbol: string;
+  currentPrice: number;
+  layers: number;
+  avgEntry: number | null;
+  capitalDeployed: number;
+  nextAddPrice: number | null;
+  pnlPct: number | null;
+  buys: DcaBuy[];
 };
 
 export type OrderSuggestion = {

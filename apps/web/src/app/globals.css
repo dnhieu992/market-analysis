@@ -7235,6 +7235,75 @@ a.metric-card--link:hover {
 .tc-zone--chot { background: rgba(37, 99, 235, 0.16); color: #2563eb; }
 .tc-zone--cho  { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
 
+/* ── DCA position action button (shows layer count when holding) ── */
+.tt-btn--dca-active {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.14);
+}
+
+/* ── DCA position dialog ── */
+.dcapos-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.dcapos-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-2, rgba(148, 163, 184, 0.08));
+}
+.dcapos-stat span { font-size: 0.68rem; color: var(--muted); }
+.dcapos-stat strong { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.dcapos-pos { color: #059669; }
+.dcapos-neg { color: #dc2626; }
+.dcapos-hint {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin: 0 0 10px;
+}
+.dcapos-hint--ok   { background: rgba(16, 185, 129, 0.12); color: #047857; }
+.dcapos-hint--warn { background: rgba(234, 179, 8, 0.12); color: #b45309; }
+.dcapos-add {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dcapos-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.82rem;
+}
+.dcapos-table th {
+  text-align: left;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 6px;
+}
+.dcapos-table td {
+  padding: 4px 6px;
+  border-top: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+  font-variant-numeric: tabular-nums;
+}
+.dcapos-del {
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
 .scr-signal-num {
   font-size: 0.82rem;
   font-weight: 700;
