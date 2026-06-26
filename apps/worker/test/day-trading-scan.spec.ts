@@ -20,11 +20,11 @@ function buildSetup(direction: 'LONG' | 'SHORT'): SetupResult {
 
 type OpenSignal = { id: string; direction: 'LONG' | 'SHORT' };
 
-function makeService(opts: { open: OpenSignal[]; setup: SetupResult | null }) {
+function makeService(opts: { open: OpenSignal[]; setup: SetupResult | null; ws?: Record<string, unknown> }) {
   const executor = { execute: jest.fn().mockResolvedValue(undefined) };
   const analyzer = { analyze: jest.fn().mockReturnValue(opts.setup) };
   const bitget = { fetchCandles: jest.fn().mockResolvedValue([candle]) };
-  const ws = {};
+  const ws = opts.ws ?? {};
   const monitor = {};
 
   const repo = {
@@ -39,7 +39,7 @@ function makeService(opts: { open: OpenSignal[]; setup: SetupResult | null }) {
 
   const service = new DayTradingService(bitget as any, ws as any, analyzer as any, executor as any, monitor as any);
   (service as any).repo = repo;
-  return { service, executor, analyzer, repo };
+  return { service, executor, analyzer, repo, ws };
 }
 
 describe('DayTradingService.scan — one-open-position-per-side rule', () => {
@@ -82,5 +82,37 @@ describe('DayTradingService.scan — one-open-position-per-side rule', () => {
     const { service, executor } = makeService({ open: [], setup: null });
     await service.scan();
     expect(executor.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('DayTradingService.cronFallbackScan — keyed on candleClose staleness', () => {
+  it('runs a scan when the realtime candleClose trigger is stale', async () => {
+    const { service, executor } = makeService({
+      open: [], setup: buildSetup('LONG'),
+      ws: { isCandleCloseStale: jest.fn().mockReturnValue(true) },
+    });
+    await service.cronFallbackScan();
+    expect(executor.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips when a recent candleClose already fired (avoids double scan)', async () => {
+    const { service, analyzer, executor } = makeService({
+      open: [], setup: buildSetup('LONG'),
+      ws: { isCandleCloseStale: jest.fn().mockReturnValue(false) },
+    });
+    await service.cronFallbackScan();
+    expect(analyzer.analyze).not.toHaveBeenCalled();
+    expect(executor.execute).not.toHaveBeenCalled();
+  });
+
+  it('does NOT consult ws.isHealthy() — a ticker-healthy socket must not block the fallback', async () => {
+    const isHealthy = jest.fn().mockReturnValue(true);
+    const { service, executor } = makeService({
+      open: [], setup: buildSetup('LONG'),
+      ws: { isCandleCloseStale: jest.fn().mockReturnValue(true), isHealthy },
+    });
+    await service.cronFallbackScan();
+    expect(isHealthy).not.toHaveBeenCalled();
+    expect(executor.execute).toHaveBeenCalledTimes(1);
   });
 });

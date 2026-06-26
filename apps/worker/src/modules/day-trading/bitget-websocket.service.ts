@@ -20,6 +20,10 @@ const PING_INTERVAL_MS = 25_000;
 const RECONNECT_BASE_MS = 2_000;
 const RECONNECT_MAX_MS = 30_000;
 const STALE_THRESHOLD_MS = 60_000;
+// A 15m candle closes every 15 min. If the WS hasn't emitted a 'candleClose' within
+// one interval + margin, the realtime scan trigger is dead and the cron fallback must
+// take over — even though the ticker stream keeps the socket "healthy".
+const STALE_CANDLE_CLOSE_MS = 16 * 60 * 1000;
 
 type BitgetWsMessage = {
   event?: string;
@@ -42,6 +46,10 @@ export class BitgetWebSocketService extends EventEmitter implements OnModuleInit
   private latestPrice: number | null = null;
   private lastMessageAt = 0;
   private lastCandleTs = 0;
+  // When we last EMITTED a 'candleClose' (the realtime scan trigger). Distinct from
+  // lastMessageAt (any message, dominated by the high-frequency ticker) so the cron
+  // fallback can tell whether scans are actually being triggered.
+  private lastCandleCloseAt = 0;
 
   onModuleInit(): void {
     this.connect();
@@ -58,9 +66,19 @@ export class BitgetWebSocketService extends EventEmitter implements OnModuleInit
     return this.latestPrice;
   }
 
-  /** True if the WS has delivered a message within the staleness window. */
+  /** True if the WS has delivered a message within the staleness window. Driven by
+   *  the ticker stream — use this to trust getLatestPrice(), NOT to decide whether
+   *  scans are firing (the ticker keeps this true even if the candle channel is dead). */
   isHealthy(): boolean {
     return this.lastMessageAt > 0 && Date.now() - this.lastMessageAt < STALE_THRESHOLD_MS;
+  }
+
+  /** True if no 15m 'candleClose' has been emitted within ~one candle interval, i.e.
+   *  the realtime scan trigger is stale (candle channel silent, or freshly started).
+   *  The cron fallback keys off THIS so a silent candle channel can't disable scanning
+   *  while the ticker stream keeps isHealthy() true. */
+  isCandleCloseStale(): boolean {
+    return Date.now() - this.lastCandleCloseAt >= STALE_CANDLE_CLOSE_MS;
   }
 
   private connect(): void {
@@ -177,6 +195,7 @@ export class BitgetWebSocketService extends EventEmitter implements OnModuleInit
     if (ts > this.lastCandleTs) {
       const closedTs = this.lastCandleTs;
       this.lastCandleTs = ts;
+      this.lastCandleCloseAt = Date.now();
       this.logger.log(`15m candle closed @ ${new Date(closedTs).toISOString()} — emitting candleClose`);
       this.emit('candleClose', closedTs);
     }

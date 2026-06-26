@@ -41,14 +41,18 @@ export class DayTradingService implements OnModuleInit {
     });
   }
 
-  // Fallback only — runs the scan if the WS feed is unhealthy (missed a close).
+  // Fallback only — runs the scan if the realtime trigger missed a 15m close.
+  // Keyed on candleClose staleness, NOT ws.isHealthy(): the ticker stream keeps the
+  // socket "healthy" even when the candle channel is silent, which would otherwise
+  // make this fallback skip forever and no scan would ever run. scan()'s own dedup
+  // window makes a redundant run (when the WS path also fires) harmless.
   @Cron('2,17,32,47 * * * *', { timeZone: 'UTC' })
   async cronFallbackScan(): Promise<void> {
-    if (this.ws.isHealthy()) {
-      this.logger.debug('WS healthy — skipping cron fallback scan');
+    if (!this.ws.isCandleCloseStale()) {
+      this.logger.debug('Realtime candleClose fresh — skipping cron fallback scan');
       return;
     }
-    this.logger.warn('WS unhealthy — running cron fallback scan');
+    this.logger.warn('No recent 15m candleClose from WS — running cron fallback scan');
     await this.runScan('cron-fallback');
   }
 
