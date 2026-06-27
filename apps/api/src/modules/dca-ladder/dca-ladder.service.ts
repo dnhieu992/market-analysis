@@ -40,7 +40,16 @@ export class DcaLadderService {
   }
 
   async updateSettings(dto: UpdateDcaLadderSettingsDto) {
-    await this.repo.updateSettings(dto);
+    const settings = await this.repo.updateSettings(dto);
+    // Re-arm FLAT cycle with updated settings so tier count/prices/budget stay in sync.
+    // Never re-arm an IN_POSITION cycle — that would delete filled buy orders.
+    const cycle = await this.repo.getCurrentCycle(SYMBOL);
+    if (cycle && cycle.status === 'FLAT') {
+      const closed = await this.repo.listClosedCycles(SYMBOL);
+      const budget = computeBudget(settings.startCapital, closed.map((c: any) => c.realizedPnl ?? 0));
+      await this.repo.updateCycle(cycle.id, { budget });
+      await this.armBuyTiers(cycle.id, cycle.peak, budget, settings);
+    }
     return this.getState();
   }
 

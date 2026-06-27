@@ -90,4 +90,23 @@ describe('DcaLadderService state machine', () => {
     expect(state.cycle.avgCost).toBeNull();
     expect(state.orders.find((o: any) => o.side === 'SELL')!.status).toBe('CANCELLED');
   });
+
+  it('updateSettings re-arms the FLAT cycle tiers with new budget and tier count', async () => {
+    const repo = makeFakeRepo();
+    const svc = makeService(repo);
+    // Bootstrap: FLAT cycle with 10 ARMED buys, usdAmount 100 (1000/10)
+    await svc.getState();
+    expect(repo.orders.filter((o: any) => o.side === 'BUY' && o.status === 'ARMED')).toHaveLength(10);
+    expect(repo.orders[0]!.usdAmount).toBeCloseTo(100, 6); // 1000/10
+
+    // Change startCapital to 2000, numTiers to 5
+    const state = await svc.updateSettings({ startCapital: 2000, numTiers: 5 });
+
+    // Should now have 5 ARMED BUY orders, each with usdAmount = 2000/5 = 400
+    const armedBuys = state.orders.filter((o: any) => o.side === 'BUY' && o.status === 'ARMED');
+    expect(armedBuys).toHaveLength(5);
+    expect(armedBuys[0]!.usdAmount).toBeCloseTo(400, 6);
+    // Cycle budget should be updated to 2000
+    expect(state.cycle.budget).toBeCloseTo(2000, 6);
+  });
 });
