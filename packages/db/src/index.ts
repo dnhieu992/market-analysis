@@ -19,3 +19,4 @@ export { createSmallCapRadarRepository } from './repositories/small-cap-radar.re
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
 export { createDayTradingRepository } from './repositories/day-trading.repository';
 export { createLongSignalRepository } from './repositories/long-signal.repository';
+export { createDcaLadderRepository } from './repositories/dca-ladder.repository';
