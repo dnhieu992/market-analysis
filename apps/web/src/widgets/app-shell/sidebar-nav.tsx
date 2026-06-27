@@ -73,6 +73,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'LONG sáng · lọc M30 UTBot · POL/XRP/SOL/TAO'
   },
   {
+    href: '/dca-ladder',
+    label: 'DCA Ladder',
+    description: 'BTC dip-bounce: thang DCA + chốt +10%'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'
