@@ -57,8 +57,7 @@ Cập nhật 2026-06-26 (lọc xu hướng tuần W1):
   là hạng mục tối ưu kế tiếp.
 
 ## Main Flow
-1. Scan (cron worker, nút Re-analyze qua API, hoặc tab "Tín hiệu hôm nay" gọi live) lấy nến
-   D1/H4/H1 từ Binance.
+1. Scan (cron worker hoặc nút Re-analyze qua API) lấy nến D1/H4/H1 từ Binance.
 2. Tính chỉ báo + `longScore/shortScore` + ATR (H4 cho swing, H1 cho day-trade).
 3. `resolveD1Regime()` quyết định bias D1 hoặc no-trade (gồm: regime gate, siết LONG StrongUp,
    **lọc W1 UT Bot**). `resolveDayTradeSide()` khóa hướng day-trade theo D1 (có ngoại lệ đảo chiều).
@@ -68,7 +67,9 @@ Cập nhật 2026-06-26 (lọc xu hướng tuần W1):
 5. Nếu có lệnh → `upsertOrder`; nếu `null` (no-trade) → `deleteOrder` (xóa lệnh cũ cùng ngày
    nếu có, tránh lệnh cũ tồn đọng).
 6. Vòng đánh giá `evaluateLimitOrder` cập nhật `activated` + `outcome` cho lệnh chưa chốt.
-7. UI: tab "Tín hiệu hôm nay" hiển thị 2 card; khi `null` hiển thị `NoTradeCard` ("NO-TRADE").
+7. ~~UI: tab "Tín hiệu hôm nay" hiển thị 2 card~~ — **Gỡ UI 2026-06-27**: tab "Tín hiệu hôm nay" /
+   "Lịch sử tín hiệu" đã bị xóa khỏi dialog chi tiết coin. Backend vẫn tạo & lưu lệnh nhưng không
+   còn hiển thị ở đâu (xem `tracking-coins-limit-orders`).
 
 ## Edge Cases
 - **ATR = 0 / thiếu dữ liệu nến:** fallback SL theo % (swing 1.8%, day-trade 1.0%).

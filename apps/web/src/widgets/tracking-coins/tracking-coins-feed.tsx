@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, OrderSuggestions, OrderSuggestion, TrackingCoinOrder, CoinSetup, DcaPosition } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, CoinSetup, DcaPosition } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -260,12 +260,10 @@ function IconPrompt() {
 
 /* ── detail modal ───────────────────────────────────────────────── */
 
-type DetailTab = 'overview' | 'today' | 'history' | 'journal';
+type DetailTab = 'overview' | 'journal';
 
 const DETAIL_TABS: ReadonlyArray<[DetailTab, string]> = [
   ['overview', 'Overview'],
-  ['today', 'Tín hiệu hôm nay'],
-  ['history', 'Lịch sử tín hiệu'],
   ['journal', 'Journal'],
 ];
 
@@ -299,8 +297,6 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
 
         <div className="dialog-body tc-detail-body">
           {tab === 'overview' && <CoinOverview coin={coin} />}
-          {tab === 'today' && <CoinLiveSignal symbol={coin.symbol} />}
-          {tab === 'history' && <CoinHistorySignal symbol={coin.symbol} />}
           {tab === 'journal' && <CoinJournalPanel symbol={coin.symbol} />}
         </div>
       </div>
@@ -378,261 +374,6 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ── order suggestions dialog ───────────────────────────────────── */
-
-function fmtPrice(n: number): string {
-  if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (n >= 1)    return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 4 });
-  if (n >= 0.01) return n.toFixed(5);
-  return n.toFixed(7);
-}
-
-function calcLiveVolume(order: OrderSuggestion, maxLoss: number | null): { positionSize: number; positionValue: number } | null {
-  if (!maxLoss || maxLoss <= 0) return null;
-  const entryMid = (order.entryLow + order.entryHigh) / 2;
-  const risk = order.side === 'LONG' ? entryMid - order.sl : order.sl - entryMid;
-  if (risk <= 0) return null;
-  const positionSize = maxLoss / risk;
-  return { positionSize, positionValue: positionSize * entryMid };
-}
-
-function OrderCard({ order, label, maxLoss }: { order: OrderSuggestion; label: string; maxLoss: number | null }) {
-  const [notes, setNotes] = useState(order.notes ?? '');
-  const savedNotesRef = useRef(order.notes ?? '');
-
-  function handleNotesBlur() {
-    const val = notes.trim() || null;
-    const saved = savedNotesRef.current.trim() || null;
-    if (val !== saved) {
-      savedNotesRef.current = val ?? '';
-      createApiClient().updateOrderNotes(order.id, val).catch(() => {});
-    }
-  }
-
-  const isLong = order.side === 'LONG';
-  const vol = calcLiveVolume(order, maxLoss);
-  return (
-    <div className="ord-card">
-      <div className="ord-card__header">
-        <span className="ord-card__title">{label}</span>
-        <span className={`tt-side-badge tt-side-badge--${isLong ? 'long' : 'short'}`}>{order.side}</span>
-      </div>
-      <div className="ord-card__grid">
-        <span className="ord-card__label">Vùng entry</span>
-        <span className="ord-card__value ord-entry">${fmtPrice(order.entryLow)} – ${fmtPrice(order.entryHigh)}</span>
-        <span className="ord-card__label">TP1</span>
-        <span className="ord-card__value ord-tp">${fmtPrice(order.tp1)}</span>
-        {order.tp2 != null && <>
-          <span className="ord-card__label">TP2</span>
-          <span className="ord-card__value ord-tp">${fmtPrice(order.tp2)}</span>
-        </>}
-        <span className="ord-card__label">SL</span>
-        <span className="ord-card__value ord-sl">${fmtPrice(order.sl)}</span>
-        <span className="ord-card__label">R:R</span>
-        <span className="ord-card__value ord-rr">{order.rrRatio.toFixed(1)}×</span>
-        {vol && <>
-          <span className="ord-card__label">Số lượng</span>
-          <span className="ord-card__value">{vol.positionSize < 1 ? vol.positionSize.toFixed(4) : vol.positionSize.toFixed(2)}</span>
-          <span className="ord-card__label">Giá trị lệnh</span>
-          <span className="ord-card__value">${vol.positionValue.toFixed(2)}</span>
-        </>}
-      </div>
-      <p className="ord-card__rationale">{order.rationale}</p>
-      <textarea
-        className="ord-card__notes"
-        placeholder="Nhận định của bạn…"
-        value={notes}
-        rows={2}
-        onChange={(e) => setNotes(e.target.value)}
-        onBlur={handleNotesBlur}
-      />
-    </div>
-  );
-}
-
-function NoTradeCard({ label }: { label: string }) {
-  return (
-    <div className="ord-card ord-card--notrade">
-      <div className="ord-card__header">
-        <span className="ord-card__title">{label}</span>
-        <span className="tt-side-badge tt-side-badge--neutral">NO-TRADE</span>
-      </div>
-      <p className="ord-card__rationale">
-        Không có setup hôm nay — thị trường đi ngang hoặc tín hiệu hai chiều cân bằng. Đứng ngoài để tránh lệnh chất lượng thấp.
-      </p>
-    </div>
-  );
-}
-
-function OutcomeBadge({ activated, outcome }: { activated: boolean | null; outcome: string | null }) {
-  if (activated === null) return <span className="ord-hist__outcome ord-hist__outcome--pending">Chưa eval</span>;
-  if (!activated) return <span className="ord-hist__outcome ord-hist__outcome--miss">Chưa kích hoạt</span>;
-  if (outcome === 'tp2') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP2</span>;
-  if (outcome === 'tp1') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP1</span>;
-  if (outcome === 'sl') return <span className="ord-hist__outcome ord-hist__outcome--sl">✗ SL</span>;
-  if (outcome === 'expired') return <span className="ord-hist__outcome ord-hist__outcome--miss">Hết hạn</span>;
-  return <span className="ord-hist__outcome ord-hist__outcome--active">Đang chạy</span>;
-}
-
-function HistoryNoteCell({ orderId, initialNotes }: { orderId: string; initialNotes: string | null }) {
-  const [notes, setNotes] = useState(initialNotes ?? '');
-  const savedRef = useRef(initialNotes ?? '');
-
-  function handleBlur() {
-    const val = notes.trim() || null;
-    const saved = savedRef.current.trim() || null;
-    if (val !== saved) {
-      savedRef.current = val ?? '';
-      createApiClient().updateOrderNotes(orderId, val).catch(() => {});
-    }
-  }
-
-  return (
-    <textarea
-      className="ord-hist__notes"
-      placeholder="—"
-      value={notes}
-      rows={1}
-      onChange={(e) => setNotes(e.target.value)}
-      onBlur={handleBlur}
-    />
-  );
-}
-
-function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
-  if (orders.length === 0) {
-    return <p className="scr-muted" style={{ textAlign: 'center', padding: '16px 0' }}>Chưa có lệnh nào được lưu. Lệnh sẽ tự động tạo sau mỗi lần quét.</p>;
-  }
-  const hasVolume = orders.some((o) => o.positionSize != null);
-  return (
-    <div className="ord-hist-wrap">
-      <table className="ord-hist-table">
-        <thead>
-          <tr>
-            <th>Ngày</th>
-            <th>Loại</th>
-            <th>Side</th>
-            <th>Entry</th>
-            <th>TP1</th>
-            <th>SL</th>
-            <th>R:R</th>
-            {hasVolume && <th>Vol / $</th>}
-            <th>Kết quả</th>
-            <th>Ghi chú</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((o) => (
-            <tr key={o.id} title={o.rationale}>
-              <td>{o.date}</td>
-              <td><span className="ord-hist__type">{o.type}</span></td>
-              <td><span className={`tt-side-badge tt-side-badge--${o.side === 'LONG' ? 'long' : 'short'}`}>{o.side}</span></td>
-              <td className="ord-hist__price">{fmtPrice(o.entryLow)}–{fmtPrice(o.entryHigh)}</td>
-              <td className="ord-hist__price ord-tp">{fmtPrice(o.tp1)}</td>
-              <td className="ord-hist__price ord-sl">{fmtPrice(o.sl)}</td>
-              <td>{o.rrRatio.toFixed(1)}×</td>
-              {hasVolume && (
-                <td className="ord-hist__vol">
-                  {o.positionSize != null ? (
-                    <span title={`$${o.positionValue?.toFixed(2) ?? '—'}`}>
-                      {o.positionSize < 1 ? o.positionSize.toFixed(4) : o.positionSize.toFixed(2)}
-                      <span className="ord-hist__vol-usd"> ${o.positionValue?.toFixed(0) ?? '—'}</span>
-                    </span>
-                  ) : <span className="scr-muted">—</span>}
-                </td>
-              )}
-              <td><OutcomeBadge activated={o.activated} outcome={o.outcome} /></td>
-              <td><HistoryNoteCell orderId={o.id} initialNotes={o.notes} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CoinLiveSignal({ symbol }: { symbol: string }) {
-  const [data, setData] = useState<OrderSuggestions | null>(null);
-  const [setup, setSetup] = useState<CoinSetup | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    const api = createApiClient();
-    Promise.all([
-      api.fetchOrderSuggestions(symbol),
-      api.fetchCoinSetup(symbol).catch(() => null),
-    ])
-      .then(([orders, coinSetup]) => {
-        if (!cancelled) { setData(orders); setSetup(coinSetup); setLoading(false); }
-      })
-      .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Lỗi tải gợi ý.'); setLoading(false); } });
-    return () => { cancelled = true; };
-  }, [symbol]);
-
-  useEffect(() => load(), [load]);
-
-  return (
-    <div className="tc-signal">
-      {loading && (
-        <div className="ord-loading">
-          <span className="ord-loading__spinner" />
-          <span>Đang tính toán lệnh…</span>
-        </div>
-      )}
-      {error && <p className="scr-muted ord-error">{error}</p>}
-      {!loading && !error && data && (
-        <>
-          <div className="ord-price-bar">
-            <span className="ord-price-bar__label">Giá hiện tại</span>
-            <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
-            <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
-          </div>
-          {data.swing
-            ? <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
-            : <NoTradeCard label="Swing (2–5 ngày)" />}
-          <p className="ord-footer">
-            Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
-
-function CoinHistorySignal({ symbol }: { symbol: string }) {
-  const [history, setHistory] = useState<TrackingCoinOrder[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    createApiClient()
-      .fetchCoinOrders(symbol)
-      .then((res) => { if (!cancelled) { setHistory(res); setLoading(false); } })
-      .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Lỗi tải lịch sử.'); setLoading(false); } });
-    return () => { cancelled = true; };
-  }, [symbol]);
-
-  return (
-    <div className="tc-signal">
-      {loading && (
-        <div className="ord-loading">
-          <span className="ord-loading__spinner" />
-          <span>Đang tải lịch sử…</span>
-        </div>
-      )}
-      {error && <p className="scr-muted ord-error">{error}</p>}
-      {!loading && !error && history !== null && <OrderHistoryTable orders={history} />}
     </div>
   );
 }
