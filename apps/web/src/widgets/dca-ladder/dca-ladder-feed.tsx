@@ -106,7 +106,7 @@ export function DcaLadderFeed({ initialState }: { initialState: DcaLadderState }
             <tr key={o.id} className={o.status === 'PENDING_FILL' ? 'dcal-pending' : ''}>
               <td>{o.side === 'SELL' ? 'TP' : `#${(o.tierIndex ?? 0) + 1}`}</td>
               <td
-                onClick={() => editPlanned(o.id, o.plannedPrice)}
+                onClick={() => void editPlanned(o.id, o.plannedPrice)}
                 className="dcal-edit"
               >
                 {fmt(o.plannedPrice)}
