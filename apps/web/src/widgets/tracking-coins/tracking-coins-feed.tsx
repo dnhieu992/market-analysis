@@ -483,6 +483,12 @@ function fmtNum(n: number): string {
   return n.toFixed(8);
 }
 
+/** Plain decimal string for a <input type="number"> value (no grouping/scientific). */
+function priceInputStr(n: number): string {
+  if (!(n > 0)) return '';
+  return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 8 });
+}
+
 function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
   symbol: string;
   livePrice: number | null;
@@ -495,6 +501,7 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
   const [usd, setUsd] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const prefilledRef = useRef(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -506,6 +513,12 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
   useEffect(() => { load(); }, [load]);
 
   const cur = livePrice ?? pos?.currentPrice ?? 0;
+
+  // Default the "Giá mua" field to the current price as soon as one is known (once per open).
+  useEffect(() => {
+    if (prefilledRef.current) return;
+    if (cur > 0) { setPrice(priceInputStr(cur)); prefilledRef.current = true; }
+  }, [cur]);
   const avg = pos?.avgEntry ?? null;
   const maxLayers = pos?.maxLayers ?? DCA_MAX_LAYERS;
   const atCap = (pos?.layers ?? 0) >= maxLayers;
@@ -519,7 +532,7 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
     setBusy(true); setError(null);
     try {
       const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u });
-      setPos(r); setPrice(''); setUsd(''); onChanged();
+      setPos(r); setPrice(cur > 0 ? priceInputStr(cur) : ''); setUsd(''); onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi lưu.');
     } finally { setBusy(false); }
