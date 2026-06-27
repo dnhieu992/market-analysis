@@ -23,6 +23,16 @@ its column/logic remain in the DB and scan (harmless) — see that doc.
 4. The feed shows a **DCA** column (quality badge + zone tag) and defaults to sorting by `dcaScore` desc
    so the safest-to-DCA coins surface first.
 
+## Trend column (PA) — W / D1 / H4
+The per-timeframe `trend` (5 levels ↑↑/↑/→/↓/↓↓) comes from `computePaTrend` in `@app/core`
+(`computeTimeframeTrend` for W/H4, inside `computeSmallCapSignal` for D1). It mirrors the
+**daily-plan** trend engine the user validated (`apps/worker/.../market/utils/trend.ts` `detectTrend`):
+**1-bar swing pivots over the full series** (a candle whose high/low tops/bottoms both neighbours),
+then compare the last two swing highs and last two swing lows — **HH+HL = bullish, LH+LL = bearish,
+anything else (including equal swings) = neutral**. The 5-level display overlays EMA89: bullish above
+EMA89 → StrongUp (else Up), bearish below EMA89 → StrongDown (else Down), neutral → Neutral. The same
+weekly trend feeds `computeDcaScore`, so a cleaner weekly read also sharpens the safety score.
+
 ## DCA position tracking (manual buy log)
 Each DCA buy (layer) is logged per coin via the **DCA position dialog** (layers icon in the row
 actions; shows the layer count when holding). From the buy log the API derives:
@@ -45,6 +55,8 @@ all buys after taking profit. The row's list view also shows a lightweight `dcaP
 
 ## Related Files (FE / BE / Worker)
 - `packages/core/src/analysis/dca-signal.ts` — `computeDcaScore` + `dcaZone`
+- `packages/core/src/analysis/small-cap-signal.ts` — `computePaTrend`/`computeTimeframeTrend` (PA trend, daily-plan style)
+- `packages/core/src/analysis/small-cap-signal.spec.ts` — trend unit tests
 - `packages/core/src/analysis/dca-signal.spec.ts` — unit tests
 - `packages/core/src/index.ts` — exports
 - `packages/db/prisma/schema.prisma` — `TrackingCoinSignal.dcaScore`/`low20Pct`, `TrackingCoinDcaBuy` model

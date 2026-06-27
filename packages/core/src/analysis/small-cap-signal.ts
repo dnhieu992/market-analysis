@@ -27,9 +27,8 @@ export function computeTimeframeTrend(
   lows: number[],
 ): PaTrend {
   if (closes.length < 20) return 'Neutral';
-  const ema34 = calculateEma(closes, 34);
   const ema89 = calculateEma(closes, 89);
-  return computePaTrend(closes, highs, lows, ema34, ema89).trend;
+  return computePaTrend(closes, highs, lows, ema89).trend;
 }
 
 export function computeSmallCapSignal(
@@ -63,62 +62,44 @@ export function computeSmallCapSignal(
 
   const stage = classifyStage({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above, ema34Rising });
   const signalScore = computeScore({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above });
-  const { trend, swingStructure } = computePaTrend(closes, highs, lows, ema34, ema89);
+  const { trend, swingStructure } = computePaTrend(closes, highs, lows, ema89);
 
   return { rsi, volMultiplier, ema34Above, ema89Above, ema200Above, stage, signalScore, extPct, sparkline, trend, swingStructure };
 }
 
 /* ── PA Trend ────────────────────────────────────────────────────────────── */
 
-function findSwingHighs(highs: number[], lookback: number): number[] {
-  const result: number[] = [];
-  for (let i = lookback; i < highs.length - lookback; i++) {
-    let isHigh = true;
-    for (let j = 1; j <= lookback; j++) {
-      if (highs[i]! <= highs[i - j]! || highs[i]! <= highs[i + j]!) {
-        isHigh = false;
-        break;
-      }
-    }
-    if (isHigh) result.push(highs[i]!);
-  }
-  return result;
-}
-
-function findSwingLows(lows: number[], lookback: number): number[] {
-  const result: number[] = [];
-  for (let i = lookback; i < lows.length - lookback; i++) {
-    let isLow = true;
-    for (let j = 1; j <= lookback; j++) {
-      if (lows[i]! >= lows[i - j]! || lows[i]! >= lows[i + j]!) {
-        isLow = false;
-        break;
-      }
-    }
-    if (isLow) result.push(lows[i]!);
-  }
-  return result;
-}
-
+/**
+ * Swing-structure trend, ported from the daily-plan engine the user validated
+ * as accurate (`apps/worker/.../market/utils/trend.ts` `detectTrend`):
+ *
+ *  - 1-bar pivots over the FULL series (a candle whose high/low tops/bottoms
+ *    both immediate neighbours). Less lag than a 3-bar pivot, and the current
+ *    unclosed candle is naturally excluded (it has no "next").
+ *  - Compare the last two swing highs and last two swing lows:
+ *    HH+HL → bullish, LH+LL → bearish, anything else → neutral.
+ *
+ * We keep the dashboard's 5-level display (↑↑/↑/→/↓/↓↓) by overlaying EMA89:
+ * bullish above EMA89 = StrongUp (else Up); bearish below EMA89 = StrongDown
+ * (else Down); neutral structure = Neutral.
+ */
 function computePaTrend(
   closes: number[],
   highs: number[],
   lows: number[],
-  ema34: number,
   ema89: number,
 ): { trend: PaTrend; swingStructure: SwingStructure } {
   const lastClose = closes[closes.length - 1]!;
 
-  // Use last 60 candles (exclude current potentially-unclosed candle)
-  const window = 60;
-  const recentHighs = highs.slice(-(window + 1), -1);
-  const recentLows = lows.slice(-(window + 1), -1);
-
-  const LOOKBACK = 3; // 3-bar pivot on daily = solid swing point
-  const swingHighs = findSwingHighs(recentHighs, LOOKBACK);
-  const swingLows = findSwingLows(recentLows, LOOKBACK);
+  const swingHighs: number[] = [];
+  const swingLows: number[] = [];
+  for (let i = 1; i < highs.length - 1; i++) {
+    if (highs[i]! > highs[i - 1]! && highs[i]! > highs[i + 1]!) swingHighs.push(highs[i]!);
+    if (lows[i]! < lows[i - 1]! && lows[i]! < lows[i + 1]!) swingLows.push(lows[i]!);
+  }
 
   let swingStructure: SwingStructure = 'Mixed';
+  let trend: PaTrend = 'Neutral';
 
   if (swingHighs.length >= 2 && swingLows.length >= 2) {
     const sh1 = swingHighs[swingHighs.length - 1]!;
@@ -126,32 +107,23 @@ function computePaTrend(
     const sl1 = swingLows[swingLows.length - 1]!;
     const sl2 = swingLows[swingLows.length - 2]!;
 
+    // daily-plan compares strictly: equal swings count as neither higher nor lower.
     const higherHigh = sh1 > sh2;
     const higherLow = sl1 > sl2;
+    const lowerHigh = sh1 < sh2;
+    const lowerLow = sl1 < sl2;
 
-    if (higherHigh && higherLow) swingStructure = 'HH_HL';
-    else if (higherHigh && !higherLow) swingStructure = 'HH_LL';
-    else if (!higherHigh && higherLow) swingStructure = 'LH_HL';
-    else swingStructure = 'LH_LL';
-  }
-
-  let trend: PaTrend;
-
-  if (swingStructure === 'HH_HL') {
-    trend = lastClose > ema89 ? 'StrongUp' : 'Up';
-  } else if (swingStructure === 'LH_LL') {
-    trend = lastClose < ema89 ? 'StrongDown' : 'Down';
-  } else if (swingStructure === 'HH_LL') {
-    // Breakout but losing support — slightly bullish if above ema34
-    trend = lastClose > ema34 ? 'Up' : 'Down';
-  } else if (swingStructure === 'LH_HL') {
-    // Compression — coiling, direction from EMA
-    trend = lastClose > ema34 ? 'Neutral' : 'Neutral';
-  } else {
-    // Mixed — not enough swing points, fall back to EMA
-    if (lastClose > ema89) trend = 'Up';
-    else if (lastClose < ema89) trend = 'Down';
-    else trend = 'Neutral';
+    if (higherHigh && higherLow) {
+      swingStructure = 'HH_HL'; // bullish
+      trend = lastClose > ema89 ? 'StrongUp' : 'Up';
+    } else if (lowerHigh && lowerLow) {
+      swingStructure = 'LH_LL'; // bearish
+      trend = lastClose < ema89 ? 'StrongDown' : 'Down';
+    } else {
+      // mixed / equal swings → no clean directional structure → neutral
+      swingStructure = higherHigh ? 'HH_LL' : lowerHigh ? 'LH_HL' : 'Mixed';
+      trend = 'Neutral';
+    }
   }
 
   return { trend, swingStructure };

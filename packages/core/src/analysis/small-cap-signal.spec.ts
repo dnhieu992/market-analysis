@@ -1,4 +1,4 @@
-import { computeSmallCapSignal } from './small-cap-signal';
+import { computeSmallCapSignal, computeTimeframeTrend } from './small-cap-signal';
 
 /** Build OHLCV arrays from a close series (highs/lows hug closes, flat volume). */
 function series(closes: number[], volume = 1000): {
@@ -59,5 +59,43 @@ describe('computeSmallCapSignal', () => {
     expect(result!.ema34Above).toBe(false);
     expect(result!.stage).not.toBe('Trending');
     expect(result!.extPct).toBeLessThan(0);
+  });
+});
+
+describe('computeTimeframeTrend (daily-plan style 1-bar pivots)', () => {
+  /** Repeat a zigzag pattern so there are several rising/falling swing pivots. */
+  function zigzag(steps: number[], reps: number, start: number): number[] {
+    const out: number[] = [];
+    let v = start;
+    for (let r = 0; r < reps; r++) {
+      for (const s of steps) {
+        v += s;
+        out.push(v);
+      }
+    }
+    return out;
+  }
+
+  it('reads a rising zigzag (HH + HL) as an uptrend', () => {
+    const closes = zigzag([+4, -2], 15, 10); // net up, each swing higher
+    const trend = computeTimeframeTrend(closes, closes, closes);
+    expect(['Up', 'StrongUp']).toContain(trend);
+  });
+
+  it('reads a falling zigzag (LH + LL) as a downtrend', () => {
+    const closes = zigzag([-4, +2], 15, 200); // net down, each swing lower
+    const trend = computeTimeframeTrend(closes, closes, closes);
+    expect(['Down', 'StrongDown']).toContain(trend);
+  });
+
+  it('returns Neutral when there is no clean HH/HL or LH/LL structure', () => {
+    // Flat oscillation around a constant level — swings neither rising nor falling.
+    const closes = zigzag([+3, -3], 15, 100);
+    const trend = computeTimeframeTrend(closes, closes, closes);
+    expect(trend).toBe('Neutral');
+  });
+
+  it('falls back to Neutral when there are too few candles', () => {
+    expect(computeTimeframeTrend([1, 2, 3], [1, 2, 3], [1, 2, 3])).toBe('Neutral');
   });
 });
