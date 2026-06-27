@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, CoinSetup, DcaPosition, Portfolio } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -227,15 +227,6 @@ function IconTrash() {
   );
 }
 
-function IconSetup() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-}
-
 function IconLayers() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -372,100 +363,6 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
               {isRemoving ? 'Đang xóa…' : 'Xóa'}
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── setup settings dialog ──────────────────────────────────────── */
-
-function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
-  const [form, setForm] = useState<CoinSetup>({ swingMaxLoss: null, swingMinRR: null, daytradeMaxLoss: null, daytradeMinRR: null, dcaMaxLayers: null });
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [saved, setSaved]       = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    createApiClient().fetchCoinSetup(symbol)
-      .then((r) => { if (!cancelled) { setForm(r); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [symbol]);
-
-  function field(key: keyof CoinSetup) {
-    const v = form[key];
-    return v == null ? '' : String(v);
-  }
-  function setField(key: keyof CoinSetup, val: string) {
-    setForm((f) => ({ ...f, [key]: val === '' ? null : parseFloat(val) }));
-    setSaved(false);
-  }
-
-  async function handleSave() {
-    setSaving(true); setError(null);
-    try {
-      await createApiClient().updateCoinSetup(symbol, form);
-      setSaved(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lỗi lưu.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog setup-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <span className="dialog-title">Risk setup — {symbol}</span>
-          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
-        </div>
-        <div className="dialog-body setup-body">
-          {loading ? (
-            <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
-          ) : (
-            <>
-              <p className="setup-hint">
-                Khi Re-analyze hoặc scan tự động chạy, hệ thống dùng các thông số này để tính volume (số lượng) cho lệnh limit của ngày đó.
-              </p>
-              <div className="setup-section">
-                <div className="setup-section__title">Swing (2–5 ngày)</div>
-                <div className="setup-fields">
-                  <label className="setup-label">
-                    <span>SL tối đa ($)</span>
-                    <input className="setup-input" type="number" min="0" step="1" placeholder="e.g. 10"
-                      value={field('swingMaxLoss')} onChange={(e) => setField('swingMaxLoss', e.target.value)} />
-                  </label>
-                  <label className="setup-label">
-                    <span>R:R tối thiểu</span>
-                    <input className="setup-input" type="number" min="0" step="0.1" placeholder="e.g. 1.5"
-                      value={field('swingMinRR')} onChange={(e) => setField('swingMinRR', e.target.value)} />
-                  </label>
-                </div>
-              </div>
-              <div className="setup-section">
-                <div className="setup-section__title">DCA</div>
-                <div className="setup-fields">
-                  <label className="setup-label">
-                    <span>Trần số layer</span>
-                    <input className="setup-input" type="number" min="1" step="1" placeholder="mặc định 5"
-                      value={field('dcaMaxLayers')} onChange={(e) => setField('dcaMaxLayers', e.target.value)} />
-                  </label>
-                </div>
-              </div>
-              {error && <p className="scr-muted ord-error">{error}</p>}
-              <div className="setup-actions">
-                {saved && <span className="setup-saved">✓ Đã lưu</span>}
-                <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
-                  {saving ? 'Đang lưu…' : 'Lưu setup'}
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>
@@ -724,7 +621,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
-  const [setupCoin, setSetupCoin] = useState<string | null>(null);
   const [dcaCoin, setDcaCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
@@ -807,7 +703,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onCancel={() => setConfirmRemoveSymbol(null)}
         />
       )}
-      {setupCoin && <CoinSetupDialog symbol={setupCoin} onClose={() => setSetupCoin(null)} />}
       {dcaCoin && (
         <DcaPositionDialog
           symbol={dcaCoin}
@@ -981,9 +876,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </button>
                         <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => setDcaCoin(coin.symbol)}>
                           {coin.dcaPosition ? `${coin.dcaPosition.layers}L` : <IconLayers />}
-                        </button>
-                        <button className="tt-btn tt-btn--setup" data-tooltip="Setup" aria-label={`Setup ${coin.symbol}`} onClick={() => setSetupCoin(coin.symbol)}>
-                          <IconSetup />
                         </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
                           {removingSymbol === coin.symbol ? '…' : <IconTrash />}

@@ -523,13 +523,6 @@ export type TrackingCoinOrder = {
   createdAt: string;
 };
 
-export type CoinSetup = {
-  swingMaxLoss: number | null;
-  swingMinRR: number | null;
-  daytradeMaxLoss: number | null;
-  daytradeMinRR: number | null;
-  dcaMaxLayers: number | null;
-};
 
 export type DayTradingSignal = {
   id: string;

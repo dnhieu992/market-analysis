@@ -37,7 +37,6 @@ import type {
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
-  CoinSetup,
   DcaPosition,
   DayTradingSignal,
   DayTradingSignalsResponse,
@@ -751,19 +750,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
         `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/klines?interval=${encodeURIComponent(interval)}&limit=${limit}`,
         withDefaults(),
       );
-    },
-
-    fetchCoinSetup(symbol: string): Promise<CoinSetup> {
-      return fetchJson<CoinSetup>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`, withDefaults());
-    },
-
-    updateCoinSetup(symbol: string, body: CoinSetup): Promise<CoinSetup> {
-      return fetchJson<CoinSetup>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`, {
-        ...withDefaults(),
-        method: 'PUT',
-        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
     },
 
     fetchDcaPosition(symbol: string): Promise<DcaPosition> {

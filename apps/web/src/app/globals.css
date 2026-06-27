@@ -1729,15 +1729,6 @@ a {
   border-color: #0e7490;
 }
 
-.tt-btn--setup {
-  color: #7c3aed;
-  border-color: var(--border);
-}
-.tt-btn--setup:hover {
-  background: rgba(124, 58, 237, 0.12);
-  border-color: #7c3aed;
-}
-
 .tt-btn--analyze {
   color: var(--muted);
   border-color: var(--border);
@@ -8302,39 +8293,6 @@ a.metric-card--link:hover {
 .setup-dialog { max-width: 400px; width: 100%; }
 .setup-body { display: flex; flex-direction: column; gap: 14px; }
 
-.setup-hint {
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.5;
-  margin: 0;
-}
-.setup-section {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.setup-section__title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.setup-fields {
-  display: flex;
-  gap: 14px;
-}
-.setup-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.78rem;
-  color: var(--muted);
-  flex: 1;
-}
 .setup-input {
   width: 100%;
   padding: 6px 8px;
@@ -8349,10 +8307,6 @@ a.metric-card--link:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-}
-.setup-saved {
-  font-size: 0.8rem;
-  color: #15803d;
 }
 .ord-hist__vol { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ord-hist__vol-usd { font-size: 0.72rem; color: var(--muted); margin-left: 3px; }
