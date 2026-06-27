@@ -9196,6 +9196,9 @@ a.metric-card--link:hover {
 }
 
 /* ── BTC DCA Ladder ──────────────────────────────────────────────────────── */
+.page { padding: 32px 36px 56px; max-width: 1100px; }
+.page > h1 { margin: 0 0 20px; color: var(--foreground); }
+.dcal-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .dcal-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .dcal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
 .dcal-card span { font-size: 12px; color: var(--muted); }
@@ -9223,3 +9226,11 @@ a.metric-card--link:hover {
 .dcal-settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
 .dcal-settings-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .dcal-settings-field input[type="number"] { padding: 6px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); font-size: 13px; }
+
+@media (max-width: 640px) {
+  .page { padding: 16px 14px 48px; }
+  .page > h1 { font-size: 1.4rem; margin-bottom: 14px; }
+  .dcal-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .dcal-card strong { font-size: 17px; }
+  .dcal-table { min-width: 540px; }
+}

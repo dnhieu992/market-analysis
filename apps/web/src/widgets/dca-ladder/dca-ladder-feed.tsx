@@ -89,6 +89,7 @@ export function DcaLadderFeed({ initialState }: { initialState: DcaLadderState }
       </div>
 
       {/* Ladder table */}
+      <div className="dcal-table-wrap">
       <table className="dcal-table">
         <thead>
           <tr>
@@ -143,6 +144,7 @@ export function DcaLadderFeed({ initialState }: { initialState: DcaLadderState }
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Settings panel toggle */}
       <div style={{ marginTop: 20 }}>
