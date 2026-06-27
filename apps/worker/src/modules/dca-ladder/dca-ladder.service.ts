@@ -25,7 +25,7 @@ export class DcaLadderSyncService {
     if (!cycle) return empty;
 
     const klines = await this.binance.fetchKlines({ symbol: SYMBOL, timeframe: '1d', limit: 2 });
-    if (klines.length < 1) return empty;
+    if (klines.length < 2) return empty;
     const closedRaw = klines[klines.length - 2] ?? klines[klines.length - 1];
     if (!closedRaw) return empty;
     const high = parseFloat(closedRaw[2] as string);
