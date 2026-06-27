@@ -462,6 +462,20 @@ export type TrackingCoinRow = {
   dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
 };
 
+export type SignalHistoryRow = {
+  id: string;
+  dcaScore: number;
+  dcaZone: 'GOM' | 'CHO' | 'CHOT' | null;
+  dcaBucket: 'safe' | 'ok' | 'risky' | 'avoid';
+  trend: PaTrend;
+  weekTrend: PaTrend;
+  h4Trend: PaTrend;
+  rsi: number | null;
+  extPct: number | null;
+  price: number | null;
+  scannedAt: string;
+};
+
 export type DcaBuy = {
   id: string;
   price: number;
@@ -674,4 +688,16 @@ export type SmallCapCoinRow = {
     swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
+};
+
+export type SmallCapHistoryRow = {
+  id: string;
+  stage: SmallCapStage;
+  signalScore: number;
+  trend: PaTrend;
+  rsi: number | null;
+  volMultiplier: number | null;
+  extPct: number | null;
+  price: number | null;
+  scannedAt: string;
 };

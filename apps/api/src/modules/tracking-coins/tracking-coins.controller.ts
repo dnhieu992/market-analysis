@@ -52,6 +52,12 @@ export class TrackingCoinsController {
     return this.service.fetchKlines(symbol, interval, Number(limit));
   }
 
+  @Get('coins/:symbol/signal-history')
+  @ApiOperation({ summary: 'DCA signal change-log (zone/bucket changes over time)' })
+  getSignalHistory(@Param('symbol') symbol: string, @Query('limit') limit = '100') {
+    return this.service.getSignalHistory(symbol, Number(limit));
+  }
+
   @Get('coins/:symbol/journal')
   @ApiOperation({ summary: 'List all journal entries for a coin' })
   listJournal(@Param('symbol') symbol: string) {

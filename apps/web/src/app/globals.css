@@ -7282,6 +7282,23 @@ a.metric-card--link:hover {
   margin-bottom: 8px;
 }
 .dcapos-pf { font-size: 0.74rem; color: var(--foreground); }
+.tc-history { display: flex; flex-direction: column; gap: 10px; }
+.tc-history-table th, .tc-history-table td { white-space: nowrap; vertical-align: middle; }
+.tc-history-trends { display: inline-flex; gap: 4px; }
+
+.sc-history-btn {
+  margin-left: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  opacity: 0.55;
+  padding: 0 2px;
+  line-height: 1;
+}
+.sc-history-btn:hover { opacity: 1; }
+.sc-history-table th, .sc-history-table td { white-space: nowrap; vertical-align: middle; text-align: left; }
+
 .dcapos-table {
   width: 100%;
   border-collapse: collapse;

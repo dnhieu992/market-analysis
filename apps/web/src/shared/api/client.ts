@@ -34,9 +34,11 @@ import type {
   Conversation,
   ChatMessage,
   SmallCapCoinRow,
+  SmallCapHistoryRow,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
+  SignalHistoryRow,
   DcaPosition,
   DayTradingSignal,
   DayTradingSignalsResponse,
@@ -756,6 +758,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, withDefaults());
     },
 
+    fetchSignalHistory(symbol: string, limit = 100): Promise<SignalHistoryRow[]> {
+      return fetchJson<SignalHistoryRow[]>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
+        withDefaults(),
+      );
+    },
+
     addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string; portfolioId?: string }): Promise<DcaPosition> {
       return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys`, {
         ...withDefaults(),
@@ -861,6 +871,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async removeSmallCapCoin(symbol: string): Promise<void> {
       await fetchImpl(`${baseUrl}/small-cap-radar/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    fetchSmallCapSignalHistory(symbol: string, limit = 100): Promise<SmallCapHistoryRow[]> {
+      return fetchJson<SmallCapHistoryRow[]>(
+        fetchImpl,
+        `${baseUrl}/small-cap-radar/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
+        withDefaults(),
+      );
     },
 
     async triggerSmallCapScan(): Promise<{ scanned: number; failed: number }> {

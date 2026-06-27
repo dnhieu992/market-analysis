@@ -76,6 +76,17 @@ export class SmallCapScanService {
       trend: result.trend,
       swingStructure: result.swingStructure,
     });
+
+    // Signal history — append only when the radar stage changes.
+    await this.repo.logSignalHistoryIfChanged(coinId, {
+      stage: result.stage,
+      signalScore: result.signalScore,
+      trend: result.trend,
+      rsi: result.rsi,
+      volMultiplier: result.volMultiplier,
+      extPct: result.extPct,
+      price: closes[closes.length - 1] ?? null,
+    });
   }
 
   private async fetchAndStoreListingDate(symbol: string): Promise<void> {

@@ -36,6 +36,39 @@ export function createTrackingCoinsRepository(client = prisma) {
       });
     },
 
+    // ── DCA signal history (append-only change log) ────────────────────────
+
+    /**
+     * Append a history row only when the DCA action zone OR quality bucket
+     * differs from the most recent row for this coin. Returns the new row, or
+     * null when nothing changed (so 4-hour scans don't bloat the log).
+     */
+    async logSignalHistoryIfChanged(
+      coinId: string,
+      data: Omit<Prisma.TrackingCoinSignalHistoryUncheckedCreateInput, 'id' | 'coinId' | 'scannedAt'>,
+    ) {
+      const last = await client.trackingCoinSignalHistory.findFirst({
+        where: { coinId },
+        orderBy: { scannedAt: 'desc' },
+        select: { dcaZone: true, dcaBucket: true },
+      });
+      const zone = data.dcaZone ?? null;
+      if (last && last.dcaZone === zone && last.dcaBucket === data.dcaBucket) {
+        return null; // no meaningful change → skip
+      }
+      return client.trackingCoinSignalHistory.create({
+        data: { coinId, ...data, scannedAt: new Date() },
+      });
+    },
+
+    findSignalHistory(coinId: string, limit = 100) {
+      return client.trackingCoinSignalHistory.findMany({
+        where: { coinId },
+        orderBy: { scannedAt: 'desc' },
+        take: limit,
+      });
+    },
+
     findCoinsWithLatestSignal() {
       return client.trackingCoin.findMany({
         include: {

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio, SignalHistoryRow } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -251,10 +251,11 @@ function IconPrompt() {
 
 /* ── detail modal ───────────────────────────────────────────────── */
 
-type DetailTab = 'overview' | 'journal';
+type DetailTab = 'overview' | 'history' | 'journal';
 
 const DETAIL_TABS: ReadonlyArray<[DetailTab, string]> = [
   ['overview', 'Overview'],
+  ['history', 'History'],
   ['journal', 'Journal'],
 ];
 
@@ -288,6 +289,7 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
 
         <div className="dialog-body tc-detail-body">
           {tab === 'overview' && <CoinOverview coin={coin} />}
+          {tab === 'history' && <CoinSignalHistory symbol={coin.symbol} />}
           {tab === 'journal' && <CoinJournalPanel symbol={coin.symbol} />}
         </div>
       </div>
@@ -339,6 +341,76 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
         Cập nhật: {new Date(sig.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
       </div>
       <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
+    </div>
+  );
+}
+
+/* ── signal history (DCA change-log) ─────────────────────────────── */
+
+const BUCKET_META: Record<SignalHistoryRow['dcaBucket'], { label: string; cls: string }> = {
+  safe:  { label: 'An toàn', cls: 'tc-dca--safe' },
+  ok:    { label: 'Khá',     cls: 'tc-dca--ok' },
+  risky: { label: 'Rủi ro',  cls: 'tc-dca--risky' },
+  avoid: { label: 'Tránh',   cls: 'tc-dca--avoid' },
+};
+
+function CoinSignalHistory({ symbol }: { symbol: string }) {
+  const [rows, setRows] = useState<SignalHistoryRow[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null); setError(false);
+    createApiClient().fetchSignalHistory(symbol, 100)
+      .then((r) => { if (!cancelled) setRows(r); })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  if (error) return <p className="scr-muted tc-overview__empty">Không tải được lịch sử.</p>;
+  if (rows === null) return <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>;
+  if (rows.length === 0) {
+    return <p className="scr-muted tc-overview__empty">Chưa có thay đổi nào được ghi nhận. Lịch sử chỉ lưu khi vùng DCA hoặc bậc chất lượng đổi.</p>;
+  }
+
+  return (
+    <div className="tc-history">
+      <p className="scr-muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.5 }}>
+        Mỗi dòng là một lần tín hiệu DCA đổi trạng thái (vùng GOM/Chờ/CHỐT hoặc bậc chất lượng). Mới nhất ở trên.
+      </p>
+      <table className="dcapos-table tc-history-table">
+        <thead>
+          <tr><th>Thời điểm</th><th>DCA</th><th>Vùng</th><th>Trend (W/D1/H4)</th><th>RSI</th><th>Ext%</th><th>Giá</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const b = BUCKET_META[r.dcaBucket];
+            const z = r.dcaZone ? ZONE_META[r.dcaZone] : null;
+            return (
+              <tr key={r.id}>
+                <td>{new Date(r.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                <td>
+                  <span className={`tc-dca-badge ${b.cls}`}>
+                    <span className="tc-dca-score">{r.dcaScore}</span>
+                    <span className="tc-dca-tag">{b.label}</span>
+                  </span>
+                </td>
+                <td>{z ? <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span> : <span className="scr-muted">—</span>}</td>
+                <td>
+                  <span className="tc-history-trends">
+                    <TrendBadge trend={r.weekTrend} />
+                    <TrendBadge trend={r.trend} />
+                    <TrendBadge trend={r.h4Trend} />
+                  </span>
+                </td>
+                <td>{r.rsi == null ? <span className="scr-muted">—</span> : Math.round(r.rsi)}</td>
+                <td>{r.extPct == null ? <span className="scr-muted">—</span> : `${r.extPct > 0 ? '+' : ''}${r.extPct.toFixed(1)}%`}</td>
+                <td>{r.price == null ? <span className="scr-muted">—</span> : `$${formatPrice(r.price)}`}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

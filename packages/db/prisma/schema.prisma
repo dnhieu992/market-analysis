@@ -333,6 +333,7 @@ model TrackingCoin {
   daytradeMinRR   Float?
   dcaMaxLayers    Int?
   signals         TrackingCoinSignal[]
+  signalHistory   TrackingCoinSignalHistory[]
   journals        TrackingCoinJournal[]
   orders          TrackingCoinOrder[]
   dcaBuys         TrackingCoinDcaBuy[]
@@ -441,6 +442,29 @@ model TrackingCoinSignal {
   @@unique([coinId, date])
   @@index([date, signalScore(sort: Desc)])
   @@map("tracking_coin_signals")
+}
+
+// Append-only change log of the DCA signal. A new row is written only when the
+// DCA action zone (GOM/CHO/CHOT) OR the quality bucket (safe/ok/risky/avoid)
+// differs from the most recent row for the coin — so this is a compact history
+// of meaningful state changes, not every 4-hour scan.
+model TrackingCoinSignalHistory {
+  id         String       @id @default(cuid())
+  coinId     String
+  dcaScore   Int
+  dcaZone    String?      @db.VarChar(5)
+  dcaBucket  String       @db.VarChar(6)
+  trend      String       @default("Neutral") @db.VarChar(15)
+  weekTrend  String       @default("Neutral") @db.VarChar(15)
+  h4Trend    String       @default("Neutral") @db.VarChar(15)
+  rsi        Float?
+  extPct     Float?
+  price      Float?
+  scannedAt  DateTime     @default(now())
+  coin       TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([coinId, scannedAt(sort: Desc)])
+  @@map("tracking_coin_signal_history")
 }
 
 model DayTradingSignal {
@@ -576,6 +600,7 @@ model SmallCapCoin {
   listingDate DateTime?        @db.Date
   addedAt     DateTime         @default(now())
   signals     SmallCapSignal[]
+  signalHistory SmallCapSignalHistory[]
 
   @@map("small_cap_coins")
 }
@@ -601,5 +626,26 @@ model SmallCapSignal {
   @@unique([coinId, date])
   @@index([date, signalScore(sort: Desc)])
   @@map("small_cap_signals")
+}
+
+// Append-only change log of the radar signal. A new row is written only when the
+// stage (Breakout/Trending/Accumulating/Waking/Extended/Quiet) differs from the
+// most recent row for the coin — a compact history of stage transitions, not
+// every daily scan.
+model SmallCapSignalHistory {
+  id            String       @id @default(cuid())
+  coinId        String
+  stage         String       @db.VarChar(20)
+  signalScore   Int          @default(0)
+  trend         String       @default("Neutral") @db.VarChar(15)
+  rsi           Float?
+  volMultiplier Float?
+  extPct        Float?
+  price         Float?
+  scannedAt     DateTime     @default(now())
+  coin          SmallCapCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([coinId, scannedAt(sort: Desc)])
+  @@map("small_cap_signal_history")
 }
 

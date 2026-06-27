@@ -234,6 +234,24 @@ export class SmallCapRadarService {
     await this.repo.removeCoin(upper);
   }
 
+  async getSignalHistory(symbol: string, limit = 100) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+    const rows = await this.repo.findSignalHistory(coin.id, limit);
+    return rows.map((r) => ({
+      id: r.id,
+      stage: r.stage,
+      signalScore: r.signalScore,
+      trend: r.trend,
+      rsi: r.rsi,
+      volMultiplier: r.volMultiplier,
+      extPct: r.extPct,
+      price: r.price,
+      scannedAt: r.scannedAt.toISOString(),
+    }));
+  }
+
   async triggerScan(): Promise<{ scanned: number; failed: number }> {
     const coins = await this.repo.findAllCoins();
     let scanned = 0;
@@ -289,6 +307,17 @@ export class SmallCapRadarService {
       sparklineJson: JSON.stringify(result.sparkline),
       trend: result.trend,
       swingStructure: result.swingStructure,
+    });
+
+    // Signal history — append only when the radar stage changes.
+    await this.repo.logSignalHistoryIfChanged(coinId, {
+      stage: result.stage,
+      signalScore: result.signalScore,
+      trend: result.trend,
+      rsi: result.rsi,
+      volMultiplier: result.volMultiplier,
+      extPct: result.extPct,
+      price: closes[closes.length - 1] ?? null,
     });
   }
 

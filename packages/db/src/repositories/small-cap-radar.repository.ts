@@ -75,6 +75,38 @@ export function createSmallCapRadarRepository(client = prisma) {
       });
     },
 
+    // ── Signal history (append-only change log) ────────────────
+
+    /**
+     * Append a history row only when the radar stage differs from the most
+     * recent row for this coin. Returns the new row, or null when unchanged
+     * (so daily scans don't bloat the log).
+     */
+    async logSignalHistoryIfChanged(
+      coinId: string,
+      data: Omit<Prisma.SmallCapSignalHistoryUncheckedCreateInput, 'id' | 'coinId' | 'scannedAt'>,
+    ) {
+      const last = await client.smallCapSignalHistory.findFirst({
+        where: { coinId },
+        orderBy: { scannedAt: 'desc' },
+        select: { stage: true },
+      });
+      if (last && last.stage === data.stage) {
+        return null; // no stage change → skip
+      }
+      return client.smallCapSignalHistory.create({
+        data: { coinId, ...data, scannedAt: new Date() },
+      });
+    },
+
+    findSignalHistory(coinId: string, limit = 100) {
+      return client.smallCapSignalHistory.findMany({
+        where: { coinId },
+        orderBy: { scannedAt: 'desc' },
+        take: limit,
+      });
+    },
+
     deleteCoinsNotInSymbols(symbols: string[]) {
       if (symbols.length === 0) return client.smallCapCoin.deleteMany({});
       return client.smallCapCoin.deleteMany({

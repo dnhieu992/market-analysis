@@ -68,3 +68,13 @@ export function dcaZone(p: DcaZoneParams): DcaZone {
   if (p.rsi <= 35 && p.low20Pct != null && p.low20Pct <= 8) return 'GOM'; // oversold near 20d low → add
   return 'CHO'; // below EMA34 but not yet in the add zone → wait
 }
+
+/** Quality tier of a DCA score — the same 70/50/30 thresholds the dashboard renders. */
+export type DcaBucket = 'safe' | 'ok' | 'risky' | 'avoid';
+
+export function dcaQualityBucket(score: number): DcaBucket {
+  if (score >= 70) return 'safe';
+  if (score >= 50) return 'ok';
+  if (score >= 30) return 'risky';
+  return 'avoid';
+}

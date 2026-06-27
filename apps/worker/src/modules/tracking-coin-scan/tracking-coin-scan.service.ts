@@ -5,6 +5,8 @@ import {
   computeLongShortScore,
   computeEntryScore,
   computeDcaScore,
+  dcaZone,
+  dcaQualityBucket,
   calculateEma,
   calculateRsi,
   calculateVolumeRatio,
@@ -251,6 +253,20 @@ export class TrackingCoinScanService {
       h4Ema200Above,
       h4Rsi,
       h4VolMultiplier,
+    });
+
+    // ── DCA signal history — append only when zone/bucket changes ──────
+    const zone = dcaZone({ ema34Above: result.ema34Above, rsi: result.rsi ?? 50, low20Pct });
+    await this.repo.logSignalHistoryIfChanged(coinId, {
+      dcaScore,
+      dcaZone: zone,
+      dcaBucket: dcaQualityBucket(dcaScore),
+      trend: result.trend,
+      weekTrend,
+      h4Trend,
+      rsi: result.rsi,
+      extPct: result.extPct,
+      price: currentPrice > 0 ? currentPrice : null,
     });
 
     // ── Generate & persist today's orders ──────────────────────────────

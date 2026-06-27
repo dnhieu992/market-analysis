@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, dcaZone, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, dcaZone, dcaQualityBucket, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
 import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
@@ -192,6 +192,25 @@ export class TrackingCoinsService {
     const existing = await this.repo.findCoinBySymbol(upper);
     if (!existing) throw new NotFoundException(`Coin ${upper} not found`);
     await this.repo.removeCoin(upper);
+  }
+
+  async getSignalHistory(symbol: string, limit = 100) {
+    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
+    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+    const rows = await this.repo.findSignalHistory(coin.id, limit);
+    return rows.map((r) => ({
+      id: r.id,
+      dcaScore: r.dcaScore,
+      dcaZone: r.dcaZone as 'GOM' | 'CHO' | 'CHOT' | null,
+      dcaBucket: r.dcaBucket as 'safe' | 'ok' | 'risky' | 'avoid',
+      trend: r.trend,
+      weekTrend: r.weekTrend,
+      h4Trend: r.h4Trend,
+      rsi: r.rsi,
+      extPct: r.extPct,
+      price: r.price,
+      scannedAt: r.scannedAt.toISOString(),
+    }));
   }
 
   async listJournal(symbol: string) {
@@ -679,6 +698,20 @@ export class TrackingCoinsService {
       h4Ema200Above,
       h4Rsi,
       h4VolMultiplier,
+    });
+
+    // DCA signal history — append only when zone/bucket changes vs last row.
+    const zone = dcaZone({ ema34Above: result.ema34Above, rsi: result.rsi ?? 50, low20Pct });
+    await this.repo.logSignalHistoryIfChanged(coinId, {
+      dcaScore,
+      dcaZone: zone,
+      dcaBucket: dcaQualityBucket(dcaScore),
+      trend: result.trend,
+      weekTrend,
+      h4Trend,
+      rsi: result.rsi,
+      extPct: result.extPct,
+      price: currentPrice > 0 ? currentPrice : null,
     });
 
     // Regenerate today's orders so re-analyze keeps limit levels fresh

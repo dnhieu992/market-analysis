@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { resolveApiBaseUrl } from '@web/shared/api/client';
-import type { SmallCapCoinRow, SmallCapStage } from '@web/shared/api/types';
+import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
+import type { SmallCapCoinRow, SmallCapStage, SmallCapHistoryRow, PaTrend } from '@web/shared/api/types';
 
 /* ── types ──────────────────────────────────────────────────── */
 
@@ -25,6 +25,79 @@ function StageBadge({ stage }: { stage: SmallCapStage }) {
     Quiet: 'scr-stage scr-stage--quiet',
   };
   return <span className={cls[stage]}>{stage}</span>;
+}
+
+/* ── trend label ─────────────────────────────────────────────── */
+
+const TREND_LABEL: Record<PaTrend, string> = {
+  StrongUp: '↑↑', Up: '↑', Neutral: '→', Down: '↓', StrongDown: '↓↓',
+};
+
+function fmtSmallPrice(price: number): string {
+  if (price >= 1) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  if (price >= 0.01) return price.toFixed(5);
+  return price.toFixed(8);
+}
+
+/* ── history modal (radar stage change-log) ──────────────────── */
+
+function HistoryModal({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  const [rows, setRows] = useState<SmallCapHistoryRow[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null); setError(false);
+    createApiClient().fetchSmallCapSignalHistory(symbol, 100)
+      .then((r) => { if (!cancelled) setRows(r); })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog setup-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className="dialog-header">
+          <span className="dialog-title">Lịch sử radar — {symbol}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body setup-body">
+          {error ? (
+            <p className="scr-muted">Không tải được lịch sử.</p>
+          ) : rows === null ? (
+            <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
+          ) : rows.length === 0 ? (
+            <p className="scr-muted">Chưa có thay đổi nào. Lịch sử chỉ lưu khi stage đổi.</p>
+          ) : (
+            <>
+              <p className="scr-muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.5 }}>
+                Mỗi dòng là một lần stage radar đổi trạng thái. Mới nhất ở trên.
+              </p>
+              <table className="dcapos-table sc-history-table">
+                <thead>
+                  <tr><th>Thời điểm</th><th>Stage</th><th>Signal</th><th>Trend</th><th>RSI</th><th>Vol×</th><th>Ext%</th><th>Giá</th></tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id}>
+                      <td>{new Date(r.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td><StageBadge stage={r.stage} /></td>
+                      <td>{r.signalScore}</td>
+                      <td title={r.trend}>{TREND_LABEL[r.trend]}</td>
+                      <td>{r.rsi == null ? '—' : Math.round(r.rsi)}</td>
+                      <td>{r.volMultiplier == null ? '—' : `${r.volMultiplier.toFixed(1)}×`}</td>
+                      <td>{r.extPct == null ? '—' : `${r.extPct > 0 ? '+' : ''}${r.extPct.toFixed(1)}%`}</td>
+                      <td>{r.price == null ? '—' : `$${fmtSmallPrice(r.price)}`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ── signal bar ──────────────────────────────────────────────── */
@@ -210,6 +283,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [historyCoin, setHistoryCoin] = useState<string | null>(null);
 
   function toggleStage(stage: SmallCapStage) {
     setHiddenStages((prev) => {
@@ -301,6 +375,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
 
   return (
     <main className="dashboard-shell scr-shell">
+      {historyCoin && <HistoryModal symbol={historyCoin} onClose={() => setHistoryCoin(null)} />}
       {/* ── toolbar ── */}
       <div className="scr-toolbar">
         <div className="scr-toolbar-left">
@@ -426,6 +501,14 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
                   <td className="scr-td scr-td--coin">
                     <span className="scr-symbol">{coin.symbol}</span>
                     {coin.name && <span className="scr-name">{coin.name}</span>}
+                    <button
+                      className="sc-history-btn"
+                      title="Lịch sử radar"
+                      aria-label={`Lịch sử radar ${coin.symbol}`}
+                      onClick={(e) => { e.stopPropagation(); setHistoryCoin(coin.symbol); }}
+                    >
+                      🕒
+                    </button>
                   </td>
                   <td className="scr-td">
                     <StageBadge stage={stage} />
