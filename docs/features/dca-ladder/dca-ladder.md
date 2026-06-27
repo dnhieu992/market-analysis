@@ -105,4 +105,4 @@ detects tier touches, and broadcasts a Telegram alert when action is needed.
 - `apps/web/src/_pages/dca-ladder-page/dca-ladder-page.tsx` — Server Component page
 - `apps/web/src/app/dca-ladder/page.tsx` — thin App Router re-export
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav entry `/dca-ladder`
-- `apps/web/src/app/globals.css` — `.dcal-*` styles
+- `apps/web/src/app/globals.css` — `.dcal-*` styles (light mode only, using app theme tokens `--surface`/`--border`/`--foreground`/`--muted`)

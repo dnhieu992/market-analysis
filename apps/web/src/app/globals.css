@@ -9197,28 +9197,29 @@ a.metric-card--link:hover {
 
 /* ── BTC DCA Ladder ──────────────────────────────────────────────────────── */
 .dcal-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-.dcal-card { background: var(--card-bg, #14161c); border: 1px solid #232733; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
-.dcal-card span { font-size: 12px; color: #8a93a6; }
-.dcal-card strong { font-size: 20px; }
-.dcal-card .pos { color: #2ecc71; }
-.dcal-card .neg { color: #e74c3c; }
-.dcal-cycle { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 14px; font-size: 13px; color: #c7cdd9; }
+.dcal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.dcal-card span { font-size: 12px; color: var(--muted); }
+.dcal-card strong { font-size: 20px; color: var(--foreground); }
+.dcal-card .pos { color: #1f9d57; }
+.dcal-card .neg { color: #d33a2c; }
+.dcal-cycle { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
 .dcal-badge { padding: 2px 8px; border-radius: 6px; font-weight: 600; }
-.dcal-flat { background: #2a3344; color: #9fb3d1; }
-.dcal-in_position { background: #1f3a2a; color: #4cd784; }
-.dcal-closed { background: #2a2a2a; color: #777; }
-.dcal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.dcal-table th, .dcal-table td { padding: 8px 10px; border-bottom: 1px solid #20242e; text-align: right; }
+.dcal-flat { background: #e6e9ef; color: #5a6675; }
+.dcal-in_position { background: #d8f0e2; color: #1f8a52; }
+.dcal-closed { background: #ececec; color: #777; }
+.dcal-table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--foreground); }
+.dcal-table th, .dcal-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; }
+.dcal-table th { color: var(--muted); font-weight: 600; }
 .dcal-table th:first-child, .dcal-table td:first-child { text-align: left; }
 .dcal-edit { cursor: pointer; text-decoration: underline dotted; }
-.dcal-pending { background: rgba(241, 196, 15, 0.08); }
+.dcal-pending { background: rgba(241, 196, 15, 0.12); }
 .dcal-ostatus { padding: 1px 6px; border-radius: 5px; font-size: 11px; }
-.dcal-armed { background: #2a3344; color: #9fb3d1; }
-.dcal-pending_fill { background: #4a3c12; color: #f1c40f; }
-.dcal-filled { background: #1f3a2a; color: #4cd784; }
-.dcal-cancelled { background: #2a2a2a; color: #777; }
-.dcal-settings { margin-top: 20px; padding: 16px; background: var(--card-bg, #14161c); border: 1px solid #232733; border-radius: 10px; }
-.dcal-settings h3 { margin: 0 0 14px; font-size: 14px; color: #c7cdd9; }
+.dcal-armed { background: #e6e9ef; color: #5a6675; }
+.dcal-pending_fill { background: #fbf0cd; color: #9a7b08; }
+.dcal-filled { background: #d8f0e2; color: #1f8a52; }
+.dcal-cancelled { background: #ececec; color: #777; }
+.dcal-settings { margin-top: 20px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.dcal-settings h3 { margin: 0 0 14px; font-size: 14px; color: var(--foreground); }
 .dcal-settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
-.dcal-settings-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8a93a6; }
-.dcal-settings-field input[type="number"] { padding: 6px 8px; background: #0e1117; border: 1px solid #2c3344; border-radius: 6px; color: #c7cdd9; font-size: 13px; }
+.dcal-settings-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.dcal-settings-field input[type="number"] { padding: 6px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); font-size: 13px; }
