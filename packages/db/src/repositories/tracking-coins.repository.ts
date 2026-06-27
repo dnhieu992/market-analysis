@@ -12,11 +12,11 @@ export function createTrackingCoinsRepository(client = prisma) {
       return client.trackingCoin.findUnique({ where: { symbol } });
     },
 
-    addCoin(symbol: string, name = '') {
+    addCoin(symbol: string, name = '', marketCap?: number | null) {
       return client.trackingCoin.upsert({
         where: { symbol },
-        create: { symbol, name },
-        update: { name },
+        create: { symbol, name, marketCap: marketCap ?? null },
+        update: { name, ...(marketCap !== undefined ? { marketCap } : {}) },
       });
     },
 
@@ -36,6 +36,39 @@ export function createTrackingCoinsRepository(client = prisma) {
       });
     },
 
+    // ── DCA signal history (append-only change log) ────────────────────────
+
+    /**
+     * Append a history row only when the DCA action zone OR quality bucket
+     * differs from the most recent row for this coin. Returns the new row, or
+     * null when nothing changed (so 4-hour scans don't bloat the log).
+     */
+    async logSignalHistoryIfChanged(
+      coinId: string,
+      data: Omit<Prisma.TrackingCoinSignalHistoryUncheckedCreateInput, 'id' | 'coinId' | 'scannedAt'>,
+    ) {
+      const last = await client.trackingCoinSignalHistory.findFirst({
+        where: { coinId },
+        orderBy: { scannedAt: 'desc' },
+        select: { dcaZone: true, dcaBucket: true },
+      });
+      const zone = data.dcaZone ?? null;
+      if (last && last.dcaZone === zone && last.dcaBucket === data.dcaBucket) {
+        return null; // no meaningful change → skip
+      }
+      return client.trackingCoinSignalHistory.create({
+        data: { coinId, ...data, scannedAt: new Date() },
+      });
+    },
+
+    findSignalHistory(coinId: string, limit = 100) {
+      return client.trackingCoinSignalHistory.findMany({
+        where: { coinId },
+        orderBy: { scannedAt: 'desc' },
+        take: limit,
+      });
+    },
+
     findCoinsWithLatestSignal() {
       return client.trackingCoin.findMany({
         include: {
@@ -43,9 +76,53 @@ export function createTrackingCoinsRepository(client = prisma) {
             orderBy: { date: 'desc' },
             take: 1,
           },
+          dcaBuys: { orderBy: { boughtAt: 'asc' } },
         },
-        orderBy: { addedAt: 'asc' },
+        // Market cap desc (MySQL sorts NULL last on DESC), then insertion order.
+        orderBy: [{ marketCap: 'desc' }, { addedAt: 'asc' }],
       });
+    },
+
+    // ── DCA position (manual buy log) ──────────────────────────────────────
+
+    findDcaBuysByCoin(coinId: string) {
+      return client.trackingCoinDcaBuy.findMany({
+        where: { coinId },
+        orderBy: { boughtAt: 'asc' },
+      });
+    },
+
+    findDcaBuyById(id: string) {
+      return client.trackingCoinDcaBuy.findUnique({ where: { id } });
+    },
+
+    addDcaBuy(
+      coinId: string,
+      data: { price: number; usd: number; boughtAt?: Date; portfolioId?: string | null; transactionId?: string | null },
+    ) {
+      return client.trackingCoinDcaBuy.create({
+        data: {
+          coinId,
+          price: data.price,
+          usd: data.usd,
+          ...(data.boughtAt ? { boughtAt: data.boughtAt } : {}),
+          ...(data.portfolioId !== undefined ? { portfolioId: data.portfolioId } : {}),
+          ...(data.transactionId !== undefined ? { transactionId: data.transactionId } : {}),
+        },
+      });
+    },
+
+    deleteDcaBuy(id: string) {
+      return client.trackingCoinDcaBuy.delete({ where: { id } });
+    },
+
+    deleteAllDcaBuys(coinId: string) {
+      return client.trackingCoinDcaBuy.deleteMany({ where: { coinId } });
+    },
+
+    /** Reverse sync: drop any DCA layer mirrored by a (now-deleted) portfolio transaction. */
+    deleteDcaBuysByTransactionId(transactionId: string) {
+      return client.trackingCoinDcaBuy.deleteMany({ where: { transactionId } });
     },
 
     // ── Journal ──────────────────────────────────────────────────────────
@@ -74,6 +151,7 @@ export function createTrackingCoinsRepository(client = prisma) {
         swingMinRR?: number | null;
         daytradeMaxLoss?: number | null;
         daytradeMinRR?: number | null;
+        dcaMaxLayers?: number | null;
       },
     ) {
       return client.trackingCoin.update({ where: { id: coinId }, data });

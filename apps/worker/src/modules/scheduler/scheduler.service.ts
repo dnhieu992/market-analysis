@@ -61,8 +61,8 @@ export class SchedulerService {
     }
   }
 
-  // Runs every day at 00:30 UTC — scan all tracking-coin watchlist
-  @Cron('30 0 * * *', { timeZone: 'UTC' })
+  // Runs every 4 hours at minute 5 (00:05, 04:05, … UTC) — scan all tracking-coin watchlist
+  @Cron('5 */4 * * *', { timeZone: 'UTC' })
   async runTrackingCoinScan() {
     this.logger.log('Running tracking-coin scan');
     try {

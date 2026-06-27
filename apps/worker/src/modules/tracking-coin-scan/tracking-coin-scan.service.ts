@@ -3,6 +3,10 @@ import {
   computeSmallCapSignal,
   computeTimeframeTrend,
   computeLongShortScore,
+  computeEntryScore,
+  computeDcaScore,
+  dcaZone,
+  dcaQualityBucket,
   calculateEma,
   calculateRsi,
   calculateVolumeRatio,
@@ -70,6 +74,7 @@ export class TrackingCoinScanService {
     coinId: string,
     symbol: string,
     setup?: {
+      marketCap?: number | null;
       swingMaxLoss?: number | null;
       daytradeMaxLoss?: number | null;
       swingMinRR?: number | null;
@@ -78,11 +83,12 @@ export class TrackingCoinScanService {
   ): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
-    const [klines, h4Klines, m30Klines, h1Klines] = await Promise.all([
+    const [klines, h4Klines, m30Klines, h1Klines, wKlines] = await Promise.all([
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1h', limit: 72 }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1w', limit: 300 }),
     ]);
 
     if (klines.length < 210) return;
@@ -94,6 +100,11 @@ export class TrackingCoinScanService {
 
     const result = computeSmallCapSignal(closes, highs, lows, volumes);
     if (!result) return;
+
+    // % the last close sits above the rolling 20-day low (DCA dip-depth gauge).
+    const lastClose = closes[closes.length - 1]!;
+    const low20 = Math.min(...lows.slice(-20));
+    const low20Pct = low20 > 0 ? Number((((lastClose - low20) / low20) * 100).toFixed(1)) : null;
 
     const h4Closes  = h4Klines.map((k) => parseFloat(k[4]));
     const h4Highs   = h4Klines.map((k) => parseFloat(k[2]));
@@ -120,12 +131,30 @@ export class TrackingCoinScanService {
     const h4VolMultiplier = h4Volumes.length >= 20 ? calculateVolumeRatio(h4Volumes, 20) : null;
 
     const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
-    const utBotD1Bullish = calcUtBotResult(d1Candles, 1, 3)?.uptrend ?? null;
+    const utBotD1Bullish = calcUtBotResult(d1Candles, 10, 2)?.uptrend ?? null;
 
     const h4Candles = h4Closes.length >= 2
       ? h4Closes.map((c, i) => ({ open: c, high: h4Highs[i]!, low: h4Lows[i]!, close: c }))
       : [];
-    const utBotH4Bullish = h4Candles.length >= 2 ? (calcUtBotResult(h4Candles, 1, 3)?.uptrend ?? null) : null;
+    const utBotH4Bullish = h4Candles.length >= 2 ? (calcUtBotResult(h4Candles, 10, 2)?.uptrend ?? null) : null;
+
+    // ── Weekly (W1) timeframe — same indicators/setup as D1/H4 ──────────
+    const wCloses  = wKlines.map((k) => parseFloat(k[4]));
+    const wHighs   = wKlines.map((k) => parseFloat(k[2]));
+    const wLows    = wKlines.map((k) => parseFloat(k[3]));
+    const wVolumes = wKlines.map((k) => parseFloat(k[5]));
+    const wLastClose = wCloses[wCloses.length - 1] ?? 0;
+
+    const weekTrend = wKlines.length >= 20 ? computeTimeframeTrend(wCloses, wHighs, wLows) : 'Neutral';
+    const wEma34Above  = wCloses.length >= 34  ? wLastClose > calculateEma(wCloses, 34)  : null;
+    const wEma89Above  = wCloses.length >= 89  ? wLastClose > calculateEma(wCloses, 89)  : null;
+    const wEma200Above = wCloses.length >= 200 ? wLastClose > calculateEma(wCloses, 200) : null;
+    const wRsi           = wCloses.length > 14  ? calculateRsi(wCloses, 14) : null;
+    const wVolMultiplier = wVolumes.length >= 20 ? calculateVolumeRatio(wVolumes, 20) : null;
+    const wCandles = wCloses.length >= 2
+      ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
+      : [];
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
 
     const { longScore, shortScore } = computeLongShortScore({
       closes,
@@ -142,6 +171,52 @@ export class TrackingCoinScanService {
       sparkline: result.sparkline,
     });
 
+    // Build today's swing order first so its R:R can feed the entry score.
+    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
+    const sigSnap: OrderSigSnapshot = {
+      trend: result.trend,
+      h4Trend,
+      m30Trend,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      utBotW1Bullish,
+      longScore,
+      shortScore,
+      ema200Above: result.ema200Above,
+      rsi: result.rsi,
+      h4Rsi,
+      swingStructure: result.swingStructure,
+    };
+    const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
+    const rawSwingOrder = currentPrice > 0
+      ? computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr)
+      : null;
+
+    // Entry Score — low-risk-entry gauge (risk-management oriented).
+    // Uses the raw order's R:R (pre minRR-gate) so the score reflects setup
+    // quality independent of the coin's user-configured minRR.
+    const { entryScore } = computeEntryScore({
+      extPct: result.extPct,
+      ema200Above: result.ema200Above,
+      d1Trend: result.trend as PaTrend,
+      weekTrend: weekTrend as PaTrend,
+      rsi: result.rsi,
+      volMultiplier: result.volMultiplier,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      rrRatio: rawSwingOrder?.rrRatio ?? null,
+    });
+
+    // DCA-worthiness — "how safe is it to DCA this coin?" (market-cap + weekly trend).
+    const dcaScore = computeDcaScore({
+      marketCap: setup?.marketCap ?? null,
+      weekTrend: weekTrend as PaTrend,
+      wEma89Above,
+      wEma200Above,
+      utBotW1Bullish,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -153,41 +228,50 @@ export class TrackingCoinScanService {
       ema200Above: result.ema200Above,
       stage: result.stage,
       signalScore: result.signalScore,
+      entryScore,
+      dcaScore,
+      extPct: result.extPct,
+      low20Pct,
       sparklineJson: JSON.stringify(result.sparkline),
+      weekTrend,
       trend: result.trend,
       h4Trend,
       m30Trend,
       swingStructure: result.swingStructure,
       longScore,
       shortScore,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      wEma34Above,
+      wEma89Above,
+      wEma200Above,
+      wRsi,
+      wVolMultiplier,
       h4Ema34Above,
       h4Ema89Above,
       h4Ema200Above,
-      utBotD1Bullish,
-      utBotH4Bullish,
       h4Rsi,
       h4VolMultiplier,
     });
 
-    // ── Generate & persist today's orders ──────────────────────────────
-    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
-    if (currentPrice > 0) {
-      const sigSnap: OrderSigSnapshot = {
-        trend: result.trend,
-        h4Trend,
-        m30Trend,
-        utBotD1Bullish,
-        utBotH4Bullish,
-        longScore,
-        shortScore,
-        ema200Above: result.ema200Above,
-        rsi: result.rsi,
-        h4Rsi,
-        swingStructure: result.swingStructure,
-      };
+    // ── DCA signal history — append only when zone/bucket changes ──────
+    const zone = dcaZone({ ema34Above: result.ema34Above, rsi: result.rsi ?? 50, low20Pct });
+    await this.repo.logSignalHistoryIfChanged(coinId, {
+      dcaScore,
+      dcaZone: zone,
+      dcaBucket: dcaQualityBucket(dcaScore),
+      trend: result.trend,
+      weekTrend,
+      h4Trend,
+      rsi: result.rsi,
+      extPct: result.extPct,
+      price: currentPrice > 0 ? currentPrice : null,
+    });
 
-      const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
-      const swingOrder = this.gateByMinRr(computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr), setup?.swingMinRR);
+    // ── Generate & persist today's orders ──────────────────────────────
+    if (currentPrice > 0) {
+      const swingOrder = this.gateByMinRr(rawSwingOrder, setup?.swingMinRR);
 
       // Day-trade removed from tracking-coins — only swing; clear stale day-trade order.
       await Promise.all([

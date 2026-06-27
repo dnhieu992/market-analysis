@@ -1729,15 +1729,6 @@ a {
   border-color: #0e7490;
 }
 
-.tt-btn--setup {
-  color: #7c3aed;
-  border-color: var(--border);
-}
-.tt-btn--setup:hover {
-  background: rgba(124, 58, 237, 0.12);
-  border-color: #7c3aed;
-}
-
 .tt-btn--analyze {
   color: var(--muted);
   border-color: var(--border);
@@ -3635,7 +3626,7 @@ a {
 
 .ts-pnl-pct { font-size: 0.72rem; font-weight: 600; opacity: 0.75; }
 
-/* Price-cell grid — mirrors the swing-trading card (.dt-prices/.dt-price). */
+/* Price-cell grid — mirrors the day-trading card (.dt-prices/.dt-price). */
 .ts-prices {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -7191,6 +7182,150 @@ a.metric-card--link:hover {
 .scr-ext--hot  { color: #dc2626; }       /* overheated: trail / take profit */
 .scr-ext--down { color: var(--muted); }
 
+/* ── DCA cell: "đáng DCA" quality badge + action zone ── */
+.tc-dca {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.tc-dca-badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  line-height: 1.1;
+  border: 1px solid transparent;
+}
+.tc-dca-score {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tc-dca-tag {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tc-dca--safe  { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.4); color: #059669; }
+.tc-dca--ok    { background: rgba(234, 179, 8, 0.14);  border-color: rgba(234, 179, 8, 0.35); color: #b45309; }
+.tc-dca--risky { background: rgba(148, 163, 184, 0.14); border-color: rgba(148, 163, 184, 0.3); color: var(--muted); }
+.tc-dca--avoid { background: rgba(220, 38, 38, 0.12); border-color: rgba(220, 38, 38, 0.3); color: #dc2626; }
+
+.tc-zone {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.tc-zone--gom  { background: rgba(16, 185, 129, 0.18); color: #059669; }
+.tc-zone--chot { background: rgba(37, 99, 235, 0.16); color: #2563eb; }
+.tc-zone--cho  { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
+
+/* ── DCA position action button (shows layer count when holding) ── */
+.tt-btn--dca-active {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.14);
+}
+
+/* ── DCA position dialog ── */
+.dcapos-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.dcapos-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-2, rgba(148, 163, 184, 0.08));
+}
+.dcapos-stat span { font-size: 0.68rem; color: var(--muted); }
+.dcapos-stat strong { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.dcapos-pos { color: #059669; }
+.dcapos-neg { color: #dc2626; }
+.dcapos-hint {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin: 0 0 10px;
+}
+.dcapos-hint--ok   { background: rgba(16, 185, 129, 0.12); color: #047857; }
+.dcapos-hint--warn { background: rgba(234, 179, 8, 0.12); color: #b45309; }
+.dcapos-portfolio {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.dcapos-portfolio > span {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.dcapos-add {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dcapos-pf { font-size: 0.74rem; color: var(--foreground); }
+.tc-history { display: flex; flex-direction: column; gap: 10px; }
+.tc-history-table th, .tc-history-table td { white-space: nowrap; vertical-align: middle; }
+.tc-history-trends { display: inline-flex; gap: 4px; }
+
+.sc-history-btn {
+  margin-left: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  opacity: 0.55;
+  padding: 0 2px;
+  line-height: 1;
+}
+.sc-history-btn:hover { opacity: 1; }
+.sc-history-table th, .sc-history-table td { white-space: nowrap; vertical-align: middle; text-align: left; }
+
+.dcapos-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.82rem;
+}
+.dcapos-table th {
+  text-align: left;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 6px;
+}
+.dcapos-table td {
+  padding: 4px 6px;
+  border-top: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+  font-variant-numeric: tabular-nums;
+}
+.dcapos-del {
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
 .scr-signal-num {
   font-size: 0.82rem;
   font-weight: 700;
@@ -7339,16 +7474,27 @@ a.metric-card--link:hover {
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
+  overflow-x: auto; /* narrow dialogs (mobile): scroll instead of crushing/overlapping cells */
   margin-top: 4px;
 }
 .tc-tf-grid__head,
 .tc-tf-grid__row {
   display: grid;
-  grid-template-columns: 38px repeat(5, minmax(0, 1fr));
+  /* Width-aware columns so the 3-pip EMA cell always has room and never overflows
+     onto its neighbours; min-width forces a horizontal scroll before any overlap. */
+  grid-template-columns:
+    34px minmax(46px, 0.8fr) minmax(62px, 1fr) minmax(98px, 1.3fr) minmax(40px, 0.7fr) minmax(48px, 0.8fr);
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
+  min-width: 420px;
 }
+/* keep each indicator cell on one line — no wrapping inside a grid track */
+.tc-tf-grid__row > *,
+.tc-tf-grid .scr-ema-pips { white-space: nowrap; }
+/* compact the EMA pips so all three fit their track comfortably */
+.tc-tf-grid .scr-ema-pips { gap: 4px; }
+.tc-tf-grid .scr-pip { padding: 2px 5px; }
 .tc-tf-grid__head {
   font-size: 0.68rem;
   font-weight: 700;
@@ -8164,39 +8310,6 @@ a.metric-card--link:hover {
 .setup-dialog { max-width: 400px; width: 100%; }
 .setup-body { display: flex; flex-direction: column; gap: 14px; }
 
-.setup-hint {
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.5;
-  margin: 0;
-}
-.setup-section {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.setup-section__title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.setup-fields {
-  display: flex;
-  gap: 14px;
-}
-.setup-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.78rem;
-  color: var(--muted);
-  flex: 1;
-}
 .setup-input {
   width: 100%;
   padding: 6px 8px;
@@ -8211,10 +8324,6 @@ a.metric-card--link:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-}
-.setup-saved {
-  font-size: 0.8rem;
-  color: #15803d;
 }
 .ord-hist__vol { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ord-hist__vol-usd { font-size: 0.72rem; color: var(--muted); margin-left: 3px; }
@@ -8376,6 +8485,26 @@ a.metric-card--link:hover {
   font-weight: 500;
   transition: all 0.15s;
 }
+.dt-filters-count {
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dt-filters-count strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+.dt-filters-upnl {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  font-weight: 700;
+}
+
 .dt-filter:hover { border-color: var(--accent); color: var(--foreground); }
 .dt-filter--active {
   background: var(--accent);

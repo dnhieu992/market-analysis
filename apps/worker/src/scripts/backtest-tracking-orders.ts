@@ -45,7 +45,11 @@ const SWING_FWD = SWING_FWD_DAYS * H4_PER_DAY;  // 30 H4 bars
 const DAY_MS = 86_400_000;
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
-type Args = { days: number; symbols: string[] | null; swingMinRr: number | null; csv: string | null };
+// w1: weekly-alignment filter — only keep a swing order whose side agrees with the
+// W1 bias. 'utbot' = UT Bot W1 direction, 'trend' = weekTrend up/down, 'both' = AND.
+type W1Mode = 'off' | 'utbot' | 'trend' | 'both';
+type SideMode = 'both' | 'long' | 'short';
+type Args = { days: number; symbols: string[] | null; swingMinRr: number | null; csv: string | null; w1: W1Mode; side: SideMode; riskPct: number };
 
 function parseArgs(argv: string[]): Args {
   const get = (k: string) => {
@@ -53,16 +57,23 @@ function parseArgs(argv: string[]): Args {
     return hit ? hit.slice(k.length + 3) : null;
   };
   const num = (v: string | null) => (v == null || v === '' ? null : Number(v));
+  const w1raw = (get('w1') ?? 'off') as W1Mode;
+  const w1: W1Mode = (['off', 'utbot', 'trend', 'both'] as const).includes(w1raw) ? w1raw : 'off';
+  const sideRaw = (get('side') ?? 'both') as SideMode;
+  const side: SideMode = (['both', 'long', 'short'] as const).includes(sideRaw) ? sideRaw : 'both';
   return {
     days: num(get('days')) ?? 180,
     symbols: get('symbols')?.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean) ?? null,
     swingMinRr: num(get('swing-min-rr')),
     csv: get('csv'),
+    w1,
+    side,
+    riskPct: num(get('risk-pct')) ?? 2,
   };
 }
 
 // ── Kline helpers ───────────────────────────────────────────────────────────
-type Tf = '1d' | '4h';
+type Tf = '1d' | '4h' | '1w';
 const high = (k: BinanceKlineDto) => parseFloat(k[2]);
 const low = (k: BinanceKlineDto) => parseFloat(k[3]);
 const close = (k: BinanceKlineDto) => parseFloat(k[4]);
@@ -118,12 +129,41 @@ function buildSnapshot(
     snap: {
       trend: result.trend, h4Trend, m30Trend,
       utBotD1Bullish, utBotH4Bullish,
+      // null so core's built-in W1 gate is a no-op here — the harness controls the
+      // weekly filter externally via the --w1 flag (keeps it an independent measure).
+      utBotW1Bullish: null,
       longScore, shortScore,
       ema200Above: result.ema200Above,
       rsi: result.rsi, h4Rsi,
       swingStructure: result.swingStructure,
     },
   };
+}
+
+// ── W1 (weekly) alignment filter ───────────────────────────────────────────────
+// Mirrors TrackingCoinScanService: utBotW1 = calcUtBotResult(wCandles, 10, 2),
+// weekTrend = computeTimeframeTrend. Built from weekly candles closed by T only.
+type W1Bias = { utBot: boolean | null; trend: string };
+
+function buildW1Bias(wC: number[], wH: number[], wL: number[]): W1Bias {
+  const trend = wC.length >= 20 ? computeTimeframeTrend(wC, wH, wL) : 'Neutral';
+  const wCandles = wC.length >= 2 ? wC.map((c, i) => ({ open: c, high: wH[i]!, low: wL[i]!, close: c })) : [];
+  const utBot = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
+  return { utBot, trend };
+}
+
+// Returns true if the order side is allowed under the W1 filter. Null/neutral W1
+// signals do NOT block (insufficient data shouldn't silently kill the sample).
+function passesW1(side: 'LONG' | 'SHORT', mode: W1Mode, w1: W1Bias): boolean {
+  if (mode === 'off') return true;
+  const t = w1.trend.toLowerCase();
+  const trendOk =
+    side === 'LONG' ? !t.includes('down') : !t.includes('up');
+  const utBotOk =
+    w1.utBot == null ? true : side === 'LONG' ? w1.utBot === true : w1.utBot === false;
+  if (mode === 'utbot') return utBotOk;
+  if (mode === 'trend') return trendOk;
+  return utBotOk && trendOk; // both
 }
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
@@ -196,17 +236,20 @@ async function main() {
   console.log(`\nBacktest tracking-coin SWING orders — days=${args.days}, symbols=${symbols.length}`);
   console.log(`swing minRR=${args.swingMinRr ?? '—'}  (m30Trend≈h4Trend)\n`);
 
+  console.log(`W1 filter: ${args.w1}\n`);
+
   const all: Trade[] = [];
-  let noTradeBars = 0, testedBars = 0;
+  let noTradeBars = 0, testedBars = 0, w1FilteredBars = 0;
   const perSymbol: Record<string, Bucket> = {};
 
   for (const sym of symbols) {
     const bs = `${sym}USDT`;
     const symBucket = emptyBucket();
     try {
-      const [d1, h4] = await Promise.all([
+      const [d1, h4, w1] = await Promise.all([
         fetchHistory(binance, bs, '1d', Date.now() - (WARMUP_D1 + args.days + 10) * DAY_MS),
         fetchHistory(binance, bs, '4h', Date.now() - (args.days + 40) * DAY_MS),
+        fetchHistory(binance, bs, '1w', Date.now() - (args.days + 220 * 7) * DAY_MS),
       ]);
       if (d1.length < WARMUP_D1 + 5) { console.log(`${sym.padEnd(6)} skipped (insufficient D1 history: ${d1.length})`); continue; }
 
@@ -230,6 +273,16 @@ async function main() {
 
         const swing = gate(computeSwingLimitOrder(snap.price, h4H, h4L, snap.snap, atrH4), args.swingMinRr);
         if (!swing) { noTradeBars++; continue; }
+
+        // Side filter — only trade LONG or only SHORT.
+        if (args.side !== 'both' && swing.side.toLowerCase() !== args.side) continue;
+
+        // W1 alignment filter (experiment #1) — drop orders fighting the weekly bias.
+        if (args.w1 !== 'off') {
+          const wUp = w1.filter((k) => closeTime(k) <= T);
+          const w1Bias = buildW1Bias(wUp.map(close), wUp.map(high), wUp.map(low));
+          if (!passesW1(swing.side, args.w1, w1Bias)) { w1FilteredBars++; continue; }
+        }
 
         const fwd = h4.filter((k) => closeTime(k) > T).slice(0, SWING_FWD);
         const ev = evaluateLimitOrder(swing.side, swing.entryLow, swing.entryHigh, swing.tp1, swing.tp2 ?? null, swing.sl, fwd.map(high), fwd.map(low));
@@ -261,7 +314,33 @@ async function main() {
   console.log('────────────────────────────────────────────────────────────────────────────');
   console.log(fmtBucket('OVERALL', overall));
   const noTradePct = testedBars > 0 ? (noTradeBars / testedBars) * 100 : 0;
-  console.log(`\nTested bars: ${testedBars}  |  No-trade bars (regime gate / minRR): ${noTradeBars} (${noTradePct.toFixed(1)}%)`);
+  console.log(`\nTested bars: ${testedBars}  |  No-trade bars (regime gate / minRR): ${noTradeBars} (${noTradePct.toFixed(1)}%)  |  W1-filtered: ${w1FilteredBars}`);
+
+  // ── Plain-language money summary ($1000 start, fixed-fractional risk) ──────────
+  const filledTrades = all.filter((t) => t.activated);
+  const wins = filledTrades.filter((t) => t.outcome === 'tp1' || t.outcome === 'tp2').length;
+  const losses = filledTrades.filter((t) => t.outcome === 'sl').length;
+  const flats = filledTrades.filter((t) => t.outcome === 'expired').length;
+  const decided = wins + losses;
+  const winPct = decided > 0 ? (wins / decided) * 100 : 0;
+
+  const START = 1000;
+  let equity = START;
+  for (const t of filledTrades) {           // chronological per symbol
+    equity += t.r * (equity * args.riskPct / 100);
+  }
+  const profit = equity - START;
+  const retPct = (profit / START) * 100;
+
+  console.log('\n══ KẾT QUẢ DỄ HIỂU ══════════════════════════════════════════════════════════');
+  console.log(`Tổng số lệnh đã vào (khớp):  ${filledTrades.length}`);
+  console.log(`  • Thắng (chạm TP):         ${wins}`);
+  console.log(`  • Thua  (chạm SL):         ${losses}`);
+  console.log(`  • Hòa   (hết hạn, ~0):     ${flats}`);
+  console.log(`Tỷ lệ thắng (bỏ qua hòa):    ${winPct.toFixed(1)}%  (${wins} thắng / ${decided} lệnh có kết quả)`);
+  console.log(`\nNếu bắt đầu $${START}, mỗi lệnh rủi ro ${args.riskPct}% số dư (chưa trừ phí):`);
+  console.log(`  → Số dư cuối:  $${equity.toFixed(0)}   (${profit >= 0 ? '+' : ''}$${profit.toFixed(0)}, ${retPct >= 0 ? '+' : ''}${retPct.toFixed(0)}%)`);
+  console.log('═════════════════════════════════════════════════════════════════════════════');
   console.log('E[R] = expectancy per order in R (SL=-1). PF = profit factor. MDD = max drawdown in R.\n');
 
   if (args.csv) {

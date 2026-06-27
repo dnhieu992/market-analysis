@@ -325,16 +325,37 @@ model TrackingCoin {
   id              String                  @id @default(cuid())
   symbol          String                  @unique @db.VarChar(30)
   name            String                  @default("") @db.VarChar(100)
+  marketCap       Float?
   addedAt         DateTime                @default(now())
   swingMaxLoss    Float?
   swingMinRR      Float?
   daytradeMaxLoss Float?
   daytradeMinRR   Float?
+  dcaMaxLayers    Int?
   signals         TrackingCoinSignal[]
+  signalHistory   TrackingCoinSignalHistory[]
   journals        TrackingCoinJournal[]
   orders          TrackingCoinOrder[]
+  dcaBuys         TrackingCoinDcaBuy[]
 
   @@map("tracking_coins")
+}
+
+model TrackingCoinDcaBuy {
+  id            String       @id @default(cuid())
+  coinId        String
+  price         Float
+  usd           Float
+  boughtAt      DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  // Two-way sync with the portfolio: each DCA layer mirrors a CoinTransaction (BUY).
+  portfolioId   String?      @db.Char(36)
+  transactionId String?      @db.Char(36)
+  coin          TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([coinId, boughtAt(sort: Asc)])
+  @@index([transactionId])
+  @@map("tracking_coin_dca_buys")
 }
 
 model TrackingCoinOrder {
@@ -390,15 +411,26 @@ model TrackingCoinSignal {
   ema200Above    Boolean      @default(false)
   stage          String       @default("Quiet") @db.VarChar(20)
   signalScore    Int          @default(0)
+  entryScore     Int          @default(0)
+  dcaScore       Int          @default(0)
+  extPct         Float?
+  low20Pct       Float?
   sparklineJson  String       @db.Text
+  weekTrend      String       @default("Neutral") @db.VarChar(15)
   trend          String       @default("Neutral") @db.VarChar(15)
   h4Trend        String       @default("Neutral") @db.VarChar(15)
   m30Trend       String       @default("Neutral") @db.VarChar(15)
   swingStructure String       @default("Mixed") @db.VarChar(10)
   longScore      Float?
   shortScore     Float?
+  utBotW1Bullish  Boolean?
   utBotD1Bullish  Boolean?
   utBotH4Bullish  Boolean?
+  wEma34Above     Boolean?
+  wEma89Above     Boolean?
+  wEma200Above    Boolean?
+  wRsi            Float?
+  wVolMultiplier  Float?
   h4Ema34Above    Boolean?
   h4Ema89Above    Boolean?
   h4Ema200Above   Boolean?
@@ -410,6 +442,29 @@ model TrackingCoinSignal {
   @@unique([coinId, date])
   @@index([date, signalScore(sort: Desc)])
   @@map("tracking_coin_signals")
+}
+
+// Append-only change log of the DCA signal. A new row is written only when the
+// DCA action zone (GOM/CHO/CHOT) OR the quality bucket (safe/ok/risky/avoid)
+// differs from the most recent row for the coin — so this is a compact history
+// of meaningful state changes, not every 4-hour scan.
+model TrackingCoinSignalHistory {
+  id         String       @id @default(cuid())
+  coinId     String
+  dcaScore   Int
+  dcaZone    String?      @db.VarChar(5)
+  dcaBucket  String       @db.VarChar(6)
+  trend      String       @default("Neutral") @db.VarChar(15)
+  weekTrend  String       @default("Neutral") @db.VarChar(15)
+  h4Trend    String       @default("Neutral") @db.VarChar(15)
+  rsi        Float?
+  extPct     Float?
+  price      Float?
+  scannedAt  DateTime     @default(now())
+  coin       TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([coinId, scannedAt(sort: Desc)])
+  @@map("tracking_coin_signal_history")
 }
 
 model DayTradingSignal {
@@ -475,57 +530,6 @@ model DayTradingActionLog {
   @@index([signalId, createdAt])
   @@index([action, createdAt])
   @@map("day_trading_action_logs")
-}
-
-model SwingTradingSignal {
-  id          String    @id @default(cuid())
-  symbol      String    @db.VarChar(20)
-  timeframe   String    @default("4h") @db.VarChar(10)
-  setupType   String    @default("UTBOT_FLIP") @db.VarChar(30)
-  direction   String    @db.VarChar(5)
-  entryPrice  Float
-  stopLoss    Float
-  takeProfit  Float
-  rrRatio       Float     @default(0)
-  riskAmount    Float     @default(1000)
-  keyValue      Float     @default(2)
-  // |entry − UTBot line| / entry × 100, captured AT ENTRY (the live stopLoss trails away later).
-  entryLineDistancePct Float?
-  quantity      Float?
-  positionValue Float?
-  status        String    @db.VarChar(20)
-  mode          String    @default("PAPER") @db.VarChar(10)
-  legKind       String    @default("BASE") @db.VarChar(10) // BASE | ADD (pullback scale-in)
-  pullbackArmed Boolean   @default(false)                  // re-arm state, only meaningful on the BASE leg
-  breakEvenMoved Boolean  @default(false)                  // SL ratcheted to entry after the +5% partial
-  partialClosed Boolean   @default(false)                  // the +5% half-close already fired
-  realizedPnlUsd Float    @default(0)                      // P&L banked from the partial close (added at full close)
-  closedPrice   Float?
-  closedAt      DateTime?
-  pnlUsd        Float?
-  setupJson     String    @db.Text
-  note          String?   @db.Text
-  detectedAt  DateTime
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([symbol, status, detectedAt])
-  @@map("swing_trading_signals")
-}
-
-model SwingTradingSettings {
-  id              String   @id @default("singleton")
-  symbol          String   @default("ETHUSDT") @db.VarChar(20)
-  timeframe       String   @default("4h") @db.VarChar(10)
-  atrPeriod       Int      @default(10)
-  keyValue        Float    @default(2)
-  riskPerTrade    Float    @default(1000)
-  leverage        Int      @default(1)
-  mode            String   @default("PAPER") @db.VarChar(10)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@map("swing_trading_settings")
 }
 
 /// "Long Signal" strategy — LONG-only intraday FOMO gated by the M30 UTBot trend.
@@ -596,6 +600,7 @@ model SmallCapCoin {
   listingDate DateTime?        @db.Date
   addedAt     DateTime         @default(now())
   signals     SmallCapSignal[]
+  signalHistory SmallCapSignalHistory[]
 
   @@map("small_cap_coins")
 }
@@ -621,5 +626,26 @@ model SmallCapSignal {
   @@unique([coinId, date])
   @@index([date, signalScore(sort: Desc)])
   @@map("small_cap_signals")
+}
+
+// Append-only change log of the radar signal. A new row is written only when the
+// stage (Breakout/Trending/Accumulating/Waking/Extended/Quiet) differs from the
+// most recent row for the coin — a compact history of stage transitions, not
+// every daily scan.
+model SmallCapSignalHistory {
+  id            String       @id @default(cuid())
+  coinId        String
+  stage         String       @db.VarChar(20)
+  signalScore   Int          @default(0)
+  trend         String       @default("Neutral") @db.VarChar(15)
+  rsi           Float?
+  volMultiplier Float?
+  extPct        Float?
+  price         Float?
+  scannedAt     DateTime     @default(now())
+  coin          SmallCapCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([coinId, scannedAt(sort: Desc)])
+  @@map("small_cap_signal_history")
 }
 

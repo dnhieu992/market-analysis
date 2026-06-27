@@ -68,11 +68,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'BTC 15m setups · Break & Retest, Liq. Sweep'
   },
   {
-    href: '/swing-trading',
-    label: 'Swing Trading',
-    description: 'UTBot stop-and-reverse · ETH H4 kv2'
-  },
-  {
     href: '/long-signal',
     label: 'Long Signal',
     description: 'LONG sáng · lọc M30 UTBot · POL/XRP/SOL/TAO'

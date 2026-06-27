@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddCoinDto } from './dto/add-coin.dto';
@@ -29,6 +29,12 @@ export class SmallCapRadarController {
   @ApiOperation({ summary: 'Remove a coin from the small-cap watchlist' })
   removeCoin(@Param('symbol') symbol: string) {
     return this.service.removeCoin(symbol);
+  }
+
+  @Get('coins/:symbol/signal-history')
+  @ApiOperation({ summary: 'Radar signal change-log (stage changes over time)' })
+  getSignalHistory(@Param('symbol') symbol: string, @Query('limit') limit = '100') {
+    return this.service.getSignalHistory(symbol, Number(limit));
   }
 
   @Post('rescan-coins')

@@ -40,7 +40,8 @@ Built in two phases:
 - **Audit trail** (`DayTradingActionLog` table, `audit.util.ts`): append-only log of important actions — `SETUP_DETECTED`, `SETUP_SKIPPED` (with reason: same-side-open / dedup), `ORDER_PLACED`, `BE_MOVED`, `CLOSED`, `MANUAL_CLOSE` — with `signalId`, message and JSON detail. Survives pm2 log rotation so the *why* behind any trade is reconstructable. Writes are fire-and-forget and never break the trading flow.
 
 ## Edge Cases
-- **WS disconnect**: auto-reconnects with backoff. A cron fallback (`:02/:17/:32/:47`) runs the scan only when `ws.isHealthy()` is false, so candle closes are not missed.
+- **WS disconnect**: auto-reconnects with backoff. A cron fallback (`:02/:17/:32/:47`) runs the scan when **no 15m `candleClose` has been emitted within ~one interval** (`ws.isCandleCloseStale()`), so candle closes are not missed.
+- **Silent candle channel (fixed 2026-06-26)**: the cron fallback used to gate on `ws.isHealthy()`, but that flag is driven by `lastMessageAt` which the high-frequency **ticker** stream keeps fresh. If the `candle15m` channel went silent while the ticker kept flowing, the socket looked "healthy", `candleClose` never fired, AND the cron fallback skipped forever → **no scan ever ran, no signals at all**. The fallback now keys on a dedicated `lastCandleCloseAt` (set only when a `candleClose` is actually emitted), decoupled from the ticker. `isHealthy()` is unchanged and still used by the result-monitor to trust the WS price.
 - **WS price stale**: result monitor falls back to REST `fetchCurrentPrice`.
 - Bitget REST failure: logged as warning, scan skipped (non-fatal).
 - Insufficient candle data (<30×15m, <20×1H, <10×4H): scan skipped.

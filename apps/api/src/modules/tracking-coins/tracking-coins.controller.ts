@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import type { AuthenticatedRequest } from '../auth/auth.types';
+import { AddDcaBuyDto } from './dto/add-dca-buy.dto';
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpsertJournalEntryDto } from './dto/upsert-journal-entry.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
@@ -50,6 +52,12 @@ export class TrackingCoinsController {
     return this.service.fetchKlines(symbol, interval, Number(limit));
   }
 
+  @Get('coins/:symbol/signal-history')
+  @ApiOperation({ summary: 'DCA signal change-log (zone/bucket changes over time)' })
+  getSignalHistory(@Param('symbol') symbol: string, @Query('limit') limit = '100') {
+    return this.service.getSignalHistory(symbol, Number(limit));
+  }
+
   @Get('coins/:symbol/journal')
   @ApiOperation({ summary: 'List all journal entries for a coin' })
   listJournal(@Param('symbol') symbol: string) {
@@ -80,6 +88,35 @@ export class TrackingCoinsController {
     return this.service.getSetup(symbol);
   }
 
+  @Get('coins/:symbol/dca-position')
+  @ApiOperation({ summary: 'Get the DCA position (buy log + average + P&L) for a coin' })
+  getDcaPosition(@Param('symbol') symbol: string) {
+    return this.service.getDcaPosition(symbol);
+  }
+
+  @Post('coins/:symbol/dca-buys')
+  @ApiOperation({ summary: 'Log a DCA buy (layer) for a coin' })
+  addDcaBuy(@Param('symbol') symbol: string, @Body() body: AddDcaBuyDto, @Req() req: AuthenticatedRequest) {
+    return this.service.addDcaBuy(symbol, body, req.authUser?.id);
+  }
+
+  @Delete('coins/:symbol/dca-buys/:buyId')
+  @ApiOperation({ summary: 'Delete a single DCA buy' })
+  deleteDcaBuy(@Param('symbol') symbol: string, @Param('buyId') buyId: string, @Req() req: AuthenticatedRequest) {
+    return this.service.deleteDcaBuy(symbol, buyId, req.authUser?.id);
+  }
+
+  @Delete('coins/:symbol/dca-position')
+  @ApiOperation({ summary: 'Close (clear) the entire DCA position for a coin' })
+  closeDcaPosition(
+    @Param('symbol') symbol: string,
+    @Query('sellPrice') sellPrice: string | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const price = sellPrice != null && sellPrice !== '' ? Number(sellPrice) : undefined;
+    return this.service.closeDcaPosition(symbol, Number.isFinite(price) ? price : undefined, req.authUser?.id);
+  }
+
   @Patch('coins/orders/:orderId/notes')
   @HttpCode(204)
   @ApiOperation({ summary: 'Update notes for a saved limit order' })
@@ -95,6 +132,7 @@ export class TrackingCoinsController {
       swingMinRR:      body.swingMinRR      ?? null,
       daytradeMaxLoss: body.daytradeMaxLoss ?? null,
       daytradeMinRR:   body.daytradeMinRR   ?? null,
+      dcaMaxLayers:    body.dcaMaxLayers    ?? null,
     });
   }
 }

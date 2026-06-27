@@ -137,7 +137,14 @@
       "Read(//tmp/**)",
       "Bash(SYMBOLS=POLUSDT,XRPUSDT,SOLUSDT,TAOUSDT TS_NODE_TRANSPILE_ONLY=1 pnpm exec *)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(echo \"TSC EXIT: $?\")"
+      "Bash(echo \"TSC EXIT: $?\")",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=365 --atr=1 --risk=0.5 --min-rr=2 --fee=0.0005)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=365 --atr=1 --risk=0.5 --min-rr=2 --fee=0.0005 --allow-stack)",
+      "Bash(SYMBOLS=\"SOLUSDT,SUIUSDT,XRPUSDT,POLUSDT,ADAUSDT,LINKUSDT,TAOUSDT,DOGEUSDT,SHIBUSDT,SEIUSDT,HBARUSDT,BNBUSDT,ONDOUSDT,LTCUSDT,AAVEUSDT,AVAXUSDT,TONUSDT,OPUSDT,TIAUSDT\" TS_NODE_TRANSPILE_ONLY=1 pnpm exec *)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:orders -- --days=365 --symbols=BTC)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:orders -- --days=90 --symbols=BTC)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:orders -- --days=730 --symbols=BTC)",
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=180 --atr=1 --min-rr=2)"
     ]
   }
 }

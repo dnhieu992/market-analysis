@@ -422,6 +422,7 @@ export type TrackingCoinRow = {
   id: string;
   symbol: string;
   name: string;
+  marketCap: number | null;
   addedAt: string;
   signal: {
     rsi: number | null;
@@ -429,23 +430,70 @@ export type TrackingCoinRow = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
+    wEma34Above: boolean | null;
+    wEma89Above: boolean | null;
+    wEma200Above: boolean | null;
     h4Ema34Above: boolean | null;
     h4Ema89Above: boolean | null;
     h4Ema200Above: boolean | null;
+    utBotW1Bullish: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    wRsi: number | null;
+    wVolMultiplier: number | null;
     h4Rsi: number | null;
     h4VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
+    entryScore: number;
+    dcaScore: number;
+    dcaZone: 'GOM' | 'CHO' | 'CHOT';
+    extPct: number | null;
+    low20Pct: number | null;
     sparkline: number[];
+    weekTrend: PaTrend;
     trend: PaTrend;
     h4Trend: PaTrend;
     m30Trend: PaTrend;
     swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
+  dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
+};
+
+export type SignalHistoryRow = {
+  id: string;
+  dcaScore: number;
+  dcaZone: 'GOM' | 'CHO' | 'CHOT' | null;
+  dcaBucket: 'safe' | 'ok' | 'risky' | 'avoid';
+  trend: PaTrend;
+  weekTrend: PaTrend;
+  h4Trend: PaTrend;
+  rsi: number | null;
+  extPct: number | null;
+  price: number | null;
+  scannedAt: string;
+};
+
+export type DcaBuy = {
+  id: string;
+  price: number;
+  usd: number;
+  boughtAt: string;
+  portfolioId: string | null;
+};
+
+export type DcaPosition = {
+  symbol: string;
+  currentPrice: number;
+  maxLayers: number;
+  layers: number;
+  avgEntry: number | null;
+  capitalDeployed: number;
+  nextAddPrice: number | null;
+  pnlPct: number | null;
+  buys: DcaBuy[];
 };
 
 export type OrderSuggestion = {
@@ -489,12 +537,6 @@ export type TrackingCoinOrder = {
   createdAt: string;
 };
 
-export type CoinSetup = {
-  swingMaxLoss: number | null;
-  swingMinRR: number | null;
-  daytradeMaxLoss: number | null;
-  daytradeMinRR: number | null;
-};
 
 export type DayTradingSignal = {
   id: string;
@@ -548,72 +590,6 @@ export type DayTradingSettings = {
 export type UpdateDayTradingSettingsInput = Partial<DayTradingSettings>;
 
 export type DayTradingPrice = {
-  price: number;
-  at: string;
-};
-
-// ── Swing Trading (UTBot trend stop-and-reverse on candle close) ──────────────
-
-export type SwingTradingSignal = {
-  id: string;
-  symbol: string;
-  timeframe: string;
-  setupType: 'UTBOT_FLIP';
-  direction: 'LONG' | 'SHORT';
-  entryPrice: number;
-  stopLoss: number;
-  takeProfit: number;
-  rrRatio: number;
-  riskAmount: number;
-  keyValue: number;
-  /** |entry − UTBot line| / entry × 100, captured at entry. Null for rows predating the field. */
-  entryLineDistancePct: number | null;
-  quantity: number | null;
-  positionValue: number | null;
-  status: 'ACTIVE' | 'CLOSED';
-  mode: 'PAPER' | 'LIVE';
-  legKind: 'BASE' | 'ADD';
-  breakEvenMoved: boolean;
-  partialClosed: boolean;
-  realizedPnlUsd: number;
-  closedPrice: number | null;
-  closedAt: string | null;
-  pnlUsd: number | null;
-  setupJson: string;
-  note: string | null;
-  detectedAt: string;
-  createdAt: string;
-};
-
-export type SwingTradingSignalsResponse = {
-  data: SwingTradingSignal[];
-  total: number;
-  limit: number;
-  offset: number;
-};
-
-export type SwingTradingStats = {
-  total: number;
-  active: number;
-  wins: number;
-  losses: number;
-  winRate: number;
-  totalPnlUsd: number;
-};
-
-export type SwingTradingSettings = {
-  symbol: string;
-  timeframe: string;
-  atrPeriod: number;
-  keyValue: number;
-  riskPerTrade: number;
-  leverage: number;
-  mode: 'PAPER' | 'LIVE';
-};
-
-export type UpdateSwingTradingSettingsInput = Partial<SwingTradingSettings>;
-
-export type SwingTradingPrice = {
   price: number;
   at: string;
 };
@@ -712,4 +688,16 @@ export type SmallCapCoinRow = {
     swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
+};
+
+export type SmallCapHistoryRow = {
+  id: string;
+  stage: SmallCapStage;
+  signalScore: number;
+  trend: PaTrend;
+  rsi: number | null;
+  volMultiplier: number | null;
+  extPct: number | null;
+  price: number | null;
+  scannedAt: string;
 };

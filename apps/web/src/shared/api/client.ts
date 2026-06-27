@@ -34,10 +34,12 @@ import type {
   Conversation,
   ChatMessage,
   SmallCapCoinRow,
+  SmallCapHistoryRow,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
-  CoinSetup,
+  SignalHistoryRow,
+  DcaPosition,
   DayTradingSignal,
   DayTradingSignalsResponse,
   DayTradingStats,
@@ -51,12 +53,6 @@ import type {
   LongSignalPrices,
   LongSignalLiveStatus,
   UpdateLongSignalSettingsInput,
-  SwingTradingSignal,
-  SwingTradingSignalsResponse,
-  SwingTradingStats,
-  SwingTradingSettings,
-  SwingTradingPrice,
-  UpdateSwingTradingSettingsInput,
   BinanceKline,
 } from './types';
 
@@ -758,16 +754,39 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    fetchCoinSetup(symbol: string): Promise<CoinSetup> {
-      return fetchJson<CoinSetup>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`, withDefaults());
+    fetchDcaPosition(symbol: string): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, withDefaults());
     },
 
-    updateCoinSetup(symbol: string, body: CoinSetup): Promise<CoinSetup> {
-      return fetchJson<CoinSetup>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`, {
+    fetchSignalHistory(symbol: string, limit = 100): Promise<SignalHistoryRow[]> {
+      return fetchJson<SignalHistoryRow[]>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
+        withDefaults(),
+      );
+    },
+
+    addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string; portfolioId?: string }): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys`, {
         ...withDefaults(),
-        method: 'PUT',
+        method: 'POST',
         headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+      });
+    },
+
+    deleteDcaBuy(symbol: string, buyId: string): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys/${encodeURIComponent(buyId)}`, {
+        ...withDefaults(),
+        method: 'DELETE',
+      });
+    },
+
+    closeDcaPosition(symbol: string, sellPrice?: number): Promise<DcaPosition> {
+      const qs = sellPrice != null && sellPrice > 0 ? `?sellPrice=${encodeURIComponent(String(sellPrice))}` : '';
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position${qs}`, {
+        ...withDefaults(),
+        method: 'DELETE',
       });
     },
 
@@ -852,6 +871,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async removeSmallCapCoin(symbol: string): Promise<void> {
       await fetchImpl(`${baseUrl}/small-cap-radar/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    fetchSmallCapSignalHistory(symbol: string, limit = 100): Promise<SmallCapHistoryRow[]> {
+      return fetchJson<SmallCapHistoryRow[]>(
+        fetchImpl,
+        `${baseUrl}/small-cap-radar/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
+        withDefaults(),
+      );
     },
 
     async triggerSmallCapScan(): Promise<{ scanned: number; failed: number }> {
@@ -1000,60 +1027,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<LongSignalSettings>(
         fetchImpl,
         `${baseUrl}/long-signal/settings`,
-        withDefaults({
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(input),
-        }),
-      );
-    },
-
-    // ── Swing Trading ─────────────────────────────────────────────────────────
-
-    async fetchSwingTradingSignals(params: { status?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): Promise<SwingTradingSignalsResponse> {
-      const qs = new URLSearchParams();
-      if (params.status) qs.set('status', params.status);
-      if (params.from) qs.set('from', params.from);
-      if (params.to) qs.set('to', params.to);
-      if (params.limit != null) qs.set('limit', String(params.limit));
-      if (params.offset != null) qs.set('offset', String(params.offset));
-      const url = `${baseUrl}/swing-trading/signals${qs.toString() ? `?${qs}` : ''}`;
-      return fetchJson<SwingTradingSignalsResponse>(fetchImpl, url, withDefaults({}));
-    },
-
-    async fetchSwingTradingStats(): Promise<SwingTradingStats> {
-      return fetchJson<SwingTradingStats>(fetchImpl, `${baseUrl}/swing-trading/signals/stats`, withDefaults({}));
-    },
-
-    async fetchSwingTradingPrice(symbol: string): Promise<SwingTradingPrice> {
-      const url = `${baseUrl}/swing-trading/price?symbol=${encodeURIComponent(symbol)}`;
-      return fetchJson<SwingTradingPrice>(fetchImpl, url, withDefaults({}));
-    },
-
-    async fetchSwingTradingSignalById(id: string): Promise<SwingTradingSignal | null> {
-      return fetchJson<SwingTradingSignal | null>(fetchImpl, `${baseUrl}/swing-trading/signals/${encodeURIComponent(id)}`, withDefaults({}));
-    },
-
-    async updateSwingTradingSignalNote(id: string, note: string): Promise<SwingTradingSignal> {
-      return fetchJson<SwingTradingSignal>(
-        fetchImpl,
-        `${baseUrl}/swing-trading/signals/${encodeURIComponent(id)}/note`,
-        withDefaults({
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ note }),
-        }),
-      );
-    },
-
-    async fetchSwingTradingSettings(): Promise<SwingTradingSettings> {
-      return fetchJson<SwingTradingSettings>(fetchImpl, `${baseUrl}/swing-trading/settings`, withDefaults({}));
-    },
-
-    async updateSwingTradingSettings(input: UpdateSwingTradingSettingsInput): Promise<SwingTradingSettings> {
-      return fetchJson<SwingTradingSettings>(
-        fetchImpl,
-        `${baseUrl}/swing-trading/settings`,
         withDefaults({
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

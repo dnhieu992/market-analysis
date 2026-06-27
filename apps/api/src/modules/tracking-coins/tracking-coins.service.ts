@@ -1,9 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
-import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, dcaZone, dcaQualityBucket, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
+import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { HoldingsService } from '../holdings/holdings.service';
+import { PortfolioService } from '../portfolio/portfolio.service';
+import { TransactionService } from '../transaction/transaction.service';
 
 const CANDLE_LIMIT = 220;
 
@@ -12,7 +15,28 @@ type CoinSetup = {
   swingMinRR: number | null;
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
+  dcaMaxLayers: number | null;
 };
+
+const DEFAULT_DCA_MAX_LAYERS = 5;
+
+type DcaBuyRow = { id: string; price: number; usd: number; boughtAt: Date };
+
+// Aggregate a coin's DCA buy log into the position summary the dashboard shows.
+function aggregateDca(buys: DcaBuyRow[]): { layers: number; avgEntry: number; capitalDeployed: number } | null {
+  if (!buys || buys.length === 0) return null;
+  let coins = 0;
+  let cost = 0;
+  for (const b of buys) {
+    if (b.price > 0) coins += b.usd / b.price;
+    cost += b.usd;
+  }
+  return {
+    layers: buys.length,
+    avgEntry: coins > 0 ? cost / coins : 0,
+    capitalDeployed: cost,
+  };
+}
 
 function calcVolume(order: LimitOrderResult, maxLoss: number | null): { positionSize: number; positionValue: number } | null {
   if (!maxLoss || maxLoss <= 0) return null;
@@ -36,6 +60,7 @@ export type TrackingCoinWithSignal = {
   id: string;
   symbol: string;
   name: string;
+  marketCap: number | null;
   addedAt: Date;
   signal: {
     rsi: number | null;
@@ -43,23 +68,36 @@ export type TrackingCoinWithSignal = {
     ema34Above: boolean;
     ema89Above: boolean;
     ema200Above: boolean;
+    wEma34Above: boolean | null;
+    wEma89Above: boolean | null;
+    wEma200Above: boolean | null;
     h4Ema34Above: boolean | null;
     h4Ema89Above: boolean | null;
     h4Ema200Above: boolean | null;
+    utBotW1Bullish: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    wRsi: number | null;
+    wVolMultiplier: number | null;
     h4Rsi: number | null;
     h4VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
+    entryScore: number;
+    dcaScore: number;
+    dcaZone: DcaZone;
+    extPct: number | null;
+    low20Pct: number | null;
     sparkline: number[];
+    weekTrend: string;
     trend: string;
     h4Trend: string;
     m30Trend: string;
     swingStructure: string;
     scannedAt: Date;
   } | null;
+  dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
 };
 
 @Injectable()
@@ -67,7 +105,12 @@ export class TrackingCoinsService {
   private readonly logger = new Logger(TrackingCoinsService.name);
   private readonly repo = createTrackingCoinsRepository();
 
-  constructor(private readonly binance: BinanceMarketDataService) {}
+  constructor(
+    private readonly binance: BinanceMarketDataService,
+    private readonly portfolioService: PortfolioService,
+    private readonly transactionService: TransactionService,
+    private readonly holdingsService: HoldingsService,
+  ) {}
 
   /**
    * Proxy raw OHLCV klines from Binance (server-side, avoids browser CORS/geo
@@ -94,6 +137,7 @@ export class TrackingCoinsService {
         id: coin.id,
         symbol: coin.symbol,
         name: coin.name,
+        marketCap: coin.marketCap,
         addedAt: coin.addedAt,
         signal: sig
           ? {
@@ -102,17 +146,29 @@ export class TrackingCoinsService {
               ema34Above: sig.ema34Above,
               ema89Above: sig.ema89Above,
               ema200Above: sig.ema200Above,
+              wEma34Above: sig.wEma34Above,
+              wEma89Above: sig.wEma89Above,
+              wEma200Above: sig.wEma200Above,
               h4Ema34Above: sig.h4Ema34Above,
               h4Ema89Above: sig.h4Ema89Above,
               h4Ema200Above: sig.h4Ema200Above,
+              utBotW1Bullish: sig.utBotW1Bullish,
               utBotD1Bullish: sig.utBotD1Bullish,
               utBotH4Bullish: sig.utBotH4Bullish,
+              wRsi: sig.wRsi,
+              wVolMultiplier: sig.wVolMultiplier,
               h4Rsi: sig.h4Rsi,
               h4VolMultiplier: sig.h4VolMultiplier,
               longScore: sig.longScore,
               shortScore: sig.shortScore,
               signalScore: sig.signalScore,
+              entryScore: sig.entryScore,
+              dcaScore: sig.dcaScore,
+              dcaZone: dcaZone({ ema34Above: sig.ema34Above, rsi: sig.rsi ?? 50, low20Pct: sig.low20Pct }),
+              extPct: sig.extPct,
+              low20Pct: sig.low20Pct,
               sparkline: this.parseSparkline(sig.sparklineJson),
+              weekTrend: sig.weekTrend,
               trend: sig.trend,
               h4Trend: sig.h4Trend,
               m30Trend: sig.m30Trend,
@@ -120,6 +176,7 @@ export class TrackingCoinsService {
               scannedAt: sig.scannedAt,
             }
           : null,
+        dcaPosition: aggregateDca(coin.dcaBuys),
       };
     });
   }
@@ -135,6 +192,25 @@ export class TrackingCoinsService {
     const existing = await this.repo.findCoinBySymbol(upper);
     if (!existing) throw new NotFoundException(`Coin ${upper} not found`);
     await this.repo.removeCoin(upper);
+  }
+
+  async getSignalHistory(symbol: string, limit = 100) {
+    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
+    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+    const rows = await this.repo.findSignalHistory(coin.id, limit);
+    return rows.map((r) => ({
+      id: r.id,
+      dcaScore: r.dcaScore,
+      dcaZone: r.dcaZone as 'GOM' | 'CHO' | 'CHOT' | null,
+      dcaBucket: r.dcaBucket as 'safe' | 'ok' | 'risky' | 'avoid',
+      trend: r.trend,
+      weekTrend: r.weekTrend,
+      h4Trend: r.h4Trend,
+      rsi: r.rsi,
+      extPct: r.extPct,
+      price: r.price,
+      scannedAt: r.scannedAt.toISOString(),
+    }));
   }
 
   async listJournal(symbol: string) {
@@ -208,6 +284,7 @@ export class TrackingCoinsService {
       m30Trend: sig.m30Trend,
       utBotD1Bullish: sig.utBotD1Bullish,
       utBotH4Bullish: sig.utBotH4Bullish,
+      utBotW1Bullish: sig.utBotW1Bullish,
       longScore: sig.longScore,
       shortScore: sig.shortScore,
       ema200Above: sig.ema200Above,
@@ -263,6 +340,140 @@ export class TrackingCoinsService {
     await this.repo.updateOrderNotes(orderId, notes);
   }
 
+  // ── DCA position (manual buy log) ────────────────────────────────────────
+
+  async getDcaPosition(symbol: string) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+    const buys = await this.repo.findDcaBuysByCoin(coin.id);
+    const agg = aggregateDca(buys);
+    const currentPrice = await this.binance.fetchCurrentPrice(`${upper}USDT`).catch(() => 0);
+    const lastAdd = buys.length > 0 ? buys[buys.length - 1]!.price : null;
+
+    return {
+      symbol: upper,
+      currentPrice,
+      maxLayers: coin.dcaMaxLayers ?? DEFAULT_DCA_MAX_LAYERS,
+      layers: agg?.layers ?? 0,
+      avgEntry: agg?.avgEntry ?? null,
+      capitalDeployed: agg?.capitalDeployed ?? 0,
+      // Next layer triggers 8% below the last add (matches the backtested -8% step).
+      nextAddPrice: lastAdd != null ? Number((lastAdd * 0.92).toFixed(8)) : null,
+      pnlPct: agg && agg.avgEntry > 0 && currentPrice > 0
+        ? Number((((currentPrice - agg.avgEntry) / agg.avgEntry) * 100).toFixed(2))
+        : null,
+      buys: buys.map((b) => ({
+        id: b.id,
+        price: b.price,
+        usd: b.usd,
+        boughtAt: b.boughtAt.toISOString(),
+        portfolioId: b.portfolioId ?? null,
+      })),
+    };
+  }
+
+  /**
+   * Add a DCA layer. When `portfolioId` is given, also mirror it as a BUY
+   * transaction in that portfolio (two-way sync) and link the two records.
+   */
+  async addDcaBuy(
+    symbol: string,
+    data: { price: number; usd: number; boughtAt?: string; portfolioId?: string },
+    userId?: string,
+  ) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+
+    let portfolioId: string | null = null;
+    let transactionId: string | null = null;
+    if (data.portfolioId && data.price > 0 && data.usd > 0) {
+      if (userId) await this.portfolioService.getPortfolio(data.portfolioId, userId); // ownership guard
+      const tx = await this.transactionService.createTransaction(data.portfolioId, {
+        coinId: upper,
+        type: 'buy',
+        price: data.price,
+        amount: data.usd / data.price,
+        fee: 0,
+        note: 'DCA gom (tracking-coins)',
+        ...(data.boughtAt ? { transactedAt: data.boughtAt } : {}),
+      });
+      portfolioId = data.portfolioId;
+      transactionId = (tx as { id: string }).id;
+    }
+
+    await this.repo.addDcaBuy(coin.id, {
+      price: data.price,
+      usd: data.usd,
+      boughtAt: data.boughtAt ? new Date(data.boughtAt) : undefined,
+      portfolioId,
+      transactionId,
+    });
+    return this.getDcaPosition(upper);
+  }
+
+  async deleteDcaBuy(symbol: string, buyId: string, userId?: string) {
+    const buy = await this.repo.findDcaBuyById(buyId);
+    if (buy?.transactionId && buy.portfolioId) {
+      // Removing the linked transaction cascades back to this DCA layer (reverse sync).
+      if (userId) await this.portfolioService.getPortfolio(buy.portfolioId, userId);
+      await this.transactionService.removeTransaction(buy.transactionId, buy.portfolioId);
+    } else {
+      await this.repo.deleteDcaBuy(buyId);
+    }
+    return this.getDcaPosition(symbol);
+  }
+
+  /**
+   * Close the position ("đã chốt"): sell exactly the DCA-accumulated amount per
+   * portfolio at `sellPrice` (defaults to the live price) — realising P&L without
+   * touching any non-DCA holdings of the same coin — then clear the buy log.
+   */
+  async closeDcaPosition(symbol: string, sellPrice?: number, userId?: string) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+
+    const buys = await this.repo.findDcaBuysByCoin(coin.id);
+    const price = sellPrice && sellPrice > 0
+      ? sellPrice
+      : await this.binance.fetchCurrentPrice(`${upper}USDT`).catch(() => 0);
+
+    // accumulate the synced amount per portfolio
+    const amountByPortfolio = new Map<string, number>();
+    for (const b of buys) {
+      if (b.portfolioId && b.transactionId && b.price > 0) {
+        amountByPortfolio.set(b.portfolioId, (amountByPortfolio.get(b.portfolioId) ?? 0) + b.usd / b.price);
+      }
+    }
+
+    if (price > 0) {
+      for (const [pid, rawAmount] of amountByPortfolio) {
+        try {
+          if (userId) await this.portfolioService.getPortfolio(pid, userId);
+          // clamp to the held amount so float drift can't trip the "only X available" guard
+          const held = await this.holdingsService.getHoldingAmount(pid, upper);
+          const amount = Math.min(rawAmount, held);
+          if (amount <= 0) continue;
+          await this.transactionService.createTransaction(pid, {
+            coinId: upper,
+            type: 'sell',
+            price,
+            amount,
+            fee: 0,
+            note: 'DCA chốt toàn bộ (tracking-coins)',
+          });
+        } catch (e) {
+          this.logger.warn(`DCA close: sell failed for portfolio ${pid}: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    }
+
+    await this.repo.deleteAllDcaBuys(coin.id);
+    return this.getDcaPosition(upper);
+  }
+
   async listOrders(symbol: string) {
     const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
     if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
@@ -297,6 +508,7 @@ export class TrackingCoinsService {
       swingMinRR: coin.swingMinRR ?? null,
       daytradeMaxLoss: coin.daytradeMaxLoss ?? null,
       daytradeMinRR: coin.daytradeMinRR ?? null,
+      dcaMaxLayers: coin.dcaMaxLayers ?? null,
     };
   }
 
@@ -307,13 +519,14 @@ export class TrackingCoinsService {
     return { symbol: symbol.toUpperCase(), ...data };
   }
 
-  private async scanOneCoin(coinId: string, symbol: string, setup?: CoinSetup | null): Promise<void> {
+  private async scanOneCoin(coinId: string, symbol: string, setup?: (CoinSetup & { marketCap?: number | null }) | null): Promise<void> {
     const binanceSymbol = `${symbol}USDT`;
 
-    const [klines, h4Klines, m30Klines] = await Promise.all([
+    const [klines, h4Klines, m30Klines, wKlines] = await Promise.all([
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1d', limit: CANDLE_LIMIT }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '4h', limit: 200 }),
       this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: 'M30', limit: 300 }),
+      this.binance.fetchKlines({ symbol: binanceSymbol, timeframe: '1w', limit: 300 }),
     ]);
 
     if (klines.length < 210) return;
@@ -325,6 +538,11 @@ export class TrackingCoinsService {
 
     const result = computeSmallCapSignal(closes, highs, lows, volumes);
     if (!result) return;
+
+    // % the last close sits above the rolling 20-day low (DCA dip-depth gauge).
+    const lastClose = closes[closes.length - 1]!;
+    const low20 = Math.min(...lows.slice(-20));
+    const low20Pct = low20 > 0 ? Number((((lastClose - low20) / low20) * 100).toFixed(1)) : null;
 
     const h4Trend = h4Klines.length >= 20
       ? computeTimeframeTrend(
@@ -357,15 +575,33 @@ export class TrackingCoinsService {
 
     // UT Bot D1
     const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
-    const utBotD1 = calcUtBotResult(d1Candles, 1, 3);
+    const utBotD1 = calcUtBotResult(d1Candles, 10, 2);
     const utBotD1Bullish = utBotD1?.uptrend ?? null;
 
     // UT Bot H4
     const h4Candles = h4Closes.length >= 2
       ? h4Closes.map((c, i) => ({ open: c, high: h4Highs[i]!, low: h4Lows[i]!, close: c }))
       : [];
-    const utBotH4 = h4Candles.length >= 2 ? calcUtBotResult(h4Candles, 1, 3) : null;
+    const utBotH4 = h4Candles.length >= 2 ? calcUtBotResult(h4Candles, 10, 2) : null;
     const utBotH4Bullish = utBotH4?.uptrend ?? null;
+
+    // Weekly (W1) — same indicators/setup as D1/H4
+    const wCloses  = wKlines.map((k) => parseFloat(k[4]));
+    const wHighs   = wKlines.map((k) => parseFloat(k[2]));
+    const wLows    = wKlines.map((k) => parseFloat(k[3]));
+    const wVolumes = wKlines.map((k) => parseFloat(k[5]));
+    const wLastClose = wCloses[wCloses.length - 1] ?? 0;
+
+    const weekTrend = wKlines.length >= 20 ? computeTimeframeTrend(wCloses, wHighs, wLows) : 'Neutral';
+    const wEma34Above  = wCloses.length >= 34  ? wLastClose > calculateEma(wCloses, 34)  : null;
+    const wEma89Above  = wCloses.length >= 89  ? wLastClose > calculateEma(wCloses, 89)  : null;
+    const wEma200Above = wCloses.length >= 200 ? wLastClose > calculateEma(wCloses, 200) : null;
+    const wRsi           = wCloses.length > 14  ? calculateRsi(wCloses, 14) : null;
+    const wVolMultiplier = wVolumes.length >= 20 ? calculateVolumeRatio(wVolumes, 20) : null;
+    const wCandles = wCloses.length >= 2
+      ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
+      : [];
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
 
     const { longScore, shortScore } = computeLongShortScore({
       closes,
@@ -382,6 +618,50 @@ export class TrackingCoinsService {
       sparkline: result.sparkline,
     });
 
+    // Build today's swing order first so its R:R can feed the entry score.
+    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
+    const sigSnap: OrderSigSnapshot = {
+      trend: result.trend,
+      h4Trend,
+      m30Trend,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      utBotW1Bullish,
+      longScore,
+      shortScore,
+      ema200Above: result.ema200Above,
+      rsi: result.rsi,
+      h4Rsi,
+      swingStructure: result.swingStructure,
+    };
+    const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
+    const swingOrder = currentPrice > 0
+      ? computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr)
+      : null;
+
+    // Entry Score — low-risk-entry gauge; uses the raw order's R:R (pre minRR-gate).
+    const { entryScore } = computeEntryScore({
+      extPct: result.extPct,
+      ema200Above: result.ema200Above,
+      d1Trend: result.trend as PaTrend,
+      weekTrend: weekTrend as PaTrend,
+      rsi: result.rsi,
+      volMultiplier: result.volMultiplier,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      rrRatio: swingOrder?.rrRatio ?? null,
+    });
+
+    // DCA-worthiness — "how safe is it to DCA this coin?" (market-cap + weekly trend).
+    const dcaScore = computeDcaScore({
+      marketCap: setup?.marketCap ?? null,
+      weekTrend: weekTrend as PaTrend,
+      wEma89Above,
+      wEma200Above,
+      utBotW1Bullish,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -393,40 +673,49 @@ export class TrackingCoinsService {
       ema200Above: result.ema200Above,
       stage: result.stage,
       signalScore: result.signalScore,
+      entryScore,
+      dcaScore,
+      extPct: result.extPct,
+      low20Pct,
       sparklineJson: JSON.stringify(result.sparkline),
+      weekTrend,
       trend: result.trend,
       h4Trend,
       m30Trend,
       swingStructure: result.swingStructure,
       longScore,
       shortScore,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
+      wEma34Above,
+      wEma89Above,
+      wEma200Above,
+      wRsi,
+      wVolMultiplier,
       h4Ema34Above,
       h4Ema89Above,
       h4Ema200Above,
-      utBotD1Bullish,
-      utBotH4Bullish,
       h4Rsi,
       h4VolMultiplier,
     });
 
+    // DCA signal history — append only when zone/bucket changes vs last row.
+    const zone = dcaZone({ ema34Above: result.ema34Above, rsi: result.rsi ?? 50, low20Pct });
+    await this.repo.logSignalHistoryIfChanged(coinId, {
+      dcaScore,
+      dcaZone: zone,
+      dcaBucket: dcaQualityBucket(dcaScore),
+      trend: result.trend,
+      weekTrend,
+      h4Trend,
+      rsi: result.rsi,
+      extPct: result.extPct,
+      price: currentPrice > 0 ? currentPrice : null,
+    });
+
     // Regenerate today's orders so re-analyze keeps limit levels fresh
-    const currentPrice = h4Closes[h4Closes.length - 1] ?? 0;
     if (currentPrice > 0) {
-      const sigSnap: OrderSigSnapshot = {
-        trend: result.trend,
-        h4Trend,
-        m30Trend,
-        utBotD1Bullish,
-        utBotH4Bullish,
-        longScore,
-        shortScore,
-        ema200Above: result.ema200Above,
-        rsi: result.rsi,
-        h4Rsi,
-        swingStructure: result.swingStructure,
-      };
-      const h4Atr = calculateAtr(h4Highs, h4Lows, h4Closes, 14);
-      const swingOrder = computeSwingLimitOrder(currentPrice, h4Highs, h4Lows, sigSnap, h4Atr);
       await Promise.all([
         this.persistSuggestion(coinId, today, 'swing', swingOrder, setup?.swingMaxLoss ?? null, setup?.swingMinRR ?? null),
         this.repo.deleteOrder(coinId, today, 'daytrade'),  // day-trade removed

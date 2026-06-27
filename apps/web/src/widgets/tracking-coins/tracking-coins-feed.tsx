@@ -2,12 +2,12 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, OrderSuggestions, OrderSuggestion, TrackingCoinOrder, CoinSetup } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio, SignalHistoryRow } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'rsi' | 'vol' | 'coin';
+type SortKey = 'dca' | 'ext' | 'mktcap' | 'rsi' | 'vol' | 'coin';
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
@@ -67,11 +67,24 @@ function useLivePrices(symbols: string[]) {
   return { prices, flash };
 }
 
-/* ── shared: D1/H4 stacked layout ──────────────────────────────── */
+/* ── market cap formatter ───────────────────────────────────────── */
 
-function TfStack({ d1, h4 }: { d1: ReactNode; h4: ReactNode }) {
+function fmtMarketCap(cap: number | null): string | null {
+  if (cap == null) return null;
+  if (cap >= 1_000_000_000) return `$${(cap / 1_000_000_000).toFixed(1)}B`;
+  if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(1)}M`;
+  return `$${cap.toLocaleString()}`;
+}
+
+/* ── shared: W/D1/H4 stacked layout ─────────────────────────────── */
+
+function TfStack({ w, d1, h4 }: { w: ReactNode; d1: ReactNode; h4: ReactNode }) {
   return (
     <div className="tc-tf-stack">
+      <div className="tc-tf-stack-row">
+        <span className="tc-tf-label">W</span>
+        <span className="tc-tf-stack-val">{w}</span>
+      </div>
       <div className="tc-tf-stack-row">
         <span className="tc-tf-label">D1</span>
         <span className="tc-tf-stack-val">{d1}</span>
@@ -129,6 +142,48 @@ function VolCell({ vol }: { vol: number | null }) {
   return <span className={cls}>{vol.toFixed(1)}×</span>;
 }
 
+/* ── DCA cell — "đáng DCA" quality score + action zone ──────────── */
+
+function dcaQuality(score: number): { label: string; cls: string } {
+  if (score >= 70) return { label: 'An toàn', cls: 'tc-dca--safe' };
+  if (score >= 50) return { label: 'Khá', cls: 'tc-dca--ok' };
+  if (score >= 30) return { label: 'Rủi ro', cls: 'tc-dca--risky' };
+  return { label: 'Tránh', cls: 'tc-dca--avoid' };
+}
+
+const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; title: string }> = {
+  GOM:  { label: 'GOM',  cls: 'tc-zone--gom',  title: 'Quá bán + gần đáy 20 ngày → vùng gom thêm (add layer)' },
+  CHOT: { label: 'CHỐT', cls: 'tc-zone--chot', title: 'Giá đã reclaim EMA34 → chốt nếu đang ôm' },
+  CHO:  { label: 'Chờ',  cls: 'tc-zone--cho',  title: 'Dưới EMA34 nhưng chưa đủ sâu để gom' },
+};
+
+function DcaCell({ score, zone }: { score: number | null | undefined; zone: 'GOM' | 'CHO' | 'CHOT' | null | undefined }) {
+  if (score == null) return <span className="scr-muted">—</span>;
+  const q = dcaQuality(score);
+  const z = zone ? ZONE_META[zone] : null;
+  return (
+    <span className="tc-dca" title={`Đáng DCA ${score}/100 (market-cap + trend tuần). ${q.label}.`}>
+      <span className={`tc-dca-badge ${q.cls}`}>
+        <span className="tc-dca-score">{score}</span>
+        <span className="tc-dca-tag">{q.label}</span>
+      </span>
+      {z && <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span>}
+    </span>
+  );
+}
+
+/* ── extension % cell (distance above EMA34 — exit/overheat gauge) ── */
+
+function ExtCell({ ext }: { ext: number | null }) {
+  if (ext == null) return <span className="scr-muted">—</span>;
+  const cls =
+    ext >= 20 ? 'scr-ext scr-ext--hot' :
+    ext >= 0 ? 'scr-ext scr-ext--up' :
+    'scr-ext scr-ext--down';
+  const sign = ext > 0 ? '+' : '';
+  return <span className={cls}>{`${sign}${ext.toFixed(1)}%`}</span>;
+}
+
 /* ── Trend badge ────────────────────────────────────────────────── */
 
 const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> = {
@@ -172,11 +227,12 @@ function IconTrash() {
   );
 }
 
-function IconSetup() {
+function IconLayers() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
     </svg>
   );
 }
@@ -195,12 +251,11 @@ function IconPrompt() {
 
 /* ── detail modal ───────────────────────────────────────────────── */
 
-type DetailTab = 'overview' | 'today' | 'history' | 'journal';
+type DetailTab = 'overview' | 'history' | 'journal';
 
 const DETAIL_TABS: ReadonlyArray<[DetailTab, string]> = [
   ['overview', 'Overview'],
-  ['today', 'Tín hiệu hôm nay'],
-  ['history', 'Lịch sử tín hiệu'],
+  ['history', 'History'],
   ['journal', 'Journal'],
 ];
 
@@ -234,8 +289,7 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
 
         <div className="dialog-body tc-detail-body">
           {tab === 'overview' && <CoinOverview coin={coin} />}
-          {tab === 'today' && <CoinLiveSignal symbol={coin.symbol} />}
-          {tab === 'history' && <CoinHistorySignal symbol={coin.symbol} />}
+          {tab === 'history' && <CoinSignalHistory symbol={coin.symbol} />}
           {tab === 'journal' && <CoinJournalPanel symbol={coin.symbol} />}
         </div>
       </div>
@@ -257,6 +311,7 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
   }
 
   const rows = [
+    { tf: 'W',  trend: sig.weekTrend, utBot: sig.utBotW1Bullish, e34: sig.wEma34Above,  e89: sig.wEma89Above,  e200: sig.wEma200Above,  rsi: sig.wRsi,  vol: sig.wVolMultiplier },
     { tf: 'D1', trend: sig.trend,   utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,   vol: sig.volMultiplier },
     { tf: 'H4', trend: sig.h4Trend, utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi, vol: sig.h4VolMultiplier },
   ];
@@ -290,6 +345,76 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
   );
 }
 
+/* ── signal history (DCA change-log) ─────────────────────────────── */
+
+const BUCKET_META: Record<SignalHistoryRow['dcaBucket'], { label: string; cls: string }> = {
+  safe:  { label: 'An toàn', cls: 'tc-dca--safe' },
+  ok:    { label: 'Khá',     cls: 'tc-dca--ok' },
+  risky: { label: 'Rủi ro',  cls: 'tc-dca--risky' },
+  avoid: { label: 'Tránh',   cls: 'tc-dca--avoid' },
+};
+
+function CoinSignalHistory({ symbol }: { symbol: string }) {
+  const [rows, setRows] = useState<SignalHistoryRow[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null); setError(false);
+    createApiClient().fetchSignalHistory(symbol, 100)
+      .then((r) => { if (!cancelled) setRows(r); })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  if (error) return <p className="scr-muted tc-overview__empty">Không tải được lịch sử.</p>;
+  if (rows === null) return <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>;
+  if (rows.length === 0) {
+    return <p className="scr-muted tc-overview__empty">Chưa có thay đổi nào được ghi nhận. Lịch sử chỉ lưu khi vùng DCA hoặc bậc chất lượng đổi.</p>;
+  }
+
+  return (
+    <div className="tc-history">
+      <p className="scr-muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.5 }}>
+        Mỗi dòng là một lần tín hiệu DCA đổi trạng thái (vùng GOM/Chờ/CHỐT hoặc bậc chất lượng). Mới nhất ở trên.
+      </p>
+      <table className="dcapos-table tc-history-table">
+        <thead>
+          <tr><th>Thời điểm</th><th>DCA</th><th>Vùng</th><th>Trend (W/D1/H4)</th><th>RSI</th><th>Ext%</th><th>Giá</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const b = BUCKET_META[r.dcaBucket];
+            const z = r.dcaZone ? ZONE_META[r.dcaZone] : null;
+            return (
+              <tr key={r.id}>
+                <td>{new Date(r.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                <td>
+                  <span className={`tc-dca-badge ${b.cls}`}>
+                    <span className="tc-dca-score">{r.dcaScore}</span>
+                    <span className="tc-dca-tag">{b.label}</span>
+                  </span>
+                </td>
+                <td>{z ? <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span> : <span className="scr-muted">—</span>}</td>
+                <td>
+                  <span className="tc-history-trends">
+                    <TrendBadge trend={r.weekTrend} />
+                    <TrendBadge trend={r.trend} />
+                    <TrendBadge trend={r.h4Trend} />
+                  </span>
+                </td>
+                <td>{r.rsi == null ? <span className="scr-muted">—</span> : Math.round(r.rsi)}</td>
+                <td>{r.extPct == null ? <span className="scr-muted">—</span> : `${r.extPct > 0 ? '+' : ''}${r.extPct.toFixed(1)}%`}</td>
+                <td>{r.price == null ? <span className="scr-muted">—</span> : `$${formatPrice(r.price)}`}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /* ── confirm remove dialog ──────────────────────────────────────── */
 
 function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
@@ -316,305 +441,115 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
   );
 }
 
-/* ── order suggestions dialog ───────────────────────────────────── */
+/* ── DCA position dialog — buy log, average, P&L, profit-aware chốt ─ */
 
-function fmtPrice(n: number): string {
-  if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (n >= 1)    return n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 4 });
+const DCA_MAX_LAYERS = 5;
+
+function fmtNum(n: number): string {
+  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (n >= 1) return n.toFixed(4);
   if (n >= 0.01) return n.toFixed(5);
-  return n.toFixed(7);
+  return n.toFixed(8);
 }
 
-function calcLiveVolume(order: OrderSuggestion, maxLoss: number | null): { positionSize: number; positionValue: number } | null {
-  if (!maxLoss || maxLoss <= 0) return null;
-  const entryMid = (order.entryLow + order.entryHigh) / 2;
-  const risk = order.side === 'LONG' ? entryMid - order.sl : order.sl - entryMid;
-  if (risk <= 0) return null;
-  const positionSize = maxLoss / risk;
-  return { positionSize, positionValue: positionSize * entryMid };
+/** Plain decimal string for a <input type="number"> value (no grouping/scientific). */
+function priceInputStr(n: number): string {
+  if (!(n > 0)) return '';
+  return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 8 });
 }
 
-function OrderCard({ order, label, maxLoss }: { order: OrderSuggestion; label: string; maxLoss: number | null }) {
-  const [notes, setNotes] = useState(order.notes ?? '');
-  const savedNotesRef = useRef(order.notes ?? '');
-
-  function handleNotesBlur() {
-    const val = notes.trim() || null;
-    const saved = savedNotesRef.current.trim() || null;
-    if (val !== saved) {
-      savedNotesRef.current = val ?? '';
-      createApiClient().updateOrderNotes(order.id, val).catch(() => {});
-    }
-  }
-
-  const isLong = order.side === 'LONG';
-  const vol = calcLiveVolume(order, maxLoss);
-  return (
-    <div className="ord-card">
-      <div className="ord-card__header">
-        <span className="ord-card__title">{label}</span>
-        <span className={`tt-side-badge tt-side-badge--${isLong ? 'long' : 'short'}`}>{order.side}</span>
-      </div>
-      <div className="ord-card__grid">
-        <span className="ord-card__label">Vùng entry</span>
-        <span className="ord-card__value ord-entry">${fmtPrice(order.entryLow)} – ${fmtPrice(order.entryHigh)}</span>
-        <span className="ord-card__label">TP1</span>
-        <span className="ord-card__value ord-tp">${fmtPrice(order.tp1)}</span>
-        {order.tp2 != null && <>
-          <span className="ord-card__label">TP2</span>
-          <span className="ord-card__value ord-tp">${fmtPrice(order.tp2)}</span>
-        </>}
-        <span className="ord-card__label">SL</span>
-        <span className="ord-card__value ord-sl">${fmtPrice(order.sl)}</span>
-        <span className="ord-card__label">R:R</span>
-        <span className="ord-card__value ord-rr">{order.rrRatio.toFixed(1)}×</span>
-        {vol && <>
-          <span className="ord-card__label">Số lượng</span>
-          <span className="ord-card__value">{vol.positionSize < 1 ? vol.positionSize.toFixed(4) : vol.positionSize.toFixed(2)}</span>
-          <span className="ord-card__label">Giá trị lệnh</span>
-          <span className="ord-card__value">${vol.positionValue.toFixed(2)}</span>
-        </>}
-      </div>
-      <p className="ord-card__rationale">{order.rationale}</p>
-      <textarea
-        className="ord-card__notes"
-        placeholder="Nhận định của bạn…"
-        value={notes}
-        rows={2}
-        onChange={(e) => setNotes(e.target.value)}
-        onBlur={handleNotesBlur}
-      />
-    </div>
-  );
-}
-
-function NoTradeCard({ label }: { label: string }) {
-  return (
-    <div className="ord-card ord-card--notrade">
-      <div className="ord-card__header">
-        <span className="ord-card__title">{label}</span>
-        <span className="tt-side-badge tt-side-badge--neutral">NO-TRADE</span>
-      </div>
-      <p className="ord-card__rationale">
-        Không có setup hôm nay — thị trường đi ngang hoặc tín hiệu hai chiều cân bằng. Đứng ngoài để tránh lệnh chất lượng thấp.
-      </p>
-    </div>
-  );
-}
-
-function OutcomeBadge({ activated, outcome }: { activated: boolean | null; outcome: string | null }) {
-  if (activated === null) return <span className="ord-hist__outcome ord-hist__outcome--pending">Chưa eval</span>;
-  if (!activated) return <span className="ord-hist__outcome ord-hist__outcome--miss">Chưa kích hoạt</span>;
-  if (outcome === 'tp2') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP2</span>;
-  if (outcome === 'tp1') return <span className="ord-hist__outcome ord-hist__outcome--tp">✓ TP1</span>;
-  if (outcome === 'sl') return <span className="ord-hist__outcome ord-hist__outcome--sl">✗ SL</span>;
-  if (outcome === 'expired') return <span className="ord-hist__outcome ord-hist__outcome--miss">Hết hạn</span>;
-  return <span className="ord-hist__outcome ord-hist__outcome--active">Đang chạy</span>;
-}
-
-function HistoryNoteCell({ orderId, initialNotes }: { orderId: string; initialNotes: string | null }) {
-  const [notes, setNotes] = useState(initialNotes ?? '');
-  const savedRef = useRef(initialNotes ?? '');
-
-  function handleBlur() {
-    const val = notes.trim() || null;
-    const saved = savedRef.current.trim() || null;
-    if (val !== saved) {
-      savedRef.current = val ?? '';
-      createApiClient().updateOrderNotes(orderId, val).catch(() => {});
-    }
-  }
-
-  return (
-    <textarea
-      className="ord-hist__notes"
-      placeholder="—"
-      value={notes}
-      rows={1}
-      onChange={(e) => setNotes(e.target.value)}
-      onBlur={handleBlur}
-    />
-  );
-}
-
-function OrderHistoryTable({ orders }: { orders: TrackingCoinOrder[] }) {
-  if (orders.length === 0) {
-    return <p className="scr-muted" style={{ textAlign: 'center', padding: '16px 0' }}>Chưa có lệnh nào được lưu. Lệnh sẽ tự động tạo sau mỗi lần quét.</p>;
-  }
-  const hasVolume = orders.some((o) => o.positionSize != null);
-  return (
-    <div className="ord-hist-wrap">
-      <table className="ord-hist-table">
-        <thead>
-          <tr>
-            <th>Ngày</th>
-            <th>Loại</th>
-            <th>Side</th>
-            <th>Entry</th>
-            <th>TP1</th>
-            <th>SL</th>
-            <th>R:R</th>
-            {hasVolume && <th>Vol / $</th>}
-            <th>Kết quả</th>
-            <th>Ghi chú</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((o) => (
-            <tr key={o.id} title={o.rationale}>
-              <td>{o.date}</td>
-              <td><span className="ord-hist__type">{o.type}</span></td>
-              <td><span className={`tt-side-badge tt-side-badge--${o.side === 'LONG' ? 'long' : 'short'}`}>{o.side}</span></td>
-              <td className="ord-hist__price">{fmtPrice(o.entryLow)}–{fmtPrice(o.entryHigh)}</td>
-              <td className="ord-hist__price ord-tp">{fmtPrice(o.tp1)}</td>
-              <td className="ord-hist__price ord-sl">{fmtPrice(o.sl)}</td>
-              <td>{o.rrRatio.toFixed(1)}×</td>
-              {hasVolume && (
-                <td className="ord-hist__vol">
-                  {o.positionSize != null ? (
-                    <span title={`$${o.positionValue?.toFixed(2) ?? '—'}`}>
-                      {o.positionSize < 1 ? o.positionSize.toFixed(4) : o.positionSize.toFixed(2)}
-                      <span className="ord-hist__vol-usd"> ${o.positionValue?.toFixed(0) ?? '—'}</span>
-                    </span>
-                  ) : <span className="scr-muted">—</span>}
-                </td>
-              )}
-              <td><OutcomeBadge activated={o.activated} outcome={o.outcome} /></td>
-              <td><HistoryNoteCell orderId={o.id} initialNotes={o.notes} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CoinLiveSignal({ symbol }: { symbol: string }) {
-  const [data, setData] = useState<OrderSuggestions | null>(null);
-  const [setup, setSetup] = useState<CoinSetup | null>(null);
+function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
+  symbol: string;
+  livePrice: number | null;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [pos, setPos] = useState<DcaPosition | null>(null);
   const [loading, setLoading] = useState(true);
+  const [price, setPrice] = useState('');
+  const [usd, setUsd] = useState('');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const prefilledRef = useRef(false);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [portfolioId, setPortfolioId] = useState('');
 
   const load = useCallback(() => {
-    let cancelled = false;
     setLoading(true);
-    setError(null);
-    const api = createApiClient();
-    Promise.all([
-      api.fetchOrderSuggestions(symbol),
-      api.fetchCoinSetup(symbol).catch(() => null),
-    ])
-      .then(([orders, coinSetup]) => {
-        if (!cancelled) { setData(orders); setSetup(coinSetup); setLoading(false); }
+    createApiClient().fetchDcaPosition(symbol)
+      .then((r) => { setPos(r); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [symbol]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Portfolios for the sync dropdown; default to the last one used for this coin.
+  useEffect(() => {
+    createApiClient().fetchPortfolios()
+      .then((ps) => {
+        setPortfolios(ps);
+        const saved = (typeof window !== 'undefined' && window.localStorage.getItem(`dca-portfolio:${symbol}`)) || '';
+        setPortfolioId(ps.some((p) => p.id === saved) ? saved : (ps[0]?.id ?? ''));
       })
-      .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Lỗi tải gợi ý.'); setLoading(false); } });
-    return () => { cancelled = true; };
+      .catch(() => {});
   }, [symbol]);
 
-  useEffect(() => load(), [load]);
+  const portfolioName = (id: string | null) =>
+    id ? (portfolios.find((p) => p.id === id)?.name ?? '—') : '—';
 
-  return (
-    <div className="tc-signal">
-      {loading && (
-        <div className="ord-loading">
-          <span className="ord-loading__spinner" />
-          <span>Đang tính toán lệnh…</span>
-        </div>
-      )}
-      {error && <p className="scr-muted ord-error">{error}</p>}
-      {!loading && !error && data && (
-        <>
-          <div className="ord-price-bar">
-            <span className="ord-price-bar__label">Giá hiện tại</span>
-            <span className="ord-price-bar__value">${fmtPrice(data.currentPrice)}</span>
-            <button className="ord-refresh-btn" onClick={load} title="Làm mới">↻ Làm mới</button>
-          </div>
-          {data.swing
-            ? <OrderCard order={data.swing} label="Swing (2–5 ngày)" maxLoss={setup?.swingMaxLoss ?? null} />
-            : <NoTradeCard label="Swing (2–5 ngày)" />}
-          <p className="ord-footer">
-            Tạo lúc: {new Date(data.generatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
+  const cur = livePrice ?? pos?.currentPrice ?? 0;
 
-function CoinHistorySignal({ symbol }: { symbol: string }) {
-  const [history, setHistory] = useState<TrackingCoinOrder[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
+  // Default the "Giá mua" field to the current price as soon as one is known (once per open).
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    createApiClient()
-      .fetchCoinOrders(symbol)
-      .then((res) => { if (!cancelled) { setHistory(res); setLoading(false); } })
-      .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Lỗi tải lịch sử.'); setLoading(false); } });
-    return () => { cancelled = true; };
-  }, [symbol]);
+    if (prefilledRef.current) return;
+    if (cur > 0) { setPrice(priceInputStr(cur)); prefilledRef.current = true; }
+  }, [cur]);
+  const avg = pos?.avgEntry ?? null;
+  const maxLayers = pos?.maxLayers ?? DCA_MAX_LAYERS;
+  const atCap = (pos?.layers ?? 0) >= maxLayers;
+  const livePnlPct = avg && avg > 0 && cur > 0 ? ((cur - avg) / avg) * 100 : null;
+  const inProfit = livePnlPct != null && livePnlPct >= 0;
 
-  return (
-    <div className="tc-signal">
-      {loading && (
-        <div className="ord-loading">
-          <span className="ord-loading__spinner" />
-          <span>Đang tải lịch sử…</span>
-        </div>
-      )}
-      {error && <p className="scr-muted ord-error">{error}</p>}
-      {!loading && !error && history !== null && <OrderHistoryTable orders={history} />}
-    </div>
-  );
-}
-
-/* ── setup settings dialog ──────────────────────────────────────── */
-
-function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
-  const [form, setForm] = useState<CoinSetup>({ swingMaxLoss: null, swingMinRR: null, daytradeMaxLoss: null, daytradeMinRR: null });
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [saved, setSaved]       = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    createApiClient().fetchCoinSetup(symbol)
-      .then((r) => { if (!cancelled) { setForm(r); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [symbol]);
-
-  function field(key: keyof CoinSetup) {
-    const v = form[key];
-    return v == null ? '' : String(v);
-  }
-  function setField(key: keyof CoinSetup, val: string) {
-    setForm((f) => ({ ...f, [key]: val === '' ? null : parseFloat(val) }));
-    setSaved(false);
-  }
-
-  async function handleSave() {
-    setSaving(true); setError(null);
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    const p = parseFloat(price), u = parseFloat(usd);
+    if (!(p > 0) || !(u > 0)) { setError('Nhập giá và số USD hợp lệ.'); return; }
+    setBusy(true); setError(null);
     try {
-      await createApiClient().updateCoinSetup(symbol, form);
-      setSaved(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lỗi lưu.');
-    } finally {
-      setSaving(false);
-    }
+      const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u, ...(portfolioId ? { portfolioId } : {}) });
+      if (portfolioId && typeof window !== 'undefined') window.localStorage.setItem(`dca-portfolio:${symbol}`, portfolioId);
+      setPos(r); setPrice(cur > 0 ? priceInputStr(cur) : ''); setUsd(''); onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi lưu.');
+    } finally { setBusy(false); }
+  }
+
+  async function handleDelete(buyId: string) {
+    setBusy(true);
+    try { const r = await createApiClient().deleteDcaBuy(symbol, buyId); setPos(r); onChanged(); }
+    catch { /* ignore */ } finally { setBusy(false); }
+  }
+
+  async function handleClose() {
+    const def = cur > 0 ? priceInputStr(cur) : '';
+    const input = window.prompt(
+      `Chốt toàn bộ DCA ${symbol} — nhập giá bán (tạo lệnh SELL trong portfolio, ghi nhận lãi/lỗ):`,
+      def,
+    );
+    if (input == null) return; // cancelled
+    const sell = parseFloat(input);
+    if (!(sell > 0)) { setError('Giá bán không hợp lệ.'); return; }
+    setBusy(true); setError(null);
+    try { const r = await createApiClient().closeDcaPosition(symbol, sell); setPos(r); onChanged(); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Lỗi chốt.'); }
+    finally { setBusy(false); }
   }
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog setup-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
-          <span className="dialog-title">Risk setup — {symbol}</span>
+          <span className="dialog-title">DCA position — {symbol}</span>
           <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
         </div>
         <div className="dialog-body setup-body">
@@ -622,31 +557,76 @@ function CoinSetupDialog({ symbol, onClose }: { symbol: string; onClose: () => v
             <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
           ) : (
             <>
-              <p className="setup-hint">
-                Khi Re-analyze hoặc scan tự động chạy, hệ thống dùng các thông số này để tính volume (số lượng) cho lệnh limit của ngày đó.
-              </p>
-              <div className="setup-section">
-                <div className="setup-section__title">Swing (2–5 ngày)</div>
-                <div className="setup-fields">
-                  <label className="setup-label">
-                    <span>SL tối đa ($)</span>
-                    <input className="setup-input" type="number" min="0" step="1" placeholder="e.g. 10"
-                      value={field('swingMaxLoss')} onChange={(e) => setField('swingMaxLoss', e.target.value)} />
-                  </label>
-                  <label className="setup-label">
-                    <span>R:R tối thiểu</span>
-                    <input className="setup-input" type="number" min="0" step="0.1" placeholder="e.g. 1.5"
-                      value={field('swingMinRR')} onChange={(e) => setField('swingMinRR', e.target.value)} />
-                  </label>
+              {/* summary */}
+              <div className="dcapos-summary">
+                <div className="dcapos-stat"><span>Layer</span><strong>{pos?.layers ?? 0} / {maxLayers}</strong></div>
+                <div className="dcapos-stat"><span>Giá TB</span><strong>{avg ? `$${fmtNum(avg)}` : '—'}</strong></div>
+                <div className="dcapos-stat"><span>Vốn đã vào</span><strong>${(pos?.capitalDeployed ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong></div>
+                <div className="dcapos-stat">
+                  <span>P&L</span>
+                  <strong className={livePnlPct == null ? '' : inProfit ? 'dcapos-pos' : 'dcapos-neg'}>
+                    {livePnlPct == null ? '—' : `${livePnlPct >= 0 ? '+' : ''}${livePnlPct.toFixed(2)}%`}
+                  </strong>
                 </div>
               </div>
-              {error && <p className="scr-muted ord-error">{error}</p>}
-              <div className="setup-actions">
-                {saved && <span className="setup-saved">✓ Đã lưu</span>}
-                <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
-                  {saving ? 'Đang lưu…' : 'Lưu setup'}
+
+              {avg != null && (
+                <p className={`dcapos-hint ${inProfit ? 'dcapos-hint--ok' : 'dcapos-hint--warn'}`}>
+                  {inProfit
+                    ? '✓ Giá hiện > giá TB → khi reclaim EMA34/EMA89 là CHỐT có lãi.'
+                    : '⚠ Giá hiện < giá TB → reclaim EMA34 có thể vẫn lỗ. Chốt khi giá ≥ giá TB.'}
+                  {pos?.nextAddPrice != null && ` · Gom layer kế ở ~$${fmtNum(pos.nextAddPrice)} (−8%).`}
+                </p>
+              )}
+
+              {/* portfolio sync target */}
+              {portfolios.length > 0 ? (
+                <label className="dcapos-portfolio">
+                  <span>Đồng bộ vào portfolio</span>
+                  <select className="setup-input" value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
+                    {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Chưa có portfolio — lệnh gom sẽ không đồng bộ.</p>
+              )}
+
+              {/* add buy */}
+              <form className="dcapos-add" onSubmit={handleAdd}>
+                <input className="setup-input" type="number" step="any" min="0" placeholder="Giá mua"
+                  value={price} onChange={(e) => setPrice(e.target.value)} />
+                <input className="setup-input" type="number" step="any" min="0" placeholder="Số USD"
+                  value={usd} onChange={(e) => setUsd(e.target.value)} />
+                <button className="btn btn--primary" type="submit" disabled={busy || atCap}>
+                  + Gom
                 </button>
-              </div>
+              </form>
+              {atCap && <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Đã đạt trần {maxLayers} layer — ngừng gom, chờ hồi.</p>}
+              {error && <p className="scr-muted ord-error">{error}</p>}
+
+              {/* buy list */}
+              {pos && pos.buys.length > 0 && (
+                <table className="dcapos-table">
+                  <thead><tr><th>Ngày</th><th>Giá</th><th>USD</th><th>Portfolio</th><th></th></tr></thead>
+                  <tbody>
+                    {pos.buys.map((b) => (
+                      <tr key={b.id}>
+                        <td>{b.boughtAt.slice(0, 10)}</td>
+                        <td>${fmtNum(b.price)}</td>
+                        <td>${b.usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+                        <td className="dcapos-pf">{b.portfolioId ? portfolioName(b.portfolioId) : <span className="scr-muted">—</span>}</td>
+                        <td><button className="dcapos-del" onClick={() => handleDelete(b.id)} disabled={busy} aria-label="Xóa">✕</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {pos && pos.buys.length > 0 && (
+                <div className="setup-actions">
+                  <button className="btn btn--danger" onClick={handleClose} disabled={busy}>Đóng vị thế (đã chốt)</button>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -677,7 +657,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as { id: string; symbol: string; name: string };
-      onAdded({ ...data, addedAt: new Date().toISOString(), signal: null });
+      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), signal: null, dcaPosition: null });
       setSymbol('');
       setName('');
     } catch (err) {
@@ -705,7 +685,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const { prices, flash } = useLivePrices(symbols);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('coin');
+  const [sortKey, setSortKey] = useState<SortKey>('dca');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -713,7 +693,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
-  const [setupCoin, setSetupCoin] = useState<string | null>(null);
+  const [dcaCoin, setDcaCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
 
@@ -764,6 +744,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)
     );
     return [...filtered].sort((a, b) => {
+      if (sortKey === 'dca') return (b.signal?.dcaScore ?? -Infinity) - (a.signal?.dcaScore ?? -Infinity);
+      if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
+      if (sortKey === 'mktcap') return (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity);
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
@@ -792,7 +775,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onCancel={() => setConfirmRemoveSymbol(null)}
         />
       )}
-      {setupCoin && <CoinSetupDialog symbol={setupCoin} onClose={() => setSetupCoin(null)} />}
+      {dcaCoin && (
+        <DcaPositionDialog
+          symbol={dcaCoin}
+          livePrice={prices.get(dcaCoin) ?? null}
+          onClose={() => setDcaCoin(null)}
+          onChanged={reloadCoins}
+        />
+      )}
 
       <main className="dashboard-shell scr-shell">
         {/* header */}
@@ -845,9 +835,15 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
                   Coin {sortKey === 'coin' && '↑'}
                 </th>
+                <th className="scr-th scr-th--num" onClick={() => setSortKey('dca')}>
+                  DCA {sortKey === 'dca' && '↓'}
+                </th>
                 <th className="scr-th tc-th--stacked">Trend (PA)</th>
                 <th className="scr-th tc-th--stacked">UT Bot</th>
                 <th className="scr-th tc-th--stacked">EMA</th>
+                <th className="scr-th scr-th--num" onClick={() => setSortKey('ext')}>
+                  Ext% {sortKey === 'ext' && '↓'}
+                </th>
                 <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
                   RSI {sortKey === 'rsi' && '↓'}
                 </th>
@@ -861,7 +857,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="scr-empty">
+                  <td colSpan={10} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -877,52 +873,66 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className="scr-td scr-td--coin">
                       <span className="scr-symbol">{coin.symbol}</span>
                       {coin.name && <span className="scr-name">{coin.name}</span>}
+                      {coin.marketCap != null && <span className="scr-name">{fmtMarketCap(coin.marketCap)}</span>}
                       {prices.has(coin.symbol) && (
                         <span className={`tc-live-price tc-live-price--${flash.get(coin.symbol) ?? 'idle'}`}>
                           ${formatPrice(prices.get(coin.symbol)!)}
                         </span>
                       )}
                     </td>
-                    {/* Trend D1 / H4 */}
+                    {/* DCA — đáng DCA (quality) + vùng hành động */}
+                    <td className="scr-td scr-td--num">
+                      <DcaCell score={sig?.dcaScore} zone={sig?.dcaZone} />
+                    </td>
+                    {/* Trend W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<TrendBadge trend={sig.weekTrend} />}
                             d1={<TrendBadge trend={sig.trend} />}
                             h4={<TrendBadge trend={sig.h4Trend} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* UT Bot D1 / H4 */}
+                    {/* UT Bot W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<UtBotBadge bullish={sig.utBotW1Bullish} />}
                             d1={<UtBotBadge bullish={sig.utBotD1Bullish} />}
                             h4={<UtBotBadge bullish={sig.utBotH4Bullish} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* EMA D1 / H4 */}
+                    {/* EMA W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<EmaPips e34={sig.wEma34Above} e89={sig.wEma89Above} e200={sig.wEma200Above} />}
                             d1={<EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />}
                             h4={<EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* RSI D1 / H4 */}
+                    {/* Ext% — distance above EMA34 (D1) */}
+                    <td className="scr-td scr-td--num">
+                      <ExtCell ext={sig?.extPct ?? null} />
+                    </td>
+                    {/* RSI W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<RsiCell rsi={sig.wRsi} />}
                             d1={<RsiCell rsi={sig.rsi} />}
                             h4={<RsiCell rsi={sig.h4Rsi} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    {/* Vol D1 / H4 */}
+                    {/* Vol W / D1 / H4 */}
                     <td className="scr-td">
                       {sig
                         ? <TfStack
+                            w={<VolCell vol={sig.wVolMultiplier} />}
                             d1={<VolCell vol={sig.volMultiplier} />}
                             h4={<VolCell vol={sig.h4VolMultiplier} />}
                           />
@@ -936,8 +946,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconPrompt />
                         </button>
-                        <button className="tt-btn tt-btn--setup" data-tooltip="Setup" aria-label={`Setup ${coin.symbol}`} onClick={() => setSetupCoin(coin.symbol)}>
-                          <IconSetup />
+                        <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => setDcaCoin(coin.symbol)}>
+                          {coin.dcaPosition ? `${coin.dcaPosition.layers}L` : <IconLayers />}
                         </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
                           {removingSymbol === coin.symbol ? '…' : <IconTrash />}

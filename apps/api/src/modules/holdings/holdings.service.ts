@@ -47,6 +47,12 @@ export class HoldingsService {
     await this.holdingRepository.update(portfolioId, coinId, { note });
   }
 
+  /** Current held amount for a coin in a portfolio (0 if none). */
+  async getHoldingAmount(portfolioId: string, coinId: string): Promise<number> {
+    const holding = await this.holdingRepository.findByPortfolioAndCoin(portfolioId, coinId);
+    return holding ? Number(holding.totalAmount) : 0;
+  }
+
   async updateOnBuy(
     portfolioId: string,
     coinId: string,

@@ -42,19 +42,34 @@ Cập nhật 2026-06-14 (bỏ day-trade):
   E[R] +0.060→**+0.116**, PF 1.13→**1.26**, MDD −36.6R→**−21.9R**; swing LONG từ −0.041 về hòa
   (−0.001), drawdown −49.6R→−15.8R. No-trade rate ~38% (chọn lọc hơn).
 
+Cập nhật 2026-06-26 (lọc xu hướng tuần W1):
+
+- **W1 alignment filter:** `resolveD1Regime` thêm bộ chặn theo **UT Bot khung Tuần**
+  (`utBotW1Bullish`, vốn đã được tính & hiển thị trên page nhưng trước đây không dùng cho việc
+  sinh lệnh). Chặn LONG khi W1 bearish (`utBotW1Bullish === false`) và chặn SHORT khi W1 bullish
+  (`=== true`); `null` (thiếu lịch sử tuần) **không** chặn. `OrderSigSnapshot` thêm field
+  `utBotW1Bullish`; cả 3 nơi dựng snapshot (worker scan, API `suggestOrders`, API re-analyze) đều
+  truyền vào.
+- **Kết quả backtest walk-forward** (xem `claude-backtest/runs/2026-06-26-tracking-coins-w1-filter.md`):
+  rổ 5 coin 365 ngày OVERALL E[R] +0.137→**+0.179**, PF 1.33→**1.43**; BTC 365 ngày
+  E[R] +0.148→**+0.321**, PF 1.42→**2.03**, win 43.9%→**52.0%**; giảm drawdown ở mọi cửa sổ. Chỉ
+  dùng mode UT Bot (mode theo `weekTrend` không generalize trên rổ nên bị loại). Phe LONG vẫn yếu —
+  là hạng mục tối ưu kế tiếp.
+
 ## Main Flow
-1. Scan (cron worker, nút Re-analyze qua API, hoặc tab "Tín hiệu hôm nay" gọi live) lấy nến
-   D1/H4/H1 từ Binance.
+1. Scan (cron worker hoặc nút Re-analyze qua API) lấy nến D1/H4/H1 từ Binance.
 2. Tính chỉ báo + `longScore/shortScore` + ATR (H4 cho swing, H1 cho day-trade).
-3. `resolveD1Regime()` quyết định bias D1 hoặc no-trade. `resolveDayTradeSide()` khóa hướng
-   day-trade theo D1 (có ngoại lệ đảo chiều).
+3. `resolveD1Regime()` quyết định bias D1 hoặc no-trade (gồm: regime gate, siết LONG StrongUp,
+   **lọc W1 UT Bot**). `resolveDayTradeSide()` khóa hướng day-trade theo D1 (có ngoại lệ đảo chiều).
 4. `computeSwingLimitOrder` / `computeDayTradeLimitOrder` trả `LimitOrderResult | null`:
    - chọn pivot S/R, dựng entry zone,
    - `buildLongOrder`/`buildShortOrder` tính SL theo ATR và TP theo R.
 5. Nếu có lệnh → `upsertOrder`; nếu `null` (no-trade) → `deleteOrder` (xóa lệnh cũ cùng ngày
    nếu có, tránh lệnh cũ tồn đọng).
 6. Vòng đánh giá `evaluateLimitOrder` cập nhật `activated` + `outcome` cho lệnh chưa chốt.
-7. UI: tab "Tín hiệu hôm nay" hiển thị 2 card; khi `null` hiển thị `NoTradeCard` ("NO-TRADE").
+7. ~~UI: tab "Tín hiệu hôm nay" hiển thị 2 card~~ — **Gỡ UI 2026-06-27**: tab "Tín hiệu hôm nay" /
+   "Lịch sử tín hiệu" đã bị xóa khỏi dialog chi tiết coin. Backend vẫn tạo & lưu lệnh nhưng không
+   còn hiển thị ở đâu (xem `tracking-coins-limit-orders`).
 
 ## Edge Cases
 - **ATR = 0 / thiếu dữ liệu nến:** fallback SL theo % (swing 1.8%, day-trade 1.0%).
