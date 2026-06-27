@@ -467,6 +467,7 @@ export type DcaBuy = {
   price: number;
   usd: number;
   boughtAt: string;
+  portfolioId: string | null;
 };
 
 export type DcaPosition = {

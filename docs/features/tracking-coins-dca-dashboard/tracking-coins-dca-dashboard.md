@@ -46,6 +46,24 @@ The dialog shows a **profit-aware take-profit hint**: green when livePrice ≥ a
 all buys after taking profit. The row's list view also shows a lightweight `dcaPosition` aggregate
 (layers / avgEntry / capitalDeployed) so a holding is visible at a glance.
 
+## Portfolio sync (two-way)
+Each DCA layer mirrors a portfolio **CoinTransaction**, so the dashboard and the user's
+portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
+
+- **Pick portfolio per buy.** The DCA dialog has a portfolio dropdown (the user has 3 allocation
+  buckets); the last choice per coin is remembered in `localStorage` (`dca-portfolio:<symbol>`).
+- **+Gom → BUY (forward).** `addDcaBuy(symbol, {price, usd, portfolioId}, userId)` validates portfolio
+  ownership, creates a BUY `CoinTransaction` (`amount = usd / price`) → holding recomputes, and stores
+  `transactionId`/`portfolioId` on the `TrackingCoinDcaBuy` link.
+- **Delete layer ↔ delete transaction (both ways).** Deleting a layer soft-deletes the linked
+  transaction; deleting that transaction in the portfolio UI cascades back and removes the layer
+  (`TransactionService.removeTransaction` → `deleteDcaBuysByTransactionId`).
+- **Đóng vị thế (đã chốt) → SELL.** Closing prompts for a sell price (defaults to live price) and
+  creates a SELL of **exactly the DCA-accumulated amount per portfolio** (clamped to the held amount so
+  it never dumps unrelated holdings of the same coin), realising P&L, then clears the buy log.
+- Layers without a `portfolioId` (added before sync, or when no portfolio exists) behave as before — a
+  local-only buy log with no transaction.
+
 ## Edge Cases
 - **Micro-cap / unknown market cap** → 0 cap points → can never reach "An toàn" (high death risk).
 - **Missing signal** (never scanned) → DCA cell shows "—".
@@ -64,7 +82,11 @@ all buys after taking profit. The row's list view also shows a lightweight `dcaP
 - `packages/db/prisma/migrations/20260626160000_tracking_coin_dca_buys/migration.sql`
 - `packages/db/src/repositories/tracking-coins.repository.ts` — DCA-buy CRUD + buys in list query
 - `apps/worker/src/modules/tracking-coin-scan/tracking-coin-scan.service.ts`
-- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — score/zone + `aggregateDca` + position CRUD
+- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — score/zone + `aggregateDca` + position CRUD + **portfolio sync** (forward BUY/SELL via `TransactionService`, ownership via `PortfolioService`, clamp via `HoldingsService`)
+- `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — imports `TransactionModule`/`PortfolioModule`/`HoldingsModule`
+- `apps/api/src/modules/transaction/transaction.service.ts` — `removeTransaction` reverse-syncs (deletes linked DCA layer)
+- `apps/api/src/modules/holdings/holdings.service.ts` — `getHoldingAmount` (clamp helper for close-position SELL)
+- `packages/db/prisma/migrations/20260627120000_dca_buy_portfolio_link/migration.sql` — `portfolioId`/`transactionId` on `TrackingCoinDcaBuy`
 - `apps/api/src/modules/tracking-coins/tracking-coins.controller.ts` — dca-position / dca-buys routes
 - `apps/api/src/modules/tracking-coins/dto/add-dca-buy.dto.ts`
 - `apps/web/src/shared/api/types.ts` — `dcaScore`/`dcaZone`/`low20Pct`, `dcaPosition`, `DcaPosition`/`DcaBuy`

@@ -7271,12 +7271,26 @@ a.metric-card--link:hover {
 }
 .dcapos-hint--ok   { background: rgba(16, 185, 129, 0.12); color: #047857; }
 .dcapos-hint--warn { background: rgba(234, 179, 8, 0.12); color: #b45309; }
+.dcapos-portfolio {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.dcapos-portfolio > span {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
 .dcapos-add {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   gap: 8px;
   margin-bottom: 8px;
 }
+.dcapos-pf { font-size: 0.74rem; color: var(--foreground); }
 .dcapos-table {
   width: 100%;
   border-collapse: collapse;

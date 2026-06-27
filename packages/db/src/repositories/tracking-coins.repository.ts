@@ -59,9 +59,23 @@ export function createTrackingCoinsRepository(client = prisma) {
       });
     },
 
-    addDcaBuy(coinId: string, data: { price: number; usd: number; boughtAt?: Date }) {
+    findDcaBuyById(id: string) {
+      return client.trackingCoinDcaBuy.findUnique({ where: { id } });
+    },
+
+    addDcaBuy(
+      coinId: string,
+      data: { price: number; usd: number; boughtAt?: Date; portfolioId?: string | null; transactionId?: string | null },
+    ) {
       return client.trackingCoinDcaBuy.create({
-        data: { coinId, price: data.price, usd: data.usd, ...(data.boughtAt ? { boughtAt: data.boughtAt } : {}) },
+        data: {
+          coinId,
+          price: data.price,
+          usd: data.usd,
+          ...(data.boughtAt ? { boughtAt: data.boughtAt } : {}),
+          ...(data.portfolioId !== undefined ? { portfolioId: data.portfolioId } : {}),
+          ...(data.transactionId !== undefined ? { transactionId: data.transactionId } : {}),
+        },
       });
     },
 
@@ -71,6 +85,11 @@ export function createTrackingCoinsRepository(client = prisma) {
 
     deleteAllDcaBuys(coinId: string) {
       return client.trackingCoinDcaBuy.deleteMany({ where: { coinId } });
+    },
+
+    /** Reverse sync: drop any DCA layer mirrored by a (now-deleted) portfolio transaction. */
+    deleteDcaBuysByTransactionId(transactionId: string) {
+      return client.trackingCoinDcaBuy.deleteMany({ where: { transactionId } });
     },
 
     // ── Journal ──────────────────────────────────────────────────────────

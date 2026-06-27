@@ -4,6 +4,9 @@ import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone } from '@app/
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { HoldingsService } from '../holdings/holdings.service';
+import { PortfolioService } from '../portfolio/portfolio.service';
+import { TransactionService } from '../transaction/transaction.service';
 
 const CANDLE_LIMIT = 220;
 
@@ -102,7 +105,12 @@ export class TrackingCoinsService {
   private readonly logger = new Logger(TrackingCoinsService.name);
   private readonly repo = createTrackingCoinsRepository();
 
-  constructor(private readonly binance: BinanceMarketDataService) {}
+  constructor(
+    private readonly binance: BinanceMarketDataService,
+    private readonly portfolioService: PortfolioService,
+    private readonly transactionService: TransactionService,
+    private readonly holdingsService: HoldingsService,
+  ) {}
 
   /**
    * Proxy raw OHLCV klines from Binance (server-side, avoids browser CORS/geo
@@ -341,31 +349,108 @@ export class TrackingCoinsService {
         price: b.price,
         usd: b.usd,
         boughtAt: b.boughtAt.toISOString(),
+        portfolioId: b.portfolioId ?? null,
       })),
     };
   }
 
-  async addDcaBuy(symbol: string, data: { price: number; usd: number; boughtAt?: string }) {
+  /**
+   * Add a DCA layer. When `portfolioId` is given, also mirror it as a BUY
+   * transaction in that portfolio (two-way sync) and link the two records.
+   */
+  async addDcaBuy(
+    symbol: string,
+    data: { price: number; usd: number; boughtAt?: string; portfolioId?: string },
+    userId?: string,
+  ) {
     const upper = symbol.toUpperCase();
     const coin = await this.repo.findCoinBySymbol(upper);
     if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+
+    let portfolioId: string | null = null;
+    let transactionId: string | null = null;
+    if (data.portfolioId && data.price > 0 && data.usd > 0) {
+      if (userId) await this.portfolioService.getPortfolio(data.portfolioId, userId); // ownership guard
+      const tx = await this.transactionService.createTransaction(data.portfolioId, {
+        coinId: upper,
+        type: 'buy',
+        price: data.price,
+        amount: data.usd / data.price,
+        fee: 0,
+        note: 'DCA gom (tracking-coins)',
+        ...(data.boughtAt ? { transactedAt: data.boughtAt } : {}),
+      });
+      portfolioId = data.portfolioId;
+      transactionId = (tx as { id: string }).id;
+    }
+
     await this.repo.addDcaBuy(coin.id, {
       price: data.price,
       usd: data.usd,
       boughtAt: data.boughtAt ? new Date(data.boughtAt) : undefined,
+      portfolioId,
+      transactionId,
     });
     return this.getDcaPosition(upper);
   }
 
-  async deleteDcaBuy(symbol: string, buyId: string) {
-    await this.repo.deleteDcaBuy(buyId);
+  async deleteDcaBuy(symbol: string, buyId: string, userId?: string) {
+    const buy = await this.repo.findDcaBuyById(buyId);
+    if (buy?.transactionId && buy.portfolioId) {
+      // Removing the linked transaction cascades back to this DCA layer (reverse sync).
+      if (userId) await this.portfolioService.getPortfolio(buy.portfolioId, userId);
+      await this.transactionService.removeTransaction(buy.transactionId, buy.portfolioId);
+    } else {
+      await this.repo.deleteDcaBuy(buyId);
+    }
     return this.getDcaPosition(symbol);
   }
 
-  async closeDcaPosition(symbol: string) {
+  /**
+   * Close the position ("đã chốt"): sell exactly the DCA-accumulated amount per
+   * portfolio at `sellPrice` (defaults to the live price) — realising P&L without
+   * touching any non-DCA holdings of the same coin — then clear the buy log.
+   */
+  async closeDcaPosition(symbol: string, sellPrice?: number, userId?: string) {
     const upper = symbol.toUpperCase();
     const coin = await this.repo.findCoinBySymbol(upper);
     if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+
+    const buys = await this.repo.findDcaBuysByCoin(coin.id);
+    const price = sellPrice && sellPrice > 0
+      ? sellPrice
+      : await this.binance.fetchCurrentPrice(`${upper}USDT`).catch(() => 0);
+
+    // accumulate the synced amount per portfolio
+    const amountByPortfolio = new Map<string, number>();
+    for (const b of buys) {
+      if (b.portfolioId && b.transactionId && b.price > 0) {
+        amountByPortfolio.set(b.portfolioId, (amountByPortfolio.get(b.portfolioId) ?? 0) + b.usd / b.price);
+      }
+    }
+
+    if (price > 0) {
+      for (const [pid, rawAmount] of amountByPortfolio) {
+        try {
+          if (userId) await this.portfolioService.getPortfolio(pid, userId);
+          // clamp to the held amount so float drift can't trip the "only X available" guard
+          const held = await this.holdingsService.getHoldingAmount(pid, upper);
+          const amount = Math.min(rawAmount, held);
+          if (amount <= 0) continue;
+          await this.transactionService.createTransaction(pid, {
+            coinId: upper,
+            type: 'sell',
+            price,
+            amount,
+            fee: 0,
+            note: 'DCA chốt toàn bộ (tracking-coins)',
+          });
+        } catch (e) {
+          this.logger.warn(`DCA close: sell failed for portfolio ${pid}: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    }
+
     await this.repo.deleteAllDcaBuys(coin.id);
     return this.getDcaPosition(upper);
   }

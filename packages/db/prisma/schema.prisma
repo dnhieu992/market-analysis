@@ -341,15 +341,19 @@ model TrackingCoin {
 }
 
 model TrackingCoinDcaBuy {
-  id        String       @id @default(cuid())
-  coinId    String
-  price     Float
-  usd       Float
-  boughtAt  DateTime     @default(now())
-  createdAt DateTime     @default(now())
-  coin      TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+  id            String       @id @default(cuid())
+  coinId        String
+  price         Float
+  usd           Float
+  boughtAt      DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  // Two-way sync with the portfolio: each DCA layer mirrors a CoinTransaction (BUY).
+  portfolioId   String?      @db.Char(36)
+  transactionId String?      @db.Char(36)
+  coin          TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
 
   @@index([coinId, boughtAt(sort: Asc)])
+  @@index([transactionId])
   @@map("tracking_coin_dca_buys")
 }
 

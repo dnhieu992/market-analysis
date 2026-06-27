@@ -770,7 +770,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, withDefaults());
     },
 
-    addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string }): Promise<DcaPosition> {
+    addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string; portfolioId?: string }): Promise<DcaPosition> {
       return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys`, {
         ...withDefaults(),
         method: 'POST',
@@ -786,8 +786,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
-    closeDcaPosition(symbol: string): Promise<DcaPosition> {
-      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, {
+    closeDcaPosition(symbol: string, sellPrice?: number): Promise<DcaPosition> {
+      const qs = sellPrice != null && sellPrice > 0 ? `?sellPrice=${encodeURIComponent(String(sellPrice))}` : '';
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position${qs}`, {
         ...withDefaults(),
         method: 'DELETE',
       });

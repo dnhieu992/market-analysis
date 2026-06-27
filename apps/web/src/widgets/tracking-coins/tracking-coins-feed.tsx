@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, CoinSetup, DcaPosition } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, CoinSetup, DcaPosition, Portfolio } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
 
@@ -502,6 +502,8 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const prefilledRef = useRef(false);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [portfolioId, setPortfolioId] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -511,6 +513,20 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
   }, [symbol]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Portfolios for the sync dropdown; default to the last one used for this coin.
+  useEffect(() => {
+    createApiClient().fetchPortfolios()
+      .then((ps) => {
+        setPortfolios(ps);
+        const saved = (typeof window !== 'undefined' && window.localStorage.getItem(`dca-portfolio:${symbol}`)) || '';
+        setPortfolioId(ps.some((p) => p.id === saved) ? saved : (ps[0]?.id ?? ''));
+      })
+      .catch(() => {});
+  }, [symbol]);
+
+  const portfolioName = (id: string | null) =>
+    id ? (portfolios.find((p) => p.id === id)?.name ?? '—') : '—';
 
   const cur = livePrice ?? pos?.currentPrice ?? 0;
 
@@ -531,7 +547,8 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
     if (!(p > 0) || !(u > 0)) { setError('Nhập giá và số USD hợp lệ.'); return; }
     setBusy(true); setError(null);
     try {
-      const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u });
+      const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u, ...(portfolioId ? { portfolioId } : {}) });
+      if (portfolioId && typeof window !== 'undefined') window.localStorage.setItem(`dca-portfolio:${symbol}`, portfolioId);
       setPos(r); setPrice(cur > 0 ? priceInputStr(cur) : ''); setUsd(''); onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi lưu.');
@@ -545,10 +562,18 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
   }
 
   async function handleClose() {
-    if (!confirm(`Đóng (xóa) toàn bộ vị thế DCA của ${symbol}?`)) return;
-    setBusy(true);
-    try { const r = await createApiClient().closeDcaPosition(symbol); setPos(r); onChanged(); }
-    catch { /* ignore */ } finally { setBusy(false); }
+    const def = cur > 0 ? priceInputStr(cur) : '';
+    const input = window.prompt(
+      `Chốt toàn bộ DCA ${symbol} — nhập giá bán (tạo lệnh SELL trong portfolio, ghi nhận lãi/lỗ):`,
+      def,
+    );
+    if (input == null) return; // cancelled
+    const sell = parseFloat(input);
+    if (!(sell > 0)) { setError('Giá bán không hợp lệ.'); return; }
+    setBusy(true); setError(null);
+    try { const r = await createApiClient().closeDcaPosition(symbol, sell); setPos(r); onChanged(); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Lỗi chốt.'); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -585,6 +610,18 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
                 </p>
               )}
 
+              {/* portfolio sync target */}
+              {portfolios.length > 0 ? (
+                <label className="dcapos-portfolio">
+                  <span>Đồng bộ vào portfolio</span>
+                  <select className="setup-input" value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
+                    {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Chưa có portfolio — lệnh gom sẽ không đồng bộ.</p>
+              )}
+
               {/* add buy */}
               <form className="dcapos-add" onSubmit={handleAdd}>
                 <input className="setup-input" type="number" step="any" min="0" placeholder="Giá mua"
@@ -601,13 +638,14 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
               {/* buy list */}
               {pos && pos.buys.length > 0 && (
                 <table className="dcapos-table">
-                  <thead><tr><th>Ngày</th><th>Giá</th><th>USD</th><th></th></tr></thead>
+                  <thead><tr><th>Ngày</th><th>Giá</th><th>USD</th><th>Portfolio</th><th></th></tr></thead>
                   <tbody>
                     {pos.buys.map((b) => (
                       <tr key={b.id}>
                         <td>{b.boughtAt.slice(0, 10)}</td>
                         <td>${fmtNum(b.price)}</td>
                         <td>${b.usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+                        <td className="dcapos-pf">{b.portfolioId ? portfolioName(b.portfolioId) : <span className="scr-muted">—</span>}</td>
                         <td><button className="dcapos-del" onClick={() => handleDelete(b.id)} disabled={busy} aria-label="Xóa">✕</button></td>
                       </tr>
                     ))}
