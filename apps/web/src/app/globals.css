@@ -7048,6 +7048,7 @@ a.metric-card--link:hover {
 .scr-filter-chip--accumulating{ background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.3); color: #2563eb; }
 .scr-filter-chip--waking      { background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.3); color: #b45309; }
 .scr-filter-chip--extended    { background: rgba(239,68,68,0.10);  border-color: rgba(239,68,68,0.3);  color: #dc2626; }
+.scr-filter-chip--oversold    { background: rgba(124,58,237,0.12); border-color: rgba(124,58,237,0.35); color: #7c3aed; }
 .scr-filter-chip--quiet       { background: rgba(23,18,13,0.06);   border-color: var(--border);        color: var(--muted); }
 
 /* setup filter chips */
@@ -7170,6 +7171,7 @@ a.metric-card--link:hover {
 .scr-bar--active   { background: var(--accent, #1f6f5b); }
 .scr-bar--trending { background: #10b981; }
 .scr-bar--extended { background: #ef4444; }
+.scr-bar--oversold { background: #7c3aed; }
 .scr-bar--quiet    { background: #9ca3af; }
 
 /* ── extension % (distance above EMA34) ── */

@@ -13,7 +13,7 @@ Each coin also stores **market cap** (synced from CoinGecko during Sync Coins) a
 3. If `listingDate` is not yet stored, fires a non-blocking Binance call (`startTime=2017-01-01, limit=1`) to record the coin's first ever candle date.
 4. Computes `computeSmallCapSignal(closes, volumes)` from `@app/core`:
    - RSI(14), EMA(34/89/200), Vol× = volume / SMA20(volume)
-   - Classifies **Stage**: Breakout → Trending → Accumulating → Waking → Extended → Quiet
+   - Classifies **Stage**: Breakout → Trending → Oversold → Accumulating → Waking → Extended → Quiet
    - Computes **Signal score** (0–100): vol bonus + RSI factor + EMA position bonus − extended penalty
    - Computes **extPct** = % distance of last close above/below EMA34 (extension / overheat gauge for exit timing)
    - Extracts last-30-closes as sparkline array
@@ -37,10 +37,13 @@ Each coin also stores **market cap** (synced from CoinGecko during Sync Coins) a
 |---|---|---|
 | 🟢 Breakout | Open chart immediately | above EMA34 + Vol× ≥ 2 + RSI 30–65 |
 | 🟩 Trending | Confirmed trend — hold | above EMA34 **and** EMA89 + EMA34 sloping up + RSI 50–68 (volume need NOT spike) |
+| 🟣 Oversold | Capitulation bounce candidate — watchlist, NOT a buy | below EMA200 + RSI < 30 + dropped ≥ 25% over the last 10 days |
 | 🔵 Accumulating | Watch closely | below EMA34 + RSI 25–50 + Vol× ≥ 0.7 |
 | 🟡 Waking | Early signs | one weak signal (above34 OR Vol×≥1.2 OR RSI 40–62) |
 | 🔴 Extended | Already ran — avoid chasing | RSI > 70 OR (all EMAs above + RSI>68 + Vol×≥1.5) |
 | ⚪ Quiet | Skip | everything else |
+
+**Why Oversold exists:** the radar's once-a-day scan (and the EMA34-based stages) blind it to coins that pump straight out of a deep capitulation — e.g. PIVX on 2026-06-27 V-reversed +84% the day after sitting at RSI 24, -35%/10d, below every EMA, where the old rules labelled it "Quiet". Oversold singles out that violent-flush state (below EMA200, RSI < 30, sharp multi-day drop) as a **mean-reversion / bounce watchlist**. It is explicitly **not** a buy signal — these are falling knives that can keep falling. Backtested on 40 low-cap coins (`scripts/run-oversold-primed-backtest.ts`, run logged `claude-backtest/runs/2026-06-27-oversold-primed-smallcap.md`): forward-30d return median ~+30% with 31% of fires reaching +50% vs 16% baseline, but it only catches ~16% of all big pumps (it surfaces the capitulation-bounce subset, not breakouts). Evaluated **after** Breakout/Trending so a coin already bouncing back above EMA34 is classified by its live strength instead.
 
 **Why Trending exists:** the strongest legs in small caps often grind up on quiet volume and never trip the Vol×≥2 Breakout rule, so they used to stay labelled "Waking" (chớm động) the whole way up — which made it easy to take profit far too early. Trending separates a *confirmed, hold-worthy* uptrend (price reclaimed EMA34 & EMA89, EMA34 rising) from a coin that is merely stirring. Evaluated **after** Breakout and Extended, so a volume-spike breakout or an overheated coin still take priority.
 

@@ -2,7 +2,19 @@ import { calculateEma } from '../indicators/ema';
 import { calculateRsi } from '../indicators/rsi';
 import { calculateVolumeRatio } from '../indicators/volume';
 
-export type SmallCapStage = 'Breakout' | 'Trending' | 'Accumulating' | 'Waking' | 'Extended' | 'Quiet';
+export type SmallCapStage = 'Breakout' | 'Trending' | 'Accumulating' | 'Waking' | 'Extended' | 'Oversold' | 'Quiet';
+
+/* ── Oversold / Primed thresholds ─────────────────────────────────────────────
+ * Deep capitulation below EMA200 with a sharp multi-day drop — a statistical
+ * mean-reversion / bounce candidate (NOT a breakout; it's a falling knife to
+ * watch). Validated on 40 low-cap coins (`scripts/run-oversold-primed-backtest.ts`,
+ * run logged 2026-06-27): forward 30d median ~+30%, 31% of fires hit +50%
+ * vs 16% baseline. Catches the PIVX 2026-06-26 setup (RSI 24, -35%/10d) one day
+ * before its +84% bounce. Recall is only ~16% of all big pumps — this surfaces
+ * the capitulation-bounce subset, not every pump. */
+const OVERSOLD_RSI_MAX = 30;
+const OVERSOLD_DROP_DAYS = 10;
+const OVERSOLD_DROP_PCT = -0.25;
 export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
 export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
 
@@ -60,7 +72,11 @@ export function computeSmallCapSignal(
 
   const sparkline = closes.slice(-30).map((v) => Number(v.toFixed(8)));
 
-  const stage = classifyStage({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above, ema34Rising });
+  // Multi-day drop for the Oversold/Primed capitulation check
+  const dropRef = closes[closes.length - 1 - OVERSOLD_DROP_DAYS];
+  const dropPct = dropRef !== undefined && dropRef > 0 ? (lastClose - dropRef) / dropRef : 0;
+
+  const stage = classifyStage({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above, ema34Rising, dropPct });
   const signalScore = computeScore({ rsi, volMultiplier, ema34Above, ema89Above, ema200Above });
   const { trend, swingStructure } = computePaTrend(closes, highs, lows, ema89);
 
@@ -138,8 +154,9 @@ function classifyStage(p: {
   ema89Above: boolean;
   ema200Above: boolean;
   ema34Rising: boolean;
+  dropPct: number;
 }): SmallCapStage {
-  const { rsi, volMultiplier, ema34Above, ema89Above, ema200Above, ema34Rising } = p;
+  const { rsi, volMultiplier, ema34Above, ema89Above, ema200Above, ema34Rising, dropPct } = p;
 
   if (rsi > 70 || (ema34Above && ema89Above && ema200Above && rsi > 68 && volMultiplier >= 1.5)) {
     return 'Extended';
@@ -154,6 +171,14 @@ function classifyStage(p: {
   // This is the "hold / trend confirmed" zone, distinct from "Waking" (just stirring).
   if (ema34Above && ema89Above && ema34Rising && rsi >= 50 && rsi <= 68) {
     return 'Trending';
+  }
+
+  // Oversold / Primed — deep capitulation below EMA200 with a sharp multi-day drop.
+  // A statistical mean-reversion / bounce candidate (a watchlist, not a buy signal).
+  // Checked before Accumulating because it is a more specific, actionable subset of
+  // "price is down": it singles out the violent flushes that tend to snap back.
+  if (!ema200Above && rsi < OVERSOLD_RSI_MAX && dropPct <= OVERSOLD_DROP_PCT) {
+    return 'Oversold';
   }
 
   if (!ema34Above && rsi >= 25 && rsi <= 50 && volMultiplier >= 0.7) {

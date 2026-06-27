@@ -10,7 +10,7 @@ type Props = { initialCoins: SmallCapCoinRow[] };
 
 type SortKey = 'signal' | 'rsi' | 'vol' | 'ext' | 'coin';
 
-const ALL_STAGES: SmallCapStage[] = ['Breakout', 'Trending', 'Accumulating', 'Waking', 'Extended', 'Quiet'];
+const ALL_STAGES: SmallCapStage[] = ['Breakout', 'Trending', 'Accumulating', 'Waking', 'Extended', 'Oversold', 'Quiet'];
 const PAGE_SIZE = 50;
 
 /* ── stage badge ─────────────────────────────────────────────── */
@@ -22,6 +22,7 @@ function StageBadge({ stage }: { stage: SmallCapStage }) {
     Accumulating: 'scr-stage scr-stage--accumulating',
     Waking: 'scr-stage scr-stage--waking',
     Extended: 'scr-stage scr-stage--extended',
+    Oversold: 'scr-stage scr-stage--oversold',
     Quiet: 'scr-stage scr-stage--quiet',
   };
   return <span className={cls[stage]}>{stage}</span>;
@@ -106,6 +107,7 @@ function SignalBar({ score, stage }: { score: number; stage: SmallCapStage }) {
   const width = `${score}%`;
   const barCls =
     stage === 'Extended' ? 'scr-bar scr-bar--extended' :
+    stage === 'Oversold' ? 'scr-bar scr-bar--oversold' :
     stage === 'Quiet'    ? 'scr-bar scr-bar--quiet' :
     stage === 'Trending' ? 'scr-bar scr-bar--trending' :
     'scr-bar scr-bar--active';

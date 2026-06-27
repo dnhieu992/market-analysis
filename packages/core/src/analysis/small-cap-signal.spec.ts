@@ -60,6 +60,41 @@ describe('computeSmallCapSignal', () => {
     expect(result!.stage).not.toBe('Trending');
     expect(result!.extPct).toBeLessThan(0);
   });
+
+  it('classifies a deep multi-day capitulation as Oversold (the PIVX pre-bounce setup)', () => {
+    // Long flat base well above, then a sharp ~40% flush over the last 11 candles:
+    // ends below EMA200 with RSI < 30 and a >25%/10d drop → Oversold watchlist.
+    const closes: number[] = [];
+    for (let i = 0; i < 200; i++) closes.push(100);
+    let v = 100;
+    for (let i = 0; i < 11; i++) {
+      v *= 0.95;
+      closes.push(v);
+    }
+    const { highs, lows, volumes } = series(closes);
+
+    const result = computeSmallCapSignal(closes, highs, lows, volumes);
+    expect(result).not.toBeNull();
+    expect(result!.stage).toBe('Oversold');
+    expect(result!.ema200Above).toBe(false);
+    expect(result!.rsi).toBeLessThan(30);
+  });
+
+  it('does NOT flag a shallow dip (only -10%) as Oversold', () => {
+    // Below EMA34 and low-ish RSI but the multi-day drop is far short of 25%.
+    const closes: number[] = [];
+    for (let i = 0; i < 200; i++) closes.push(100);
+    let v = 100;
+    for (let i = 0; i < 11; i++) {
+      v *= 0.99; // ~-10% total — under the 25%/10d capitulation threshold
+      closes.push(v);
+    }
+    const { highs, lows, volumes } = series(closes);
+
+    const result = computeSmallCapSignal(closes, highs, lows, volumes);
+    expect(result).not.toBeNull();
+    expect(result!.stage).not.toBe('Oversold');
+  });
 });
 
 describe('computeTimeframeTrend (daily-plan style 1-bar pivots)', () => {

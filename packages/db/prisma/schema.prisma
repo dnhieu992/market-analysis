@@ -629,7 +629,7 @@ model SmallCapSignal {
 }
 
 // Append-only change log of the radar signal. A new row is written only when the
-// stage (Breakout/Trending/Accumulating/Waking/Extended/Quiet) differs from the
+// stage (Breakout/Trending/Accumulating/Waking/Extended/Oversold/Quiet) differs from the
 // most recent row for the coin — a compact history of stage transitions, not
 // every daily scan.
 model SmallCapSignalHistory {
