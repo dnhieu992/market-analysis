@@ -7452,16 +7452,27 @@ a.metric-card--link:hover {
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
+  overflow-x: auto; /* narrow dialogs (mobile): scroll instead of crushing/overlapping cells */
   margin-top: 4px;
 }
 .tc-tf-grid__head,
 .tc-tf-grid__row {
   display: grid;
-  grid-template-columns: 38px repeat(5, minmax(0, 1fr));
+  /* Width-aware columns so the 3-pip EMA cell always has room and never overflows
+     onto its neighbours; min-width forces a horizontal scroll before any overlap. */
+  grid-template-columns:
+    34px minmax(46px, 0.8fr) minmax(62px, 1fr) minmax(98px, 1.3fr) minmax(40px, 0.7fr) minmax(48px, 0.8fr);
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
+  min-width: 420px;
 }
+/* keep each indicator cell on one line — no wrapping inside a grid track */
+.tc-tf-grid__row > *,
+.tc-tf-grid .scr-ema-pips { white-space: nowrap; }
+/* compact the EMA pips so all three fit their track comfortably */
+.tc-tf-grid .scr-ema-pips { gap: 4px; }
+.tc-tf-grid .scr-pip { padding: 2px 5px; }
 .tc-tf-grid__head {
   font-size: 0.68rem;
   font-weight: 700;
