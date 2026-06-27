@@ -196,6 +196,25 @@ export function createBackTestResultRepository() {
   };
 }
 
+export function createDcaLadderRepository() {
+  // Minimal stub — tests override (svc as any).repo directly after construction
+  return {
+    getSettings: async () => null,
+    updateSettings: async () => undefined,
+    getCurrentCycle: async () => null,
+    getCycleWithOrders: async () => null,
+    createCycle: async () => null,
+    updateCycle: async () => undefined,
+    createOrders: async () => undefined,
+    deleteOrdersByCycle: async () => undefined,
+    getOrdersByCycle: async () => [],
+    getOrder: async () => null,
+    updateOrder: async () => undefined,
+    listClosedCycles: async () => [],
+    listAllCycles: async () => [],
+  };
+}
+
 export function createSessionRepository() {
   return {
     async create(data: Record<string, unknown>) {
