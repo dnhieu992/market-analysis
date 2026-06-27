@@ -42,6 +42,18 @@ export function createDayTradingRepository() {
   };
 }
 
+export function createDcaLadderRepository() {
+  // DCA ladder specs construct the service then override `.repo` with a
+  // per-test mock, so the default here only needs to exist (no-op shape).
+  return {
+    async getSettings() { return {}; },
+    async getCurrentCycle(_symbol: string) { return null; },
+    async getOrdersByCycle(_cycleId: string) { return []; },
+    async updateOrder(_id: string, _data: unknown) { return; },
+    async updateCycle(_id: string, _data: unknown) { return; },
+  };
+}
+
 // Generic no-op repositories — present so the full WorkerModule can be compiled
 // in worker-bootstrap.spec without a live DB. Services store these at field-init
 // but don't call methods during DI compilation.
