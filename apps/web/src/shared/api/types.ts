@@ -707,6 +707,7 @@ export type SmallCapHistoryRow = {
 export type DcaLadderSettings = {
   startCapital: number;
   firstTierPct: number;
+  bearFirstTierPct: number;
   numTiers: number;
   stepPct: number;
   tpPct: number;
@@ -744,10 +745,21 @@ export type DcaLadderSummary = {
   unrealizedPnl: number;
 };
 
+export type DcaLadderTimingSignal = {
+  zone: 'GOM' | 'CHO' | 'CHOT';
+  score: number;
+  bucket: 'safe' | 'ok' | 'risky' | 'avoid';
+  rsi: number | null;
+  ema34Above: boolean | null;
+  low20Pct: number | null;
+  weekTrend: 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
+};
+
 export type DcaLadderState = {
   settings: DcaLadderSettings;
   cycle: DcaLadderCycle;
   orders: DcaLadderOrder[];
   livePrice: number;
+  timingSignal: DcaLadderTimingSignal | null;
   summary: DcaLadderSummary;
 };

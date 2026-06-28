@@ -7,13 +7,23 @@ import {
   computeTpPrice,
   computeRealizedPnl,
   computeBudget,
+  computeDcaTimingSignal,
+  computeTimeframeTrend,
+  effectiveFirstTierPct,
   type DcaLadderParams,
   type DcaFill,
+  type DcaTimingSignal,
+  type DcaTimingSeries,
+  type PaTrend,
 } from '@app/core';
 import type { UpdateDcaLadderSettingsDto } from './dto/update-settings.dto';
 import type { UpdateOrderDto } from './dto/update-order.dto';
 
 const SYMBOL = 'BTCUSDT';
+// BTC circulating supply (~19.8M) — turns live price into an honest market cap
+// so the safety score lands in the top "safe" tier the way it does for BTC on
+// /tracking-coins. Constant is fine: the cap thresholds top out at $1B.
+const BTC_CIRCULATING_SUPPLY = 19_800_000;
 
 @Injectable()
 export class DcaLadderService {
@@ -31,8 +41,53 @@ export class DcaLadderService {
     return parseFloat(res.data.price);
   }
 
-  private params(settings: any): DcaLadderParams {
-    return { firstTierPct: settings.firstTierPct, numTiers: settings.numTiers, stepPct: settings.stepPct };
+  /**
+   * The /tracking-coins DCA signal applied to BTC — tells the user whether now
+   * is a reasonable moment to start a DCA layer (GOM), wait (CHO), or take
+   * profit (CHOT). Non-fatal: returns null if Binance is unreachable.
+   */
+  private async fetchTimingSignal(livePrice: number): Promise<DcaTimingSignal | null> {
+    const toSeries = (rows: any[]): DcaTimingSeries => ({
+      closes: rows.map((k) => parseFloat(k[4])),
+      highs: rows.map((k) => parseFloat(k[2])),
+      lows: rows.map((k) => parseFloat(k[3])),
+    });
+    const [d1, w1] = await Promise.all([
+      this.http.get<any[]>('/api/v3/klines', { params: { symbol: SYMBOL, interval: '1d', limit: 220 } }),
+      this.http.get<any[]>('/api/v3/klines', { params: { symbol: SYMBOL, interval: '1w', limit: 300 } }),
+    ]);
+    const marketCap = livePrice > 0 ? livePrice * BTC_CIRCULATING_SUPPLY : null;
+    return computeDcaTimingSignal(toSeries(d1.data), toSeries(w1.data), marketCap);
+  }
+
+  private params(settings: any, firstTierPct: number): DcaLadderParams {
+    return { firstTierPct, numTiers: settings.numTiers, stepPct: settings.stepPct };
+  }
+
+  /** BTC weekly price-action trend (same `computeTimeframeTrend` the app uses for weekTrend). */
+  private async fetchWeekTrend(): Promise<PaTrend> {
+    const res = await this.http.get<any[]>('/api/v3/klines', { params: { symbol: SYMBOL, interval: '1w', limit: 300 } });
+    const rows = res.data;
+    return computeTimeframeTrend(
+      rows.map((k) => parseFloat(k[4])),
+      rows.map((k) => parseFloat(k[2])),
+      rows.map((k) => parseFloat(k[3])),
+    );
+  }
+
+  /**
+   * The first tier % to arm a FLAT cycle with: shallow (firstTierPct) in a weekly
+   * uptrend, deep (bearFirstTierPct) in a bear/neutral week. Falls back to the bull
+   * value if the weekly trend can't be fetched (keeps prior behaviour, non-fatal).
+   */
+  private async resolveFirstTierPct(settings: any): Promise<number> {
+    try {
+      const trend = await this.fetchWeekTrend();
+      return effectiveFirstTierPct(trend, settings.firstTierPct, settings.bearFirstTierPct);
+    } catch (e) {
+      this.logger.warn(`week trend failed, using bull first tier: ${String(e)}`);
+      return settings.firstTierPct;
+    }
   }
 
   getSettings() {
@@ -47,16 +102,17 @@ export class DcaLadderService {
     if (cycle && cycle.status === 'FLAT') {
       const closed = await this.repo.listClosedCycles(SYMBOL);
       const budget = computeBudget(settings.startCapital, closed.map((c: any) => c.realizedPnl ?? 0));
+      const firstTierPct = await this.resolveFirstTierPct(settings);
       await this.repo.updateCycle(cycle.id, { budget });
-      await this.armBuyTiers(cycle.id, cycle.peak, budget, settings);
+      await this.armBuyTiers(cycle.id, cycle.peak, budget, settings, firstTierPct);
     }
     return this.getState();
   }
 
   /** Arm (or re-arm) the BUY tier orders for a FLAT cycle from its peak + budget. */
-  private async armBuyTiers(cycleId: string, peak: number, budget: number, settings: any) {
+  private async armBuyTiers(cycleId: string, peak: number, budget: number, settings: any, firstTierPct: number) {
     await this.repo.deleteOrdersByCycle(cycleId);
-    const prices = tierPrices(peak, this.params(settings));
+    const prices = tierPrices(peak, this.params(settings, firstTierPct));
     const usd = budget / settings.numTiers;
     await this.repo.createOrders(
       prices.map((plannedPrice, tierIndex) => ({
@@ -71,8 +127,9 @@ export class DcaLadderService {
     const closed = await this.repo.listClosedCycles(SYMBOL);
     const peak = await this.fetchSeedPeak();
     const budget = computeBudget(settings.startCapital, closed.map((c: any) => c.realizedPnl ?? 0));
+    const firstTierPct = await this.resolveFirstTierPct(settings);
     cycle = await this.repo.createCycle({ symbol: SYMBOL, cycleNumber: closed.length + 1, status: 'FLAT', peak, budget });
-    await this.armBuyTiers(cycle.id, peak, budget, settings);
+    await this.armBuyTiers(cycle.id, peak, budget, settings, firstTierPct);
     return cycle;
   }
 
@@ -151,8 +208,9 @@ export class DcaLadderService {
 
     const closed = await this.repo.listClosedCycles(SYMBOL);
     const budget = computeBudget(settings.startCapital, closed.map((c: any) => c.realizedPnl ?? 0));
+    const firstTierPct = await this.resolveFirstTierPct(settings);
     const next = await this.repo.createCycle({ symbol: SYMBOL, cycleNumber: cycle.cycleNumber + 1, status: 'FLAT', peak: sellPrice, budget });
-    await this.armBuyTiers(next.id, sellPrice, budget, settings);
+    await this.armBuyTiers(next.id, sellPrice, budget, settings, firstTierPct);
     return this.getState();
   }
 
@@ -162,6 +220,8 @@ export class DcaLadderService {
     const orders = await this.repo.getOrdersByCycle(cycle.id);
     let livePrice = 0;
     try { livePrice = await this.fetchLivePrice(); } catch (e) { this.logger.warn(`live price failed: ${String(e)}`); }
+    let timingSignal: DcaTimingSignal | null = null;
+    try { timingSignal = await this.fetchTimingSignal(livePrice); } catch (e) { this.logger.warn(`timing signal failed: ${String(e)}`); }
     const all = await this.repo.listAllCycles(SYMBOL);
     const closed = all.filter((c: any) => c.status === 'CLOSED');
     const realizedPnl = closed.reduce((a: number, c: any) => a + (c.realizedPnl ?? 0), 0);
@@ -173,7 +233,7 @@ export class DcaLadderService {
       ? cycle.positionSize * (livePrice - cycle.avgCost)
       : 0;
     return {
-      settings, cycle, orders, livePrice,
+      settings, cycle, orders, livePrice, timingSignal,
       summary: { cycleCount: all.length, avgFillsPerCycle, realizedPnl, unrealizedPnl },
     };
   }

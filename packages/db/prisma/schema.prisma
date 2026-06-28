@@ -654,6 +654,8 @@ model DcaLadderSettings {
   symbol        String   @unique @default("BTCUSDT") @db.VarChar(20)
   startCapital  Float    @default(1000)
   firstTierPct  Float    @default(5)
+  /// First tier % when the weekly trend is bear/neutral (deeper entry). Bull uses firstTierPct.
+  bearFirstTierPct Float @default(10)
   numTiers      Int      @default(10)
   stepPct       Float    @default(1.5)
   tpPct         Float    @default(10)

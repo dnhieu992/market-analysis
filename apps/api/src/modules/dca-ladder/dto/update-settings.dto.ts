@@ -3,6 +3,7 @@ import { IsBoolean, IsNumber, IsOptional, IsPositive, Min } from 'class-validato
 export class UpdateDcaLadderSettingsDto {
   @IsOptional() @IsNumber() @IsPositive() startCapital?: number;
   @IsOptional() @IsNumber() @IsPositive() firstTierPct?: number;
+  @IsOptional() @IsNumber() @IsPositive() bearFirstTierPct?: number;
   @IsOptional() @IsNumber() @Min(1) numTiers?: number;
   @IsOptional() @IsNumber() @IsPositive() stepPct?: number;
   @IsOptional() @IsNumber() @IsPositive() tpPct?: number;

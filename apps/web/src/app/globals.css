@@ -9223,6 +9223,21 @@ a.metric-card--link:hover {
 .dcal-pending_fill { background: #fbf0cd; color: #9a7b08; }
 .dcal-filled { background: #d8f0e2; color: #1f8a52; }
 .dcal-cancelled { background: #ececec; color: #777; }
+/* DCA timing signal (chiến lược /tracking-coins áp cho BTC) */
+.dcal-signal { margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; background: var(--surface); }
+.dcal-zone-gom { border-left-color: #1f9d57; background: rgba(31, 157, 87, 0.06); }
+.dcal-zone-cho { border-left-color: #c89b08; background: rgba(241, 196, 15, 0.08); }
+.dcal-zone-chot { border-left-color: #2f6fed; background: rgba(47, 111, 237, 0.06); }
+.dcal-signal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.dcal-signal-zone { font-size: 15px; font-weight: 700; color: var(--foreground); }
+.dcal-signal-advice { flex: 1 1 240px; font-size: 13px; color: var(--muted); }
+.dcal-signal-score { padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.dcal-bucket-safe { background: #d8f0e2; color: #1f8a52; }
+.dcal-bucket-ok { background: #e6efff; color: #2f6fed; }
+.dcal-bucket-risky { background: #fbf0cd; color: #9a7b08; }
+.dcal-bucket-avoid { background: #fbe0dd; color: #c0392b; }
+.dcal-signal-metrics { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.dcal-signal-metrics strong { color: var(--foreground); font-weight: 600; }
 .dcal-settings { margin-top: 20px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
 .dcal-settings h3 { margin: 0 0 14px; font-size: 14px; color: var(--foreground); }
 .dcal-settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }

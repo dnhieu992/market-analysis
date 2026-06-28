@@ -5,6 +5,7 @@ import {
   computeTpPrice,
   computeRealizedPnl,
   computeBudget,
+  effectiveFirstTierPct,
 } from './dca-ladder';
 
 const SPEC = { firstTierPct: 5, numTiers: 10, stepPct: 1.5 };
@@ -18,6 +19,14 @@ describe('dca-ladder math', () => {
     const prices = tierPrices(100_000, SPEC);
     expect(prices[0]).toBeCloseTo(95_000, 6);
     expect(prices[9]).toBeCloseTo(81_500, 6);
+  });
+
+  it('effectiveFirstTierPct: bull weeks start shallow, bear/neutral start deep', () => {
+    expect(effectiveFirstTierPct('StrongUp', 5, 10)).toBe(5);
+    expect(effectiveFirstTierPct('Up', 5, 10)).toBe(5);
+    expect(effectiveFirstTierPct('Neutral', 5, 10)).toBe(10);
+    expect(effectiveFirstTierPct('Down', 5, 10)).toBe(10);
+    expect(effectiveFirstTierPct('StrongDown', 5, 10)).toBe(10);
   });
 
   it('computePosition bakes the buy fee into avgCost', () => {

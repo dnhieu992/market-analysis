@@ -1,4 +1,9 @@
 import type { PaTrend } from './small-cap-signal';
+import { computeTimeframeTrend } from './small-cap-signal';
+import { calculateEma } from '../indicators/ema';
+import { calculateRsi } from '../indicators/rsi';
+import { calcUtBotResult } from '../indicators/ut-bot';
+import type { Candle } from '../types/candle';
 
 /**
  * DCA dashboard signals.
@@ -77,4 +82,56 @@ export function dcaQualityBucket(score: number): DcaBucket {
   if (score >= 50) return 'ok';
   if (score >= 30) return 'risky';
   return 'avoid';
+}
+
+/** OHLC series for one timeframe (parallel arrays, oldest→newest). */
+export type DcaTimingSeries = { closes: number[]; highs: number[]; lows: number[] };
+
+/**
+ * The /tracking-coins DCA signal computed for a single symbol — used by the DCA
+ * Ladder page to answer "is now a reasonable moment to START a DCA layer?".
+ *
+ * Mirrors `tracking-coin-scan.service` exactly: D1 drives the timing zone
+ * (`dcaZone`) and the weekly structure drives the safety score (`computeDcaScore`).
+ */
+export type DcaTimingSignal = {
+  zone: DcaZone;
+  score: number;
+  bucket: DcaBucket;
+  /** D1 RSI(14). */
+  rsi: number | null;
+  /** D1 close is back above EMA34 (the take-profit reclaim flag). */
+  ema34Above: boolean | null;
+  /** % the D1 close sits above the rolling 20-day low (dip-depth gauge). */
+  low20Pct: number | null;
+  /** Weekly price-action trend (survival lever for the score). */
+  weekTrend: PaTrend;
+};
+
+export function computeDcaTimingSignal(
+  d1: DcaTimingSeries,
+  w1: DcaTimingSeries,
+  marketCap: number | null,
+): DcaTimingSignal | null {
+  if (d1.closes.length < 34) return null;
+
+  const lastClose = d1.closes[d1.closes.length - 1]!;
+  const ema34Above = lastClose > calculateEma(d1.closes, 34);
+  const rsi = d1.closes.length > 14 ? calculateRsi(d1.closes, 14) : null;
+
+  const low20 = Math.min(...d1.lows.slice(-20));
+  const low20Pct = low20 > 0 ? Number((((lastClose - low20) / low20) * 100).toFixed(1)) : null;
+
+  // ── Weekly structure for the safety score ──
+  const wLastClose = w1.closes[w1.closes.length - 1] ?? 0;
+  const weekTrend: PaTrend = w1.closes.length >= 20 ? computeTimeframeTrend(w1.closes, w1.highs, w1.lows) : 'Neutral';
+  const wEma89Above  = w1.closes.length >= 89  ? wLastClose > calculateEma(w1.closes, 89)  : null;
+  const wEma200Above = w1.closes.length >= 200 ? wLastClose > calculateEma(w1.closes, 200) : null;
+  const wCandles: Candle[] = w1.closes.map((c, i) => ({ open: c, high: w1.highs[i]!, low: w1.lows[i]!, close: c }));
+  const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
+
+  const score = computeDcaScore({ marketCap, weekTrend, wEma89Above, wEma200Above, utBotW1Bullish });
+  const zone = dcaZone({ ema34Above, rsi: rsi ?? 50, low20Pct });
+
+  return { zone, score, bucket: dcaQualityBucket(score), rsi, ema34Above, low20Pct, weekTrend };
 }

@@ -6,7 +6,7 @@ function kline(high: number, low: number): any {
 }
 
 function makeRepo(over: any = {}) {
-  const settings = { symbol: 'BTCUSDT', firstTierPct: 5, numTiers: 10, stepPct: 1.5, tpPct: 10, feePct: 0, enabled: true };
+  const settings = { symbol: 'BTCUSDT', firstTierPct: 5, bearFirstTierPct: 10, numTiers: 10, stepPct: 1.5, tpPct: 10, feePct: 0, enabled: true };
   const cycle = { id: 'c1', symbol: 'BTCUSDT', status: 'FLAT', peak: 100_000, tpPrice: null, ...over.cycle };
   const orders = over.orders ?? [
     { id: 'o0', cycleId: 'c1', side: 'BUY', tierIndex: 0, plannedPrice: 95_000, status: 'ARMED' },
@@ -66,6 +66,18 @@ describe('DcaLadderSyncService', () => {
     expect(res.tpReady).toBe(true);
     expect(repo.orders.find((o: any) => o.id === 's0').status).toBe('PENDING_FILL');
     expect(telegram.sent).toHaveLength(1);
+  });
+
+  it('re-arms ARMED tier prices each FLAT day using the weekly-adaptive first tier', async () => {
+    const repo = makeRepo();
+    const telegram = { sent: [] as string[] };
+    // closed candle high 101_000 (raises peak), low 99_500 pierces nothing
+    const svc = makeService(repo, [kline(101_000, 99_500), kline(100_000, 99_000)], telegram);
+    (svc as any).resolveFirstTierPct = async () => 10; // weekly bear → deep first tier
+    await svc.syncDaily();
+    // newPeak 101_000; tier0 = 101_000 * (1 - 10/100); tier1 = 101_000 * (1 - 11.5/100)
+    expect(repo.orders.find((o: any) => o.id === 'o0').plannedPrice).toBeCloseTo(90_900, 3);
+    expect(repo.orders.find((o: any) => o.id === 'o1').plannedPrice).toBeCloseTo(89_385, 3);
   });
 
   it('respects disabled settings', async () => {

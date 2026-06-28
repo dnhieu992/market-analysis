@@ -5,9 +5,10 @@ import type { DcaLadderState } from '@web/shared/api/types';
 const FALLBACK_STATE: DcaLadderState = {
   settings: {
     startCapital: 1000,
-    firstTierPct: 10,
-    numTiers: 5,
-    stepPct: 5,
+    firstTierPct: 5,
+    bearFirstTierPct: 10,
+    numTiers: 10,
+    stepPct: 1.5,
     tpPct: 10,
     feePct: 0.05,
     enabled: false,
@@ -25,6 +26,7 @@ const FALLBACK_STATE: DcaLadderState = {
   },
   orders: [],
   livePrice: 0,
+  timingSignal: null,
   summary: {
     cycleCount: 0,
     avgFillsPerCycle: 0,

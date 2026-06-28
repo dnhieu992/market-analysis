@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { DcaLadderState, DcaLadderSettings } from '@web/shared/api/types';
+import type { DcaLadderState, DcaLadderSettings, DcaLadderTimingSignal } from '@web/shared/api/types';
 
 const api = createApiClient();
 
@@ -10,12 +10,27 @@ function fmt(n: number | null, d = 2): string {
   return n == null ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
+const ZONE_INFO: Record<DcaLadderTimingSignal['zone'], { label: string; advice: string }> = {
+  GOM: { label: '✅ GOM', advice: 'Hợp lý để bắt đầu / thêm 1 tier DCA (RSI ≤ 35 & gần đáy 20 ngày).' },
+  CHO: { label: '⏳ CHỜ', advice: 'Chưa tới điểm gom — chờ giá về sâu hơn hoặc RSI ≤ 35.' },
+  CHOT: { label: '🎯 CHỐT', advice: 'Giá đã vượt lại EMA34 — vùng chốt lời, không phải lúc gom.' },
+};
+
+const TREND_LABEL: Record<DcaLadderTimingSignal['weekTrend'], string> = {
+  StrongUp: 'Tăng mạnh', Up: 'Tăng', Neutral: 'Đi ngang', Down: 'Giảm', StrongDown: 'Giảm mạnh',
+};
+
+/** Weekly bull (Up/StrongUp) starts shallow; bear/neutral starts deep — mirrors core effectiveFirstTierPct. */
+function effectiveFirstTier(weekTrend: DcaLadderTimingSignal['weekTrend'], s: DcaLadderSettings): number {
+  return weekTrend === 'Up' || weekTrend === 'StrongUp' ? s.firstTierPct : s.bearFirstTierPct;
+}
+
 export function DcaLadderFeed({ initialState }: { initialState: DcaLadderState }) {
   const [state, setState] = useState(initialState);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<DcaLadderSettings>(initialState.settings);
 
-  const { settings, cycle, orders, livePrice, summary } = state;
+  const { settings, cycle, orders, livePrice, summary, timingSignal } = state;
 
   const deployed = orders
     .filter((o) => o.side === 'BUY' && o.status === 'FILLED')
@@ -87,6 +102,26 @@ export function DcaLadderFeed({ initialState }: { initialState: DcaLadderState }
         <span>Budget ${fmt(cycle.budget)}</span>
         <span>Giá BTC {fmt(livePrice)}</span>
       </div>
+
+      {/* DCA timing signal (chiến lược /tracking-coins áp cho BTC) */}
+      {timingSignal && (
+        <div className={`dcal-signal dcal-zone-${timingSignal.zone.toLowerCase()}`}>
+          <div className="dcal-signal-head">
+            <span className="dcal-signal-zone">{ZONE_INFO[timingSignal.zone].label}</span>
+            <span className="dcal-signal-advice">{ZONE_INFO[timingSignal.zone].advice}</span>
+            <span className={`dcal-signal-score dcal-bucket-${timingSignal.bucket}`}>
+              An toàn {timingSignal.score}/100 · {timingSignal.bucket}
+            </span>
+          </div>
+          <div className="dcal-signal-metrics">
+            <span>RSI D1 <strong>{fmt(timingSignal.rsi, 1)}</strong></span>
+            <span>EMA34 <strong>{timingSignal.ema34Above == null ? '—' : timingSignal.ema34Above ? 'trên' : 'dưới'}</strong></span>
+            <span>Trên đáy 20N <strong>{timingSignal.low20Pct == null ? '—' : `${fmt(timingSignal.low20Pct, 1)}%`}</strong></span>
+            <span>Xu hướng tuần <strong>{TREND_LABEL[timingSignal.weekTrend]}</strong></span>
+            <span>Tier 1 hiệu lực <strong>{effectiveFirstTier(timingSignal.weekTrend, settings)}%</strong> dưới đỉnh</span>
+          </div>
+        </div>
+      )}
 
       {/* Ladder table */}
       <div className="dcal-table-wrap">
@@ -160,7 +195,8 @@ export function DcaLadderFeed({ initialState }: { initialState: DcaLadderState }
             {(
               [
                 ['startCapital', 'Vốn ban đầu ($)'],
-                ['firstTierPct', 'Tier 1 (% vốn)'],
+                ['firstTierPct', 'Tier 1 — tuần bull (%)'],
+                ['bearFirstTierPct', 'Tier 1 — tuần bear (%)'],
                 ['numTiers', 'Số tier'],
                 ['stepPct', 'Bước giảm (%)'],
                 ['tpPct', 'TP (%)'],

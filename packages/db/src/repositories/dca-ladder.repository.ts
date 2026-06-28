@@ -12,6 +12,7 @@ export function createDcaLadderRepository(client = prisma) {
     updateSettings(data: {
       startCapital?: number;
       firstTierPct?: number;
+      bearFirstTierPct?: number;
       numTiers?: number;
       stepPct?: number;
       tpPct?: number;

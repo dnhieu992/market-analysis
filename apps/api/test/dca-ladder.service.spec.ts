@@ -6,7 +6,7 @@ type Cycle = any;
 function makeFakeRepo() {
   const settings = {
     id: 'singleton', symbol: 'BTCUSDT', startCapital: 1000,
-    firstTierPct: 5, numTiers: 10, stepPct: 1.5, tpPct: 10, feePct: 0, enabled: true,
+    firstTierPct: 5, bearFirstTierPct: 10, numTiers: 10, stepPct: 1.5, tpPct: 10, feePct: 0, enabled: true,
   };
   const cycles: Cycle[] = [];
   const orders: Order[] = [];
@@ -36,6 +36,8 @@ describe('DcaLadderService state machine', () => {
     (svc as any).repo = repo;
     (svc as any).fetchSeedPeak = async () => 100_000; // stub Binance
     (svc as any).fetchLivePrice = async () => 95_000;
+    (svc as any).fetchTimingSignal = async () => null; // skip extra Binance fetch
+    (svc as any).fetchWeekTrend = async () => 'Up'; // weekly bull → firstTierPct=5
     return svc;
   }
 

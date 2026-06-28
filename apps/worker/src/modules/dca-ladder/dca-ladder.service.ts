@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createDcaLadderRepository } from '@app/db';
-import { tierPrices } from '@app/core';
+import { tierPrices, computeTimeframeTrend, effectiveFirstTierPct } from '@app/core';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
 
@@ -15,6 +15,26 @@ export class DcaLadderSyncService {
     private readonly binance: BinanceMarketDataService,
     private readonly telegram: TelegramService,
   ) {}
+
+  /**
+   * First tier % for a FLAT cycle: shallow (firstTierPct) in a weekly uptrend, deep
+   * (bearFirstTierPct) in a bear/neutral week. Non-fatal: falls back to the bull value
+   * if the weekly klines can't be fetched.
+   */
+  private async resolveFirstTierPct(settings: any): Promise<number> {
+    try {
+      const wk = await this.binance.fetchKlines({ symbol: SYMBOL, timeframe: '1w', limit: 300 });
+      const trend = computeTimeframeTrend(
+        wk.map((k) => parseFloat(k[4] as string)),
+        wk.map((k) => parseFloat(k[2] as string)),
+        wk.map((k) => parseFloat(k[3] as string)),
+      );
+      return effectiveFirstTierPct(trend, settings.firstTierPct, settings.bearFirstTierPct);
+    } catch (e) {
+      this.logger.warn(`week trend failed, using bull first tier: ${e instanceof Error ? e.message : String(e)}`);
+      return settings.firstTierPct;
+    }
+  }
 
   async syncDaily() {
     const empty = { touchedTiers: [] as number[], tpReady: false, changed: false };
@@ -43,17 +63,19 @@ export class DcaLadderSyncService {
 
     if (cycle.status === 'FLAT') {
       const newPeak = Math.max(cycle.peak, high);
-      if (newPeak !== cycle.peak) {
-        await this.repo.updateCycle(cycle.id, { peak: newPeak });
-        const prices = tierPrices(newPeak, {
-          firstTierPct: settings.firstTierPct, numTiers: settings.numTiers, stepPct: settings.stepPct,
-        });
-        for (const o of orders) {
-          if (o.side === 'BUY' && o.status === 'ARMED' && o.tierIndex != null) {
-            const newPrice = prices[o.tierIndex];
-            if (newPrice == null) continue;
-            await this.repo.updateOrder(o.id, { plannedPrice: newPrice });
-          }
+      if (newPeak !== cycle.peak) await this.repo.updateCycle(cycle.id, { peak: newPeak });
+      // Weekly-adaptive first tier: re-arm tier prices every FLAT day so a peak rise OR a
+      // weekly trend flip (bull↔bear) is reflected. New prices take effect next candle
+      // (PENDING_FILL below still checks the snapshot prices that were in effect at open).
+      const firstTierPct = await this.resolveFirstTierPct(settings);
+      const prices = tierPrices(newPeak, {
+        firstTierPct, numTiers: settings.numTiers, stepPct: settings.stepPct,
+      });
+      for (const o of orders) {
+        if (o.side === 'BUY' && o.status === 'ARMED' && o.tierIndex != null) {
+          const newPrice = prices[o.tierIndex];
+          if (newPrice == null) continue;
+          await this.repo.updateOrder(o.id, { plannedPrice: newPrice });
         }
       }
     }

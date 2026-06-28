@@ -1,10 +1,25 @@
 /** Pure math for the BTC DCA dip-bounce ladder strategy. No I/O. */
 
+import type { PaTrend } from './small-cap-signal';
+
 export type DcaLadderParams = {
   firstTierPct: number;
   numTiers: number;
   stepPct: number;
 };
+
+/**
+ * Weekly-trend-adaptive first tier %. Backtest
+ * (claude-backtest/runs/2026-06-28-dca-ladder-weekly-adaptive-firsttier.md): entering
+ * shallow in a weekly uptrend and deep in a downtrend keeps the low-drawdown profile of
+ * the deep entry while recovering most of the shallow entry's return.
+ *
+ *   weekly BULL  (Up / StrongUp)            → bullPct (shallower, catch more bounces)
+ *   weekly BEAR/NEUTRAL (Down/StrongDown/Neutral) → bearPct (deeper, lower avgCost)
+ */
+export function effectiveFirstTierPct(weekTrend: PaTrend, bullPct: number, bearPct: number): number {
+  return weekTrend === 'Up' || weekTrend === 'StrongUp' ? bullPct : bearPct;
+}
 
 export type DcaFill = { price: number; usd: number };
 
