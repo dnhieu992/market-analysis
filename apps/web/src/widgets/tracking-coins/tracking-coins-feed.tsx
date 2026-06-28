@@ -743,17 +743,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey, zoneFilter, qualityFilter, trendFilter, holdingOnly]);
 
-  const anyFilterActive =
-    zoneFilter !== 'all' || qualityFilter !== 'all' || trendFilter !== 'all' || holdingOnly || nameFilter.trim() !== '';
-
-  function resetFilters() {
-    setZoneFilter('all');
-    setQualityFilter('all');
-    setTrendFilter('all');
-    setHoldingOnly(false);
-    setNameFilter('');
-  }
-
   async function reloadCoins() {
     try {
       const res = await fetch(`${resolveApiBaseUrl()}/tracking-coins`, { credentials: 'include' });
@@ -908,69 +897,49 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
         {/* filters */}
         <div className="tc-filters">
-          <div className="tc-filter-bar">
-            <input
-              className="scr-search"
-              type="search"
-              placeholder="Tìm symbol / tên…"
-              value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
-            />
+          <input
+            className="scr-search tc-filter-search"
+            type="search"
+            placeholder="Tìm symbol / tên…"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
+
+          <div className="tc-chip-row">
+            {ZONE_FILTERS.filter((f) => f.key !== 'all').map((f) => (
+              <button
+                key={f.key}
+                className={`ts-filter${zoneFilter === f.key ? ' is-active' : ''}`}
+                onClick={() => setZoneFilter((v) => (v === f.key ? 'all' : f.key))}
+              >
+                {f.label} <span className="ts-filter-count">{zoneCounts[f.key]}</span>
+              </button>
+            ))}
+            {QUALITY_FILTERS.filter((f) => f.key !== 'all').map((f) => (
+              <button
+                key={f.key}
+                className={`ts-filter${qualityFilter === f.key ? ' is-active' : ''}`}
+                onClick={() => setQualityFilter((v) => (v === f.key ? 'all' : f.key))}
+              >
+                {f.label} <span className="ts-filter-count">{qualityCounts[f.key]}</span>
+              </button>
+            ))}
+            {TREND_FILTERS.filter((f) => f.key !== 'all').map((f) => (
+              <button
+                key={f.key}
+                className={`ts-filter${trendFilter === f.key ? ' is-active' : ''}`}
+                onClick={() => setTrendFilter((v) => (v === f.key ? 'all' : f.key))}
+              >
+                {f.label} <span className="ts-filter-count">{trendCounts[f.key]}</span>
+              </button>
+            ))}
             <button
               className={`ts-filter${holdingOnly ? ' is-active' : ''}`}
               onClick={() => setHoldingOnly((v) => !v)}
               title="Chỉ hiện coin đang ôm vị thế DCA"
             >
-              💼 Đang ôm <span className="ts-filter-count">{holdingCount}</span>
+              Holding <span className="ts-filter-count">{holdingCount}</span>
             </button>
-            {anyFilterActive && (
-              <button className="tc-filter-reset" onClick={resetFilters}>Xóa lọc</button>
-            )}
-          </div>
-
-          <div className="tc-filter-group">
-            <span className="tc-filter-label">Vùng</span>
-            <div className="ts-filters">
-              {ZONE_FILTERS.map((f) => (
-                <button
-                  key={f.key}
-                  className={`ts-filter${zoneFilter === f.key ? ' is-active' : ''}`}
-                  onClick={() => setZoneFilter(f.key)}
-                >
-                  {f.label} <span className="ts-filter-count">{zoneCounts[f.key]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="tc-filter-group">
-            <span className="tc-filter-label">Chất lượng</span>
-            <div className="ts-filters">
-              {QUALITY_FILTERS.map((f) => (
-                <button
-                  key={f.key}
-                  className={`ts-filter${qualityFilter === f.key ? ' is-active' : ''}`}
-                  onClick={() => setQualityFilter(f.key)}
-                >
-                  {f.label} <span className="ts-filter-count">{qualityCounts[f.key]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="tc-filter-group">
-            <span className="tc-filter-label">Trend D1</span>
-            <div className="ts-filters">
-              {TREND_FILTERS.map((f) => (
-                <button
-                  key={f.key}
-                  className={`ts-filter${trendFilter === f.key ? ' is-active' : ''}`}
-                  onClick={() => setTrendFilter(f.key)}
-                >
-                  {f.label} <span className="ts-filter-count">{trendCounts[f.key]}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
