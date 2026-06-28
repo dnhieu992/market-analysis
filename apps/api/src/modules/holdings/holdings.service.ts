@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -106,6 +106,51 @@ export class HoldingsService {
       realizedPnl: new Decimal(newRealizedPnl)
       // avgCost stays the same on sell
     });
+  }
+
+  /**
+   * Move an entire coin position from one portfolio to another.
+   * Reassigns every transaction of that coin (including soft-deleted rows and any
+   * mirrored DCA layers) to the target portfolio, then recalculates holdings on both
+   * sides. Cost basis, realized PnL and full history are preserved; if the target
+   * already holds the coin the positions are merged on recalculation.
+   */
+  async transferCoin(
+    sourcePortfolioId: string,
+    coinId: string,
+    targetPortfolioId: string
+  ): Promise<{ coinId: string; moved: number }> {
+    if (sourcePortfolioId === targetPortfolioId) {
+      throw new BadRequestException('Source and target portfolios must be different');
+    }
+
+    const txs = await prisma.coinTransaction.findMany({
+      where: { portfolioId: sourcePortfolioId, coinId },
+      select: { id: true }
+    });
+
+    if (txs.length === 0) {
+      throw new NotFoundException(`No ${coinId} transactions found in the source portfolio`);
+    }
+
+    const ids = txs.map((t) => t.id);
+
+    await prisma.$transaction([
+      prisma.coinTransaction.updateMany({
+        where: { id: { in: ids } },
+        data: { portfolioId: targetPortfolioId }
+      }),
+      // Keep the DCA ladder ↔ portfolio mirror consistent for any moved layers.
+      prisma.trackingCoinDcaBuy.updateMany({
+        where: { transactionId: { in: ids } },
+        data: { portfolioId: targetPortfolioId }
+      })
+    ]);
+
+    await this.recalculate(sourcePortfolioId, coinId);
+    await this.recalculate(targetPortfolioId, coinId);
+
+    return { coinId, moved: ids.length };
   }
 
   async recalculate(portfolioId: string, coinId?: string): Promise<void> {

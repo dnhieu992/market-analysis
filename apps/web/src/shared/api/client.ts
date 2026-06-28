@@ -679,6 +679,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/holdings/recalculate`, withDefaults({ method: 'POST' }));
       if (!response.ok) throw new Error(`Request failed for ${baseUrl}/portfolios/${portfolioId}/holdings/recalculate: ${response.status}`);
     },
+    async transferHolding(portfolioId: string, coinId: string, targetPortfolioId: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/holdings/${coinId}/transfer`, withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPortfolioId }) }));
+      if (!response.ok) throw new Error(`Failed to transfer ${coinId}: ${response.status}`);
+    },
     async fetchPnlHistory(portfolioId: string, query?: QueryPnlInput): Promise<PnlSnapshot[]> {
       const params = new URLSearchParams();
       if (query?.from) params.set('from', query.from);

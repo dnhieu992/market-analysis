@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { PortfolioService } from '../portfolio/portfolio.service';
+import { TransferCoinDto } from './dto/transfer-coin.dto';
 import { HoldingsService } from './holdings.service';
 
 @ApiTags('Holdings')
@@ -53,5 +54,20 @@ export class HoldingsController {
     await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
     await this.holdingsService.recalculate(portfolioId);
     return { message: 'Holdings recalculated successfully' };
+  }
+
+  @Post(':coinId/transfer')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Move a coin position (all its transactions) to another portfolio' })
+  async transfer(
+    @Param('portfolioId') portfolioId: string,
+    @Param('coinId') coinId: string,
+    @Body() body: TransferCoinDto,
+    @Req() req: AuthenticatedRequest
+  ) {
+    // Verify the caller owns BOTH the source and the destination portfolio.
+    await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
+    await this.portfolioService.getPortfolio(body.targetPortfolioId, req.authUser!.id);
+    return this.holdingsService.transferCoin(portfolioId, coinId, body.targetPortfolioId);
   }
 }

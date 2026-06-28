@@ -6,7 +6,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import { createApiClient } from '@web/shared/api/client';
 import { formatCryptoPrice } from '@web/shared/lib/format';
-import type { CoinTransaction, Holding } from '@web/shared/api/types';
+import type { CoinTransaction, Holding, Portfolio } from '@web/shared/api/types';
 import { CoinChatDrawer } from '@web/widgets/coin-chat-drawer/coin-chat-drawer';
 
 type PortfolioCoinDetailProps = Readonly<{
@@ -176,10 +176,88 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
   );
 }
 
+function TransferCoinModal({
+  portfolioId,
+  coinId,
+  onClose
+}: {
+  portfolioId: string;
+  coinId: string;
+  onClose: () => void;
+}) {
+  const [portfolios, setPortfolios] = useState<Portfolio[] | null>(null);
+  const [targetId, setTargetId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    createApiClient()
+      .fetchPortfolios()
+      .then((list) => setPortfolios(list.filter((p) => p.id !== portfolioId)))
+      .catch(() => setError('Failed to load portfolios'));
+  }, [portfolioId]);
+
+  async function handleTransfer() {
+    if (!targetId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createApiClient().transferHolding(portfolioId, coinId, targetId);
+      // The coin now lives in the target portfolio — navigate there.
+      window.location.href = `/portfolio/${targetId}/${coinId}`;
+    } catch {
+      setError('Transfer failed. Please try again.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Transfer {coinId}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body">
+          <p className="tt-muted" style={{ marginTop: 0 }}>
+            Move the entire {coinId} position — all of its transactions and cost basis — into another
+            portfolio. If the destination already holds {coinId}, the positions are merged.
+          </p>
+          <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>
+            Destination portfolio
+          </label>
+          <select
+            value={targetId}
+            onChange={(e) => setTargetId(e.target.value)}
+            disabled={!portfolios || saving}
+            style={{ width: '100%', padding: '0.6rem', borderRadius: 8, background: 'var(--panel-bg, rgba(255,255,255,0.04))', color: 'inherit', border: '1px solid var(--border)' }}
+          >
+            <option value="">{portfolios ? 'Select a portfolio…' : 'Loading…'}</option>
+            {portfolios?.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          {portfolios && portfolios.length === 0 && (
+            <p className="tt-muted" style={{ fontSize: '0.85rem' }}>You have no other portfolio to transfer into.</p>
+          )}
+          {error && <p style={{ color: '#ef4444', fontSize: '0.85rem' }}>{error}</p>}
+          <div className="dialog-confirm-actions" style={{ marginTop: '1rem' }}>
+            <button className="btn btn--secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="btn btn--primary" onClick={handleTransfer} disabled={!targetId || saving}>
+              {saving ? 'Transferring…' : 'Transfer'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions }: PortfolioCoinDetailProps) {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editTx, setEditTx] = useState<CoinTransaction | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -234,6 +312,9 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn--secondary" onClick={() => setAskOpen(true)}>Ask AI</button>
+          {transactions.length > 0 && (
+            <button className="btn btn--secondary" onClick={() => setTransferOpen(true)}>Transfer</button>
+          )}
           <button className="btn btn--primary" onClick={() => setAddOpen(true)}>+ Add Transaction</button>
         </div>
       </div>
@@ -371,6 +452,11 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           onClose={() => setEditTx(null)}
           onSaved={() => startTransition(() => { window.location.reload(); })}
         />
+      )}
+
+      {/* Transfer coin dialog */}
+      {transferOpen && (
+        <TransferCoinModal portfolioId={portfolioId} coinId={coinId} onClose={() => setTransferOpen(false)} />
       )}
 
       {/* AI Chat Drawer */}
