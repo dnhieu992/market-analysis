@@ -151,6 +151,48 @@ function dcaQuality(score: number): { label: string; cls: string } {
   return { label: 'Tránh', cls: 'tc-dca--avoid' };
 }
 
+/* ── filter facets ──────────────────────────────────────────────── */
+
+type ZoneFilter = 'all' | 'GOM' | 'CHO' | 'CHOT';
+type QualityFilter = 'all' | 'safe' | 'ok' | 'risky' | 'avoid';
+type TrendGroup = 'up' | 'side' | 'down';
+type TrendFilter = 'all' | TrendGroup;
+
+function dcaBucketKey(score: number): Exclude<QualityFilter, 'all'> {
+  if (score >= 70) return 'safe';
+  if (score >= 50) return 'ok';
+  if (score >= 30) return 'risky';
+  return 'avoid';
+}
+
+function trendGroup(t: PaTrend): TrendGroup {
+  if (t === 'StrongUp' || t === 'Up') return 'up';
+  if (t === 'Down' || t === 'StrongDown') return 'down';
+  return 'side';
+}
+
+const ZONE_FILTERS: ReadonlyArray<{ key: ZoneFilter; label: string }> = [
+  { key: 'all', label: 'Tất cả' },
+  { key: 'GOM', label: 'GOM' },
+  { key: 'CHO', label: 'Chờ' },
+  { key: 'CHOT', label: 'CHỐT' },
+];
+
+const QUALITY_FILTERS: ReadonlyArray<{ key: QualityFilter; label: string }> = [
+  { key: 'all', label: 'Tất cả' },
+  { key: 'safe', label: 'An toàn' },
+  { key: 'ok', label: 'Khá' },
+  { key: 'risky', label: 'Rủi ro' },
+  { key: 'avoid', label: 'Tránh' },
+];
+
+const TREND_FILTERS: ReadonlyArray<{ key: TrendFilter; label: string }> = [
+  { key: 'all', label: 'Tất cả' },
+  { key: 'up', label: '↑ Tăng' },
+  { key: 'side', label: '→ Ngang' },
+  { key: 'down', label: '↓ Giảm' },
+];
+
 const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; title: string }> = {
   GOM:  { label: 'GOM',  cls: 'tc-zone--gom',  title: 'Quá bán + gần đáy 20 ngày → vùng gom thêm (add layer)' },
   CHOT: { label: 'CHỐT', cls: 'tc-zone--chot', title: 'Giá đã reclaim EMA34 → chốt nếu đang ôm' },
@@ -688,6 +730,10 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('dca');
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('all');
+  const [qualityFilter, setQualityFilter] = useState<QualityFilter>('all');
+  const [trendFilter, setTrendFilter] = useState<TrendFilter>('all');
+  const [holdingOnly, setHoldingOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
@@ -695,7 +741,18 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [dcaCoin, setDcaCoin] = useState<string | null>(null);
 
-  useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
+  useEffect(() => { setPage(1); }, [nameFilter, sortKey, zoneFilter, qualityFilter, trendFilter, holdingOnly]);
+
+  const anyFilterActive =
+    zoneFilter !== 'all' || qualityFilter !== 'all' || trendFilter !== 'all' || holdingOnly || nameFilter.trim() !== '';
+
+  function resetFilters() {
+    setZoneFilter('all');
+    setQualityFilter('all');
+    setTrendFilter('all');
+    setHoldingOnly(false);
+    setNameFilter('');
+  }
 
   async function reloadCoins() {
     try {
@@ -738,11 +795,44 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     }
   }
 
-  const sorted = useMemo(() => {
+  // Coins after the text + holding filters — used both for the visible list and
+  // for the per-facet chip counts so the numbers track the current search.
+  const base = useMemo(() => {
     const q = nameFilter.trim().toUpperCase();
-    const filtered = coins.filter((c) =>
-      !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)
+    return coins.filter((c) =>
+      (!q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)) &&
+      (!holdingOnly || c.dcaPosition != null)
     );
+  }, [coins, nameFilter, holdingOnly]);
+
+  const zoneCounts = useMemo(() => {
+    const c: Record<ZoneFilter, number> = { all: base.length, GOM: 0, CHO: 0, CHOT: 0 };
+    for (const x of base) if (x.signal) c[x.signal.dcaZone] += 1;
+    return c;
+  }, [base]);
+
+  const qualityCounts = useMemo(() => {
+    const c: Record<QualityFilter, number> = { all: base.length, safe: 0, ok: 0, risky: 0, avoid: 0 };
+    for (const x of base) if (x.signal) c[dcaBucketKey(x.signal.dcaScore)] += 1;
+    return c;
+  }, [base]);
+
+  const trendCounts = useMemo(() => {
+    const c: Record<TrendFilter, number> = { all: base.length, up: 0, side: 0, down: 0 };
+    for (const x of base) if (x.signal) c[trendGroup(x.signal.trend)] += 1;
+    return c;
+  }, [base]);
+
+  const holdingCount = useMemo(() => coins.filter((c) => c.dcaPosition != null).length, [coins]);
+
+  const sorted = useMemo(() => {
+    const filtered = base.filter((c) => {
+      const sig = c.signal;
+      if (zoneFilter !== 'all' && sig?.dcaZone !== zoneFilter) return false;
+      if (qualityFilter !== 'all' && (sig == null || dcaBucketKey(sig.dcaScore) !== qualityFilter)) return false;
+      if (trendFilter !== 'all' && (sig == null || trendGroup(sig.trend) !== trendFilter)) return false;
+      return true;
+    });
     return [...filtered].sort((a, b) => {
       if (sortKey === 'dca') return (b.signal?.dcaScore ?? -Infinity) - (a.signal?.dcaScore ?? -Infinity);
       if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
@@ -751,7 +841,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
     });
-  }, [coins, sortKey, nameFilter]);
+  }, [base, sortKey, zoneFilter, qualityFilter, trendFilter]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -817,14 +907,71 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         )}
 
         {/* filters */}
-        <div className="scr-filters scr-filters--right">
-          <input
-            className="scr-search"
-            type="search"
-            placeholder="Tìm symbol / tên…"
-            value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
-          />
+        <div className="tc-filters">
+          <div className="tc-filter-bar">
+            <input
+              className="scr-search"
+              type="search"
+              placeholder="Tìm symbol / tên…"
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+            />
+            <button
+              className={`ts-filter${holdingOnly ? ' is-active' : ''}`}
+              onClick={() => setHoldingOnly((v) => !v)}
+              title="Chỉ hiện coin đang ôm vị thế DCA"
+            >
+              💼 Đang ôm <span className="ts-filter-count">{holdingCount}</span>
+            </button>
+            {anyFilterActive && (
+              <button className="tc-filter-reset" onClick={resetFilters}>Xóa lọc</button>
+            )}
+          </div>
+
+          <div className="tc-filter-group">
+            <span className="tc-filter-label">Vùng</span>
+            <div className="ts-filters">
+              {ZONE_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  className={`ts-filter${zoneFilter === f.key ? ' is-active' : ''}`}
+                  onClick={() => setZoneFilter(f.key)}
+                >
+                  {f.label} <span className="ts-filter-count">{zoneCounts[f.key]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="tc-filter-group">
+            <span className="tc-filter-label">Chất lượng</span>
+            <div className="ts-filters">
+              {QUALITY_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  className={`ts-filter${qualityFilter === f.key ? ' is-active' : ''}`}
+                  onClick={() => setQualityFilter(f.key)}
+                >
+                  {f.label} <span className="ts-filter-count">{qualityCounts[f.key]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="tc-filter-group">
+            <span className="tc-filter-label">Trend D1</span>
+            <div className="ts-filters">
+              {TREND_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  className={`ts-filter${trendFilter === f.key ? ' is-active' : ''}`}
+                  onClick={() => setTrendFilter(f.key)}
+                >
+                  {f.label} <span className="ts-filter-count">{trendCounts[f.key]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* table */}

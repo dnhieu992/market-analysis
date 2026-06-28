@@ -7031,6 +7031,56 @@ a.metric-card--link:hover {
   justify-content: flex-end;
 }
 
+/* tracking-coins faceted filters */
+.tc-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tc-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tc-filter-bar .scr-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+.tc-filter-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tc-filter-label {
+  min-width: 84px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.tc-filter-reset {
+  margin-left: auto;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tc-filter-reset:hover { color: var(--fg); border-color: var(--accent); }
+
+@media (max-width: 640px) {
+  .tc-filter-label { min-width: 0; flex-basis: 100%; }
+  .tc-filter-reset { margin-left: 0; }
+}
+
 .scr-filter-chip {
   padding: 5px 12px;
   border-radius: 20px;
