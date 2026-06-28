@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Workflow
+
+Implement changes **directly on `main`**. Do NOT auto-create a feature branch, even though `main` is the default branch. Only create a separate branch when the user explicitly asks for one.
+
 ## Backtesting
 
 When the user asks to **backtest** anything, ALWAYS:

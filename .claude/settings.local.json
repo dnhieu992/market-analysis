@@ -144,7 +144,8 @@
       "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:orders -- --days=365 --symbols=BTC)",
       "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:orders -- --days=90 --symbols=BTC)",
       "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:orders -- --days=730 --symbols=BTC)",
-      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=180 --atr=1 --min-rr=2)"
+      "Bash(TS_NODE_TRANSPILE_ONLY=1 pnpm --filter worker backtest:daytrading -- --days=180 --atr=1 --min-rr=2)",
+      "Bash(npx tsx *)"
     ]
   }
 }
