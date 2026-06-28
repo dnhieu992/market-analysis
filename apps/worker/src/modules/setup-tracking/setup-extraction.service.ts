@@ -2,13 +2,37 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
 import { createDailyAnalysisRepository, createTrackedSetupRepository } from '@app/db';
 
+import { MarketDataService } from '../market/market-data.service';
+import { detectTrend, type Trend } from '../market/utils/trend';
+
 type DailyAnalysisRepository = ReturnType<typeof createDailyAnalysisRepository>;
 type TrackedSetupRepository = ReturnType<typeof createTrackedSetupRepository>;
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 
+// Quality gates applied to every extracted setup before it is persisted as
+// trackable. These exist because the daily plan is free-form LLM prose, so a
+// setup can be counter-trend, have a poor reward:risk, or sit at an entry the
+// market will never reach before the plan is superseded — exactly the pattern
+// that produced "toàn stoploss với không khớp" (all stop-outs or never-filled).
+const MIN_RR = 1.5;
+// Drop a setup whose entry zone is further than this from the current price:
+// such "treo" (hanging) limit orders just churn to INVALID when the next day's
+// plan supersedes them, without ever filling.
+const MAX_ENTRY_DISTANCE_PCT = 0.035;
+
 type ClaudeToolUseResponse = {
   content?: Array<{ type: string; name?: string; input?: unknown }>;
+};
+
+type QualityGateRow = {
+  slot: string;
+  direction: 'long' | 'short' | 'none';
+  entryLow: number;
+  entryHigh: number;
+  stopLoss: number;
+  takeProfit1: number | null;
+  takeProfit2: number | null;
 };
 
 type ExtractedSetup = {
@@ -74,7 +98,10 @@ export class SetupExtractionService {
   private readonly dailyAnalysisRepository: DailyAnalysisRepository;
   private readonly trackedSetupRepository: TrackedSetupRepository;
 
-  constructor(@Optional() httpClient?: AxiosInstance) {
+  constructor(
+    @Optional() private readonly marketDataService?: MarketDataService,
+    @Optional() httpClient?: AxiosInstance
+  ) {
     this.dailyAnalysisRepository = createDailyAnalysisRepository();
     this.trackedSetupRepository = createTrackedSetupRepository();
     this.httpClient =
@@ -119,7 +146,7 @@ export class SetupExtractionService {
         return 0;
       }
 
-      const rows = setups
+      const candidates = setups
         .filter((s) => this.isPersistable(s))
         .map((s) => {
           const entryLow = Math.min(s.entryLow!, s.entryHigh ?? s.entryLow!);
@@ -139,6 +166,8 @@ export class SetupExtractionService {
             status: 'PENDING'
           };
         });
+
+      const rows = await this.applyQualityGates(symbol, candidates);
 
       if (rows.length === 0) {
         this.logger.log(`No actionable setups for ${symbol} after filtering`);
@@ -162,6 +191,74 @@ export class SetupExtractionService {
       Number.isFinite(s.stopLoss as number) &&
       Number.isFinite(s.entryLow as number)
     );
+  }
+
+  /**
+   * Deterministic quality gates run after LLM extraction, before persistence.
+   * Rejects setups that historically led to losses or never-filled noise:
+   *  - poor reward:risk (RR < {@link MIN_RR}),
+   *  - counter-trend vs the D1 trend (e.g. a dip-buy LONG in a clear downtrend),
+   *  - an entry zone too far from price to realistically fill ({@link MAX_ENTRY_DISTANCE_PCT}).
+   * Trend / distance gates need live market data; if it's unavailable the RR gate
+   * still applies and the rest fail open (never block on a data hiccup).
+   */
+  private async applyQualityGates<T extends QualityGateRow>(symbol: string, rows: T[]): Promise<T[]> {
+    if (rows.length === 0) return rows;
+
+    let trend: Trend = 'neutral';
+    let currentPrice = 0;
+    try {
+      const d1 = (await this.marketDataService?.getCandles(symbol, '1d', 200)) ?? [];
+      if (d1.length > 0) {
+        trend = detectTrend(d1);
+        currentPrice = d1[d1.length - 1]!.close;
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'unknown error';
+      this.logger.warn(`Trend/price fetch failed for ${symbol} — skipping trend/distance gates: ${msg}`);
+    }
+
+    const kept: T[] = [];
+    for (const row of rows) {
+      const reason = this.rejectReason(row, trend, currentPrice);
+      if (reason) {
+        this.logger.log(`Gate rejected ${symbol} ${row.slot} ${row.direction}: ${reason}`);
+        continue;
+      }
+      kept.push(row);
+    }
+    return kept;
+  }
+
+  /** Returns a human-readable reason to reject a setup, or null to keep it. */
+  private rejectReason(row: QualityGateRow, trend: Trend, currentPrice: number): string | null {
+    const entryMid = (row.entryLow + row.entryHigh) / 2;
+    const risk = Math.abs(entryMid - row.stopLoss);
+    if (risk <= 0) return 'invalid stop-loss (zero risk)';
+
+    // Reward:risk — judged on TP1, falling back to TP2 when TP1 is absent.
+    const tp = row.takeProfit1 ?? row.takeProfit2;
+    if (tp != null) {
+      const rr = Math.abs(tp - entryMid) / risk;
+      if (rr < MIN_RR) return `RR ${rr.toFixed(2)} < ${MIN_RR}`;
+    }
+
+    // Trend alignment — never fade a clearly-trending D1.
+    if (trend === 'bearish' && row.direction === 'long') return 'LONG counter-trend (D1 bearish)';
+    if (trend === 'bullish' && row.direction === 'short') return 'SHORT counter-trend (D1 bullish)';
+
+    // Entry reachability — drop far "hanging" limits that just churn to INVALID.
+    if (currentPrice > 0) {
+      const inside = currentPrice >= row.entryLow && currentPrice <= row.entryHigh;
+      const distance = inside
+        ? 0
+        : Math.min(Math.abs(currentPrice - row.entryLow), Math.abs(currentPrice - row.entryHigh)) / currentPrice;
+      if (distance > MAX_ENTRY_DISTANCE_PCT) {
+        return `entry too far from price (${(distance * 100).toFixed(1)}% > ${(MAX_ENTRY_DISTANCE_PCT * 100).toFixed(1)}%)`;
+      }
+    }
+
+    return null;
   }
 
   private readAnalysisText(aiOutputJson: string, summary: string): string {

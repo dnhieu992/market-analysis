@@ -6,6 +6,7 @@ import { createDailyAnalysisRepository } from '@app/db';
 
 import { ChartService } from '../chart/chart.service';
 import { MarketDataService } from '../market/market-data.service';
+import { detectTrend, type Trend } from '../market/utils/trend';
 import type { OhlcCandle } from '../chart/chart.types';
 
 type DailyAnalysisRepository = ReturnType<typeof createDailyAnalysisRepository>;
@@ -126,7 +127,13 @@ export class VisualAnalysisService {
       imageBuffers.push({ buffer: buf, label: spec.label });
     }
 
-    const analysisText = await this.callClaudeVision(symbol, imageBuffers, now);
+    // Ground the vision prompt with a deterministic D1 trend + current price so
+    // the plan stays trend-aligned and entries are anchored to the real price.
+    const d1Candles = await this.marketDataService.getCandles(symbol, '1d', 200);
+    const d1Trend = detectTrend(d1Candles);
+    const currentPrice = d1Candles[d1Candles.length - 1]?.close ?? 0;
+
+    const analysisText = await this.callClaudeVision(symbol, imageBuffers, now, d1Trend, currentPrice);
 
     await this.saveToDatabase(symbol, analysisText);
 
@@ -306,10 +313,18 @@ export class VisualAnalysisService {
     return response.data.content?.find(b => b.type === 'text')?.text ?? null;
   }
 
+  private trendVi(trend: Trend): string {
+    if (trend === 'bullish') return 'TĂNG';
+    if (trend === 'bearish') return 'GIẢM';
+    return 'ĐI NGANG';
+  }
+
   private async callClaudeVision(
     symbol: string,
     images: Array<{ buffer: Buffer; label: string }>,
-    date: Date
+    date: Date,
+    d1Trend: Trend = 'neutral',
+    currentPrice = 0
   ): Promise<string> {
     const dateStr = date.toISOString().slice(0, 10);
     const apiKey = process.env.CLAUDE_API_KEY ?? '';
@@ -344,7 +359,15 @@ export class VisualAnalysisService {
                 'Biểu đồ đính kèm theo thứ tự từ khung lớn đến nhỏ:',
                 chartList,
                 '',
-                'Phân tích từ khung lớn xuống nhỏ, xác định xu hướng tổng thể rồi đưa ra trading plan cụ thể cho hôm nay (entry, SL, TP, trigger, invalidation).'
+                `BỐI CẢNH (đã tính sẵn, dùng làm chuẩn): Xu hướng D1 = ${this.trendVi(d1Trend)}. Giá hiện tại ≈ ${currentPrice}.`,
+                '',
+                'QUY TẮC BẮT BUỘC khi ra plan (tuân thủ tuyệt đối — vi phạm sẽ bị loại bỏ tự động):',
+                '1. THUẬN XU HƯỚNG: chỉ đề xuất lệnh CÙNG chiều xu hướng D1. D1 GIẢM → chỉ SHORT, TUYỆT ĐỐI không bắt đáy LONG. D1 TĂNG → chỉ LONG, không bán đỉnh SHORT. D1 ĐI NGANG → được cả hai nhưng chỉ tại biên range rõ ràng.',
+                '2. ENTRY GẦN GIÁ: entry phải nằm trong khoảng ~3% quanh giá hiện tại, hoặc ngay tại điểm phá vỡ/retest sắp diễn ra. KHÔNG đặt entry chờ một nhịp hồi sâu mà thị trường nhiều khả năng không chạm tới — đó chính là lý do lệnh "treo" không bao giờ khớp.',
+                '3. R:R TỐI THIỂU 1.5 (ưu tiên ≥ 2): khoảng cách Entry→TP1 phải ≥ 1.5 lần khoảng cách Entry→SL. Nếu không đạt thì KHÔNG đưa lệnh đó.',
+                '4. ĐƯỢC PHÉP KHÔNG GIAO DỊCH: nếu thị trường đi ngang/nhiễu/đang quá mở rộng hoặc tín hiệu mâu thuẫn → ghi rõ "KHÔNG VÀO LỆNH HÔM NAY" kèm lý do, KHÔNG bịa setup cho đủ.',
+                '',
+                'Phân tích từ khung lớn xuống nhỏ, xác định xu hướng tổng thể, rồi đưa ra trading plan cụ thể cho hôm nay (entry, SL, TP1, TP2, trigger, invalidation) — hoặc kết luận không giao dịch. Mỗi setup phải ghi rõ R:R.'
               ].join('\n')
             }
           ]
