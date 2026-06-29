@@ -7087,6 +7087,46 @@ a.metric-card--link:hover {
 .scr-filter-chip--extended    { background: rgba(239,68,68,0.10);  border-color: rgba(239,68,68,0.3);  color: #dc2626; }
 .scr-filter-chip--oversold    { background: rgba(124,58,237,0.12); border-color: rgba(124,58,237,0.35); color: #7c3aed; }
 .scr-filter-chip--quiet       { background: rgba(23,18,13,0.06);   border-color: var(--border);        color: var(--muted); }
+.scr-filter-chip--lottery     { background: rgba(124,58,237,0.16); border-color: rgba(124,58,237,0.45); color: #6d28d9; }
+
+/* ── lottery (xổ số) plan cell ──────────────────────────────────── */
+.scr-td--lotto { white-space: nowrap; }
+.scr-lotto {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: help;
+}
+.scr-lotto-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #6d28d9;
+  background: rgba(124,58,237,0.14);
+  border: 1px solid rgba(124,58,237,0.35);
+  border-radius: 5px;
+  padding: 1px 6px;
+  width: fit-content;
+}
+.scr-lotto-levels {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── lottery strategy note ──────────────────────────────────────── */
+.scr-lotto-note {
+  margin-top: 4px;
+  padding: 10px 14px;
+  border: 1px solid rgba(124,58,237,0.25);
+  background: rgba(124,58,237,0.06);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--fg);
+}
+.scr-lotto-note .scr-stage { vertical-align: middle; }
 
 /* setup filter chips */
 .tc-setup-chip {

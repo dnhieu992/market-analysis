@@ -49,6 +49,17 @@ Each coin also stores **market cap** (synced from CoinGecko during Sync Coins) a
 
 **extPct (Ext% column):** distance of the close above EMA34, in %. It is the exit-timing gauge — a healthy trend sits a few % above EMA34; once extPct climbs past ~+20% the move is overheated (usually paired with the Extended stage) and the table flags it red as a trail / take-profit cue rather than an entry.
 
+## Lottery (Xổ số) Strategy Overlay
+
+A **client-side strategy overlay** that turns the radar into actionable buy plans for a small "lottery ticket" sleeve. It is pure derived math (no DB/API/worker change) computed in the web feed from the existing `stage` + `sparkline` (last point = current close).
+
+- **Entry trigger = the `Oversold` stage** (deep capitulation: RSI<30, below EMA200, ≥25% drop/10d). That is exactly the backtested deep-oversold entry. Coins in any other stage show `—` in the Xổ số column.
+- **Concrete plan per entry coin** (`computeLotteryPlan`): entry = current close; **TP1 +18%** (sell ½), **TP2 +35%** (sell the rest); **disaster stop −40%**; **time-stop 21 days** (exit at close, recycle capital). Constants `LOTTERY_TP1 / TP2 / STOP / TIME_STOP_DAYS` live at the top of the feed component.
+- **Sizing rule (manual):** flat small size per ticket, spread equally across the basket, no compounding, no pyramiding.
+- **UI:** a `🎟 Xổ số` filter chip (with a live count of current entries) shows only entry coins; a `Xổ số` column shows a `🎟 MUA` badge + the TP/SL %s with the exact prices in the cell tooltip; a note below the legend summarises the rules. The Xổ số `<td>` stops click propagation so it does not open TradingView.
+
+**Backtest basis:** `scripts/run-smallcap-lottery-strategy-backtest.ts`, run logged `claude-backtest/runs/2026-06-29-smallcap-lottery-strategy.md` (cfg C). On ATM/PIVX/ORDI + 30 small-caps, D1 ~2.7y: the TP ladder returned ~+22% on the basket vs ~+8% for naïve buy&hold of the same signal (≈3×); the −40% stop turns the worst ticket from −88% into −40%. Expectation is modest (~7–9%/yr on the sleeve) — an asymmetric small allocation, not a jackpot. Survivorship caveat: the universe is coins still listed on Binance, so the real downside tail is worse and the stop matters more live.
+
 ## Signal Score Algorithm
 
 ```
@@ -107,7 +118,7 @@ score = clamp(base + volBonus + rsiFactor + emaBonus + extPenalty, 0, 100)
 **Web**
 - `apps/web/src/app/small-cap-radar/page.tsx` — Next.js route entry
 - `apps/web/src/_pages/small-cap-radar-page/small-cap-radar-page.tsx` — Server Component, loads initial data
-- `apps/web/src/widgets/small-cap-radar/small-cap-radar-feed.tsx` — Client Component: table with sort/filter/sparkline, Trending stage chip + bar, Ext% column (sortable), Mkt Cap column, Listed column, Re-analyze button
+- `apps/web/src/widgets/small-cap-radar/small-cap-radar-feed.tsx` — Client Component: table with sort/filter/sparkline, Trending stage chip + bar, Ext% column (sortable), Mkt Cap column, Listed column, Re-analyze button, **Lottery (Xổ số) overlay** (`computeLotteryPlan`, `isLotteryEntry`, `LotteryCell`, `🎟 Xổ số` filter chip + column + strategy note)
 - `apps/web/src/shared/api/types.ts` — `SmallCapCoinRow` (includes `marketCap`, `listingDate`), `SmallCapStage`
 - `apps/web/src/shared/api/client.ts` — `fetchSmallCapRadar`, `addSmallCapCoin`, `removeSmallCapCoin`, `triggerSmallCapScan`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav item

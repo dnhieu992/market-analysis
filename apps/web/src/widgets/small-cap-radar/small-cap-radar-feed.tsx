@@ -13,6 +13,35 @@ type SortKey = 'signal' | 'rsi' | 'vol' | 'ext' | 'coin';
 const ALL_STAGES: SmallCapStage[] = ['Breakout', 'Trending', 'Accumulating', 'Waking', 'Extended', 'Oversold', 'Quiet'];
 const PAGE_SIZE = 50;
 
+/* ── Lottery (xổ số) strategy params ──────────────────────────────
+ * Backtested on ATM/PIVX/ORDI + 30 small-caps, D1 ~2.7y
+ * (scripts/run-smallcap-lottery-strategy-backtest.ts, cfg C).
+ * Entry trigger = the `Oversold` stage (deep capitulation: RSI<30,
+ * below EMA200, ≥25% drop/10d). Flat small size per ticket, no
+ * compounding; the TP ladder ≈ 3× vs buy&hold and the −40% stop caps
+ * the rare coin that keeps bleeding to zero. */
+const LOTTERY_TP1 = 0.18; // sell ½ here (+15–20% band)
+const LOTTERY_TP2 = 0.35; // sell the rest here (+30–40% band)
+const LOTTERY_STOP = 0.40; // disaster stop, caps the near-zeros
+const LOTTERY_TIME_STOP_DAYS = 21; // exit at close if neither TP nor stop hits
+
+type LotteryPlan = { entry: number; tp1: number; tp2: number; stop: number };
+
+/** The lottery entry trigger is exactly the deep-oversold capitulation stage. */
+function isLotteryEntry(stage: SmallCapStage): boolean {
+  return stage === 'Oversold';
+}
+
+/** Derive concrete price levels from the current close (last sparkline point). */
+function computeLotteryPlan(close: number): LotteryPlan {
+  return {
+    entry: close,
+    tp1: close * (1 + LOTTERY_TP1),
+    tp2: close * (1 + LOTTERY_TP2),
+    stop: close * (1 - LOTTERY_STOP),
+  };
+}
+
 /* ── stage badge ─────────────────────────────────────────────── */
 
 function StageBadge({ stage }: { stage: SmallCapStage }) {
@@ -162,6 +191,31 @@ function MarketCapCell({ cap }: { cap: number | null }) {
   return <span className="scr-muted">{fmt}</span>;
 }
 
+/* ── lottery (xổ số) plan cell ───────────────────────────────── */
+
+function LotteryCell({ stage, sparkline }: { stage: SmallCapStage; sparkline: number[] }) {
+  if (!isLotteryEntry(stage)) return <span className="scr-muted">—</span>;
+  const close = sparkline[sparkline.length - 1];
+  if (close == null || close <= 0) return <span className="scr-muted">—</span>;
+  const plan = computeLotteryPlan(close);
+  const title =
+    `Kế hoạch xổ số (đã backtest):\n` +
+    `Vào: $${fmtSmallPrice(plan.entry)}\n` +
+    `TP1 (+${(LOTTERY_TP1 * 100).toFixed(0)}%, bán ½): $${fmtSmallPrice(plan.tp1)}\n` +
+    `TP2 (+${(LOTTERY_TP2 * 100).toFixed(0)}%, bán phần còn lại): $${fmtSmallPrice(plan.tp2)}\n` +
+    `SL (−${(LOTTERY_STOP * 100).toFixed(0)}%): $${fmtSmallPrice(plan.stop)}\n` +
+    `Time-stop: ${LOTTERY_TIME_STOP_DAYS} ngày — không chạm TP/SL thì thoát, quay vòng vốn.\n` +
+    `Size nhỏ cố định, chia đều rổ. Không nhồi lệnh.`;
+  return (
+    <div className="scr-lotto" title={title}>
+      <span className="scr-lotto-badge">🎟 MUA</span>
+      <span className="scr-lotto-levels">
+        TP +{(LOTTERY_TP1 * 100).toFixed(0)}/+{(LOTTERY_TP2 * 100).toFixed(0)}% · SL −{(LOTTERY_STOP * 100).toFixed(0)}%
+      </span>
+    </div>
+  );
+}
+
 /* ── listing date cell ───────────────────────────────────────── */
 
 function ListingDateCell({ date }: { date: string | null }) {
@@ -284,6 +338,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
   const [hiddenStages, setHiddenStages] = useState<Set<SmallCapStage>>(new Set<SmallCapStage>());
   const [showAddForm, setShowAddForm] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
+  const [onlyLottery, setOnlyLottery] = useState(false);
   const [page, setPage] = useState(1);
   const [historyCoin, setHistoryCoin] = useState<string | null>(null);
 
@@ -297,7 +352,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
   }
 
   // Reset to page 1 whenever filters or sort change
-  useEffect(() => { setPage(1); }, [nameFilter, hiddenStages, sortKey]);
+  useEffect(() => { setPage(1); }, [nameFilter, hiddenStages, sortKey, onlyLottery]);
 
   async function handleSyncCoins() {
     setSyncing(true);
@@ -358,6 +413,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
     const q = nameFilter.trim().toUpperCase();
     const filtered = coins.filter((c) => {
       if (q && !c.symbol.includes(q) && !c.name.toUpperCase().includes(q)) return false;
+      if (onlyLottery) return c.signal !== null && isLotteryEntry(c.signal.stage as SmallCapStage);
       if (c.signal === null) return true;
       const stage = c.signal.stage as SmallCapStage;
       return !hiddenStages.has(stage);
@@ -369,7 +425,12 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
       if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
       return a.symbol.localeCompare(b.symbol);
     });
-  }, [coins, sortKey, hiddenStages, nameFilter]);
+  }, [coins, sortKey, hiddenStages, nameFilter, onlyLottery]);
+
+  const lotteryCount = useMemo(
+    () => coins.filter((c) => c.signal !== null && isLotteryEntry(c.signal.stage as SmallCapStage)).length,
+    [coins],
+  );
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -433,6 +494,13 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
 
       {/* ── filters row: stage chips + search ── */}
       <div className="scr-filters">
+        <button
+          className={`scr-filter-chip scr-filter-chip--lottery${onlyLottery ? '' : ' scr-filter-chip--off'}`}
+          onClick={() => setOnlyLottery((v) => !v)}
+          title="Chỉ hiện các coin đang ở điểm vào lệnh xổ số (stage Oversold)"
+        >
+          🎟 Xổ số {lotteryCount > 0 ? `(${lotteryCount})` : ''}
+        </button>
         {ALL_STAGES.map((stage) => (
           <button
             key={stage}
@@ -473,6 +541,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
                 Ext% {sortKey === 'ext' && '↓'}
               </th>
               <th className="scr-th">vs EMA</th>
+              <th className="scr-th">Xổ số</th>
               <th className="scr-th">30d</th>
               <th className="scr-th scr-th--num">Mkt Cap</th>
               <th className="scr-th scr-th--num">Listed</th>
@@ -481,7 +550,7 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={10} className="scr-empty">
+                <td colSpan={11} className="scr-empty">
                   {coins.length === 0
                     ? 'Add coins to start tracking.'
                     : nameFilter
@@ -538,6 +607,9 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
                     ) : (
                       <span className="scr-muted">—</span>
                     )}
+                  </td>
+                  <td className="scr-td scr-td--lotto" onClick={(e) => e.stopPropagation()}>
+                    <LotteryCell stage={stage} sparkline={sig?.sparkline ?? []} />
                   </td>
                   <td className="scr-td scr-td--sparkline">
                     <Sparkline prices={sig?.sparkline ?? []} />
@@ -602,7 +674,18 @@ export function SmallCapRadarFeed({ initialCoins }: Props) {
         <span className="scr-stage scr-stage--accumulating">Accumulating</span><span>theo dõi</span>
         <span className="scr-stage scr-stage--waking">Waking</span><span>chớm động</span>
         <span className="scr-stage scr-stage--extended">Extended</span><span>đã chạy, tránh đu</span>
+        <span className="scr-stage scr-stage--oversold">Oversold</span><span>điểm vào xổ số</span>
         <span className="scr-stage scr-stage--quiet">Quiet</span><span>bỏ qua</span>
+      </div>
+
+      {/* ── lottery strategy note ── */}
+      <div className="scr-lotto-note">
+        🎟 <strong>Chiến lược xổ số</strong> (đã backtest ~2.7 năm trên ATM/PIVX/ORDI + 30 small-cap):
+        vào lệnh khi coin ở stage <span className="scr-stage scr-stage--oversold">Oversold</span> (quá bán sâu:
+        RSI&lt;30, dưới EMA200, giảm ≥25%/10 ngày) — <strong>size nhỏ cố định, chia đều rổ, không nén vốn, không nhồi</strong>.
+        Chốt: bán ½ ở <strong>+{(LOTTERY_TP1 * 100).toFixed(0)}%</strong>, bán phần còn lại ở <strong>+{(LOTTERY_TP2 * 100).toFixed(0)}%</strong>;
+        cắt lỗ thảm hoạ <strong>−{(LOTTERY_STOP * 100).toFixed(0)}%</strong>; nếu sau <strong>{LOTTERY_TIME_STOP_DAYS} ngày</strong> không chạm TP/SL thì thoát, quay vòng vốn.
+        Kỳ vọng ~7–9%/năm trên vốn rổ — một mảng nhỏ bất đối xứng, không phải máy in tiền.
       </div>
     </main>
   );
