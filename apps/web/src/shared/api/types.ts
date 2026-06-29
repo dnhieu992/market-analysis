@@ -449,6 +449,11 @@ export type TrackingCoinRow = {
     entryScore: number;
     dcaScore: number;
     dcaZone: 'GOM' | 'CHO' | 'CHOT';
+    accZone: 'GOM' | 'CHO' | 'CHOT' | null;
+    accDrawdownPct: number | null;
+    accBaseWidthPct: number | null;
+    accInBase: boolean | null;
+    accGatePassed: boolean | null;
     extPct: number | null;
     low20Pct: number | null;
     sparkline: number[];

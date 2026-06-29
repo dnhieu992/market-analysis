@@ -5,6 +5,7 @@ import {
   computeLongShortScore,
   computeEntryScore,
   computeDcaScore,
+  computeAccumulationSignal,
   dcaZone,
   dcaQualityBucket,
   calculateEma,
@@ -217,6 +218,15 @@ export class TrackingCoinScanService {
       utBotW1Bullish,
     });
 
+    // Accumulation-zone DCA signal (spot, no SL) — gated by dcaScore survival filter.
+    const acc = computeAccumulationSignal({
+      closesD1: closes,
+      highsD1: highs,
+      lowsD1: lows,
+      weeklyHighs: wHighs,
+      dcaScore,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -253,6 +263,11 @@ export class TrackingCoinScanService {
       h4Ema200Above,
       h4Rsi,
       h4VolMultiplier,
+      accZone: acc?.zone ?? null,
+      accDrawdownPct: acc?.drawdownPct ?? null,
+      accBaseWidthPct: acc?.baseWidthPct ?? null,
+      accInBase: acc?.inBase ?? null,
+      accGatePassed: acc?.gatePassed ?? null,
     });
 
     // ── DCA signal history — append only when zone/bucket changes ──────

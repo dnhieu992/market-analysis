@@ -63,6 +63,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Theo dõi coin tự nhập tay'
   },
   {
+    href: '/accumulation',
+    label: 'Tích luỹ (Accumulation)',
+    description: 'Gom spot no-SL · vùng tích luỹ + cổng dcaScore'
+  },
+  {
     href: '/day-trading',
     label: 'Day Trading',
     description: 'BTC 15m setups · Break & Retest, Liq. Sweep'

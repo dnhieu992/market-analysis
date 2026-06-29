@@ -436,6 +436,12 @@ model TrackingCoinSignal {
   h4Ema200Above   Boolean?
   h4Rsi           Float?
   h4VolMultiplier Float?
+  // Accumulation-zone DCA signal (spot, no SL) — gated by dcaScore survival filter.
+  accZone         String?      @db.VarChar(5)
+  accDrawdownPct  Float?
+  accBaseWidthPct Float?
+  accInBase       Boolean?
+  accGatePassed   Boolean?
   scannedAt       DateTime     @default(now())
   coin           TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
 

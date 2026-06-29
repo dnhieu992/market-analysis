@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, dcaZone, dcaQualityBucket, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
-import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, computeAccumulationSignal, dcaZone, dcaQualityBucket, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
+import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone, AccZone } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
@@ -87,6 +87,11 @@ export type TrackingCoinWithSignal = {
     entryScore: number;
     dcaScore: number;
     dcaZone: DcaZone;
+    accZone: AccZone | null;
+    accDrawdownPct: number | null;
+    accBaseWidthPct: number | null;
+    accInBase: boolean | null;
+    accGatePassed: boolean | null;
     extPct: number | null;
     low20Pct: number | null;
     sparkline: number[];
@@ -165,6 +170,11 @@ export class TrackingCoinsService {
               entryScore: sig.entryScore,
               dcaScore: sig.dcaScore,
               dcaZone: dcaZone({ ema34Above: sig.ema34Above, rsi: sig.rsi ?? 50, low20Pct: sig.low20Pct }),
+              accZone: (sig.accZone as AccZone | null) ?? null,
+              accDrawdownPct: sig.accDrawdownPct,
+              accBaseWidthPct: sig.accBaseWidthPct,
+              accInBase: sig.accInBase,
+              accGatePassed: sig.accGatePassed,
               extPct: sig.extPct,
               low20Pct: sig.low20Pct,
               sparkline: this.parseSparkline(sig.sparklineJson),
@@ -662,6 +672,15 @@ export class TrackingCoinsService {
       utBotW1Bullish,
     });
 
+    // Accumulation-zone DCA signal (spot, no SL) — gated by dcaScore survival filter.
+    const acc = computeAccumulationSignal({
+      closesD1: closes,
+      highsD1: highs,
+      lowsD1: lows,
+      weeklyHighs: wHighs,
+      dcaScore,
+    });
+
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
@@ -698,6 +717,11 @@ export class TrackingCoinsService {
       h4Ema200Above,
       h4Rsi,
       h4VolMultiplier,
+      accZone: acc?.zone ?? null,
+      accDrawdownPct: acc?.drawdownPct ?? null,
+      accBaseWidthPct: acc?.baseWidthPct ?? null,
+      accInBase: acc?.inBase ?? null,
+      accGatePassed: acc?.gatePassed ?? null,
     });
 
     // DCA signal history — append only when zone/bucket changes vs last row.
