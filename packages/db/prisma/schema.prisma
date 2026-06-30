@@ -346,6 +346,8 @@ model TrackingCoinDcaBuy {
   coinId        String
   price         Float
   usd           Float
+  // How the layer was entered: "SIGNAL" (bought while dcaZone=GOM) vs "FOMO" (any other zone).
+  entryMode     String?      @db.VarChar(8)
   boughtAt      DateTime     @default(now())
   createdAt     DateTime     @default(now())
   // Two-way sync with the portfolio: each DCA layer mirrors a CoinTransaction (BUY).
@@ -436,6 +438,13 @@ model TrackingCoinSignal {
   h4Ema200Above   Boolean?
   h4Rsi           Float?
   h4VolMultiplier Float?
+  // M30 timeframe — display-only signal (not used in any scoring/logic).
+  utBotM30Bullish  Boolean?
+  m30Ema34Above    Boolean?
+  m30Ema89Above    Boolean?
+  m30Ema200Above   Boolean?
+  m30Rsi           Float?
+  m30VolMultiplier Float?
   // Accumulation-zone DCA signal (spot, no SL) — gated by dcaScore survival filter.
   accZone         String?      @db.VarChar(5)
   accDrawdownPct  Float?
@@ -466,6 +475,13 @@ model TrackingCoinSignalHistory {
   rsi        Float?
   extPct     Float?
   price      Float?
+  // Daily LLM (Haiku) review of an OPEN holding — null on plain change-log rows.
+  entryMode  String?      @db.VarChar(8)
+  avgEntry   Float?
+  pnlPct     Float?
+  llmVerdict String?      @db.VarChar(12)
+  llmReview  String?      @db.Text
+  llmModel   String?      @db.VarChar(40)
   scannedAt  DateTime     @default(now())
   coin       TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
 

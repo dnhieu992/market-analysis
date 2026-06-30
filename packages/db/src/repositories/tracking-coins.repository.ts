@@ -69,6 +69,33 @@ export function createTrackingCoinsRepository(client = prisma) {
       });
     },
 
+    /** Latest signal snapshot for a single coin (used to derive a buy's entry mode). */
+    findLatestSignal(coinId: string) {
+      return client.trackingCoinSignal.findFirst({
+        where: { coinId },
+        orderBy: { date: 'desc' },
+      });
+    },
+
+    /** True when a daily LLM holding-review row already exists for this coin since `since`. */
+    async hasHoldingReviewSince(coinId: string, since: Date) {
+      const row = await client.trackingCoinSignalHistory.findFirst({
+        where: { coinId, llmVerdict: { not: null }, scannedAt: { gte: since } },
+        select: { id: true },
+      });
+      return row != null;
+    },
+
+    /** Append a daily LLM holding-review row to the signal-history feed. */
+    appendHoldingReview(
+      coinId: string,
+      data: Omit<Prisma.TrackingCoinSignalHistoryUncheckedCreateInput, 'id' | 'coinId' | 'scannedAt'>,
+    ) {
+      return client.trackingCoinSignalHistory.create({
+        data: { coinId, ...data, scannedAt: new Date() },
+      });
+    },
+
     findCoinsWithLatestSignal() {
       return client.trackingCoin.findMany({
         include: {
@@ -98,13 +125,14 @@ export function createTrackingCoinsRepository(client = prisma) {
 
     addDcaBuy(
       coinId: string,
-      data: { price: number; usd: number; boughtAt?: Date; portfolioId?: string | null; transactionId?: string | null },
+      data: { price: number; usd: number; entryMode?: string | null; boughtAt?: Date; portfolioId?: string | null; transactionId?: string | null },
     ) {
       return client.trackingCoinDcaBuy.create({
         data: {
           coinId,
           price: data.price,
           usd: data.usd,
+          ...(data.entryMode !== undefined ? { entryMode: data.entryMode } : {}),
           ...(data.boughtAt ? { boughtAt: data.boughtAt } : {}),
           ...(data.portfolioId !== undefined ? { portfolioId: data.portfolioId } : {}),
           ...(data.transactionId !== undefined ? { transactionId: data.transactionId } : {}),

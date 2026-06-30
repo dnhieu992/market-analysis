@@ -439,10 +439,16 @@ export type TrackingCoinRow = {
     utBotW1Bullish: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    utBotM30Bullish: boolean | null;
     wRsi: number | null;
     wVolMultiplier: number | null;
     h4Rsi: number | null;
     h4VolMultiplier: number | null;
+    m30Ema34Above: boolean | null;
+    m30Ema89Above: boolean | null;
+    m30Ema200Above: boolean | null;
+    m30Rsi: number | null;
+    m30VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
@@ -478,6 +484,13 @@ export type SignalHistoryRow = {
   rsi: number | null;
   extPct: number | null;
   price: number | null;
+  // Daily LLM (Haiku) holding review — present only on review rows.
+  entryMode: 'SIGNAL' | 'FOMO' | 'MIXED' | null;
+  avgEntry: number | null;
+  pnlPct: number | null;
+  llmVerdict: 'GIU' | 'GOM_THEM' | 'CHOT_BOT' | 'THOAT' | null;
+  llmReview: string | null;
+  llmModel: string | null;
   scannedAt: string;
 };
 

@@ -7365,6 +7365,35 @@ a.metric-card--link:hover {
 .tc-history-table th, .tc-history-table td { white-space: nowrap; vertical-align: middle; }
 .tc-history-trends { display: inline-flex; gap: 4px; }
 
+/* ── daily LLM (Haiku) holding review rows ──────────────────────── */
+.tc-history-row--ai > td { border-bottom: none; }
+.tc-history-ai > td { padding-top: 2px; padding-bottom: 10px; white-space: normal; }
+.tc-ai-review {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 7px 10px;
+  background: rgba(124, 58, 237, 0.06);
+  border-left: 3px solid rgba(124, 58, 237, 0.55);
+  border-radius: 6px;
+  font-size: 0.78rem; line-height: 1.45;
+}
+.tc-ai-tag {
+  font-weight: 700; font-size: 0.62rem; letter-spacing: 0.04em;
+  color: #fff; background: #7c3aed; padding: 1px 6px; border-radius: 4px;
+}
+.tc-verdict { font-weight: 600; font-size: 0.72rem; padding: 1px 8px; border-radius: 999px; }
+.tc-verdict--hold { background: rgba(148, 163, 184, 0.18); color: var(--muted); }
+.tc-verdict--add  { background: rgba(16, 185, 129, 0.18); color: #059669; }
+.tc-verdict--trim { background: rgba(245, 158, 11, 0.18); color: #d97706; }
+.tc-verdict--exit { background: rgba(239, 68, 68, 0.18); color: #dc2626; }
+.tc-ai-chip {
+  font-size: 0.7rem; color: var(--muted);
+  background: rgba(148, 163, 184, 0.14); padding: 1px 7px; border-radius: 999px;
+}
+.tc-ai-pnl { font-weight: 700; font-size: 0.72rem; }
+.tc-ai-pnl--up { color: #059669; }
+.tc-ai-pnl--down { color: #dc2626; }
+.tc-ai-text { flex: 1 1 100%; color: var(--foreground); }
+
 .sc-history-btn {
   margin-left: 6px;
   border: none;

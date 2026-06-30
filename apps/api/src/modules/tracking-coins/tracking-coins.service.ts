@@ -77,10 +77,16 @@ export type TrackingCoinWithSignal = {
     utBotW1Bullish: boolean | null;
     utBotD1Bullish: boolean | null;
     utBotH4Bullish: boolean | null;
+    utBotM30Bullish: boolean | null;
     wRsi: number | null;
     wVolMultiplier: number | null;
     h4Rsi: number | null;
     h4VolMultiplier: number | null;
+    m30Ema34Above: boolean | null;
+    m30Ema89Above: boolean | null;
+    m30Ema200Above: boolean | null;
+    m30Rsi: number | null;
+    m30VolMultiplier: number | null;
     longScore: number | null;
     shortScore: number | null;
     signalScore: number;
@@ -160,10 +166,16 @@ export class TrackingCoinsService {
               utBotW1Bullish: sig.utBotW1Bullish,
               utBotD1Bullish: sig.utBotD1Bullish,
               utBotH4Bullish: sig.utBotH4Bullish,
+              utBotM30Bullish: sig.utBotM30Bullish,
               wRsi: sig.wRsi,
               wVolMultiplier: sig.wVolMultiplier,
               h4Rsi: sig.h4Rsi,
               h4VolMultiplier: sig.h4VolMultiplier,
+              m30Ema34Above: sig.m30Ema34Above,
+              m30Ema89Above: sig.m30Ema89Above,
+              m30Ema200Above: sig.m30Ema200Above,
+              m30Rsi: sig.m30Rsi,
+              m30VolMultiplier: sig.m30VolMultiplier,
               longScore: sig.longScore,
               shortScore: sig.shortScore,
               signalScore: sig.signalScore,
@@ -219,6 +231,12 @@ export class TrackingCoinsService {
       rsi: r.rsi,
       extPct: r.extPct,
       price: r.price,
+      entryMode: (r.entryMode as 'SIGNAL' | 'FOMO' | 'MIXED' | null) ?? null,
+      avgEntry: r.avgEntry,
+      pnlPct: r.pnlPct,
+      llmVerdict: (r.llmVerdict as 'GIU' | 'GOM_THEM' | 'CHOT_BOT' | 'THOAT' | null) ?? null,
+      llmReview: r.llmReview,
+      llmModel: r.llmModel,
       scannedAt: r.scannedAt.toISOString(),
     }));
   }
@@ -413,9 +431,18 @@ export class TrackingCoinsService {
       transactionId = (tx as { id: string }).id;
     }
 
+    // Tag the layer by how it was entered: bought while the signal says GOM = "SIGNAL",
+    // any other zone (or no signal) = "FOMO". Drives the holding-review history feed.
+    const latestSig = await this.repo.findLatestSignal(coin.id);
+    const zone = latestSig
+      ? dcaZone({ ema34Above: latestSig.ema34Above, rsi: latestSig.rsi ?? 50, low20Pct: latestSig.low20Pct })
+      : null;
+    const entryMode = zone === 'GOM' ? 'SIGNAL' : 'FOMO';
+
     await this.repo.addDcaBuy(coin.id, {
       price: data.price,
       usd: data.usd,
+      entryMode,
       boughtAt: data.boughtAt ? new Date(data.boughtAt) : undefined,
       portfolioId,
       transactionId,
@@ -585,15 +612,31 @@ export class TrackingCoinsService {
 
     // UT Bot D1
     const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
-    const utBotD1 = calcUtBotResult(d1Candles, 10, 2);
+    const utBotD1 = calcUtBotResult(d1Candles, 10, 3);
     const utBotD1Bullish = utBotD1?.uptrend ?? null;
 
     // UT Bot H4
     const h4Candles = h4Closes.length >= 2
       ? h4Closes.map((c, i) => ({ open: c, high: h4Highs[i]!, low: h4Lows[i]!, close: c }))
       : [];
-    const utBotH4 = h4Candles.length >= 2 ? calcUtBotResult(h4Candles, 10, 2) : null;
+    const utBotH4 = h4Candles.length >= 2 ? calcUtBotResult(h4Candles, 10, 3) : null;
     const utBotH4Bullish = utBotH4?.uptrend ?? null;
+
+    // M30 — display-only signal (not fed into any scoring/order logic)
+    const m30Closes  = m30Klines.map((k) => parseFloat(k[4]));
+    const m30Highs   = m30Klines.map((k) => parseFloat(k[2]));
+    const m30Lows    = m30Klines.map((k) => parseFloat(k[3]));
+    const m30Volumes = m30Klines.map((k) => parseFloat(k[5]));
+    const m30LastClose = m30Closes[m30Closes.length - 1] ?? 0;
+    const m30Ema34Above  = m30Closes.length >= 34  ? m30LastClose > calculateEma(m30Closes, 34)  : null;
+    const m30Ema89Above  = m30Closes.length >= 89  ? m30LastClose > calculateEma(m30Closes, 89)  : null;
+    const m30Ema200Above = m30Closes.length >= 200 ? m30LastClose > calculateEma(m30Closes, 200) : null;
+    const m30Rsi           = m30Closes.length > 14  ? calculateRsi(m30Closes, 14) : null;
+    const m30VolMultiplier = m30Volumes.length >= 20 ? calculateVolumeRatio(m30Volumes, 20) : null;
+    const m30Candles = m30Closes.length >= 2
+      ? m30Closes.map((c, i) => ({ open: c, high: m30Highs[i]!, low: m30Lows[i]!, close: c }))
+      : [];
+    const utBotM30Bullish = m30Candles.length >= 2 ? (calcUtBotResult(m30Candles, 10, 3)?.uptrend ?? null) : null;
 
     // Weekly (W1) — same indicators/setup as D1/H4
     const wCloses  = wKlines.map((k) => parseFloat(k[4]));
@@ -611,7 +654,7 @@ export class TrackingCoinsService {
     const wCandles = wCloses.length >= 2
       ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
       : [];
-    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 3)?.uptrend ?? null) : null;
 
     const { longScore, shortScore } = computeLongShortScore({
       closes,
@@ -717,6 +760,12 @@ export class TrackingCoinsService {
       h4Ema200Above,
       h4Rsi,
       h4VolMultiplier,
+      utBotM30Bullish,
+      m30Ema34Above,
+      m30Ema89Above,
+      m30Ema200Above,
+      m30Rsi,
+      m30VolMultiplier,
       accZone: acc?.zone ?? null,
       accDrawdownPct: acc?.drawdownPct ?? null,
       accBaseWidthPct: acc?.baseWidthPct ?? null,

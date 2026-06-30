@@ -20,6 +20,7 @@ import type { PaTrend, OrderSigSnapshot, LimitOrderResult } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { TrackingCoinReviewService } from './tracking-coin-review.service';
 
 const CANDLE_LIMIT = 220;
 
@@ -32,7 +33,10 @@ export class TrackingCoinScanService {
   private readonly logger = new Logger(TrackingCoinScanService.name);
   private readonly repo = createTrackingCoinsRepository();
 
-  constructor(private readonly binance: BinanceMarketDataService) {}
+  constructor(
+    private readonly binance: BinanceMarketDataService,
+    private readonly reviewService: TrackingCoinReviewService,
+  ) {}
 
   async scanAll(): Promise<{ scanned: number; failed: number }> {
     const coins = await this.repo.findAllCoins();
@@ -132,12 +136,28 @@ export class TrackingCoinScanService {
     const h4VolMultiplier = h4Volumes.length >= 20 ? calculateVolumeRatio(h4Volumes, 20) : null;
 
     const d1Candles = closes.map((c, i) => ({ open: c, high: highs[i]!, low: lows[i]!, close: c }));
-    const utBotD1Bullish = calcUtBotResult(d1Candles, 10, 2)?.uptrend ?? null;
+    const utBotD1Bullish = calcUtBotResult(d1Candles, 10, 3)?.uptrend ?? null;
 
     const h4Candles = h4Closes.length >= 2
       ? h4Closes.map((c, i) => ({ open: c, high: h4Highs[i]!, low: h4Lows[i]!, close: c }))
       : [];
-    const utBotH4Bullish = h4Candles.length >= 2 ? (calcUtBotResult(h4Candles, 10, 2)?.uptrend ?? null) : null;
+    const utBotH4Bullish = h4Candles.length >= 2 ? (calcUtBotResult(h4Candles, 10, 3)?.uptrend ?? null) : null;
+
+    // ── M30 timeframe — display-only signal (not fed into any scoring/logic) ──
+    const m30Closes  = m30Klines.map((k) => parseFloat(k[4]));
+    const m30Highs   = m30Klines.map((k) => parseFloat(k[2]));
+    const m30Lows    = m30Klines.map((k) => parseFloat(k[3]));
+    const m30Volumes = m30Klines.map((k) => parseFloat(k[5]));
+    const m30LastClose = m30Closes[m30Closes.length - 1] ?? 0;
+    const m30Ema34Above  = m30Closes.length >= 34  ? m30LastClose > calculateEma(m30Closes, 34)  : null;
+    const m30Ema89Above  = m30Closes.length >= 89  ? m30LastClose > calculateEma(m30Closes, 89)  : null;
+    const m30Ema200Above = m30Closes.length >= 200 ? m30LastClose > calculateEma(m30Closes, 200) : null;
+    const m30Rsi           = m30Closes.length > 14  ? calculateRsi(m30Closes, 14) : null;
+    const m30VolMultiplier = m30Volumes.length >= 20 ? calculateVolumeRatio(m30Volumes, 20) : null;
+    const m30Candles = m30Closes.length >= 2
+      ? m30Closes.map((c, i) => ({ open: c, high: m30Highs[i]!, low: m30Lows[i]!, close: c }))
+      : [];
+    const utBotM30Bullish = m30Candles.length >= 2 ? (calcUtBotResult(m30Candles, 10, 3)?.uptrend ?? null) : null;
 
     // ── Weekly (W1) timeframe — same indicators/setup as D1/H4 ──────────
     const wCloses  = wKlines.map((k) => parseFloat(k[4]));
@@ -155,7 +175,7 @@ export class TrackingCoinScanService {
     const wCandles = wCloses.length >= 2
       ? wCloses.map((c, i) => ({ open: c, high: wHighs[i]!, low: wLows[i]!, close: c }))
       : [];
-    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 2)?.uptrend ?? null) : null;
+    const utBotW1Bullish = wCandles.length >= 2 ? (calcUtBotResult(wCandles, 10, 3)?.uptrend ?? null) : null;
 
     const { longScore, shortScore } = computeLongShortScore({
       closes,
@@ -263,6 +283,12 @@ export class TrackingCoinScanService {
       h4Ema200Above,
       h4Rsi,
       h4VolMultiplier,
+      utBotM30Bullish,
+      m30Ema34Above,
+      m30Ema89Above,
+      m30Ema200Above,
+      m30Rsi,
+      m30VolMultiplier,
       accZone: acc?.zone ?? null,
       accDrawdownPct: acc?.drawdownPct ?? null,
       accBaseWidthPct: acc?.baseWidthPct ?? null,
@@ -282,6 +308,21 @@ export class TrackingCoinScanService {
       rsi: result.rsi,
       extPct: result.extPct,
       price: currentPrice > 0 ? currentPrice : null,
+    });
+
+    // ── Daily LLM (Haiku) review of an OPEN holding (holding > 0 only) ──
+    await this.reviewHoldingIfDue(coinId, symbol, currentPrice, {
+      weekTrend,
+      trend: result.trend,
+      h4Trend,
+      dcaScore,
+      dcaZone: zone,
+      dcaBucket: dcaQualityBucket(dcaScore),
+      rsi: result.rsi,
+      extPct: result.extPct,
+      utBotW1Bullish,
+      utBotD1Bullish,
+      utBotH4Bullish,
     });
 
     // ── Generate & persist today's orders ──────────────────────────────
@@ -338,6 +379,81 @@ export class TrackingCoinScanService {
       const outcome = !eval_.outcome && daysAgo > expiryDays ? 'expired' : eval_.outcome;
 
       await this.repo.updateOrderEvaluation(order.id, eval_.activated, outcome);
+    }
+  }
+
+  /**
+   * Once per calendar day (UTC), ask Claude Haiku to review an OPEN holding and
+   * append the verdict to the signal-history feed. No-op for coins not holding (>0)
+   * and for coins already reviewed today. Non-fatal — never throws into the scan.
+   */
+  private async reviewHoldingIfDue(
+    coinId: string,
+    symbol: string,
+    currentPrice: number,
+    signal: {
+      weekTrend: string; trend: string; h4Trend: string;
+      dcaScore: number; dcaZone: string | null; dcaBucket: string;
+      rsi: number | null; extPct: number | null;
+      utBotW1Bullish: boolean | null; utBotD1Bullish: boolean | null; utBotH4Bullish: boolean | null;
+    },
+  ): Promise<void> {
+    try {
+      if (currentPrice <= 0) return;
+
+      const buys = await this.repo.findDcaBuysByCoin(coinId);
+      let coins = 0;
+      let cost = 0;
+      let nSignal = 0;
+      let nFomo = 0;
+      for (const b of buys) {
+        if (b.price > 0) coins += b.usd / b.price;
+        cost += b.usd;
+        if (b.entryMode === 'SIGNAL') nSignal++;
+        else if (b.entryMode === 'FOMO') nFomo++;
+      }
+      if (coins <= 0) return; // not holding → skip LLM
+
+      // Dedupe to once per UTC day.
+      const startOfToday = new Date();
+      startOfToday.setUTCHours(0, 0, 0, 0);
+      if (await this.repo.hasHoldingReviewSince(coinId, startOfToday)) return;
+
+      const avgEntry = coins > 0 ? cost / coins : 0;
+      const pnlPct = avgEntry > 0 ? ((currentPrice - avgEntry) / avgEntry) * 100 : 0;
+      const entryMode: 'SIGNAL' | 'FOMO' | 'MIXED' =
+        nSignal > 0 && nFomo > 0 ? 'MIXED' : nFomo > 0 ? 'FOMO' : 'SIGNAL';
+
+      const review = await this.reviewService.review({
+        symbol,
+        position: { layers: buys.length, avgEntry, capitalDeployed: cost, entryMode },
+        currentPrice,
+        pnlPct,
+        signal,
+      });
+      if (!review) return; // LLM failure is non-fatal — no row written
+
+      await this.repo.appendHoldingReview(coinId, {
+        dcaScore: signal.dcaScore,
+        dcaZone: signal.dcaZone,
+        dcaBucket: signal.dcaBucket,
+        trend: signal.trend,
+        weekTrend: signal.weekTrend,
+        h4Trend: signal.h4Trend,
+        rsi: signal.rsi,
+        extPct: signal.extPct,
+        price: currentPrice,
+        entryMode,
+        avgEntry,
+        pnlPct,
+        llmVerdict: review.verdict,
+        llmReview: review.reason,
+        llmModel: review.model,
+      });
+      this.logger.log(`Holding review ${symbol}: ${review.verdict} (PnL ${pnlPct.toFixed(1)}%)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Holding review ${symbol} skipped: ${msg}`);
     }
   }
 }

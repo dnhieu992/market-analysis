@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio, SignalHistoryRow } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
@@ -78,7 +78,7 @@ function fmtMarketCap(cap: number | null): string | null {
 
 /* ── shared: W/D1/H4 stacked layout ─────────────────────────────── */
 
-function TfStack({ w, d1, h4 }: { w: ReactNode; d1: ReactNode; h4: ReactNode }) {
+function TfStack({ w, d1, h4, m30 }: { w: ReactNode; d1: ReactNode; h4: ReactNode; m30?: ReactNode }) {
   return (
     <div className="tc-tf-stack">
       <div className="tc-tf-stack-row">
@@ -93,6 +93,12 @@ function TfStack({ w, d1, h4 }: { w: ReactNode; d1: ReactNode; h4: ReactNode }) 
         <span className="tc-tf-label">H4</span>
         <span className="tc-tf-stack-val">{h4}</span>
       </div>
+      {m30 !== undefined && (
+        <div className="tc-tf-stack-row">
+          <span className="tc-tf-label">M30</span>
+          <span className="tc-tf-stack-val">{m30}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -356,6 +362,7 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
     { tf: 'W',  trend: sig.weekTrend, utBot: sig.utBotW1Bullish, e34: sig.wEma34Above,  e89: sig.wEma89Above,  e200: sig.wEma200Above,  rsi: sig.wRsi,  vol: sig.wVolMultiplier },
     { tf: 'D1', trend: sig.trend,   utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,   vol: sig.volMultiplier },
     { tf: 'H4', trend: sig.h4Trend, utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi, vol: sig.h4VolMultiplier },
+    { tf: 'M30', trend: sig.m30Trend, utBot: sig.utBotM30Bullish, e34: sig.m30Ema34Above, e89: sig.m30Ema89Above, e200: sig.m30Ema200Above, rsi: sig.m30Rsi, vol: sig.m30VolMultiplier },
   ];
 
   return (
@@ -396,6 +403,19 @@ const BUCKET_META: Record<SignalHistoryRow['dcaBucket'], { label: string; cls: s
   avoid: { label: 'Tránh',   cls: 'tc-dca--avoid' },
 };
 
+const VERDICT_META: Record<NonNullable<SignalHistoryRow['llmVerdict']>, { label: string; cls: string }> = {
+  GIU:      { label: 'Giữ',       cls: 'tc-verdict--hold' },
+  GOM_THEM: { label: 'Gom thêm',  cls: 'tc-verdict--add' },
+  CHOT_BOT: { label: 'Chốt bớt',  cls: 'tc-verdict--trim' },
+  THOAT:    { label: 'Thoát',     cls: 'tc-verdict--exit' },
+};
+
+const ENTRY_MODE_LABEL: Record<NonNullable<SignalHistoryRow['entryMode']>, string> = {
+  SIGNAL: 'Theo tín hiệu',
+  FOMO:   'FOMO',
+  MIXED:  'Hỗn hợp',
+};
+
 function CoinSignalHistory({ symbol }: { symbol: string }) {
   const [rows, setRows] = useState<SignalHistoryRow[] | null>(null);
   const [error, setError] = useState(false);
@@ -418,7 +438,8 @@ function CoinSignalHistory({ symbol }: { symbol: string }) {
   return (
     <div className="tc-history">
       <p className="scr-muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.5 }}>
-        Mỗi dòng là một lần tín hiệu DCA đổi trạng thái (vùng GOM/Chờ/CHỐT hoặc bậc chất lượng). Mới nhất ở trên.
+        Mỗi dòng là một lần tín hiệu DCA đổi trạng thái (vùng GOM/Chờ/CHỐT hoặc bậc chất lượng). Dòng có nhãn <b>AI</b> là
+        đánh giá vị thế hằng ngày (Claude Haiku) cho coin đang nắm giữ. Mới nhất ở trên.
       </p>
       <table className="dcapos-table tc-history-table">
         <thead>
@@ -428,27 +449,48 @@ function CoinSignalHistory({ symbol }: { symbol: string }) {
           {rows.map((r) => {
             const b = BUCKET_META[r.dcaBucket];
             const z = r.dcaZone ? ZONE_META[r.dcaZone] : null;
+            const v = r.llmVerdict ? VERDICT_META[r.llmVerdict] : null;
             return (
-              <tr key={r.id}>
-                <td>{new Date(r.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-                <td>
-                  <span className={`tc-dca-badge ${b.cls}`}>
-                    <span className="tc-dca-score">{r.dcaScore}</span>
-                    <span className="tc-dca-tag">{b.label}</span>
-                  </span>
-                </td>
-                <td>{z ? <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span> : <span className="scr-muted">—</span>}</td>
-                <td>
-                  <span className="tc-history-trends">
-                    <TrendBadge trend={r.weekTrend} />
-                    <TrendBadge trend={r.trend} />
-                    <TrendBadge trend={r.h4Trend} />
-                  </span>
-                </td>
-                <td>{r.rsi == null ? <span className="scr-muted">—</span> : Math.round(r.rsi)}</td>
-                <td>{r.extPct == null ? <span className="scr-muted">—</span> : `${r.extPct > 0 ? '+' : ''}${r.extPct.toFixed(1)}%`}</td>
-                <td>{r.price == null ? <span className="scr-muted">—</span> : `$${formatPrice(r.price)}`}</td>
-              </tr>
+              <Fragment key={r.id}>
+                <tr className={v ? 'tc-history-row--ai' : undefined}>
+                  <td>{new Date(r.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                  <td>
+                    <span className={`tc-dca-badge ${b.cls}`}>
+                      <span className="tc-dca-score">{r.dcaScore}</span>
+                      <span className="tc-dca-tag">{b.label}</span>
+                    </span>
+                  </td>
+                  <td>{z ? <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span> : <span className="scr-muted">—</span>}</td>
+                  <td>
+                    <span className="tc-history-trends">
+                      <TrendBadge trend={r.weekTrend} />
+                      <TrendBadge trend={r.trend} />
+                      <TrendBadge trend={r.h4Trend} />
+                    </span>
+                  </td>
+                  <td>{r.rsi == null ? <span className="scr-muted">—</span> : Math.round(r.rsi)}</td>
+                  <td>{r.extPct == null ? <span className="scr-muted">—</span> : `${r.extPct > 0 ? '+' : ''}${r.extPct.toFixed(1)}%`}</td>
+                  <td>{r.price == null ? <span className="scr-muted">—</span> : `$${formatPrice(r.price)}`}</td>
+                </tr>
+                {v && (
+                  <tr className="tc-history-ai">
+                    <td colSpan={7}>
+                      <div className="tc-ai-review">
+                        <span className="tc-ai-tag">AI</span>
+                        <span className={`tc-verdict ${v.cls}`}>{v.label}</span>
+                        {r.entryMode && <span className="tc-ai-chip">{ENTRY_MODE_LABEL[r.entryMode]}</span>}
+                        {r.pnlPct != null && (
+                          <span className={`tc-ai-pnl ${r.pnlPct >= 0 ? 'tc-ai-pnl--up' : 'tc-ai-pnl--down'}`}>
+                            {r.pnlPct >= 0 ? '+' : ''}{r.pnlPct.toFixed(1)}%
+                          </span>
+                        )}
+                        {r.avgEntry != null && <span className="tc-ai-chip">Vốn TB ${formatPrice(r.avgEntry)}</span>}
+                        {r.llmReview && <span className="tc-ai-text">{r.llmReview}</span>}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
         </tbody>
@@ -1007,6 +1049,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<TrendBadge trend={sig.weekTrend} />}
                             d1={<TrendBadge trend={sig.trend} />}
                             h4={<TrendBadge trend={sig.h4Trend} />}
+                            m30={<TrendBadge trend={sig.m30Trend} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
@@ -1017,6 +1060,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<UtBotBadge bullish={sig.utBotW1Bullish} />}
                             d1={<UtBotBadge bullish={sig.utBotD1Bullish} />}
                             h4={<UtBotBadge bullish={sig.utBotH4Bullish} />}
+                            m30={<UtBotBadge bullish={sig.utBotM30Bullish} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
@@ -1027,6 +1071,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<EmaPips e34={sig.wEma34Above} e89={sig.wEma89Above} e200={sig.wEma200Above} />}
                             d1={<EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />}
                             h4={<EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />}
+                            m30={<EmaPips e34={sig.m30Ema34Above} e89={sig.m30Ema89Above} e200={sig.m30Ema200Above} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
@@ -1041,6 +1086,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<RsiCell rsi={sig.wRsi} />}
                             d1={<RsiCell rsi={sig.rsi} />}
                             h4={<RsiCell rsi={sig.h4Rsi} />}
+                            m30={<RsiCell rsi={sig.m30Rsi} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
@@ -1051,6 +1097,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<VolCell vol={sig.wVolMultiplier} />}
                             d1={<VolCell vol={sig.volMultiplier} />}
                             h4={<VolCell vol={sig.h4VolMultiplier} />}
+                            m30={<VolCell vol={sig.m30VolMultiplier} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
