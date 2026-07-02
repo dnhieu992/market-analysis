@@ -1480,6 +1480,27 @@ a {
   user-select: none;
 }
 
+/* ── Transaction type filter chips (buy / sell) ─────────────── */
+.tx-filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tx-filter-chip {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.tx-filter-chip--off { opacity: 0.4; }
+.tx-filter-chip--buy  { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.4);  color: #16a34a; }
+.tx-filter-chip--sell { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4);  color: #dc2626; }
+
 /* ── Trades table (new flat layout) ─────────────────────────── */
 .tt-wrap {
   overflow-x: auto;

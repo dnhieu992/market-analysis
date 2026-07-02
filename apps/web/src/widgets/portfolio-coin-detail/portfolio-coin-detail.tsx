@@ -274,12 +274,22 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editTx, setEditTx] = useState<CoinTransaction | null>(null);
   const [page, setPage] = useState(1);
+  const [typeFilter, setTypeFilter] = useState<'all' | 'buy' | 'sell'>('all');
   const [isPending, startTransition] = useTransition();
 
-  const totalTx = transactions.length;
+  // Toggle a type chip: clicking the active one clears the filter (back to all).
+  function toggleTypeFilter(type: 'buy' | 'sell') {
+    setTypeFilter((prev) => (prev === type ? 'all' : type));
+    setPage(1);
+  }
+
+  const filteredTransactions = typeFilter === 'all'
+    ? transactions
+    : transactions.filter((tx) => tx.type === typeFilter);
+  const totalTx = filteredTransactions.length;
   const totalPages = Math.max(1, Math.ceil(totalTx / TX_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pageTransactions = transactions.slice((safePage - 1) * TX_PAGE_SIZE, safePage * TX_PAGE_SIZE);
+  const pageTransactions = filteredTransactions.slice((safePage - 1) * TX_PAGE_SIZE, safePage * TX_PAGE_SIZE);
 
   useEffect(() => {
     fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${coinId}USDT`)
@@ -366,15 +376,31 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
         <div className="table-header">
           <h2 style={{ margin: 0 }}>
             Transactions
-            {totalTx > 0 && (
-              <span style={{ marginLeft: '0.5rem', color: 'var(--muted)', fontWeight: 500, fontSize: '0.9rem' }}>
-                ({totalTx})
-              </span>
-            )}
+            <span style={{ marginLeft: '0.5rem', color: 'var(--muted)', fontWeight: 500, fontSize: '0.9rem' }}>
+              ({totalTx})
+            </span>
           </h2>
+          <div className="tx-filter-chips">
+            <button
+              type="button"
+              className={`tx-filter-chip tx-filter-chip--buy${typeFilter === 'buy' ? '' : ' tx-filter-chip--off'}`}
+              aria-pressed={typeFilter === 'buy'}
+              onClick={() => toggleTypeFilter('buy')}
+            >
+              Buy
+            </button>
+            <button
+              type="button"
+              className={`tx-filter-chip tx-filter-chip--sell${typeFilter === 'sell' ? '' : ' tx-filter-chip--off'}`}
+              aria-pressed={typeFilter === 'sell'}
+              onClick={() => toggleTypeFilter('sell')}
+            >
+              Sell
+            </button>
+          </div>
         </div>
 
-        {transactions.length > 0 ? (
+        {pageTransactions.length > 0 ? (
           <div className="tt-wrap tt-card-wrap">
             <table className="tt tt-card">
               <thead>
@@ -445,7 +471,9 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
             </table>
           </div>
         ) : (
-          <p className="tt-muted" style={{ padding: '1rem' }}>No transactions yet.</p>
+          <p className="tt-muted" style={{ padding: '1rem' }}>
+            {typeFilter === 'all' ? 'No transactions yet.' : `No ${typeFilter} transactions.`}
+          </p>
         )}
 
         {totalPages > 1 && (
