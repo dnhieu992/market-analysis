@@ -34,14 +34,16 @@ EMA89 → StrongUp (else Up), bearish below EMA89 → StrongDown (else Down), ne
 weekly trend feeds `computeDcaScore`, so a cleaner weekly read also sharpens the safety score.
 
 ## DCA position tracking (manual buy log)
-Each DCA buy (layer) is logged per coin via the **DCA position dialog** (layers icon in the row
-actions; shows the layer count when holding). From the buy log the API derives:
+Each DCA buy (layer) is logged per coin via the **DCA position** tab inside the coin detail modal.
+Clicking the layers icon in the row actions (which shows the layer count when holding) opens the
+same detail modal used by a row click, but with the **DCA position** tab pre-selected instead of
+Overview. From the buy log the API derives:
 - **avgEntry** = Σusd / Σ(usd/price) — the real break-even, since "reclaim EMA34" only profits above it.
 - **capitalDeployed** = Σusd, **layers** = buy count (capped at 5 in the UI).
 - **nextAddPrice** = lastAdd × 0.92 (the backtested −8% step).
 - **live P&L** = (livePrice − avgEntry) / avgEntry, computed client-side from the feed's live price.
 
-The dialog shows a **profit-aware take-profit hint**: green when livePrice ≥ avgEntry ("reclaim EMA34
+The panel shows a **profit-aware take-profit hint**: green when livePrice ≥ avgEntry ("reclaim EMA34
 = chốt có lãi"), amber otherwise ("EMA34 có thể vẫn lỗ; chốt khi giá ≥ giá TB"). "Đóng vị thế" clears
 all buys after taking profit. The row's list view also shows a lightweight `dcaPosition` aggregate
 (layers / avgEntry / capitalDeployed) so a holding is visible at a glance.
@@ -91,5 +93,5 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - `apps/api/src/modules/tracking-coins/dto/add-dca-buy.dto.ts`
 - `apps/web/src/shared/api/types.ts` — `dcaScore`/`dcaZone`/`low20Pct`, `dcaPosition`, `DcaPosition`/`DcaBuy`
 - `apps/web/src/shared/api/client.ts` — `fetchDcaPosition`/`addDcaBuy`/`deleteDcaBuy`/`closeDcaPosition`
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `DcaPositionDialog`, sort/column
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `CoinDetailModal` (hosts the `DCA position` tab), `DcaPositionPanel`, sort/column
 - `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*`, `.dcapos-*` styles

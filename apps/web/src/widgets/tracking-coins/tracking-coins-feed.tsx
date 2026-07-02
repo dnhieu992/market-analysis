@@ -299,16 +299,23 @@ function IconPrompt() {
 
 /* ── detail modal ───────────────────────────────────────────────── */
 
-type DetailTab = 'overview' | 'history' | 'journal';
+type DetailTab = 'overview' | 'dca' | 'history' | 'journal';
 
 const DETAIL_TABS: ReadonlyArray<[DetailTab, string]> = [
   ['overview', 'Overview'],
+  ['dca', 'DCA position'],
   ['history', 'History'],
   ['journal', 'Journal'],
 ];
 
-function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: () => void }) {
-  const [tab, setTab] = useState<DetailTab>('overview');
+function CoinDetailModal({ coin, initialTab, livePrice, onChanged, onClose }: {
+  coin: TrackingCoinRow;
+  initialTab: DetailTab;
+  livePrice: number | null;
+  onChanged: () => void;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<DetailTab>(initialTab);
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
@@ -337,6 +344,7 @@ function CoinDetailModal({ coin, onClose }: { coin: TrackingCoinRow; onClose: ()
 
         <div className="dialog-body tc-detail-body">
           {tab === 'overview' && <CoinOverview coin={coin} />}
+          {tab === 'dca' && <DcaPositionPanel symbol={coin.symbol} livePrice={livePrice} onChanged={onChanged} />}
           {tab === 'history' && <CoinSignalHistory symbol={coin.symbol} />}
           {tab === 'journal' && <CoinJournalPanel symbol={coin.symbol} />}
         </div>
@@ -542,10 +550,9 @@ function priceInputStr(n: number): string {
   return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 8 });
 }
 
-function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
+function DcaPositionPanel({ symbol, livePrice, onChanged }: {
   symbol: string;
   livePrice: number | null;
-  onClose: () => void;
   onChanged: () => void;
 }) {
   const [pos, setPos] = useState<DcaPosition | null>(null);
@@ -630,13 +637,7 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog setup-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <span className="dialog-title">DCA position — {symbol}</span>
-          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
-        </div>
-        <div className="dialog-body setup-body">
+    <div className="setup-body">
           {loading ? (
             <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
           ) : (
@@ -713,8 +714,6 @@ function DcaPositionDialog({ symbol, livePrice, onClose, onChanged }: {
               )}
             </>
           )}
-        </div>
-      </div>
     </div>
   );
 }
@@ -780,8 +779,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
-  const [dcaCoin, setDcaCoin] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey, zoneFilter, qualityFilter, trendFilter, holdingOnly]);
 
@@ -880,7 +879,16 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
   return (
     <>
-      {selectedCoin && <CoinDetailModal coin={selectedCoin} onClose={() => setSelectedCoin(null)} />}
+      {selectedCoin && (
+        <CoinDetailModal
+          key={selectedCoin.symbol}
+          coin={selectedCoin}
+          initialTab={detailTab}
+          livePrice={prices.get(selectedCoin.symbol) ?? null}
+          onChanged={reloadCoins}
+          onClose={() => setSelectedCoin(null)}
+        />
+      )}
       {chatCoin && (
         <TrackingCoinChatDrawer
           coin={chatCoin}
@@ -894,14 +902,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           isRemoving={removingSymbol === confirmRemoveSymbol}
           onConfirm={async () => { await handleRemoveCoin(confirmRemoveSymbol); setConfirmRemoveSymbol(null); }}
           onCancel={() => setConfirmRemoveSymbol(null)}
-        />
-      )}
-      {dcaCoin && (
-        <DcaPositionDialog
-          symbol={dcaCoin}
-          livePrice={prices.get(dcaCoin) ?? null}
-          onClose={() => setDcaCoin(null)}
-          onChanged={reloadCoins}
         />
       )}
 
@@ -1027,7 +1027,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
               {paginated.map((coin) => {
                 const sig = coin.signal;
                 return (
-                  <tr key={coin.id} className="scr-row" onClick={() => setSelectedCoin(coin)} style={{ cursor: 'pointer' }}>
+                  <tr key={coin.id} className="scr-row" onClick={() => { setDetailTab('overview'); setSelectedCoin(coin); }} style={{ cursor: 'pointer' }}>
                     <td className="scr-td scr-td--coin">
                       <span className="scr-symbol">{coin.symbol}</span>
                       {coin.name && <span className="scr-name">{coin.name}</span>}
@@ -1109,7 +1109,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconPrompt />
                         </button>
-                        <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => setDcaCoin(coin.symbol)}>
+                        <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => { setDetailTab('dca'); setSelectedCoin(coin); }}>
                           {coin.dcaPosition ? `${coin.dcaPosition.layers}L` : <IconLayers />}
                         </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
