@@ -16,6 +16,19 @@ type PortfolioCoinDetailProps = Readonly<{
   transactions: CoinTransaction[];
 }>;
 
+const TX_PAGE_SIZE = 10;
+
+/** Compact page list with ellipsis, e.g. [1, '...', 4, 5, 6, '...', 12]. */
+function getPageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 1) return [1];
+  const pages: (number | '...')[] = [1];
+  if (current > 3) pages.push('...');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
+}
+
 function formatUsd(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 }
@@ -260,7 +273,13 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
   const [transferOpen, setTransferOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editTx, setEditTx] = useState<CoinTransaction | null>(null);
+  const [page, setPage] = useState(1);
   const [isPending, startTransition] = useTransition();
+
+  const totalTx = transactions.length;
+  const totalPages = Math.max(1, Math.ceil(totalTx / TX_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageTransactions = transactions.slice((safePage - 1) * TX_PAGE_SIZE, safePage * TX_PAGE_SIZE);
 
   useEffect(() => {
     fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${coinId}USDT`)
@@ -345,7 +364,14 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
       {/* Transactions */}
       <article className="panel">
         <div className="table-header">
-          <h2 style={{ margin: 0 }}>Transactions</h2>
+          <h2 style={{ margin: 0 }}>
+            Transactions
+            {totalTx > 0 && (
+              <span style={{ marginLeft: '0.5rem', color: 'var(--muted)', fontWeight: 500, fontSize: '0.9rem' }}>
+                ({totalTx})
+              </span>
+            )}
+          </h2>
         </div>
 
         {transactions.length > 0 ? (
@@ -361,7 +387,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => {
+                {pageTransactions.map((tx) => {
                   const isBuy = tx.type === 'buy';
                   const amountSign = isBuy ? '+' : '-';
                   const amountColor = isBuy ? '#22c55e' : '#ef4444';
@@ -420,6 +446,42 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           </div>
         ) : (
           <p className="tt-muted" style={{ padding: '1rem' }}>No transactions yet.</p>
+        )}
+
+        {totalPages > 1 && (
+          <div className="tt-pagination">
+            <button
+              className="tt-pagination__btn"
+              onClick={() => setPage(safePage - 1)}
+              disabled={safePage <= 1}
+              aria-label="Previous page"
+            >
+              ← Prev
+            </button>
+            {getPageNumbers(safePage, totalPages).map((p, i) =>
+              p === '...' ? (
+                <span key={`ellipsis-${i}`} className="tt-pagination__ellipsis">…</span>
+              ) : (
+                <button
+                  key={p}
+                  className={`tt-pagination__btn${p === safePage ? ' tt-pagination__btn--active' : ''}`}
+                  onClick={() => setPage(p)}
+                  aria-label={`Page ${p}`}
+                  aria-current={p === safePage ? 'page' : undefined}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              className="tt-pagination__btn"
+              onClick={() => setPage(safePage + 1)}
+              disabled={safePage >= totalPages}
+              aria-label="Next page"
+            >
+              Next →
+            </button>
+          </div>
         )}
       </article>
 
