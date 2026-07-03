@@ -50,20 +50,24 @@ function PnlCell({ value, visible = true }: { value: number; visible?: boolean }
   );
 }
 
-async function fetchPrices(coinIds: string[]): Promise<Record<string, number>> {
-  if (coinIds.length === 0) return {};
+type PriceData = { prices: Record<string, number>; changes: Record<string, number> };
+
+async function fetchPrices(coinIds: string[]): Promise<PriceData> {
+  if (coinIds.length === 0) return { prices: {}, changes: {} };
   try {
     const symbols = JSON.stringify(coinIds.map((c) => `${c}USDT`));
-    const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(symbols)}`);
-    const data = await res.json() as { symbol: string; price: string }[];
-    const map: Record<string, number> = {};
+    const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbols)}`);
+    const data = await res.json() as { symbol: string; lastPrice: string; priceChangePercent: string }[];
+    const prices: Record<string, number> = {};
+    const changes: Record<string, number> = {};
     for (const item of data) {
       const coin = item.symbol.replace('USDT', '');
-      map[coin] = Number(item.price);
+      prices[coin] = Number(item.lastPrice);
+      changes[coin] = Number(item.priceChangePercent);
     }
-    return map;
+    return { prices, changes };
   } catch {
-    return {};
+    return { prices: {}, changes: {} };
   }
 }
 
@@ -270,6 +274,7 @@ function EditNoteModal({ portfolioId, coinId, current, onClose, onSaved }: {
 
 export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
+  const [changes, setChanges] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -285,14 +290,16 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
     const coinIds = holdings.map((h) => h.coinId);
 
     fetchPrices(coinIds).then((p) => {
-      setPrices(p);
+      setPrices(p.prices);
+      setChanges(p.changes);
       setPricesLoaded(true);
       setLastUpdated(new Date());
     });
 
     const interval = setInterval(() => {
       fetchPrices(coinIds).then((p) => {
-        setPrices(p);
+        setPrices(p.prices);
+        setChanges(p.changes);
         setLastUpdated(new Date());
       });
     }, 5000);
@@ -371,8 +378,13 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 const totalPnl = unrealizedPnl + h.realizedPnl;
 
                 const note = notes[h.coinId] ?? null;
+                const isEmpty = h.totalAmount <= 0;
                 return (
-                  <tr key={h.coinId}>
+                  <tr
+                    key={h.coinId}
+                    style={isEmpty ? { opacity: 0.45, background: 'rgba(128,128,128,0.08)' } : undefined}
+                    title={isEmpty ? 'Không còn nắm giữ (holding = 0)' : undefined}
+                  >
                     {/* Full-width on mobile */}
                     <td data-label="Coin" data-full="">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
@@ -392,7 +404,21 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                       {!pricesLoaded
                         ? <span className="tt-muted">loading…</span>
                         : currentPrice != null
-                          ? formatCryptoPrice(currentPrice)
+                          ? (
+                            <>
+                              <div>{formatCryptoPrice(currentPrice)}</div>
+                              {changes[h.coinId] != null && (
+                                <div style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: changes[h.coinId]! >= 0 ? '#22c55e' : '#ef4444',
+                                }}>
+                                  {changes[h.coinId]! >= 0 ? '+' : ''}
+                                  {changes[h.coinId]!.toFixed(2)}%
+                                </div>
+                              )}
+                            </>
+                          )
                           : <span className="tt-muted">—</span>
                       }
                     </td>
