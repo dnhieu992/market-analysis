@@ -726,6 +726,17 @@ export type MemeStage = SmallCapStage;
 export type MemeCoinRow = SmallCapCoinRow;
 export type MemeHistoryRow = SmallCapHistoryRow;
 
+/** Progress/result of the background coin sync (polled after a Sync Coins click). */
+export type MemeRescanStatus = {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  found: number | null;
+  upserted: number | null;
+  removed: number | null;
+  error: string | null;
+};
+
 // ── BTC DCA Ladder ────────────────────────────────────────────────────────────
 
 export type DcaLadderSettings = {

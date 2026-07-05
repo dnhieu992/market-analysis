@@ -43,6 +43,12 @@ export class MemeRadarController {
     return this.service.rescanCoins();
   }
 
+  @Get('rescan-status')
+  @ApiOperation({ summary: 'Progress/result of the background coin sync (poll after rescan-coins)' })
+  rescanStatus() {
+    return this.service.getRescanStatus();
+  }
+
   @Post('scan')
   @ApiOperation({ summary: 'Manually trigger a full signal scan for all meme watchlist coins' })
   triggerScan() {

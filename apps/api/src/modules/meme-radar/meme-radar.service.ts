@@ -6,8 +6,15 @@ import { createMemeRadarRepository } from '@app/db';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 const MEME_CATEGORY = 'meme-token'; // CoinGecko category id for meme coins
-const GECKO_DELAY_MS = 12_000;
-const GECKO_RETRY_MS = 60_000;
+
+/** Pro keys ("CG-…") allow ~500 calls/min, so we can page fast and back off
+ * briefly on 429. Demo keys are ~30 calls/min, so we space pages out and wait
+ * a full minute on 429. */
+function isProGeckoKey(): boolean {
+  return (process.env.COINGECKO_API_KEY ?? '').startsWith('CG-');
+}
+const GECKO_DELAY_MS = isProGeckoKey() ? 1_200 : 12_000; // between pages
+const GECKO_RETRY_MS = isProGeckoKey() ? 5_000 : 60_000; // wait after a 429
 
 type GeckoMarket = { id: string; symbol: string; name: string; market_cap: number | null };
 type KeepCoin = { symbol: string; name: string; marketCap: number | null };
@@ -72,13 +79,35 @@ export type MemeCoinWithSignal = {
 
 const CANDLE_LIMIT = 220;
 
+export type MemeRescanStatus = {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  found: number | null;
+  upserted: number | null;
+  removed: number | null;
+  error: string | null;
+};
+
 @Injectable()
 export class MemeRadarService {
   private readonly logger = new Logger(MemeRadarService.name);
   private readonly repo = createMemeRadarRepository();
-  private rescanRunning = false;
+  private rescanStatus: MemeRescanStatus = {
+    running: false,
+    startedAt: null,
+    finishedAt: null,
+    found: null,
+    upserted: null,
+    removed: null,
+    error: null,
+  };
 
   constructor(private readonly binance: BinanceMarketDataService) {}
+
+  getRescanStatus(): MemeRescanStatus {
+    return this.rescanStatus;
+  }
 
   async listCoins(): Promise<MemeCoinWithSignal[]> {
     const rows = await this.repo.findCoinsWithLatestSignal();
@@ -112,17 +141,30 @@ export class MemeRadarService {
   }
 
   rescanCoins(): { started: boolean; alreadyRunning?: boolean } {
-    if (this.rescanRunning) {
+    if (this.rescanStatus.running) {
       this.logger.warn('rescanCoins: already running, skipping duplicate request');
       return { started: false, alreadyRunning: true };
     }
+    this.rescanStatus = {
+      running: true,
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      found: null,
+      upserted: null,
+      removed: null,
+      error: null,
+    };
     void this.doRescanCoins();
     return { started: true };
   }
 
   private async doRescanCoins(): Promise<void> {
-    this.rescanRunning = true;
     this.logger.log('rescanCoins: start');
+    let sawRateLimit = false;
+    const warn = (s: string) => {
+      if (s.includes('429')) sawRateLimit = true;
+      this.logger.warn(s);
+    };
     try {
       // 1. Binance USDT spot pairs
       let binanceSymbols: Set<string>;
@@ -137,6 +179,7 @@ export class MemeRadarService {
         binanceSymbols = new Set(bases);
       } catch (err) {
         this.logger.error(`rescanCoins: Binance fetch failed — ${String(err)}`);
+        this.finishRescan({ error: 'Không lấy được danh sách cặp Binance (exchangeInfo). Thử lại sau.' });
         return;
       }
       this.logger.log(`rescanCoins: ${binanceSymbols.size} Binance USDT pairs`);
@@ -160,7 +203,7 @@ export class MemeRadarService {
             page,
             sparkline: false,
           },
-          (s) => this.logger.warn(s),
+          warn,
         );
 
         if (!coins || coins.length === 0) {
@@ -202,12 +245,32 @@ export class MemeRadarService {
       if (keptSymbols.length > 0) {
         const deleted = await this.repo.deleteCoinsNotInSymbols(keptSymbols);
         this.logger.log(`rescanCoins: upserted ${kept.length}, removed ${deleted.count}`);
+        this.finishRescan({ found: kept.length, upserted: kept.length, removed: deleted.count });
       } else {
         this.logger.warn('rescanCoins: 0 coins found — skipping deletion to protect existing watchlist');
+        this.finishRescan({
+          found: 0,
+          upserted: 0,
+          removed: 0,
+          error: sawRateLimit
+            ? 'CoinGecko đang giới hạn tần suất (429) nên chưa lấy được coin. Thử lại sau vài phút, hoặc nâng lên Pro key (COINGECKO_API_KEY bắt đầu "CG-").'
+            : 'Không tìm thấy meme coin nào có cặp USDT trên Binance (CoinGecko trả rỗng). Thử lại sau.',
+        });
       }
-    } finally {
-      this.rescanRunning = false;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`rescanCoins: unexpected failure — ${msg}`);
+      this.finishRescan({ error: `Lỗi không mong đợi khi sync: ${msg}` });
     }
+  }
+
+  private finishRescan(patch: Partial<Omit<MemeRescanStatus, 'running' | 'startedAt' | 'finishedAt'>>): void {
+    this.rescanStatus = {
+      ...this.rescanStatus,
+      ...patch,
+      running: false,
+      finishedAt: new Date().toISOString(),
+    };
   }
 
   async addCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {

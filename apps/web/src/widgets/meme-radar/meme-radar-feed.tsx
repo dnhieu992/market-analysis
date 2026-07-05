@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { MemeCoinRow, MemeStage, MemeHistoryRow, PaTrend } from '@web/shared/api/types';
+import type { MemeCoinRow, MemeStage, MemeHistoryRow, MemeRescanStatus, PaTrend } from '@web/shared/api/types';
 
 /* ── types ──────────────────────────────────────────────────── */
 
@@ -342,6 +342,7 @@ export function MemeRadarFeed({ initialCoins }: Props) {
   const [onlyLottery, setOnlyLottery] = useState(false);
   const [page, setPage] = useState(1);
   const [historyCoin, setHistoryCoin] = useState<string | null>(null);
+  const pollingRef = useRef(false);
 
   function toggleStage(stage: MemeStage) {
     setHiddenStages((prev) => {
@@ -355,6 +356,56 @@ export function MemeRadarFeed({ initialCoins }: Props) {
   // Reset to page 1 whenever filters or sort change
   useEffect(() => { setPage(1); }, [nameFilter, hiddenStages, sortKey, onlyLottery]);
 
+  // Poll the background sync until it finishes, then show a real result + reload.
+  async function pollRescanStatus() {
+    if (pollingRef.current) return;
+    pollingRef.current = true;
+    setSyncing(true);
+    try {
+      for (let i = 0; i < 160; i++) { // ~13 min max at 5s/tick
+        await new Promise((r) => setTimeout(r, 5000));
+        let st: MemeRescanStatus;
+        try {
+          const res = await fetch(`${resolveApiBaseUrl()}/meme-radar/rescan-status`, { credentials: 'include' });
+          if (!res.ok) continue;
+          st = await res.json() as MemeRescanStatus;
+        } catch {
+          continue;
+        }
+        if (st.running) {
+          const secs = st.startedAt ? Math.round((Date.now() - new Date(st.startedAt).getTime()) / 1000) : 0;
+          setSyncMsg(`Đang sync danh sách meme coin từ CoinGecko/Binance… (${secs}s)`);
+          continue;
+        }
+        // finished
+        if (st.error) {
+          setSyncMsg(`⚠️ Sync chưa xong: ${st.error}`);
+        } else {
+          setSyncMsg(`✅ Đã sync xong: ${st.found ?? 0} coin (thêm/cập nhật ${st.upserted ?? 0}, gỡ ${st.removed ?? 0}).`);
+          await reloadCoins();
+        }
+        return;
+      }
+      setSyncMsg('Sync vẫn đang chạy nền — bấm Refresh sau vài phút để xem kết quả.');
+    } finally {
+      pollingRef.current = false;
+      setSyncing(false);
+    }
+  }
+
+  // If a sync is already running (e.g. started before this page load), resume polling.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${resolveApiBaseUrl()}/meme-radar/rescan-status`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((st: MemeRescanStatus | null) => {
+        if (!cancelled && st?.running) void pollRescanStatus();
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSyncCoins() {
     setSyncing(true);
     setSyncMsg(null);
@@ -365,16 +416,18 @@ export function MemeRadarFeed({ initialCoins }: Props) {
       });
       if (res.status === 401) {
         setSyncMsg('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại.');
+        setSyncing(false);
         return;
       }
       if (!res.ok) {
         setSyncMsg(`Sync thất bại (HTTP ${res.status}), thử lại sau.`);
+        setSyncing(false);
         return;
       }
-      setSyncMsg('Đang sync danh sách meme coin từ Binance/CoinGecko (category meme-token), có thể mất vài phút. Bấm Refresh để xem kết quả.');
+      setSyncMsg('Đang sync danh sách meme coin từ CoinGecko/Binance…');
+      void pollRescanStatus(); // keeps `syncing` true until it resolves
     } catch {
       setSyncMsg('Không thể kết nối tới server, kiểm tra lại mạng và thử lại.');
-    } finally {
       setSyncing(false);
     }
   }
