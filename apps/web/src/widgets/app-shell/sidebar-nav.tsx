@@ -58,6 +58,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Daily signal scan for small-cap watchlist'
   },
   {
+    href: '/meme-radar',
+    label: 'Meme Radar',
+    description: 'Daily signal scan for Binance-listed meme coins'
+  },
+  {
     href: '/tracking-coins',
     label: 'Tracking Coins',
     description: 'Theo dõi coin tự nhập tay'

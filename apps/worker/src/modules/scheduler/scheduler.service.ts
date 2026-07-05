@@ -8,6 +8,7 @@ import { DcaLadderSyncService } from '../dca-ladder/dca-ladder.service';
 import { SetupExtractionService } from '../setup-tracking/setup-extraction.service';
 import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
+import { MemeScanService } from '../meme-scan/meme-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TrackingCoinScanService } from '../tracking-coin-scan/tracking-coin-scan.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -25,6 +26,7 @@ export class SchedulerService {
     private readonly swingSignalService: SwingSignalService,
     private readonly dailySignalService: DailySignalService,
     private readonly smallCapScanService: SmallCapScanService,
+    private readonly memeScanService: MemeScanService,
     private readonly trackingCoinScanService: TrackingCoinScanService,
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
@@ -60,6 +62,18 @@ export class SchedulerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Small-cap scan failed: ${msg}`);
+    }
+  }
+
+  // Runs every day at 00:07 UTC — scan all meme-radar watchlist coins
+  @Cron('7 0 * * *', { timeZone: 'UTC' })
+  async runMemeScan() {
+    this.logger.log('Running meme radar scan');
+    try {
+      await this.memeScanService.scanAll();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Meme scan failed: ${msg}`);
     }
   }
 

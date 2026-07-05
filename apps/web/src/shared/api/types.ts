@@ -720,6 +720,12 @@ export type SmallCapHistoryRow = {
   scannedAt: string;
 };
 
+// ── Meme Radar ────────────────────────────────────────────────────────────────
+// Same shape/engine as Small Cap Radar; the universe is meme-token coins on Binance.
+export type MemeStage = SmallCapStage;
+export type MemeCoinRow = SmallCapCoinRow;
+export type MemeHistoryRow = SmallCapHistoryRow;
+
 // ── BTC DCA Ladder ────────────────────────────────────────────────────────────
 
 export type DcaLadderSettings = {

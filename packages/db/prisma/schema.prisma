@@ -671,6 +671,64 @@ model SmallCapSignalHistory {
   @@map("small_cap_signal_history")
 }
 
+// ── Meme Radar ────────────────────────────────────────────────────────────────
+// Parallel to SmallCap* but the universe is meme-category coins (CoinGecko
+// category=meme-token) that are listed on Binance. Same daily D1 signal engine.
+model MemeCoin {
+  id          String       @id @default(cuid())
+  symbol      String       @unique @db.VarChar(30)
+  name        String       @default("") @db.VarChar(100)
+  marketCap   Float?
+  listingDate DateTime?    @db.Date
+  addedAt     DateTime     @default(now())
+  signals     MemeSignal[]
+  signalHistory MemeSignalHistory[]
+
+  @@map("meme_coins")
+}
+
+model MemeSignal {
+  id             String   @id @default(cuid())
+  coinId         String
+  date           DateTime @db.Date
+  rsi            Float?
+  volMultiplier  Float?
+  ema34Above     Boolean  @default(false)
+  ema89Above     Boolean  @default(false)
+  ema200Above    Boolean  @default(false)
+  stage          String   @default("Quiet") @db.VarChar(20)
+  signalScore    Int      @default(0)
+  extPct         Float?
+  sparklineJson  String   @db.Text
+  trend          String   @default("Neutral") @db.VarChar(15)
+  swingStructure String   @default("Mixed") @db.VarChar(10)
+  scannedAt      DateTime @default(now())
+  coin           MemeCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@unique([coinId, date])
+  @@index([date, signalScore(sort: Desc)])
+  @@map("meme_signals")
+}
+
+// Append-only change log of the radar signal — a new row only when the stage
+// differs from the most recent row for the coin.
+model MemeSignalHistory {
+  id            String   @id @default(cuid())
+  coinId        String
+  stage         String   @db.VarChar(20)
+  signalScore   Int      @default(0)
+  trend         String   @default("Neutral") @db.VarChar(15)
+  rsi           Float?
+  volMultiplier Float?
+  extPct        Float?
+  price         Float?
+  scannedAt     DateTime @default(now())
+  coin          MemeCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+
+  @@index([coinId, scannedAt(sort: Desc)])
+  @@map("meme_signal_history")
+}
+
 model DcaLadderSettings {
   id            String   @id @default("singleton")
   symbol        String   @unique @default("BTCUSDT") @db.VarChar(20)

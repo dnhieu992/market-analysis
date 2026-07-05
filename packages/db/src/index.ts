@@ -16,6 +16,7 @@ export { createHoldingRepository } from './repositories/holding.repository';
 export { createPnlHistoryRepository } from './repositories/pnl-history.repository';
 export { createConversationRepository } from './repositories/conversation.repository';
 export { createSmallCapRadarRepository } from './repositories/small-cap-radar.repository';
+export { createMemeRadarRepository } from './repositories/meme-radar.repository';
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
 export { createDayTradingRepository } from './repositories/day-trading.repository';
 export { createLongSignalRepository } from './repositories/long-signal.repository';

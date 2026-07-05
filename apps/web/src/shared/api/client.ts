@@ -35,6 +35,8 @@ import type {
   ChatMessage,
   SmallCapCoinRow,
   SmallCapHistoryRow,
+  MemeCoinRow,
+  MemeHistoryRow,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
@@ -891,6 +893,42 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<{ scanned: number; failed: number }>(
         fetchImpl,
         `${baseUrl}/small-cap-radar/scan`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
+    async fetchMemeRadar(): Promise<MemeCoinRow[]> {
+      return fetchJson<MemeCoinRow[]>(fetchImpl, `${baseUrl}/meme-radar`, withDefaults());
+    },
+
+    async addMemeCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {
+      return fetchJson<{ id: string; symbol: string; name: string }>(
+        fetchImpl,
+        `${baseUrl}/meme-radar/coins`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, name }),
+        }),
+      );
+    },
+
+    async removeMemeCoin(symbol: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/meme-radar/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    fetchMemeSignalHistory(symbol: string, limit = 100): Promise<MemeHistoryRow[]> {
+      return fetchJson<MemeHistoryRow[]>(
+        fetchImpl,
+        `${baseUrl}/meme-radar/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
+        withDefaults(),
+      );
+    },
+
+    async triggerMemeScan(): Promise<{ scanned: number; failed: number }> {
+      return fetchJson<{ scanned: number; failed: number }>(
+        fetchImpl,
+        `${baseUrl}/meme-radar/scan`,
         withDefaults({ method: 'POST' }),
       );
     },
