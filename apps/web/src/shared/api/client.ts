@@ -37,6 +37,7 @@ import type {
   SmallCapHistoryRow,
   MemeCoinRow,
   MemeHistoryRow,
+  SpotFlipAnalysis,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
@@ -930,6 +931,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/meme-radar/scan`,
         withDefaults({ method: 'POST' }),
+      );
+    },
+
+    async analyzeSpotFlip(symbol: string): Promise<SpotFlipAnalysis> {
+      return fetchJson<SpotFlipAnalysis>(
+        fetchImpl,
+        `${baseUrl}/spot-flip?symbol=${encodeURIComponent(symbol)}`,
+        withDefaults(),
       );
     },
 

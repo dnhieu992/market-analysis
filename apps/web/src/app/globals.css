@@ -9378,3 +9378,126 @@ a.metric-card--link:hover {
   .dcal-card strong { font-size: 17px; }
   .dcal-table { min-width: 540px; }
 }
+
+/* ── Spot Flip ─────────────────────────────────────────────── */
+.sf-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sf-header { display: flex; flex-direction: column; gap: 6px; }
+.sf-title { font-size: 26px; font-weight: 700; color: var(--foreground); margin: 0; }
+.sf-subtitle { font-size: 13.5px; color: var(--muted); margin: 0; line-height: 1.5; }
+
+.sf-search { display: flex; gap: 8px; }
+.sf-search-input {
+  flex: 1;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 15px;
+}
+.sf-search-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sf-search-btn {
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sf-search-btn:disabled { opacity: 0.6; cursor: default; }
+
+.sf-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sf-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sf-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.sf-error { color: #ef4444; font-size: 14px; margin: 4px 0; }
+
+.sf-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sf-card-title { font-size: 14px; font-weight: 700; color: var(--foreground); margin: 0; }
+
+.sf-price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sf-coin { font-size: 14px; font-weight: 700; color: var(--muted); margin-right: 10px; }
+.sf-price { font-size: 24px; font-weight: 700; color: var(--foreground); }
+.sf-day-badge { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); }
+
+.sf-changes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sf-change {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 10px 6px; border-radius: 12px; background: var(--background);
+}
+.sf-change-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+.sf-change-value { font-size: 14px; font-weight: 700; }
+
+.sf-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.sf-metric {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px; border-radius: 12px; background: var(--background);
+}
+.sf-metric-label { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.sf-metric-value { font-size: 18px; font-weight: 700; }
+.sf-metric-sub { font-size: 11px; color: var(--muted); }
+
+.sf-calc-inputs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.sf-field { display: flex; flex-direction: column; gap: 5px; }
+.sf-field span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.sf-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+}
+.sf-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.sf-calc-results { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.sf-result {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px; border-radius: 12px; background: var(--background); text-align: left;
+}
+.sf-result-label { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.sf-result-value { font-size: 18px; font-weight: 700; }
+.sf-result-sub { font-size: 11px; color: var(--muted); }
+
+.sf-hint { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 0; }
+.sf-hint b { color: var(--foreground); font-weight: 700; }
+
+.sf-up { color: #22c55e; }
+.sf-down { color: #ef4444; }
+.sf-neutral { color: var(--foreground); }
+
+@media (max-width: 640px) {
+  .sf-changes { grid-template-columns: repeat(3, 1fr); }
+  .sf-metrics, .sf-calc-inputs, .sf-calc-results { grid-template-columns: repeat(2, 1fr); }
+  .sf-price { font-size: 20px; }
+}

@@ -798,3 +798,21 @@ export type DcaLadderState = {
   timingSignal: DcaLadderTimingSignal | null;
   summary: DcaLadderSummary;
 };
+
+export type SpotFlipAnalysis = {
+  symbol: string;
+  price: number;
+  changes: {
+    h1: number | null;
+    h4: number | null;
+    h24: number | null;
+    d7: number | null;
+    d30: number | null;
+  };
+  pullbackPct: number;
+  reboundPct: number;
+  high30d: number;
+  low30d: number;
+  atrPct: number;
+  updatedAt: string;
+};

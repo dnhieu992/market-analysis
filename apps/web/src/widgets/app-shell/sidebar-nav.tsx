@@ -88,6 +88,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'BTC dip-bounce: thang DCA + chốt +10%'
   },
   {
+    href: '/spot-flip',
+    label: 'Spot Flip',
+    description: 'Biến động, dip & ATR · máy tính TP/SL net phí'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'
