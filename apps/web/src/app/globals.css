@@ -9431,35 +9431,60 @@ a.metric-card--link:hover {
 
 .sf-error { color: #ef4444; font-size: 14px; margin: 4px 0; }
 
-.sf-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 18px 20px;
-  box-shadow: var(--shadow);
+.sf-card-title { font-size: 14px; font-weight: 700; color: #17120d; margin: 0; }
+
+/* ── coin card list ── */
+.sf-list { display: flex; flex-direction: column; gap: 16px; }
+.sf-coin-card {
+  background: #f7f7f8;
+  border: 1px solid rgba(23, 18, 13, 0.06);
+  border-radius: 20px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
-.sf-card-title { font-size: 14px; font-weight: 700; color: var(--foreground); margin: 0; }
 
-.sf-price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.sf-coin { font-size: 14px; font-weight: 700; color: var(--muted); margin-right: 10px; }
-.sf-price { font-size: 24px; font-weight: 700; color: var(--foreground); }
-.sf-day-badge { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); }
-
-.sf-changes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-.sf-change {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 10px 6px; border-radius: 12px; background: var(--background);
+.sf-coin-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  background: none; border: none; padding: 0; margin: 0; width: 100%; cursor: pointer; text-align: left;
 }
-.sf-change-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
-.sf-change-value { font-size: 14px; font-weight: 700; }
+.sf-coin-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sf-avatar {
+  flex: none; width: 42px; height: 42px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 800; letter-spacing: 0.02em;
+}
+.sf-coin-names { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sf-coin-symbol { font-size: 16px; font-weight: 800; color: #17120d; letter-spacing: 0.01em; }
+.sf-coin-full { font-size: 12.5px; color: #9b9b9b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-coin-price { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+.sf-coin-price-value { font-size: 20px; font-weight: 800; color: #17120d; }
+.sf-coin-change { font-size: 13px; font-weight: 700; }
+.sf-coin-summary { font-size: 12.5px; color: #9b9b9b; line-height: 1.55; margin: 0; }
+
+/* ── dual up/down bar ── */
+.sf-dual { display: flex; flex-direction: column; gap: 8px; }
+.sf-dual-labels { display: flex; align-items: center; justify-content: space-between; }
+.sf-dual-up { font-size: 12.5px; font-weight: 800; color: #00c896; }
+.sf-dual-down { font-size: 12.5px; font-weight: 800; color: #f6465d; }
+.sf-dual-bar {
+  display: flex; height: 10px; width: 100%; border-radius: 999px; overflow: hidden;
+  background: rgba(23, 18, 13, 0.06);
+}
+.sf-dual-seg-up { background: #00c896; }
+.sf-dual-seg-down { background: #f6465d; }
+
+/* ── expanded detail ── */
+.sf-detail {
+  display: flex; flex-direction: column; gap: 14px;
+  padding-top: 16px; border-top: 1px solid rgba(23, 18, 13, 0.08);
+}
 
 .sf-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .sf-metric {
   display: flex; flex-direction: column; gap: 3px;
-  padding: 12px; border-radius: 12px; background: var(--background);
+  padding: 12px; border-radius: 12px; background: #fff;
 }
 .sf-metric-label { font-size: 11.5px; color: var(--muted); font-weight: 600; }
 .sf-metric-value { font-size: 18px; font-weight: 700; }
@@ -9472,7 +9497,7 @@ a.metric-card--link:hover {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface);
+  background: #fff;
   color: var(--foreground);
   font-size: 14px;
   font-weight: 600;
@@ -9483,7 +9508,7 @@ a.metric-card--link:hover {
 .sf-calc-results { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .sf-result {
   display: flex; flex-direction: column; gap: 3px;
-  padding: 12px; border-radius: 12px; background: var(--background); text-align: left;
+  padding: 12px; border-radius: 12px; background: #fff; text-align: left;
 }
 .sf-result-label { font-size: 11.5px; color: var(--muted); font-weight: 600; }
 .sf-result-value { font-size: 18px; font-weight: 700; }
@@ -9492,12 +9517,11 @@ a.metric-card--link:hover {
 .sf-hint { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 0; }
 .sf-hint b { color: var(--foreground); font-weight: 700; }
 
-.sf-up { color: #22c55e; }
-.sf-down { color: #ef4444; }
-.sf-neutral { color: var(--foreground); }
+.sf-up { color: #00c896; }
+.sf-down { color: #f6465d; }
+.sf-neutral { color: #17120d; }
 
 @media (max-width: 640px) {
-  .sf-changes { grid-template-columns: repeat(3, 1fr); }
   .sf-metrics, .sf-calc-inputs, .sf-calc-results { grid-template-columns: repeat(2, 1fr); }
-  .sf-price { font-size: 20px; }
+  .sf-coin-price-value { font-size: 18px; }
 }
