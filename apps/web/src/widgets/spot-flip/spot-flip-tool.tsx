@@ -15,8 +15,6 @@ const SL_ATR_MULT = 0.6; // suggested stop-loss   = 0.6 × daily range
 
 const apiClient = createApiClient();
 
-const QUICK_SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
-
 /** Known quote assets, so we can peel the base off a full pair for display. */
 const QUOTE_ASSETS = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'BTC', 'ETH'];
 
@@ -132,48 +130,13 @@ function DualBar({ data }: { data: SpotFlipAnalysis }) {
   );
 }
 
-/* ── flip calculator (per expanded card) ────────────────────── */
+/* ── tab 1: general info (range / dip / atr) ────────────────── */
 
-type CalcInputs = { entry: string; tp: string; sl: string; capital: string };
-
-function seedCalc(d: SpotFlipAnalysis): CalcInputs {
-  const atr = d.atrPct / 100;
-  return {
-    entry: String(d.price),
-    tp: String(d.price * (1 + TP_ATR_MULT * atr)),
-    sl: String(d.price * (1 - SL_ATR_MULT * atr)),
-    capital: '1000',
-  };
-}
-
-function CardDetail({ data }: { data: SpotFlipAnalysis }) {
-  const [inputs, setInputs] = useState<CalcInputs>(() => seedCalc(data));
-
+function GeneralInfo({ data }: { data: SpotFlipAnalysis }) {
   const dipInAtr = data.atrPct > 0 ? data.pullbackPct / data.atrPct : null;
-
-  const calc = useMemo(() => {
-    const e = parseFloat(inputs.entry);
-    const t = parseFloat(inputs.tp);
-    const s = parseFloat(inputs.sl);
-    const cap = parseFloat(inputs.capital);
-    if (!Number.isFinite(e) || e <= 0) return null;
-
-    const breakeven = e * (1 + FEE_ROUND_TRIP / 100);
-    const tpNetPct = Number.isFinite(t) ? ((t - e) / e) * 100 - FEE_ROUND_TRIP : null;
-    const slNetPct = Number.isFinite(s) ? ((s - e) / e) * 100 - FEE_ROUND_TRIP : null;
-    const rr = Number.isFinite(t) && Number.isFinite(s) && e > s ? (t - e) / (e - s) : null;
-    const profit = tpNetPct != null && Number.isFinite(cap) ? (cap * tpNetPct) / 100 : null;
-    const lossAmt = slNetPct != null && Number.isFinite(cap) ? (cap * slNetPct) / 100 : null;
-
-    return { breakeven, tpNetPct, slNetPct, rr, profit, lossAmt };
-  }, [inputs]);
-
-  const set = (key: keyof CalcInputs) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setInputs((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
     <div className="sf-detail">
-      {/* range / dip / atr */}
       <div className="sf-metrics">
         <div className="sf-metric">
           <span className="sf-metric-label">Cách đỉnh (dip)</span>
@@ -197,7 +160,102 @@ function CardDetail({ data }: { data: SpotFlipAnalysis }) {
         </div>
       </div>
 
-      {/* flip calculator */}
+      <DualBar data={data} />
+
+      <div className="sf-changes">
+        {(
+          [
+            ['1H', data.changes.h1],
+            ['4H', data.changes.h4],
+            ['24H', data.changes.h24],
+            ['7N', data.changes.d7],
+            ['30N', data.changes.d30],
+          ] as const
+        ).map(([label, value]) => (
+          <div className="sf-change-cell" key={label}>
+            <span className="sf-change-cell-label">{label}</span>
+            <span className={`sf-change-cell-value ${pctClass(value)}`}>{fmtPct(value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── tab 2: daily history ───────────────────────────────────── */
+
+function HistoryTable({ history }: { history: SpotFlipHistoryEntry[] }) {
+  if (!history.length) return <p className="sf-hint">Chưa có dữ liệu lịch sử.</p>;
+  return (
+    <div className="sf-history-wrap">
+      <table className="sf-history">
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th className="sf-history-num">Mở cửa</th>
+            <th className="sf-history-num">Đóng cửa</th>
+            <th className="sf-history-num">Biến động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((h) => (
+            <tr key={h.date}>
+              <td>{h.date}</td>
+              <td className="sf-history-num">${fmtPrice(h.open)}</td>
+              <td className="sf-history-num">${fmtPrice(h.close)}</td>
+              <td className="sf-history-num">
+                <span className={`sf-change-badge ${pctClass(h.changePct)}`}>{fmtPct(h.changePct)}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ── tab 3: order signal (flip calculator) ──────────────────── */
+
+type CalcInputs = { entry: string; tp: string; sl: string; capital: string };
+
+function seedCalc(d: SpotFlipAnalysis): CalcInputs {
+  const atr = d.atrPct / 100;
+  return {
+    entry: String(d.price),
+    tp: String(d.price * (1 + TP_ATR_MULT * atr)),
+    sl: String(d.price * (1 - SL_ATR_MULT * atr)),
+    capital: '1000',
+  };
+}
+
+function SignalTab({ data }: { data: SpotFlipAnalysis }) {
+  const [inputs, setInputs] = useState<CalcInputs>(() => seedCalc(data));
+
+  const calc = useMemo(() => {
+    const e = parseFloat(inputs.entry);
+    const t = parseFloat(inputs.tp);
+    const s = parseFloat(inputs.sl);
+    const cap = parseFloat(inputs.capital);
+    if (!Number.isFinite(e) || e <= 0) return null;
+
+    const breakeven = e * (1 + FEE_ROUND_TRIP / 100);
+    const tpNetPct = Number.isFinite(t) ? ((t - e) / e) * 100 - FEE_ROUND_TRIP : null;
+    const slNetPct = Number.isFinite(s) ? ((s - e) / e) * 100 - FEE_ROUND_TRIP : null;
+    const rr = Number.isFinite(t) && Number.isFinite(s) && e > s ? (t - e) / (e - s) : null;
+    const profit = tpNetPct != null && Number.isFinite(cap) ? (cap * tpNetPct) / 100 : null;
+    const lossAmt = slNetPct != null && Number.isFinite(cap) ? (cap * slNetPct) / 100 : null;
+
+    return { breakeven, tpNetPct, slNetPct, rr, profit, lossAmt };
+  }, [inputs]);
+
+  const set = (key: keyof CalcInputs) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setInputs((prev) => ({ ...prev, [key]: e.target.value }));
+
+  return (
+    <div className="sf-detail">
+      {/* trading stance / signal */}
+      <div className="sf-signal-banner">{cardSummary(data)}</div>
+
       <h3 className="sf-card-title">Máy tính chốt lời (net phí 0.10%)</h3>
       <div className="sf-calc-inputs">
         <label className="sf-field">
@@ -303,38 +361,19 @@ function CoinCard({
   );
 }
 
-/* ── history dialog (per coin) ──────────────────────────────── */
+/* ── coin dialog (3 tabs) ───────────────────────────────────── */
 
-function HistoryTable({ history }: { history: SpotFlipHistoryEntry[] }) {
-  if (!history.length) return <p className="sf-hint">Chưa có dữ liệu lịch sử.</p>;
-  return (
-    <div className="sf-history-wrap">
-      <table className="sf-history">
-        <thead>
-          <tr>
-            <th>Ngày</th>
-            <th className="sf-history-num">Mở cửa</th>
-            <th className="sf-history-num">Đóng cửa</th>
-            <th className="sf-history-num">Biến động</th>
-          </tr>
-        </thead>
-        <tbody>
-          {history.map((h) => (
-            <tr key={h.date}>
-              <td>{h.date}</td>
-              <td className="sf-history-num">${fmtPrice(h.open)}</td>
-              <td className="sf-history-num">${fmtPrice(h.close)}</td>
-              <td className={`sf-history-num ${pctClass(h.changePct)}`}>{fmtPct(h.changePct)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+type DialogTab = 'general' | 'history' | 'signal';
+
+const DIALOG_TABS: { id: DialogTab; label: string }[] = [
+  { id: 'general', label: 'Thông tin chung' },
+  { id: 'history', label: 'Lịch sử' },
+  { id: 'signal', label: 'Tín hiệu lệnh' },
+];
 
 function CoinDialog({ data, onClose }: { data: SpotFlipAnalysis; onClose: () => void }) {
   const base = baseAsset(data.symbol);
+  const [tab, setTab] = useState<DialogTab>('general');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -350,20 +389,75 @@ function CoinDialog({ data, onClose }: { data: SpotFlipAnalysis; onClose: () => 
         className="dialog dialog--wide"
         role="dialog"
         aria-modal="true"
-        aria-label={`Lịch sử ${base}`}
+        aria-label={`Chi tiết ${base}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="dialog-header">
           <span className="dialog-title">
-            {base} · Lịch sử giá theo ngày
+            {base} · ${fmtPrice(data.price)}
           </span>
           <button type="button" className="dialog-close" onClick={onClose} aria-label="Đóng">
             ✕
           </button>
         </div>
+
+        <div className="sf-tabs" role="tablist">
+          {DIALOG_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`sf-tab ${tab === t.id ? 'sf-tab--active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <div className="dialog-body">
-          <HistoryTable history={data.history} />
-          <CardDetail data={data} />
+          {tab === 'general' && <GeneralInfo data={data} />}
+          {tab === 'history' && <HistoryTable history={data.history} />}
+          {tab === 'signal' && <SignalTab data={data} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── remove confirm dialog ──────────────────────────────────── */
+
+function RemoveConfirm({
+  base,
+  onCancel,
+  onConfirm,
+}: {
+  base: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Bỏ theo dõi {base}?</span>
+          <button type="button" className="dialog-close" onClick={onCancel} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body">
+          <p className="dialog-confirm-text">
+            Coin sẽ được ẩn khỏi danh sách theo dõi. Dữ liệu không bị xoá — thêm lại mã này bất cứ lúc nào để hiện lại.
+          </p>
+          <div className="dialog-confirm-actions">
+            <button type="button" className="btn btn--secondary" onClick={onCancel}>
+              Huỷ
+            </button>
+            <button type="button" className="btn btn--danger" onClick={onConfirm}>
+              Bỏ theo dõi
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -374,12 +468,24 @@ function CoinDialog({ data, onClose }: { data: SpotFlipAnalysis; onClose: () => 
 
 export function SpotFlipTool() {
   const [symbolInput, setSymbolInput] = useState('');
+  const [filterText, setFilterText] = useState('');
   const [cards, setCards] = useState<SpotFlipAnalysis[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
 
   const activeCard = activeSymbol ? cards.find((c) => c.symbol === activeSymbol) ?? null : null;
+
+  // Filter the visible cards by base symbol or full name (case-insensitive).
+  const filteredCards = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    if (!q) return cards;
+    return cards.filter((c) => {
+      const base = baseAsset(c.symbol).toLowerCase();
+      return base.includes(q) || c.symbol.toLowerCase().includes(q) || coinFullName(c.symbol).toLowerCase().includes(q);
+    });
+  }, [cards, filterText]);
 
   // Mirror `cards` into a ref so the daily 00:08 UTC timer (registered once)
   // can read the current symbol list without re-scheduling on every change.
@@ -405,7 +511,8 @@ export function SpotFlipTool() {
     }
   }
 
-  // Optimistically drop the card, then remove it from the persisted watchlist.
+  // Optimistically hide the card, then soft-delete it on the watchlist
+  // (backend keeps the row, just marks it disabled).
   async function removeCoin(symbol: string) {
     setCards((prev) => prev.filter((c) => c.symbol !== symbol));
     setActiveSymbol((prev) => (prev === symbol ? null : prev));
@@ -473,6 +580,8 @@ export function SpotFlipTool() {
     return () => clearTimeout(timer);
   }, []);
 
+  const pendingBase = pendingRemove ? baseAsset(pendingRemove) : '';
+
   return (
     <div className="sf-page">
       <header className="sf-header">
@@ -483,7 +592,7 @@ export function SpotFlipTool() {
         </p>
       </header>
 
-      {/* ── search ── */}
+      {/* ── add coin ── */}
       <div className="sf-search">
         <input
           className="sf-search-input"
@@ -500,24 +609,27 @@ export function SpotFlipTool() {
           {loading ? 'Đang tải…' : 'Thêm'}
         </button>
       </div>
-      <div className="sf-chips">
-        {QUICK_SYMBOLS.map((s) => (
-          <button key={s} className="sf-chip" onClick={() => analyze(s)}>
-            {s}
-          </button>
-        ))}
-      </div>
+
+      {/* ── filter shown coins ── */}
+      <input
+        className="sf-filter-input"
+        value={filterText}
+        onChange={(e) => setFilterText(e.target.value)}
+        placeholder="Lọc coin đang theo dõi theo tên…"
+        autoComplete="off"
+        spellCheck={false}
+      />
 
       {error && <p className="sf-error">{error}</p>}
 
       {/* ── card list ── */}
       <div className="sf-list">
-        {cards.map((c) => (
+        {filteredCards.map((c) => (
           <CoinCard
             key={c.symbol}
             data={c}
             onOpen={() => setActiveSymbol(c.symbol)}
-            onRemove={() => removeCoin(c.symbol)}
+            onRemove={() => setPendingRemove(c.symbol)}
           />
         ))}
       </div>
@@ -525,8 +637,22 @@ export function SpotFlipTool() {
       {cards.length === 0 && !loading && (
         <p className="sf-empty">Chưa theo dõi coin nào. Thêm một mã ở trên để bắt đầu.</p>
       )}
+      {cards.length > 0 && filteredCards.length === 0 && (
+        <p className="sf-empty">Không có coin nào khớp “{filterText}”.</p>
+      )}
 
       {activeCard && <CoinDialog data={activeCard} onClose={() => setActiveSymbol(null)} />}
+
+      {pendingRemove && (
+        <RemoveConfirm
+          base={pendingBase}
+          onCancel={() => setPendingRemove(null)}
+          onConfirm={() => {
+            removeCoin(pendingRemove);
+            setPendingRemove(null);
+          }}
+        />
+      )}
     </div>
   );
 }

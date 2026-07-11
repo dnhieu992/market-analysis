@@ -797,10 +797,14 @@ model DcaOrder {
 // watchlist (no signals/history) — the page still computes all metrics live from
 // Binance on each view; this only remembers *which* coins to show.
 model SpotFlipWatch {
-  id      String   @id @default(cuid())
-  symbol  String   @unique @db.VarChar(30)
-  name    String   @default("") @db.VarChar(100)
-  addedAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  symbol     String    @unique @db.VarChar(30)
+  name       String    @default("") @db.VarChar(100)
+  addedAt    DateTime  @default(now())
+  // Soft-delete marker: non-null means the user removed the coin from the
+  // watchlist. We keep the row (history/settings) and just hide it. Re-adding
+  // the same symbol clears this back to null.
+  disabledAt DateTime?
 
   @@map("spot_flip_watch")
 }

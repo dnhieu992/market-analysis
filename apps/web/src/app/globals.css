@@ -9416,20 +9416,63 @@ a.metric-card--link:hover {
 }
 .sf-search-btn:disabled { opacity: 0.6; cursor: default; }
 
-.sf-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.sf-chip {
-  padding: 6px 14px;
+.sf-filter-input {
+  width: 100%;
+  padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--surface);
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+  color: var(--foreground);
+  font-size: 14px;
 }
-.sf-chip:hover { border-color: var(--accent); color: var(--accent); }
+.sf-filter-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .sf-error { color: #ef4444; font-size: 14px; margin: 4px 0; }
+
+/* ── dialog tabs ── */
+.sf-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sf-tab {
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.sf-tab:hover { color: var(--foreground); }
+.sf-tab--active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── general-info momentum row + signal banner ── */
+.sf-changes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sf-change-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 10px 6px; border-radius: 10px; background: #fff;
+}
+.sf-change-cell-label { font-size: 11px; color: var(--muted); font-weight: 700; }
+.sf-change-cell-value { font-size: 13.5px; font-weight: 700; }
+
+.sf-signal-banner {
+  padding: 12px 14px; border-radius: 12px;
+  background: var(--accent-soft); color: var(--foreground);
+  font-size: 13px; line-height: 1.55;
+}
+
+/* ── history change badge ── */
+.sf-change-badge {
+  display: inline-block; min-width: 68px; text-align: right;
+  padding: 3px 8px; border-radius: 999px; font-weight: 700; font-size: 12.5px;
+}
+.sf-change-badge.sf-up { background: rgba(0, 200, 150, 0.14); color: #00a578; }
+.sf-change-badge.sf-down { background: rgba(246, 70, 93, 0.14); color: #f6465d; }
+.sf-change-badge.sf-neutral { background: rgba(23, 18, 13, 0.06); color: #9b9b9b; }
 
 .sf-card-title { font-size: 14px; font-weight: 700; color: #17120d; margin: 0; }
 
@@ -9504,10 +9547,9 @@ a.metric-card--link:hover {
 .sf-dual-seg-up { background: #00c896; }
 .sf-dual-seg-down { background: #f6465d; }
 
-/* ── expanded detail ── */
+/* ── tab detail (inside dialog) ── */
 .sf-detail {
   display: flex; flex-direction: column; gap: 14px;
-  padding-top: 16px; border-top: 1px solid rgba(23, 18, 13, 0.08);
 }
 
 .sf-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
