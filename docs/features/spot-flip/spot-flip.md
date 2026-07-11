@@ -21,9 +21,18 @@ Each card has:
 - **Summary line** — short Vietnamese take on dip depth (in ATR units) and stance.
 - **Detail dialog** (tap anywhere on the card to open) — a modal (`.dialog--wide`) with **3 tabs**:
   1. **Thông tin chung** — range/dip/ATR metric grid (cách đỉnh, trên đáy, biên ngày, độ sâu nhịp chỉnh), the dual up/down bar, and a 5-cell momentum row (1H/4H/24H/7N/30N, green/red).
-  2. **Lịch sử** — daily price history table (last 30 completed days, newest first: date `YYYY-MM-DD`, open, close, and % change vs the previous day's close). The **Biến động** column renders as a colored **pill badge** (green background for up, red for down, gray for neutral).
+  2. **Lịch sử** — two tables. First, the **stored daily analysis history** (from `spot_flip_daily`, fetched via `GET /spot-flip/history/:symbol` when the tab opens): date, price, the **Tăng / Giảm** ratio (green up% / red down%), and the auto-generated **Nhận định** (stance note). Shows "Chưa có snapshot phân tích nào" until the 00:15 UTC job has run at least once. Below it, the live **daily OHLC price history** table (last 30 completed days: date, open, close, and % change vs the previous day's close) — the **Biến động** column renders as a colored **pill badge** (green background for up, red for down, gray for neutral).
   3. **Tín hiệu lệnh** — a signal banner (dip-depth stance) + the fee-net TP/SL flip calculator (state seeded per-card from that coin's ATR).
   Close via the ✕ button, backdrop click, or `Escape`. Tab defaults to **Thông tin chung** on open.
+
+## Daily snapshot job (worker, 00:15 UTC)
+A worker cron (`SchedulerService.runSpotFlipDaily`, `@Cron('15 0 * * *', UTC)`) persists one analysis snapshot per watched coin per day into `spot_flip_daily`, so the page can show how each coin's position evolved over time.
+- For every **active** watchlist coin (`createSpotFlipWatchRepository().findAll()` — soft-deleted coins are skipped), `SpotFlipDailyService` fetches live price + 1h/1d klines, runs the shared `computeSpotFlip` (from `@app/core`, the exact same math the API's on-demand view uses), then derives the up/down ratio (`spotFlipShares`) and an auto Vietnamese stance note (`spotFlipSummary`).
+- Persisted fields: `price`, `upPct`/`downPct` (the dual-bar shares = tỉ lệ tăng/giảm %), `pullbackPct`, `reboundPct`, `atrPct`, `high30d`, `low30d`, `changeH24`, and `notes` (the stance).
+- **Idempotent per day**: rows are keyed by `(symbol, date)` (date bucketed to 00:00 UTC) and **upserted**, so re-running the job the same day overwrites rather than duplicating.
+- Non-fatal per coin: a single symbol failing (`Promise`-less loop with try/catch) just logs a warning and continues; coins with < 2 candles are skipped.
+- The shared math lives in `packages/core/src/analysis/spot-flip.ts` — extracted from the old inline API service so the worker and API never diverge.
+- **Manual trigger**: `scripts/run-spot-flip-snapshot.ts` instantiates the same `SpotFlipDailyService` and runs `runDaily()` once against the live DB — used to seed today's data immediately instead of waiting for the cron. Run with `set -a && source .env && set +a && pnpm ts-node --transpile-only --project apps/worker/tsconfig.json scripts/run-spot-flip-snapshot.ts`.
 
 ## Auto-refresh
 The card list auto-refreshes once a day at **00:08 UTC** (a few minutes after the daily candle closes at 00:00 UTC) so each card's history and metrics pick up the freshly completed day. A single `setTimeout` is scheduled to the next 00:08 UTC boundary; on fire it re-runs `analyzeSpotFlip` for every currently shown symbol (via a `cardsRef` so the one-time timer reads the live symbol list) and reschedules for the next day. An open dialog reflects the update automatically because it reads its data from the live `cards` state by symbol.
@@ -63,19 +72,27 @@ Colors: green `#00C896`, red `#F6465D`, muted gray `#9B9B9B`, price/name near-bl
 - **Non-numeric calculator input** → derived rows show `—`; entry ≤ 0 hides all results.
 
 ## Related Files (FE / BE / Worker)
-- `apps/api/src/modules/spot-flip/spot-flip.service.ts` — symbol normalization, Binance fetch, metric math, daily `history` array, watchlist list/add/remove (BE)
-- `apps/api/src/modules/spot-flip/spot-flip.controller.ts` — `GET /spot-flip`, `GET/POST /spot-flip/watchlist`, `DELETE /spot-flip/watchlist/:symbol` (BE)
+- `packages/core/src/analysis/spot-flip.ts` — shared metric math: `computeSpotFlip`, `spotFlipShares`, `spotFlipSummary` (used by both API + worker) (CORE)
+- `apps/api/src/modules/spot-flip/spot-flip.service.ts` — symbol normalization, Binance fetch, calls `computeSpotFlip`, `history()` reads stored snapshots, watchlist list/add/remove (BE)
+- `apps/api/src/modules/spot-flip/spot-flip.controller.ts` — `GET /spot-flip`, `GET /spot-flip/history/:symbol`, `GET/POST /spot-flip/watchlist`, `DELETE /spot-flip/watchlist/:symbol` (BE)
+- `apps/worker/src/modules/spot-flip-daily/spot-flip-daily.service.ts` — daily snapshot job: analyze each watched coin + upsert into `spot_flip_daily` (Worker)
+- `apps/worker/src/modules/spot-flip-daily/spot-flip-daily.module.ts` — module wiring (Worker)
+- `apps/worker/src/modules/scheduler/scheduler.service.ts` — `runSpotFlipDaily` cron @ 00:15 UTC (Worker)
+- `scripts/run-spot-flip-snapshot.ts` — manual one-off trigger for the daily snapshot (Worker/CLI)
+- `packages/db/src/repositories/spot-flip-daily.repository.ts` — `createSpotFlipDailyRepository` (upsert / findBySymbol) (BE)
 - `apps/api/src/modules/spot-flip/dto/add-watch.dto.ts` — add-to-watchlist body DTO (BE)
 - `apps/api/src/modules/spot-flip/spot-flip.module.ts` — module wiring (BE)
 - `packages/db/prisma/schema.prisma` — `SpotFlipWatch` model (BE)
 - `packages/db/prisma/migrations/20260711120000_add_spot_flip_watch/migration.sql` — create table + seed defaults (BE)
 - `packages/db/prisma/migrations/20260711140000_spot_flip_watch_soft_delete/migration.sql` — add `disabledAt` column for soft-delete (BE)
+- `packages/db/prisma/schema.prisma` — also `SpotFlipDaily` model (daily snapshots) (BE)
+- `packages/db/prisma/migrations/20260711150000_add_spot_flip_daily/migration.sql` — create `spot_flip_daily` table (BE)
 - `packages/db/src/repositories/spot-flip-watch.repository.ts` — `createSpotFlipWatchRepository` (findAll filters `disabledAt IS NULL`; add re-activates; remove = soft-delete) (BE)
 - `apps/api/src/app.module.ts` — registers `SpotFlipModule` (BE)
 - `apps/web/src/app/spot-flip/page.tsx` — App Router route re-export (FE)
 - `apps/web/src/_pages/spot-flip-page/spot-flip-page.tsx` — page component (FE)
 - `apps/web/src/widgets/spot-flip/spot-flip-tool.tsx` — interactive tool: watchlist load, add + client-side filter, soft-delete with confirm dialog, dual bar, 3-tab detail dialog (general / history-with-color-badge / signal calculator), 00:08 UTC auto-refresh (FE)
-- `apps/web/src/shared/api/types.ts` — `SpotFlipAnalysis` + `SpotFlipHistoryEntry` + `SpotFlipWatchItem` types (FE)
-- `apps/web/src/shared/api/client.ts` — `analyzeSpotFlip()`, `fetchSpotFlipWatchlist()`, `addSpotFlipWatch()`, `removeSpotFlipWatch()` client methods (FE)
+- `apps/web/src/shared/api/types.ts` — `SpotFlipAnalysis` + `SpotFlipHistoryEntry` + `SpotFlipWatchItem` + `SpotFlipDailyEntry` types (FE)
+- `apps/web/src/shared/api/client.ts` — `analyzeSpotFlip()`, `fetchSpotFlipHistory()`, `fetchSpotFlipWatchlist()`, `addSpotFlipWatch()`, `removeSpotFlipWatch()` client methods (FE)
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav entry (FE)
 - `apps/web/src/app/globals.css` — `.sf-*` styles (FE)

@@ -829,3 +829,15 @@ export type SpotFlipWatchItem = {
   symbol: string;
   name: string;
 };
+
+export type SpotFlipDailyEntry = {
+  date: string;
+  price: number;
+  upPct: number;
+  downPct: number;
+  pullbackPct: number;
+  reboundPct: number;
+  atrPct: number;
+  changeH24: number | null;
+  notes: string | null;
+};

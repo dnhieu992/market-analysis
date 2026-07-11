@@ -3,6 +3,13 @@ export { computeSmallCapSignal, computeTimeframeTrend } from './analysis/small-c
 export type { SmallCapStage, SmallCapSignalResult, PaTrend, SwingStructure } from './analysis/small-cap-signal';
 export { computeLongShortScore } from './analysis/long-short-score';
 export type { LongShortScore, LongShortScoreParams } from './analysis/long-short-score';
+export { computeSpotFlip, spotFlipShares, spotFlipSummary } from './analysis/spot-flip';
+export type {
+  SpotFlipKline,
+  SpotFlipChanges,
+  SpotFlipHistoryPoint,
+  SpotFlipMetrics,
+} from './analysis/spot-flip';
 export { computeEntryScore } from './analysis/entry-score';
 export type { EntryScoreParams, EntryScoreResult } from './analysis/entry-score';
 export { computeDcaScore, dcaZone, dcaQualityBucket, computeDcaTimingSignal } from './analysis/dca-signal';

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { SpotFlipAnalysis, SpotFlipHistoryEntry } from '@web/shared/api/types';
+import type { SpotFlipAnalysis, SpotFlipHistoryEntry, SpotFlipDailyEntry } from '@web/shared/api/types';
 
 /* ── constants ──────────────────────────────────────────────────
  * Fee is 0.05%/side = 0.10% round-trip (user's real Binance spot fee).
@@ -182,7 +182,78 @@ function GeneralInfo({ data }: { data: SpotFlipAnalysis }) {
   );
 }
 
-/* ── tab 2: daily history ───────────────────────────────────── */
+/* ── tab 2: daily history (stored analysis + OHLC) ──────────── */
+
+/** Stored daily analysis snapshots (up/down ratio + stance note), written by
+ *  the worker cron at 00:15 UTC and fetched on demand when the tab opens. */
+function AnalysisHistoryTable({ rows }: { rows: SpotFlipDailyEntry[] }) {
+  return (
+    <div className="sf-history-wrap">
+      <table className="sf-history">
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th className="sf-history-num">Giá</th>
+            <th className="sf-history-num">Tăng / Giảm</th>
+            <th>Nhận định</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.date}>
+              <td>{r.date}</td>
+              <td className="sf-history-num">${fmtPrice(r.price)}</td>
+              <td className="sf-history-num sf-share-cell">
+                <span className="sf-up">{Math.round(r.upPct)}%</span>
+                <span className="sf-share-sep">/</span>
+                <span className="sf-down">{Math.round(r.downPct)}%</span>
+              </td>
+              <td className="sf-history-note">{r.notes ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function HistoryTab({ data }: { data: SpotFlipAnalysis }) {
+  const [rows, setRows] = useState<SpotFlipDailyEntry[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .fetchSpotFlipHistory(data.symbol)
+      .then((r) => {
+        if (!cancelled) setRows(r);
+      })
+      .catch(() => {
+        if (!cancelled) setRows([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [data.symbol]);
+
+  return (
+    <div className="sf-detail">
+      <div>
+        <h3 className="sf-card-title">Lịch sử phân tích (tỉ lệ tăng/giảm · nhận định)</h3>
+        {rows == null ? (
+          <p className="sf-hint">Đang tải…</p>
+        ) : rows.length === 0 ? (
+          <p className="sf-hint">Chưa có snapshot phân tích nào. Job tự chạy 00:15 UTC mỗi ngày.</p>
+        ) : (
+          <AnalysisHistoryTable rows={rows} />
+        )}
+      </div>
+      <div>
+        <h3 className="sf-card-title">Giá theo ngày (OHLC)</h3>
+        <HistoryTable history={data.history} />
+      </div>
+    </div>
+  );
+}
 
 function HistoryTable({ history }: { history: SpotFlipHistoryEntry[] }) {
   if (!history.length) return <p className="sf-hint">Chưa có dữ liệu lịch sử.</p>;
@@ -418,7 +489,7 @@ function CoinDialog({ data, onClose }: { data: SpotFlipAnalysis; onClose: () => 
 
         <div className="dialog-body">
           {tab === 'general' && <GeneralInfo data={data} />}
-          {tab === 'history' && <HistoryTable history={data.history} />}
+          {tab === 'history' && <HistoryTab data={data} />}
           {tab === 'signal' && <SignalTab data={data} />}
         </div>
       </div>

@@ -9,6 +9,7 @@ import { SetupExtractionService } from '../setup-tracking/setup-extraction.servi
 import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
 import { MemeScanService } from '../meme-scan/meme-scan.service';
+import { SpotFlipDailyService } from '../spot-flip-daily/spot-flip-daily.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TrackingCoinScanService } from '../tracking-coin-scan/tracking-coin-scan.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -27,6 +28,7 @@ export class SchedulerService {
     private readonly dailySignalService: DailySignalService,
     private readonly smallCapScanService: SmallCapScanService,
     private readonly memeScanService: MemeScanService,
+    private readonly spotFlipDailyService: SpotFlipDailyService,
     private readonly trackingCoinScanService: TrackingCoinScanService,
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
@@ -74,6 +76,19 @@ export class SchedulerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Meme scan failed: ${msg}`);
+    }
+  }
+
+  // Runs every day at 00:15 UTC — snapshot every spot-flip watchlist coin
+  // (up/down ratio + range/ATR metrics + stance note) into spot_flip_daily.
+  @Cron('15 0 * * *', { timeZone: 'UTC' })
+  async runSpotFlipDaily() {
+    this.logger.log('Running spot-flip daily snapshot');
+    try {
+      await this.spotFlipDailyService.runDaily();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Spot-flip daily snapshot failed: ${msg}`);
     }
   }
 

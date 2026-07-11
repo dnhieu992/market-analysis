@@ -808,3 +808,29 @@ model SpotFlipWatch {
 
   @@map("spot_flip_watch")
 }
+
+// One daily spot-flip snapshot per coin, written by the worker cron at 00:15
+// UTC. Stores the up/down ratio (dual-bar shares), the raw range/ATR metrics,
+// and an auto-generated Vietnamese stance note, so the page can show a history
+// of how each coin's position evolved day to day. Unique per (symbol, date).
+model SpotFlipDaily {
+  id          String   @id @default(cuid())
+  symbol      String   @db.VarChar(30)
+  date        DateTime @db.Date
+  price       Float
+  upPct       Float // % "tăng giá" — headroom to the 30d high
+  downPct     Float // % "giảm giá" — downside to the 30d low
+  pullbackPct Float
+  reboundPct  Float
+  atrPct      Float
+  high30d     Float
+  low30d      Float
+  changeH24   Float?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([symbol, date])
+  @@index([symbol])
+  @@map("spot_flip_daily")
+}

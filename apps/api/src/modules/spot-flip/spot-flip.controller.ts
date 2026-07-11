@@ -19,6 +19,12 @@ export class SpotFlipController {
     return this.service.analyze(symbol);
   }
 
+  @Get('history/:symbol')
+  @ApiOperation({ summary: 'Stored daily spot-flip snapshots for a coin (up/down %, notes)' })
+  history(@Param('symbol') symbol: string) {
+    return this.service.history(symbol);
+  }
+
   @Get('watchlist')
   @ApiOperation({ summary: 'List the coins tracked on /spot-flip' })
   listWatch() {

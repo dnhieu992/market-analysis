@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { createSpotFlipWatchRepository } from '@app/db';
+import { computeSpotFlip } from '@app/core';
+import { createSpotFlipWatchRepository, createSpotFlipDailyRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
-import type { BinanceKlineDto } from '../market/dto/binance-kline.dto';
 
 /**
  * Spot-flip metrics for a single coin. Everything here is aimed at short-term
@@ -51,11 +51,28 @@ export type SpotFlipWatchItem = {
   name: string;
 };
 
+/** One stored daily snapshot (worker cron @ 00:15 UTC) surfaced to the UI. */
+export type SpotFlipDailyEntry = {
+  /** Snapshot day as `YYYY-MM-DD` (UTC). */
+  date: string;
+  price: number;
+  /** % "tăng giá" (headroom to the 30d high) and its "giảm giá" complement. */
+  upPct: number;
+  downPct: number;
+  pullbackPct: number;
+  reboundPct: number;
+  atrPct: number;
+  changeH24: number | null;
+  /** Auto-generated Vietnamese stance note for that day. */
+  notes: string | null;
+};
+
 const QUOTE_ASSETS = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'BTC', 'ETH'];
 
 @Injectable()
 export class SpotFlipService {
   private readonly watchRepo = createSpotFlipWatchRepository();
+  private readonly dailyRepo = createSpotFlipDailyRepository();
 
   constructor(private readonly binance: BinanceMarketDataService) {}
 
@@ -95,24 +112,12 @@ export class SpotFlipService {
     return hasQuote ? symbol : `${symbol}USDT`;
   }
 
-  /** close price `k` candles back from the newest (in-progress) candle. */
-  private closeAgo(klines: BinanceKlineDto[], k: number): number | null {
-    const idx = klines.length - 1 - k;
-    if (idx < 0) return null;
-    return parseFloat(klines[idx]![4]);
-  }
-
-  private pct(price: number, ref: number | null): number | null {
-    if (ref == null || ref === 0) return null;
-    return ((price - ref) / ref) * 100;
-  }
-
   async analyze(rawSymbol: string): Promise<SpotFlipAnalysis> {
     const symbol = this.normalizeSymbol(rawSymbol);
 
     let price: number;
-    let hourly: BinanceKlineDto[];
-    let daily: BinanceKlineDto[];
+    let hourly: Awaited<ReturnType<BinanceMarketDataService['fetchKlines']>>;
+    let daily: typeof hourly;
     try {
       [price, hourly, daily] = await Promise.all([
         this.binance.fetchCurrentPrice(symbol),
@@ -127,64 +132,32 @@ export class SpotFlipService {
       throw new BadRequestException(`Not enough market history for ${symbol}.`);
     }
 
-    // Momentum windows. Hourly closes for intraday, daily for 30d.
-    const changes = {
-      h1: this.pct(price, this.closeAgo(hourly, 1)),
-      h4: this.pct(price, this.closeAgo(hourly, 4)),
-      h24: this.pct(price, this.closeAgo(hourly, 24)),
-      d7: this.pct(price, this.closeAgo(hourly, 168)),
-      d30: this.pct(price, this.closeAgo(daily, 30)),
-    };
-
-    // Range over the last 30 completed daily candles (exclude in-progress).
-    const completedDaily = daily.slice(0, -1);
-    const last30 = completedDaily.slice(-30);
-    const high30d = Math.max(...last30.map((k) => parseFloat(k[2])));
-    const low30d = Math.min(...last30.map((k) => parseFloat(k[3])));
-    const pullbackPct = high30d > 0 ? ((high30d - price) / high30d) * 100 : 0;
-    const reboundPct = low30d > 0 ? ((price - low30d) / low30d) * 100 : 0;
-
-    // ATR proxy: average daily range % over the last 14 completed days.
-    const last14 = completedDaily.slice(-14);
-    const ranges = last14
-      .map((k) => {
-        const high = parseFloat(k[2]);
-        const low = parseFloat(k[3]);
-        const close = parseFloat(k[4]);
-        return close > 0 ? ((high - low) / close) * 100 : 0;
-      })
-      .filter((r) => Number.isFinite(r));
-    const atrPct = ranges.length ? ranges.reduce((a, b) => a + b, 0) / ranges.length : 0;
-
-    // Daily history for the dialog: last 30 completed days, newest first, each
-    // with its close % change vs the previous day. Keep one extra leading day so
-    // the oldest shown row still has a previous close to compare against.
-    const historySource = completedDaily.slice(-31);
-    const history: SpotFlipHistoryEntry[] = [];
-    for (let i = 1; i < historySource.length; i += 1) {
-      const k = historySource[i]!;
-      const prevClose = parseFloat(historySource[i - 1]![4]);
-      const close = parseFloat(k[4]);
-      history.push({
-        date: new Date(k[0]).toISOString().slice(0, 10),
-        open: parseFloat(k[1]),
-        close,
-        changePct: prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : null,
-      });
-    }
-    history.reverse();
+    // All the metric math lives in @app/core so the worker's daily snapshot job
+    // computes the exact same numbers.
+    const metrics = computeSpotFlip(price, hourly, daily);
 
     return {
       symbol,
       price,
-      changes,
-      pullbackPct,
-      reboundPct,
-      high30d,
-      low30d,
-      atrPct,
-      history,
+      ...metrics,
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  /** Stored daily snapshot history for a coin (written by the worker cron). */
+  async history(rawSymbol: string): Promise<SpotFlipDailyEntry[]> {
+    const symbol = this.normalizeSymbol(rawSymbol);
+    const rows = await this.dailyRepo.findBySymbol(symbol, 90);
+    return rows.map((r) => ({
+      date: r.date.toISOString().slice(0, 10),
+      price: r.price,
+      upPct: r.upPct,
+      downPct: r.downPct,
+      pullbackPct: r.pullbackPct,
+      reboundPct: r.reboundPct,
+      atrPct: r.atrPct,
+      changeH24: r.changeH24,
+      notes: r.notes,
+    }));
   }
 }

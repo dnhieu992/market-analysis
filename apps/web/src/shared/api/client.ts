@@ -39,6 +39,7 @@ import type {
   MemeHistoryRow,
   SpotFlipAnalysis,
   SpotFlipWatchItem,
+  SpotFlipDailyEntry,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
@@ -945,6 +946,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async fetchSpotFlipWatchlist(): Promise<SpotFlipWatchItem[]> {
       return fetchJson<SpotFlipWatchItem[]>(fetchImpl, `${baseUrl}/spot-flip/watchlist`, withDefaults());
+    },
+
+    async fetchSpotFlipHistory(symbol: string): Promise<SpotFlipDailyEntry[]> {
+      return fetchJson<SpotFlipDailyEntry[]>(
+        fetchImpl,
+        `${baseUrl}/spot-flip/history/${encodeURIComponent(symbol)}`,
+        withDefaults(),
+      );
     },
 
     async addSpotFlipWatch(symbol: string, name?: string): Promise<SpotFlipWatchItem> {

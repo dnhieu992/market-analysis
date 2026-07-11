@@ -9612,6 +9612,9 @@ a.metric-card--link:hover {
 .sf-history tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--foreground); white-space: nowrap; }
 .sf-history tbody tr:last-child td { border-bottom: none; }
 .sf-history-num { text-align: right; font-variant-numeric: tabular-nums; }
+.sf-share-cell { font-weight: 700; }
+.sf-share-sep { color: var(--muted); margin: 0 4px; font-weight: 400; }
+.sf-history-note { white-space: normal; min-width: 200px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
 @media (max-width: 640px) {
   .sf-metrics, .sf-calc-inputs, .sf-calc-results { grid-template-columns: repeat(2, 1fr); }
