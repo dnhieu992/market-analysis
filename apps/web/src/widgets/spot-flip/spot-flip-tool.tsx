@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { SpotFlipAnalysis } from '@web/shared/api/types';
+import type { SpotFlipAnalysis, SpotFlipHistoryEntry } from '@web/shared/api/types';
 
 /* ── constants ──────────────────────────────────────────────────
  * Fee is 0.05%/side = 0.10% round-trip (user's real Binance spot fee).
@@ -255,19 +255,28 @@ function CardDetail({ data }: { data: SpotFlipAnalysis }) {
 
 function CoinCard({
   data,
-  expanded,
-  onToggle,
+  onOpen,
+  onRemove,
 }: {
   data: SpotFlipAnalysis;
-  expanded: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
+  onRemove: () => void;
 }) {
   const base = baseAsset(data.symbol);
   const change = data.changes.h24;
 
   return (
-    <article className="sf-coin-card">
-      <button type="button" className="sf-coin-head" onClick={onToggle}>
+    <article className="sf-coin-card sf-coin-card--clickable">
+      <button
+        type="button"
+        className="sf-remove"
+        onClick={onRemove}
+        aria-label={`Bỏ theo dõi ${base}`}
+        title="Bỏ theo dõi"
+      >
+        ✕
+      </button>
+      <button type="button" className="sf-coin-head" onClick={onOpen}>
         <div className="sf-coin-id">
           <span className="sf-avatar" style={{ background: avatarColor(data.symbol) }}>
             {base.slice(0, 2)}
@@ -288,9 +297,74 @@ function CoinCard({
       <DualBar data={data} />
 
       <p className="sf-coin-summary">{cardSummary(data)}</p>
-
-      {expanded && <CardDetail data={data} />}
     </article>
+  );
+}
+
+/* ── history dialog (per coin) ──────────────────────────────── */
+
+function HistoryTable({ history }: { history: SpotFlipHistoryEntry[] }) {
+  if (!history.length) return <p className="sf-hint">Chưa có dữ liệu lịch sử.</p>;
+  return (
+    <div className="sf-history-wrap">
+      <table className="sf-history">
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th className="sf-history-num">Mở cửa</th>
+            <th className="sf-history-num">Đóng cửa</th>
+            <th className="sf-history-num">Biến động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((h) => (
+            <tr key={h.date}>
+              <td>{h.date}</td>
+              <td className="sf-history-num">${fmtPrice(h.open)}</td>
+              <td className="sf-history-num">${fmtPrice(h.close)}</td>
+              <td className={`sf-history-num ${pctClass(h.changePct)}`}>{fmtPct(h.changePct)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CoinDialog({ data, onClose }: { data: SpotFlipAnalysis; onClose: () => void }) {
+  const base = baseAsset(data.symbol);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div
+        className="dialog dialog--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Lịch sử ${base}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="dialog-header">
+          <span className="dialog-title">
+            {base} · Lịch sử giá theo ngày
+          </span>
+          <button type="button" className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body">
+          <HistoryTable history={data.history} />
+          <CardDetail data={data} />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -301,7 +375,14 @@ export function SpotFlipTool() {
   const [cards, setCards] = useState<SpotFlipAnalysis[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+
+  const activeCard = activeSymbol ? cards.find((c) => c.symbol === activeSymbol) ?? null : null;
+
+  // Mirror `cards` into a ref so the daily 00:08 UTC timer (registered once)
+  // can read the current symbol list without re-scheduling on every change.
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
 
   async function analyze(sym: string) {
     const symbol = sym.trim();
@@ -309,7 +390,10 @@ export function SpotFlipTool() {
     setLoading(true);
     setError(null);
     try {
+      // Validate + fetch metrics first, then persist to the watchlist so we
+      // never save a junk symbol. `result.symbol` is the normalized pair.
       const result = await apiClient.analyzeSpotFlip(symbol);
+      await apiClient.addSpotFlipWatch(result.symbol);
       setCards((prev) => [result, ...prev.filter((c) => c.symbol !== result.symbol)]);
       setSymbolInput('');
     } catch {
@@ -319,20 +403,72 @@ export function SpotFlipTool() {
     }
   }
 
-  // Preload the quick symbols as the initial card list.
+  // Optimistically drop the card, then remove it from the persisted watchlist.
+  async function removeCoin(symbol: string) {
+    setCards((prev) => prev.filter((c) => c.symbol !== symbol));
+    setActiveSymbol((prev) => (prev === symbol ? null : prev));
+    try {
+      await apiClient.removeSpotFlipWatch(symbol);
+    } catch {
+      // ignore — the card is already gone from the view
+    }
+  }
+
+  // Load the persisted watchlist, then analyze each coin (keeping the saved
+  // order). The list is empty only if the user has removed every coin.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const results = await Promise.allSettled(QUICK_SYMBOLS.map((s) => apiClient.analyzeSpotFlip(s)));
-      if (cancelled) return;
-      const ok = results
-        .filter((r): r is PromiseFulfilledResult<SpotFlipAnalysis> => r.status === 'fulfilled')
-        .map((r) => r.value);
-      setCards(ok);
+      try {
+        const watch = await apiClient.fetchSpotFlipWatchlist();
+        if (cancelled) return;
+        const results = await Promise.allSettled(watch.map((w) => apiClient.analyzeSpotFlip(w.symbol)));
+        if (cancelled) return;
+        const ok = results
+          .filter((r): r is PromiseFulfilledResult<SpotFlipAnalysis> => r.status === 'fulfilled')
+          .map((r) => r.value);
+        setCards(ok);
+      } catch {
+        if (!cancelled) setError('Không tải được danh sách theo dõi.');
+      }
     })();
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Auto-refresh every day at 00:08 UTC — a few minutes after the daily candle
+  // closes at 00:00 UTC, so the freshly completed day shows up in each card's
+  // history and metrics. Re-analyzes whatever symbols are currently shown.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const refreshAll = async () => {
+      const symbols = cardsRef.current.map((c) => c.symbol);
+      if (!symbols.length) return;
+      const results = await Promise.allSettled(symbols.map((s) => apiClient.analyzeSpotFlip(s)));
+      const fresh = results
+        .filter((r): r is PromiseFulfilledResult<SpotFlipAnalysis> => r.status === 'fulfilled')
+        .map((r) => r.value);
+      if (fresh.length) {
+        setCards((prev) => prev.map((c) => fresh.find((f) => f.symbol === c.symbol) ?? c));
+      }
+    };
+
+    const scheduleNext = () => {
+      const now = new Date();
+      const next = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 8, 0, 0),
+      );
+      if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
+      timer = setTimeout(async () => {
+        await refreshAll();
+        scheduleNext();
+      }, next.getTime() - now.getTime());
+    };
+
+    scheduleNext();
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -378,11 +514,17 @@ export function SpotFlipTool() {
           <CoinCard
             key={c.symbol}
             data={c}
-            expanded={expanded === c.symbol}
-            onToggle={() => setExpanded((prev) => (prev === c.symbol ? null : c.symbol))}
+            onOpen={() => setActiveSymbol(c.symbol)}
+            onRemove={() => removeCoin(c.symbol)}
           />
         ))}
       </div>
+
+      {cards.length === 0 && !loading && (
+        <p className="sf-empty">Chưa theo dõi coin nào. Thêm một mã ở trên để bắt đầu.</p>
+      )}
+
+      {activeCard && <CoinDialog data={activeCard} onClose={() => setActiveSymbol(null)} />}
     </div>
   );
 }

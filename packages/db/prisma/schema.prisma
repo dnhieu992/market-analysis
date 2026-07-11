@@ -791,3 +791,16 @@ model DcaOrder {
   @@map("dca_orders")
 }
 
+
+// ── Spot Flip watchlist ───────────────────────────────────────────────────────
+// The set of coins the user tracks on the /spot-flip page. A plain persisted
+// watchlist (no signals/history) — the page still computes all metrics live from
+// Binance on each view; this only remembers *which* coins to show.
+model SpotFlipWatch {
+  id      String   @id @default(cuid())
+  symbol  String   @unique @db.VarChar(30)
+  name    String   @default("") @db.VarChar(100)
+  addedAt DateTime @default(now())
+
+  @@map("spot_flip_watch")
+}

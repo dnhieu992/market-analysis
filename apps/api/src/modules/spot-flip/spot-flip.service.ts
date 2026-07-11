@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { createSpotFlipWatchRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import type { BinanceKlineDto } from '../market/dto/binance-kline.dto';
@@ -29,14 +30,62 @@ export type SpotFlipAnalysis = {
   low30d: number;
   /** Average daily range % over the last 14 completed days — the ATR proxy. */
   atrPct: number;
+  /** Daily OHLC history (newest first) for the per-coin history dialog. */
+  history: SpotFlipHistoryEntry[];
   updatedAt: string;
+};
+
+/** One completed daily candle, with its % change vs the previous day's close. */
+export type SpotFlipHistoryEntry = {
+  /** Candle open day as `YYYY-MM-DD` (UTC). */
+  date: string;
+  open: number;
+  close: number;
+  /** % change of close vs the previous day's close (null for the first day). */
+  changePct: number | null;
+};
+
+/** One coin on the persisted /spot-flip watchlist. */
+export type SpotFlipWatchItem = {
+  symbol: string;
+  name: string;
 };
 
 const QUOTE_ASSETS = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'BTC', 'ETH'];
 
 @Injectable()
 export class SpotFlipService {
+  private readonly watchRepo = createSpotFlipWatchRepository();
+
   constructor(private readonly binance: BinanceMarketDataService) {}
+
+  /** The coins the user tracks on /spot-flip (add order). */
+  async listWatch(): Promise<SpotFlipWatchItem[]> {
+    const rows = await this.watchRepo.findAll();
+    return rows.map((r) => ({ symbol: r.symbol, name: r.name }));
+  }
+
+  /** Add a coin to the watchlist. Validates it exists on Binance first, so we
+   *  never persist a junk symbol. Returns the normalized watch item. */
+  async addWatch(rawSymbol: string, name?: string): Promise<SpotFlipWatchItem> {
+    const symbol = this.normalizeSymbol(rawSymbol);
+    // analyze() throws BadRequestException for unknown/delisted symbols.
+    await this.analyze(symbol);
+    const row = await this.watchRepo.add(symbol, name ?? '');
+    return { symbol: row.symbol, name: row.name };
+  }
+
+  /** Remove a coin from the watchlist (idempotent). */
+  async removeWatch(rawSymbol: string): Promise<{ removed: boolean }> {
+    const symbol = this.normalizeSymbol(rawSymbol);
+    try {
+      await this.watchRepo.remove(symbol);
+      return { removed: true };
+    } catch {
+      // Not on the list — treat delete as a no-op success.
+      return { removed: false };
+    }
+  }
 
   /** Normalize user input like "btc" → "BTCUSDT"; leave full pairs untouched. */
   private normalizeSymbol(raw: string): string {
@@ -107,6 +156,24 @@ export class SpotFlipService {
       .filter((r) => Number.isFinite(r));
     const atrPct = ranges.length ? ranges.reduce((a, b) => a + b, 0) / ranges.length : 0;
 
+    // Daily history for the dialog: last 30 completed days, newest first, each
+    // with its close % change vs the previous day. Keep one extra leading day so
+    // the oldest shown row still has a previous close to compare against.
+    const historySource = completedDaily.slice(-31);
+    const history: SpotFlipHistoryEntry[] = [];
+    for (let i = 1; i < historySource.length; i += 1) {
+      const k = historySource[i]!;
+      const prevClose = parseFloat(historySource[i - 1]![4]);
+      const close = parseFloat(k[4]);
+      history.push({
+        date: new Date(k[0]).toISOString().slice(0, 10),
+        open: parseFloat(k[1]),
+        close,
+        changePct: prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : null,
+      });
+    }
+    history.reverse();
+
     return {
       symbol,
       price,
@@ -116,6 +183,7 @@ export class SpotFlipService {
       high30d,
       low30d,
       atrPct,
+      history,
       updatedAt: new Date().toISOString(),
     };
   }

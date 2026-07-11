@@ -38,6 +38,7 @@ import type {
   MemeCoinRow,
   MemeHistoryRow,
   SpotFlipAnalysis,
+  SpotFlipWatchItem,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
@@ -939,6 +940,30 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/spot-flip?symbol=${encodeURIComponent(symbol)}`,
         withDefaults(),
+      );
+    },
+
+    async fetchSpotFlipWatchlist(): Promise<SpotFlipWatchItem[]> {
+      return fetchJson<SpotFlipWatchItem[]>(fetchImpl, `${baseUrl}/spot-flip/watchlist`, withDefaults());
+    },
+
+    async addSpotFlipWatch(symbol: string, name?: string): Promise<SpotFlipWatchItem> {
+      return fetchJson<SpotFlipWatchItem>(
+        fetchImpl,
+        `${baseUrl}/spot-flip/watchlist`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, name }),
+        }),
+      );
+    },
+
+    async removeSpotFlipWatch(symbol: string): Promise<{ removed: boolean }> {
+      return fetchJson<{ removed: boolean }>(
+        fetchImpl,
+        `${baseUrl}/spot-flip/watchlist/${encodeURIComponent(symbol)}`,
+        withDefaults({ method: 'DELETE' }),
       );
     },
 

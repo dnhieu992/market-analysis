@@ -814,5 +814,18 @@ export type SpotFlipAnalysis = {
   high30d: number;
   low30d: number;
   atrPct: number;
+  history: SpotFlipHistoryEntry[];
   updatedAt: string;
+};
+
+export type SpotFlipHistoryEntry = {
+  date: string;
+  open: number;
+  close: number;
+  changePct: number | null;
+};
+
+export type SpotFlipWatchItem = {
+  symbol: string;
+  name: string;
 };

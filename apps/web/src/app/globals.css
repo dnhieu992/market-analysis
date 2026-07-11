@@ -9436,6 +9436,7 @@ a.metric-card--link:hover {
 /* ── coin card list ── */
 .sf-list { display: flex; flex-direction: column; gap: 16px; }
 .sf-coin-card {
+  position: relative;
   background: #f7f7f8;
   border: 1px solid rgba(23, 18, 13, 0.06);
   border-radius: 20px;
@@ -9445,10 +9446,38 @@ a.metric-card--link:hover {
   gap: 16px;
 }
 
+.sf-remove {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(23, 18, 13, 0.05);
+  color: #9b9b9b;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.sf-coin-card:hover .sf-remove,
+.sf-remove:focus-visible { opacity: 1; }
+.sf-remove:hover { background: rgba(246, 70, 93, 0.14); color: #f6465d; }
+/* Touch devices have no hover — keep the remove button visible. */
+@media (hover: none) { .sf-remove { opacity: 1; } }
+
 .sf-coin-head {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-  background: none; border: none; padding: 0; margin: 0; width: 100%; cursor: pointer; text-align: left;
+  background: none; border: none; padding: 0 30px 0 0; margin: 0; width: 100%; cursor: pointer; text-align: left;
 }
+
+.sf-empty { font-size: 13.5px; color: #9b9b9b; text-align: center; padding: 24px 0; margin: 0; }
 .sf-coin-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .sf-avatar {
   flex: none; width: 42px; height: 42px; border-radius: 999px;
@@ -9520,6 +9549,27 @@ a.metric-card--link:hover {
 .sf-up { color: #00c896; }
 .sf-down { color: #f6465d; }
 .sf-neutral { color: #17120d; }
+
+.sf-coin-card--clickable .sf-coin-head { cursor: pointer; }
+
+/* ── history dialog table ── */
+.sf-history-wrap { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 18px; }
+.sf-history { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sf-history thead th {
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.sf-history tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--foreground); white-space: nowrap; }
+.sf-history tbody tr:last-child td { border-bottom: none; }
+.sf-history-num { text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 640px) {
   .sf-metrics, .sf-calc-inputs, .sf-calc-results { grid-template-columns: repeat(2, 1fr); }

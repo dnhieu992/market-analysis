@@ -21,3 +21,4 @@ export { createTrackingCoinsRepository } from './repositories/tracking-coins.rep
 export { createDayTradingRepository } from './repositories/day-trading.repository';
 export { createLongSignalRepository } from './repositories/long-signal.repository';
 export { createDcaLadderRepository } from './repositories/dca-ladder.repository';
+export { createSpotFlipWatchRepository } from './repositories/spot-flip-watch.repository';
