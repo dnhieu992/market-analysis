@@ -16,7 +16,7 @@ The set of coins on the page is a per-user watchlist stored in MySQL (`SpotFlipW
 
 Each card has:
 - **Header** — round avatar (deterministic color + base-asset initials), base symbol in bold uppercase, full coin name in gray below (from `COIN_NAMES`, falls back to the `BASE / QUOTE` pair); right-aligned current price (bold) with the 24h change below it (green ▲ if up, red ▼ if down).
-- **Dual up/down bar** — one continuous bar split into a green "tăng giá" segment (share of `reboundPct`) and a red "giảm giá" segment (share of `pullbackPct`), normalized to 100%, showing where price sits in its 30-day range. Labels sit above the bar (green left, red right).
+- **Dual up/down bar** — one continuous bar showing the *remaining room* in the 30-day range: green "tăng giá" = headroom up to the high (share of `pullbackPct`), red "giảm giá" = downside to the low (share of `reboundPct`), normalized to 100%. The nearer price sits to the 30-day high, the smaller the green share (less room to rise). Labels sit above the bar (green left, red right).
 - **Summary line** — short Vietnamese take on dip depth (in ATR units) and stance.
 - **History dialog** (tap anywhere on the card to open) — a modal (`.dialog--wide`) showing that coin's **daily price history** table (last 30 completed days, newest first: date `YYYY-MM-DD`, open, close, and % change of close vs the previous day's close — green/red) followed by the range/dip/ATR metrics + the fee-net TP/SL flip calculator (state seeded per-card from that coin's ATR). Close via the ✕ button, backdrop click, or `Escape`.
 

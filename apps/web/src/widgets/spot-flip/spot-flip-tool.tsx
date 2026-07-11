@@ -108,10 +108,12 @@ function cardSummary(d: SpotFlipAnalysis): string {
 /* ── dual up/down bar ───────────────────────────────────────── */
 
 function DualBar({ data }: { data: SpotFlipAnalysis }) {
-  // Where price sits in its 30-day range: how far it has risen off the low
-  // (green "tăng giá") vs how far it has fallen from the high (red "giảm giá").
-  const up = Math.max(0, data.reboundPct);
-  const down = Math.max(0, data.pullbackPct);
+  // Remaining room in the 30-day range, not distance already travelled:
+  // green "tăng giá" = headroom up to the high (pullbackPct), red "giảm giá"
+  // = downside to the low (reboundPct). So the closer price sits to the high,
+  // the smaller the green share — matching how a trader reads "dư địa tăng".
+  const up = Math.max(0, data.pullbackPct);
+  const down = Math.max(0, data.reboundPct);
   const total = up + down;
   const greenShare = total > 0 ? (up / total) * 100 : 50;
   const redShare = 100 - greenShare;
