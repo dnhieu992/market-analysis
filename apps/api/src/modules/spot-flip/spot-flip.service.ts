@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { computeSpotFlip } from '@app/core';
-import { createSpotFlipWatchRepository, createSpotFlipDailyRepository } from '@app/db';
+import {
+  createSpotFlipWatchRepository,
+  createSpotFlipDailyRepository,
+  createSpotFlipLogRepository,
+} from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
@@ -67,12 +71,22 @@ export type SpotFlipDailyEntry = {
   notes: string | null;
 };
 
+/** One manual, timestamped log entry a user added to a coin. */
+export type SpotFlipLogEntry = {
+  id: string;
+  /** Markdown content. */
+  content: string;
+  /** ISO timestamp (creation time, preserves hh:mm:ss). */
+  createdAt: string;
+};
+
 const QUOTE_ASSETS = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'BTC', 'ETH'];
 
 @Injectable()
 export class SpotFlipService {
   private readonly watchRepo = createSpotFlipWatchRepository();
   private readonly dailyRepo = createSpotFlipDailyRepository();
+  private readonly logRepo = createSpotFlipLogRepository();
 
   constructor(private readonly binance: BinanceMarketDataService) {}
 
@@ -159,5 +173,29 @@ export class SpotFlipService {
       changeH24: r.changeH24,
       notes: r.notes,
     }));
+  }
+
+  /** Manual logs a user has added to a coin (newest first). */
+  async listLogs(rawSymbol: string): Promise<SpotFlipLogEntry[]> {
+    const symbol = this.normalizeSymbol(rawSymbol);
+    const rows = await this.logRepo.findBySymbol(symbol);
+    return rows.map((r) => ({ id: r.id, content: r.content, createdAt: r.createdAt.toISOString() }));
+  }
+
+  /** Append a new timestamped log entry to a coin. */
+  async addLog(rawSymbol: string, content: string): Promise<SpotFlipLogEntry> {
+    const symbol = this.normalizeSymbol(rawSymbol);
+    const row = await this.logRepo.add(symbol, content);
+    return { id: row.id, content: row.content, createdAt: row.createdAt.toISOString() };
+  }
+
+  /** Delete a single log entry (idempotent). */
+  async removeLog(id: string): Promise<{ removed: boolean }> {
+    try {
+      await this.logRepo.remove(id);
+      return { removed: true };
+    } catch {
+      return { removed: false };
+    }
   }
 }

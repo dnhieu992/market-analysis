@@ -834,3 +834,17 @@ model SpotFlipDaily {
   @@index([symbol])
   @@map("spot_flip_daily")
 }
+
+// Free-form manual logs/notes a user adds to a /spot-flip coin. Append-only:
+// each save is a new timestamped entry (hh:mm:ss preserved via createdAt), so a
+// coin accumulates a running journal. Content is Markdown (edited with the
+// shared MarkdownEditor).
+model SpotFlipLog {
+  id        String   @id @default(cuid())
+  symbol    String   @db.VarChar(30)
+  content   String   @db.LongText
+  createdAt DateTime @default(now())
+
+  @@index([symbol])
+  @@map("spot_flip_log")
+}

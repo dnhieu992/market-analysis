@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Inject, Param, Post, Query } from '@nest
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddWatchDto } from './dto/add-watch.dto';
+import { AddLogDto } from './dto/add-log.dto';
 import { SpotFlipService } from './spot-flip.service';
 
 @ApiTags('Spot Flip')
@@ -41,5 +42,23 @@ export class SpotFlipController {
   @ApiOperation({ summary: 'Remove a coin from the /spot-flip watchlist' })
   removeWatch(@Param('symbol') symbol: string) {
     return this.service.removeWatch(symbol);
+  }
+
+  @Get('logs/:symbol')
+  @ApiOperation({ summary: 'List manual logs for a coin (newest first)' })
+  listLogs(@Param('symbol') symbol: string) {
+    return this.service.listLogs(symbol);
+  }
+
+  @Post('logs/:symbol')
+  @ApiOperation({ summary: 'Append a timestamped log entry to a coin' })
+  addLog(@Param('symbol') symbol: string, @Body() body: AddLogDto) {
+    return this.service.addLog(symbol, body.content);
+  }
+
+  @Delete('logs/entry/:id')
+  @ApiOperation({ summary: 'Delete a single log entry' })
+  removeLog(@Param('id') id: string) {
+    return this.service.removeLog(id);
   }
 }

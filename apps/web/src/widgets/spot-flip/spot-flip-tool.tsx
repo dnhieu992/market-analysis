@@ -1,8 +1,21 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { SpotFlipAnalysis, SpotFlipHistoryEntry, SpotFlipDailyEntry } from '@web/shared/api/types';
+import type {
+  SpotFlipAnalysis,
+  SpotFlipHistoryEntry,
+  SpotFlipDailyEntry,
+  SpotFlipLogEntry,
+} from '@web/shared/api/types';
+
+// Lazy-load the shared TipTap editor so its bundle only loads when a logs
+// dialog opens.
+const MarkdownEditor = dynamic(
+  () => import('@web/shared/ui/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  { ssr: false },
+);
 
 /* ── constants ──────────────────────────────────────────────────
  * Fee is 0.05%/side = 0.10% round-trip (user's real Binance spot fee).
@@ -388,16 +401,27 @@ function CoinCard({
   data,
   onOpen,
   onRemove,
+  onLogs,
 }: {
   data: SpotFlipAnalysis;
   onOpen: () => void;
   onRemove: () => void;
+  onLogs: () => void;
 }) {
   const base = baseAsset(data.symbol);
   const change = data.changes.h24;
 
   return (
     <article className="sf-coin-card sf-coin-card--clickable">
+      <button
+        type="button"
+        className="sf-logs-btn"
+        onClick={onLogs}
+        aria-label={`Nhật ký ${base}`}
+        title="Thêm / xem logs"
+      >
+        📝 Logs
+      </button>
       <button
         type="button"
         className="sf-remove"
@@ -497,6 +521,140 @@ function CoinDialog({ data, onClose }: { data: SpotFlipAnalysis; onClose: () => 
   );
 }
 
+/* ── logs dialog (per coin) ─────────────────────────────────── */
+
+function fmtLogTime(iso: string): string {
+  return new Date(iso).toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
+function LogsDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  const base = baseAsset(symbol);
+  const [logs, setLogs] = useState<SpotFlipLogEntry[] | null>(null);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .fetchSpotFlipLogs(symbol)
+      .then((r) => {
+        if (!cancelled) setLogs(r);
+      })
+      .catch(() => {
+        if (!cancelled) setLogs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol]);
+
+  async function addLog() {
+    const content = draft.trim();
+    if (!content || saving) return;
+    setSaving(true);
+    try {
+      const entry = await apiClient.addSpotFlipLog(symbol, content);
+      setLogs((prev) => [entry, ...(prev ?? [])]);
+      setDraft('');
+    } catch {
+      // keep the draft so the user can retry
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteLog(id: string) {
+    setLogs((prev) => (prev ?? []).filter((l) => l.id !== id));
+    try {
+      await apiClient.deleteSpotFlipLog(id);
+    } catch {
+      // already removed from the view
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div
+        className="dialog dialog--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Logs ${base}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="dialog-header">
+          <span className="dialog-title">{base} · Nhật ký / Logs</span>
+          <button type="button" className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body">
+          <div className="sf-log-compose">
+            <MarkdownEditor
+              value={draft}
+              onChange={setDraft}
+              minHeight={160}
+              placeholder="Ghi log cho coin này… (hỗ trợ định dạng markdown)"
+            />
+            <div className="sf-log-compose-actions">
+              <button
+                type="button"
+                className="sf-search-btn"
+                onClick={() => void addLog()}
+                disabled={saving || !draft.trim()}
+              >
+                {saving ? 'Đang lưu…' : 'Thêm log'}
+              </button>
+            </div>
+          </div>
+
+          <div className="sf-log-list">
+            {logs == null ? (
+              <p className="sf-hint">Đang tải…</p>
+            ) : logs.length === 0 ? (
+              <p className="sf-hint">Chưa có log nào. Viết ghi chú ở trên và bấm “Thêm log”.</p>
+            ) : (
+              logs.map((log) => (
+                <div key={log.id} className="sf-log-entry">
+                  <div className="sf-log-entry-head">
+                    <span className="sf-log-entry-time">{fmtLogTime(log.createdAt)}</span>
+                    <button
+                      type="button"
+                      className="sf-log-entry-del"
+                      onClick={() => void deleteLog(log.id)}
+                      aria-label="Xoá log"
+                      title="Xoá log"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <MarkdownEditor value={log.content} onChange={() => {}} editable={false} hideToolbar minHeight={0} />
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── remove confirm dialog ──────────────────────────────────── */
 
 function RemoveConfirm({
@@ -545,6 +703,7 @@ export function SpotFlipTool() {
   const [error, setError] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
+  const [logsSymbol, setLogsSymbol] = useState<string | null>(null);
 
   const activeCard = activeSymbol ? cards.find((c) => c.symbol === activeSymbol) ?? null : null;
 
@@ -701,6 +860,7 @@ export function SpotFlipTool() {
             data={c}
             onOpen={() => setActiveSymbol(c.symbol)}
             onRemove={() => setPendingRemove(c.symbol)}
+            onLogs={() => setLogsSymbol(c.symbol)}
           />
         ))}
       </div>
@@ -713,6 +873,8 @@ export function SpotFlipTool() {
       )}
 
       {activeCard && <CoinDialog data={activeCard} onClose={() => setActiveSymbol(null)} />}
+
+      {logsSymbol && <LogsDialog symbol={logsSymbol} onClose={() => setLogsSymbol(null)} />}
 
       {pendingRemove && (
         <RemoveConfirm

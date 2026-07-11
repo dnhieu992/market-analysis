@@ -24,3 +24,4 @@ export { createDcaLadderRepository } from './repositories/dca-ladder.repository'
 export { createSpotFlipWatchRepository } from './repositories/spot-flip-watch.repository';
 export { createSpotFlipDailyRepository } from './repositories/spot-flip-daily.repository';
 export type { SpotFlipDailyInput } from './repositories/spot-flip-daily.repository';
+export { createSpotFlipLogRepository } from './repositories/spot-flip-log.repository';

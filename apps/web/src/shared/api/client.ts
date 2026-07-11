@@ -40,6 +40,7 @@ import type {
   SpotFlipAnalysis,
   SpotFlipWatchItem,
   SpotFlipDailyEntry,
+  SpotFlipLogEntry,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
@@ -972,6 +973,34 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<{ removed: boolean }>(
         fetchImpl,
         `${baseUrl}/spot-flip/watchlist/${encodeURIComponent(symbol)}`,
+        withDefaults({ method: 'DELETE' }),
+      );
+    },
+
+    async fetchSpotFlipLogs(symbol: string): Promise<SpotFlipLogEntry[]> {
+      return fetchJson<SpotFlipLogEntry[]>(
+        fetchImpl,
+        `${baseUrl}/spot-flip/logs/${encodeURIComponent(symbol)}`,
+        withDefaults(),
+      );
+    },
+
+    async addSpotFlipLog(symbol: string, content: string): Promise<SpotFlipLogEntry> {
+      return fetchJson<SpotFlipLogEntry>(
+        fetchImpl,
+        `${baseUrl}/spot-flip/logs/${encodeURIComponent(symbol)}`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        }),
+      );
+    },
+
+    async deleteSpotFlipLog(id: string): Promise<{ removed: boolean }> {
+      return fetchJson<{ removed: boolean }>(
+        fetchImpl,
+        `${baseUrl}/spot-flip/logs/entry/${encodeURIComponent(id)}`,
         withDefaults({ method: 'DELETE' }),
       );
     },

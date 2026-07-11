@@ -841,3 +841,9 @@ export type SpotFlipDailyEntry = {
   changeH24: number | null;
   notes: string | null;
 };
+
+export type SpotFlipLogEntry = {
+  id: string;
+  content: string;
+  createdAt: string;
+};
