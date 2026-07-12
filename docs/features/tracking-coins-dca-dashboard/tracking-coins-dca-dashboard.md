@@ -27,6 +27,15 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
 4. The feed shows a **DCA** column (quality badge + zone tag) and defaults to sorting by `dcaScore` desc
    so the safest-to-DCA coins surface first.
 
+## Strategy & scoring info dialog
+The page header shows the plain title **"Tracking Coins"** (the old "· Gom đáy" suffix was
+dropped) with a small **info icon** (`i`) beside it. Clicking it opens `StrategyInfoDialog` — a
+read-only modal that explains the running strategy (bottom-DCA x2: buy 50–85% below the cycle
+peak in a tight sideways base with RSI ≤ 45, spot/no-SL, 3-tier −15% ladder, full exit at x2,
+coin-selection-as-stop-loss via the `dcaScore ≥ 50` gate), the three zones (GOM / Chờ / Hồi), and
+the **dcaScore breakdown** (market-cap tiers max 50 + weekly structure max 50, plus the
+70/50/30 quality buckets). Purely informational — no data fetch, no state beyond open/close.
+
 ## Trend column (PA) — W / D1 / H4
 The per-timeframe `trend` (5 levels ↑↑/↑/→/↓/↓↓) comes from `computePaTrend` in `@app/core`
 (`computeTimeframeTrend` for W/H4, inside `computeSmallCapSignal` for D1). It mirrors the
@@ -101,5 +110,5 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - `apps/api/src/modules/tracking-coins/dto/add-dca-buy.dto.ts`
 - `apps/web/src/shared/api/types.ts` — `dcaScore`/`dcaZone`/`low20Pct`, `dcaPosition`, `DcaPosition`/`DcaBuy`
 - `apps/web/src/shared/api/client.ts` — `fetchDcaPosition`/`addDcaBuy`/`deleteDcaBuy`/`closeDcaPosition`
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `CoinDetailModal` (hosts the `DCA position` tab), `DcaPositionPanel`, sort/column
-- `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*`, `.dcapos-*` styles
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `CoinDetailModal` (hosts the `DCA position` tab), `DcaPositionPanel`, `StrategyInfoDialog` (header info dialog), sort/column
+- `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*`, `.dcapos-*`, `.si-*` (strategy info dialog) styles

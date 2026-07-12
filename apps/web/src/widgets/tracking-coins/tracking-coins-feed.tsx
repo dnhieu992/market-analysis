@@ -533,6 +533,91 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
   );
 }
 
+/* ── Strategy & scoring explainer dialog ─────────────────────────── */
+
+function StrategyInfoDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Chiến lược Gom đáy &amp; cách tính điểm</span>
+          <button className="dialog-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="dialog-body si">
+          <section className="si-sec">
+            <h3 className="si-h">Chiến lược đang chạy — Gom đáy x2 (spot, no SL)</h3>
+            <p className="si-p">
+              Mua coin đã <b>giảm sâu 50–85%</b> từ đỉnh chu kỳ (đỉnh 2 năm) khi giá đang{' '}
+              <b>đi ngang trong nền hẹp</b> (base ≤ 25%), nằm sát đáy nền và RSI(14) D1 ≤ 45.
+              Vào lệnh <b>spot, KHÔNG stop-loss</b>, gom theo ladder <b>tối đa 3 lần × −15%</b>,
+              rồi <b>bán toàn bộ ở x2</b> (+100% so với giá trung bình) — không chốt sớm ở EMA34.
+            </p>
+            <p className="si-p si-note">
+              Vì không có stop-loss, <b>việc chọn coin chính là lớp phòng thủ thay stop-loss</b>:
+              chỉ gom coin đủ lớn và cấu trúc tuần còn sống. Đó là ý nghĩa của cổng{' '}
+              <b>dcaScore ≥ 50</b> — backtest cho thấy cổng này nâng PF từ 1.58 → 3.53.
+            </p>
+          </section>
+
+          <section className="si-sec">
+            <h3 className="si-h">Trạng thái (zone)</h3>
+            <ul className="si-list">
+              <li><b>GOM</b> — đủ điều kiện đáy chất lượng <i>và</i> đã qua cổng dcaScore ≥ 50 → gom / gom thêm.</li>
+              <li><b>Chờ</b> — chưa vào vùng đáy chất lượng, hoặc chưa qua cổng dcaScore.</li>
+              <li><b>Hồi</b> — giá đã hồi lên trên EMA34 → không còn là điểm gom, theo dõi chốt x2.</li>
+            </ul>
+          </section>
+
+          <section className="si-sec">
+            <h3 className="si-h">Cách tính điểm — dcaScore (0–100)</h3>
+            <p className="si-p">
+              dcaScore = <b>Vốn hóa (tối đa 50)</b> + <b>Cấu trúc tuần (tối đa 50)</b>.
+              Đo mức độ “an toàn để DCA” — coin càng lớn và trend tuần càng khỏe thì càng ít rủi ro về 0.
+            </p>
+
+            <div className="si-grid">
+              <div className="si-card">
+                <div className="si-card-h">Vốn hóa · tối đa 50 điểm</div>
+                <table className="si-table">
+                  <tbody>
+                    <tr><td>≥ $1B</td><td>50</td></tr>
+                    <tr><td>≥ $300M</td><td>40</td></tr>
+                    <tr><td>≥ $100M</td><td>30</td></tr>
+                    <tr><td>≥ $30M</td><td>20</td></tr>
+                    <tr><td>≥ $10M</td><td>10</td></tr>
+                    <tr><td>&lt; $10M / không rõ</td><td>0</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="si-card">
+                <div className="si-card-h">Cấu trúc tuần · tối đa 50 điểm</div>
+                <table className="si-table">
+                  <tbody>
+                    <tr><td>Trend tuần: StrongUp / Up</td><td>20 / 15</td></tr>
+                    <tr><td>Trend tuần: Neutral / Down / StrongDown</td><td>8 / 2 / 0</td></tr>
+                    <tr><td>Giá trên EMA200 tuần</td><td>+15</td></tr>
+                    <tr><td>Giá trên EMA89 tuần</td><td>+8</td></tr>
+                    <tr><td>UTBot tuần bullish</td><td>+7</td></tr>
+                  </tbody>
+                </table>
+                <p className="si-fine">(Phần cấu trúc tuần giới hạn tối đa 50 điểm.)</p>
+              </div>
+            </div>
+
+            <div className="si-buckets">
+              <span className="si-bucket si-bucket--safe">≥ 70 · An toàn</span>
+              <span className="si-bucket si-bucket--ok">≥ 50 · OK (cổng GOM)</span>
+              <span className="si-bucket si-bucket--risky">≥ 30 · Rủi ro</span>
+              <span className="si-bucket si-bucket--avoid">&lt; 30 · Tránh</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── DCA position dialog — buy log, average, P&L, profit-aware chốt ─ */
 
 const DCA_MAX_LAYERS = 3; // bottom-DCA ladder: 3 tiers × −15% (2026-07-12 backtest)
@@ -774,6 +859,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('dca');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('all');
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>('all');
@@ -908,12 +994,24 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onCancel={() => setConfirmRemoveSymbol(null)}
         />
       )}
+      {showInfo && <StrategyInfoDialog onClose={() => setShowInfo(false)} />}
 
       <main className="dashboard-shell scr-shell">
         {/* header */}
         <div className="tc-page-header">
           <div className="tc-page-header-left">
-            <h1 className="scr-title">Tracking Coins · Gom đáy</h1>
+            <div className="tc-page-title-row">
+              <h1 className="scr-title">Tracking Coins</h1>
+              <button
+                type="button"
+                className={`tc-info-btn${showInfo ? ' tc-info-btn--active' : ''}`}
+                onClick={() => setShowInfo(true)}
+                aria-label="Giải thích chiến lược & cách tính điểm"
+                title="Chiến lược & cách tính điểm"
+              >
+                i
+              </button>
+            </div>
             <p className="tc-page-header-sub">
               Gom vùng đáy mạnh (giảm 50–85% + nền đi ngang) qua cổng dcaScore≥50 · spot, no SL · ladder 3×−15% · target CHỐT x2 ·{' '}
               {sorted.length < coins.length
