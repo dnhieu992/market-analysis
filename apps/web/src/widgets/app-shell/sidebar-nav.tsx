@@ -88,6 +88,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Biến động, dip & ATR · máy tính TP/SL net phí'
   },
   {
+    href: '/pattern-scanner',
+    label: 'Pattern Scanner',
+    description: 'Quét mô hình giá: 2 đáy, 2 đỉnh, vai đầu vai'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

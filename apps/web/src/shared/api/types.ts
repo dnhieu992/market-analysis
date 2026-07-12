@@ -733,6 +733,44 @@ export type MemeStage = SmallCapStage;
 export type MemeCoinRow = SmallCapCoinRow;
 export type MemeHistoryRow = SmallCapHistoryRow;
 
+// ── Pattern Scanner ─────────────────────────────────────────────────────────────
+export type PatternKind = 'double_bottom' | 'double_top' | 'head_shoulders' | 'inverse_head_shoulders';
+
+export type PatternWatchCoin = {
+  id: string;
+  symbol: string;
+  name: string;
+  addedAt: string;
+};
+
+export type PatternMatch = {
+  pattern: PatternKind;
+  direction: 'bullish' | 'bearish';
+  status: 'forming' | 'confirmed';
+  neckline: number;
+  target: number;
+  stop: number;
+  heightPct: number;
+  barsAgo: number;
+  pivots: { idx: number; price: number; role: string }[];
+};
+
+export type PatternScanCoinResult = {
+  symbol: string;
+  name: string;
+  price: number;
+  matches: PatternMatch[];
+};
+
+export type PatternScanResult = {
+  scannedAt: string;
+  timeframe: string;
+  patterns: PatternKind[];
+  scanned: number;
+  failed: number;
+  coins: PatternScanCoinResult[];
+};
+
 /** Progress/result of the background coin sync (polled after a Sync Coins click). */
 export type MemeRescanStatus = {
   running: boolean;

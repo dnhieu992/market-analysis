@@ -849,3 +849,14 @@ model SpotFlipLog {
   @@index([symbol])
   @@map("spot_flip_log")
 }
+
+// Watchlist for the /pattern-scanner page. Stateless scanner (no persisted signals):
+// the user manages a coin list, then scans it on-demand for chart patterns.
+model PatternWatchCoin {
+  id      String   @id @default(cuid())
+  symbol  String   @unique @db.VarChar(30)
+  name    String   @default("") @db.VarChar(100)
+  addedAt DateTime @default(now())
+
+  @@map("pattern_watch_coins")
+}

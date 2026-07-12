@@ -30,6 +30,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { DcaLadderModule } from './modules/dca-ladder/dca-ladder.module';
+import { PatternScannerModule } from './modules/pattern-scanner/pattern-scanner.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { DcaLadderModule } from './modules/dca-ladder/dca-ladder.module';
     DayTradingModule,
     LongSignalModule,
     DcaLadderModule,
+    PatternScannerModule,
   ],
   providers: [
     {

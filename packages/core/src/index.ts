@@ -16,6 +16,8 @@ export { computeDcaScore, dcaZone, dcaQualityBucket, computeDcaTimingSignal } fr
 export type { DcaScoreParams, DcaZoneParams, DcaZone, DcaBucket, DcaTimingSignal, DcaTimingSeries } from './analysis/dca-signal';
 export { computeAccumulationSignal, DEFAULT_ACC_CONFIG, dcaGomPlan, DEFAULT_GOM_PLAN_CONFIG } from './analysis/accumulation-signal';
 export type { AccZone, AccumulationConfig, AccumulationParams, AccumulationSignal, DcaGomPlan, DcaGomPlanConfig } from './analysis/accumulation-signal';
+export { scanChartPatterns, ALL_PATTERNS, DEFAULT_PATTERN_CONFIG } from './analysis/chart-patterns';
+export type { PatternKind, PatternSeries, PatternMatch, PatternPivot, PatternConfig } from './analysis/chart-patterns';
 export { analyzeMarketStructure } from './analysis/market-structure';
 export type {
   MarketStructure,

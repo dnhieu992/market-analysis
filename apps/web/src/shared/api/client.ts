@@ -37,6 +37,9 @@ import type {
   SmallCapHistoryRow,
   MemeCoinRow,
   MemeHistoryRow,
+  PatternKind,
+  PatternWatchCoin,
+  PatternScanResult,
   SpotFlipAnalysis,
   SpotFlipWatchItem,
   SpotFlipDailyEntry,
@@ -898,6 +901,39 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/small-cap-radar/scan`,
         withDefaults({ method: 'POST' }),
+      );
+    },
+
+    // ── Pattern Scanner ──────────────────────────────────────────────
+    async fetchPatternCoins(): Promise<PatternWatchCoin[]> {
+      return fetchJson<PatternWatchCoin[]>(fetchImpl, `${baseUrl}/pattern-scanner/coins`, withDefaults());
+    },
+
+    async addPatternCoin(symbol: string, name?: string): Promise<PatternWatchCoin> {
+      return fetchJson<PatternWatchCoin>(
+        fetchImpl,
+        `${baseUrl}/pattern-scanner/coins`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, name }),
+        }),
+      );
+    },
+
+    async removePatternCoin(symbol: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/pattern-scanner/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    async scanPatterns(patterns: PatternKind[], timeframe: string): Promise<PatternScanResult> {
+      return fetchJson<PatternScanResult>(
+        fetchImpl,
+        `${baseUrl}/pattern-scanner/scan`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patterns, timeframe }),
+        }),
       );
     },
 

@@ -9762,3 +9762,58 @@ a.metric-card--link:hover {
   .sf-metrics, .sf-calc-inputs, .sf-calc-results { grid-template-columns: repeat(2, 1fr); }
   .sf-coin-price-value { font-size: 18px; }
 }
+
+/* ── Pattern Scanner ──────────────────────────────────────────────── */
+.ps { display: flex; flex-direction: column; gap: 16px; max-width: 1000px; }
+.ps-header { margin-bottom: 4px; }
+.ps-title { font-size: 1.5rem; font-weight: 700; margin: 0; }
+.ps-sub { color: var(--text-muted, #64748b); font-size: 0.85rem; margin: 4px 0 0; }
+.ps-card {
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.25));
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--card-bg, rgba(255, 255, 255, 0.02));
+}
+.ps-card h2 { font-size: 1rem; font-weight: 600; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.ps-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.ps-card-head h2 { margin: 0; }
+.ps-count { font-size: 0.75rem; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border-radius: 999px; padding: 1px 8px; }
+.ps-add { display: flex; gap: 8px; }
+.ps-add .setup-input { width: 160px; }
+.ps-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ps-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(148, 163, 184, 0.12); border-radius: 8px; padding: 4px 8px;
+  font-size: 0.82rem; font-weight: 600;
+}
+.ps-chip-x { border: none; background: none; color: var(--text-muted, #64748b); cursor: pointer; font-size: 0.75rem; padding: 0; }
+.ps-chip-x:hover { color: #ef4444; }
+.ps-patterns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+.ps-check {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.25)); border-radius: 8px; padding: 8px 10px;
+  font-size: 0.85rem;
+}
+.ps-check input { accent-color: #3b82f6; }
+.ps-actions { display: flex; align-items: flex-end; gap: 12px; }
+.ps-tf { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; color: var(--text-muted, #64748b); }
+.ps-tf .setup-input { width: 140px; }
+.ps-scan { min-width: 120px; }
+.ps-dir--bullish { color: #16a34a; }
+.ps-dir--bearish { color: #ef4444; }
+.ps-results { display: flex; flex-direction: column; gap: 10px; }
+.ps-result { border: 1px solid var(--border, rgba(148, 163, 184, 0.2)); border-radius: 10px; padding: 12px; }
+.ps-result-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.ps-matches { display: flex; flex-direction: column; gap: 8px; }
+.ps-match { border-left: 3px solid var(--border, #64748b); padding: 6px 0 6px 10px; }
+.ps-match--bullish { border-left-color: #16a34a; }
+.ps-match--bearish { border-left-color: #ef4444; }
+.ps-match-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ps-match-name { font-weight: 600; font-size: 0.88rem; }
+.ps-match-meta { font-size: 0.72rem; }
+.ps-badge { font-size: 0.7rem; border-radius: 999px; padding: 1px 8px; font-weight: 600; }
+.ps-badge--confirmed { background: rgba(16, 185, 129, 0.15); color: #059669; }
+.ps-badge--forming { background: rgba(234, 179, 8, 0.15); color: #b45309; }
+.ps-levels { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.78rem; margin-top: 4px; color: var(--text-muted, #64748b); }
+.ps-levels b { color: var(--text, inherit); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .ps-patterns { grid-template-columns: 1fr; } }
