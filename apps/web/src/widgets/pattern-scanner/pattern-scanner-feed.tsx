@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch } from '@web/shared/api/types';
@@ -350,15 +351,22 @@ function MatchRow({ m, series, onInfo }: { m: PatternMatch; series?: PatternSeri
   );
 }
 
-/** Full-screen lightbox showing the pattern chart large; closes on backdrop click or Esc. */
+/**
+ * Full-screen lightbox showing the pattern chart large; closes on backdrop click or Esc.
+ * Rendered through a portal to `document.body` so a card ancestor's `backdrop-filter`
+ * can't trap the fixed overlay inside the content column — it truly covers the viewport.
+ */
 function ChartZoom({ m, series, onClose }: { m: PatternMatch; series: PatternSeries; onClose: () => void }) {
   const meta = PATTERN_META[m.pattern];
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    setMounted(true);
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <div className="dialog-backdrop ps-chart-backdrop" onClick={onClose}>
       <div className="ps-chart-zoom" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="ps-chart-zoom-head">
@@ -372,7 +380,8 @@ function ChartZoom({ m, series, onClose }: { m: PatternMatch; series: PatternSer
         </div>
         <PatternChart m={m} series={series} variant="full" />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -400,12 +409,14 @@ function PatternChart({ m, series, variant = 'inline' }: { m: PatternMatch; seri
   if (!series || series.closes.length < 2 || m.pivots.length === 0) return null;
   const { opens, highs, lows, closes } = series;
 
-  const W = 560;
-  const H = 190;
-  const padL = 8;
-  const padR = 54; // room for level labels on the right
-  const padT = 14;
-  const padB = 16;
+  const full = variant === 'full';
+  // Full-screen uses a wider landscape viewBox so it fills the viewport with minimal letterbox.
+  const W = full ? 1280 : 560;
+  const H = full ? 660 : 190;
+  const padL = full ? 14 : 8;
+  const padR = full ? 66 : 54; // room for level labels on the right
+  const padT = full ? 20 : 14;
+  const padB = full ? 22 : 16;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
 
@@ -467,10 +478,14 @@ function PatternChart({ m, series, variant = 'inline' }: { m: PatternMatch; seri
     );
   }
 
+  const fs = full ? 16 : 9;
+  const pr = full ? 5.5 : 3.5;
+
   return (
     <svg
       className={`ps-chart ps-chart--${variant}`}
       viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio={full ? 'xMidYMid meet' : undefined}
       role="img"
       aria-label={`Biểu đồ ${PATTERN_META[m.pattern].label}`}
     >
@@ -480,7 +495,7 @@ function PatternChart({ m, series, variant = 'inline' }: { m: PatternMatch; seri
         return (
           <g key={lv.key}>
             <line x1={padL} x2={padL + innerW} y1={ly} y2={ly} stroke={lv.color} strokeWidth={1} strokeDasharray={lv.dash} opacity={0.8} />
-            <text x={padL + innerW + 3} y={ly + 3} fontSize={9} fill={lv.color} fontWeight={600}>{lv.label}</text>
+            <text x={padL + innerW + 4} y={ly + fs / 3} fontSize={fs} fill={lv.color} fontWeight={600}>{lv.label}</text>
           </g>
         );
       })}
@@ -495,11 +510,11 @@ function PatternChart({ m, series, variant = 'inline' }: { m: PatternMatch; seri
         const below = m.direction === 'bullish';
         return (
           <g key={`piv-${i}`}>
-            <circle cx={px} cy={py} r={3.5} fill="#2563eb" stroke="#fff" strokeWidth={1.2} />
+            <circle cx={px} cy={py} r={pr} fill="#2563eb" stroke="#fff" strokeWidth={1.2} />
             <text
               x={px}
-              y={below ? py + 14 : py - 8}
-              fontSize={9}
+              y={below ? py + fs + 4 : py - fs / 2 - 3}
+              fontSize={fs}
               fill="var(--text-muted, #64748b)"
               fontWeight={700}
               textAnchor="middle"

@@ -9857,24 +9857,34 @@ a.metric-card--link:hover {
   transition: opacity 0.15s;
   pointer-events: none;
 }
-.ps-chart-backdrop { cursor: zoom-out; }
+.ps-chart-backdrop {
+  cursor: zoom-out;
+  padding: 0;
+}
 .ps-chart-zoom {
   background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  width: min(1100px, 94vw);
-  max-height: 90vh;
-  padding: 14px 16px 18px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  padding: 12px 18px 16px;
+  display: flex;
+  flex-direction: column;
   cursor: default;
 }
 .ps-chart-zoom-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
 }
-.ps-chart--full { max-height: calc(90vh - 60px); }
+/* chart fills the remaining space below the header */
+.ps-chart--full {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
 .ps-levels { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.78rem; margin-top: 4px; color: var(--text-muted, #64748b); }
 .ps-levels b { color: var(--text, inherit); font-variant-numeric: tabular-nums; }
 .ps-info {
