@@ -415,15 +415,6 @@ function CoinCard({
     <article className="sf-coin-card sf-coin-card--clickable">
       <button
         type="button"
-        className="sf-logs-btn"
-        onClick={onLogs}
-        aria-label={`Nhật ký ${base}`}
-        title="Thêm / xem logs"
-      >
-        📝 Logs
-      </button>
-      <button
-        type="button"
         className="sf-remove"
         onClick={onRemove}
         aria-label={`Bỏ theo dõi ${base}`}
@@ -452,6 +443,18 @@ function CoinCard({
       <DualBar data={data} />
 
       <p className="sf-coin-summary">{cardSummary(data)}</p>
+
+      <div className="sf-coin-actions">
+        <button
+          type="button"
+          className="sf-logs-btn"
+          onClick={onLogs}
+          aria-label={`Nhật ký ${base}`}
+          title="Thêm / xem logs"
+        >
+          📝 Logs
+        </button>
+      </div>
     </article>
   );
 }

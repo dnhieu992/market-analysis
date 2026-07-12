@@ -9515,11 +9515,9 @@ a.metric-card--link:hover {
 /* Touch devices have no hover — keep the remove button visible. */
 @media (hover: none) { .sf-remove { opacity: 1; } }
 
+.sf-coin-actions { display: flex; justify-content: flex-end; margin-top: -4px; }
+
 .sf-logs-btn {
-  position: absolute;
-  top: 12px;
-  right: 44px;
-  z-index: 1;
   height: 24px;
   padding: 0 10px;
   display: flex;
