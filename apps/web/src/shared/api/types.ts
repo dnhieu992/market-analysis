@@ -892,3 +892,15 @@ export type SpotFlipLogEntry = {
   content: string;
   createdAt: string;
 };
+
+/**
+ * An image stored in Cloudflare R2 (returned by POST /uploads/images).
+ * `key` is the R2 object key (used to delete), `url` is the public URL.
+ */
+export type ImageRef = {
+  key: string;
+  url: string;
+  name?: string;
+  size?: number;
+  type?: string;
+};

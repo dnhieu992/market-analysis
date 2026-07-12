@@ -113,7 +113,7 @@ pm2 restart market-web                 # after web changes
 
 ### API Modules (`apps/api/src/modules/`)
 
-Auth (`/auth/*`), signals, analysis-runs, orders (with images via Cloudinary), daily-analysis, back-test, portfolio, PnL, holdings, chat (stateless LLM proxy), settings, telegram-logs, worker trigger.
+Auth (`/auth/*`), signals, analysis-runs, orders (with images via Cloudflare R2), daily-analysis, back-test, portfolio, PnL, holdings, chat (stateless LLM proxy), settings, telegram-logs, worker trigger.
 
 All routes except `/health` and `/auth/*` are protected by session cookie auth.
 

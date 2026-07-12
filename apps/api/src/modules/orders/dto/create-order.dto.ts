@@ -66,7 +66,7 @@ export class CreateOrderDto {
   @IsString()
   signalId?: string;
 
-  @ApiPropertyOptional({ type: [String], example: ['https://res.cloudinary.com/...'] })
+  @ApiPropertyOptional({ type: [String], example: ['https://<your-r2-domain>/uploads/...'] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

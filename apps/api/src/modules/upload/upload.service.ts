@@ -1,23 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { v2 as cloudinary } from 'cloudinary';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class UploadService {
+  constructor(private readonly storage: StorageService) {}
+
   async uploadImages(files: Express.Multer.File[], symbol?: string, side?: string): Promise<string[]> {
     const date = this.formatDate(new Date());
     const base = symbol && side
       ? `${symbol.toUpperCase()}-${side.toLowerCase()}-${date}`
-      : date;
+      : symbol
+        ? `${symbol.toUpperCase()}-${date}`
+        : date;
 
-    const uploads = files.map((file, index) =>
-      this.uploadOne(file, `${base}-${index + 1}`)
-    );
+    const uploads = files.map((file, index) => this.uploadOne(file, base, index + 1));
     return Promise.all(uploads);
   }
 
@@ -28,20 +25,15 @@ export class UploadService {
     return `${dd}-${mm}-${yyyy}`;
   }
 
-  private uploadOne(file: Express.Multer.File, publicId: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-      cloudinary.uploader.upload(
-        base64,
-        { folder: 'trades', public_id: publicId, resource_type: 'image' },
-        (error, result) => {
-          if (error || !result) {
-            reject(error ?? new Error('Upload failed'));
-          } else {
-            resolve(result.secure_url);
-          }
-        }
-      );
-    });
+  // Upload one file to Cloudflare R2 under a human-readable key and return its
+  // public URL (keeps the historical string[] contract of POST /upload/images).
+  private async uploadOne(file: Express.Multer.File, base: string, seq: number): Promise<string> {
+    const ext = (file.originalname.split('.').pop() ?? 'bin')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 8);
+    const key = `trades/${base}-${seq}.${ext}`;
+    const stored = await this.storage.uploadFile(file, key);
+    return stored.url;
   }
 }

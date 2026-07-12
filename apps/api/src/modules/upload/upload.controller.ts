@@ -18,7 +18,7 @@ export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post('images')
-  @ApiOperation({ summary: 'Upload multiple images to Cloudinary' })
+  @ApiOperation({ summary: 'Upload multiple images to Cloudflare R2' })
   @ApiConsumes('multipart/form-data')
   @ApiQuery({ name: 'symbol', required: false })
   @ApiQuery({ name: 'side', required: false })

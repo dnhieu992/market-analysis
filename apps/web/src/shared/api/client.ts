@@ -65,6 +65,7 @@ import type {
   BinanceKline,
   DcaLadderState,
   DcaLadderSettings,
+  ImageRef,
 } from './types';
 
 
@@ -398,6 +399,19 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }
       const data = (await response.json()) as { urls: string[] };
       return data.urls;
+    },
+    async uploadImagesR2(files: File[]): Promise<ImageRef[]> {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      const response = await fetchImpl(`${baseUrl}/uploads/images`, {
+        ...withDefaults({ method: 'POST' }),
+        body: formData
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`Image upload failed: ${response.status}${text ? ` — ${text}` : ''}`);
+      }
+      return (await response.json()) as ImageRef[];
     },
     async fetchOrders(params?: OrderFilterParams): Promise<PaginatedOrders> {
       const qs = new URLSearchParams();

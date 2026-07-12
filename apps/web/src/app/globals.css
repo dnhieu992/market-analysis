@@ -1141,6 +1141,12 @@ a {
   color: var(--accent);
 }
 
+.image-upload-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--danger, #dc2626);
+}
+
 .estimated-pnl {
   grid-column: 1 / -1;
   display: flex;

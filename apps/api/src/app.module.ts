@@ -27,6 +27,7 @@ import { TrackingCoinsModule } from './modules/tracking-coins/tracking-coins.mod
 import { TrackedSetupsModule } from './modules/tracked-setups/tracked-setups.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { DcaLadderModule } from './modules/dca-ladder/dca-ladder.module';
@@ -54,6 +55,7 @@ import { PatternScannerModule } from './modules/pattern-scanner/pattern-scanner.
     PnlModule,
     UserModule,
     UploadModule,
+    StorageModule,
     SkillsModule,
     SmallCapRadarModule,
     MemeRadarModule,
