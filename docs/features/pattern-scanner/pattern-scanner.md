@@ -35,6 +35,11 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
   past the neckline is rejected as no longer actionable.
 - **Invalidated base** — a double/head formation where price has decisively closed beyond the
   base since the completing pivot is skipped.
+- **Failed right leg (double top/bottom)** — after the second extreme, if a *confirmed*
+  opposite pivot has already formed on the wrong side of the neckline (a lower high below the
+  neckline for a double bottom, a higher low above it for a double top), the breakout leg has
+  failed and price has rolled over — a topping/bottoming rejection, not a completing pattern —
+  so it is rejected. A genuine breakout instead prints its next swing at/beyond the neckline.
 - **Non-actionable noise** — patterns require the defining extreme to sit at the local
   extreme of the window, equal lows/highs within `tolPct`, min amplitude `minHeightPct`, and
   (for H&S) shoulder time-symmetry and 15–70% shoulder depth — so mid-range swings don't match.

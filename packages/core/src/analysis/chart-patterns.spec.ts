@@ -50,6 +50,14 @@ describe('scanChartPatterns', () => {
     expect(scanChartPatterns(s, ALL_PATTERNS).some((m) => m.pattern === 'double_bottom')).toBe(false);
   });
 
+  it('does not fire a double bottom when the right leg makes a lower high below the neckline and rolls over', () => {
+    // Two ~equal lows (100 / 101) with a 120 neckline between, but after the second low
+    // price only recovers to 113 (below the 120 neckline) and turns down — a failed right
+    // leg / topping rejection, not a completing double bottom. (Mirrors BTC D1 2026-07.)
+    const s = line([130, 100, 120, 101, 113, 105]);
+    expect(scanChartPatterns(s, ['double_bottom'])).toHaveLength(0);
+  });
+
   it('returns [] for too-short series', () => {
     expect(scanChartPatterns({ highs: [1, 2], lows: [1, 2], closes: [1, 2] }, ALL_PATTERNS)).toEqual([]);
   });

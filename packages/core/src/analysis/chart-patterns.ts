@@ -129,7 +129,8 @@ function detectDouble(s: PatternSeries, cfg: PatternConfig, kind: 'bottom' | 'to
       const gap = P2.idx - P1.idx;
       if (gap < cfg.minGap) continue;
       if (gap > cfg.maxGap) break;
-      if (!near(P1.price, P2.price, cfg.tolPct)) continue;
+      // Two extremes "equal": |P1 − P2| / P1 ≤ tolPct (measured off the first extreme).
+      if (Math.abs(P1.price - P2.price) / P1.price > cfg.tolPct / 100) continue;
 
       // neckline = the strongest opposite pivot strictly between the two extremes
       const between = piv.filter((p) => p.idx > P1.idx && p.idx < P2.idx && p.kind === (isBottom ? 'high' : 'low'));
@@ -137,7 +138,9 @@ function detectDouble(s: PatternSeries, cfg: PatternConfig, kind: 'bottom' | 'to
       const neckline = isBottom ? Math.max(...between.map((p) => p.price)) : Math.min(...between.map((p) => p.price));
 
       const extreme = isBottom ? Math.min(P1.price, P2.price) : Math.max(P1.price, P2.price);
-      const heightPct = (Math.abs(neckline - extreme) / extreme) * 100;
+      // Neckline must clear the base by ≥ minHeightPct, measured off the first extreme
+      // (Pn − P1) / P1 for a bottom, (P1 − Pn) / P1 for a top.
+      const heightPct = (Math.abs(neckline - P1.price) / P1.price) * 100;
       if (heightPct < cfg.minHeightPct) continue;
 
       // The two extremes must sit at the LOCAL extreme of the surrounding window —
@@ -145,6 +148,18 @@ function detectDouble(s: PatternSeries, cfg: PatternConfig, kind: 'bottom' | 'to
       const { min, max } = localRange(s, P1.idx - cfg.maxGap, P2.idx);
       if (isBottom && extreme > min * (1 + cfg.tolPct / 100)) continue;
       if (!isBottom && extreme < max * (1 - cfg.tolPct / 100)) continue;
+
+      // The right leg must actually be completing the reversal. If a CONFIRMED opposite
+      // pivot has already formed AFTER the second extreme on the wrong side of the neckline,
+      // the breakout leg has failed: for a double bottom that means price made a lower high
+      // BELOW the neckline and rolled over (a topping rejection, i.e. what looks like a
+      // fresh double top) — not a forming double bottom. Reject it. A genuine breakout
+      // instead prints its next swing high AT/ABOVE the neckline, which is allowed.
+      const rightLeg = piv.filter((p) => p.idx > P2.idx && p.kind === (isBottom ? 'high' : 'low'));
+      const brokenRightLeg = isBottom
+        ? rightLeg.some((p) => p.price < neckline)
+        : rightLeg.some((p) => p.price > neckline);
+      if (brokenRightLeg) continue;
 
       // Not invalidated: price hasn't decisively closed beyond the base since P2.
       if (isBottom && lastClose < extreme * 0.99) continue;
