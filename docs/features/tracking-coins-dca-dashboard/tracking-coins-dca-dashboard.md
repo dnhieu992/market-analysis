@@ -1,18 +1,22 @@
 ## Description
-Turns `/tracking-coins` into a **DCA dashboard** for the user's no-stop-loss, dollar-cost-average
-strategy: gom (add) into deep dips, take profit when price reclaims EMA34/EMA89.
+`/tracking-coins` is the single **bottom-accumulation DCA dashboard** (the old `/accumulation` page
+was merged in on 2026-07-12 and now redirects here). The strategy — spot, **no stop-loss**, few orders:
+**gom a strong bottom and HOLD for a full exit at x2 (+100%)**. No swing/dip timing, no EMA34 take-profit.
 
-Backtest (`claude-backtest/runs/2026-06-26-dca-dip-d1-no-sl.md`) showed this works (80–100% win rate)
-on coins that survive and mean-revert, but is ruinous on coins that die or trend down for years —
-so the #1 risk lever is **coin selection**, which replaces the stop-loss. Two signals are shown:
+Backtest (`claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged.md`, supersedes the dip-buy and
+EMA34-exit studies) established: selling on the EMA34 reclaim is net-negative (PF 0.72–0.81); the fix is
+(1) **hold winners to a FULL exit at x2** — the sweet spot (PF 1.58; x2.5/x3 collapse the edge, and
+half-x2/half-x3 only nets PF 1.02), and (2) **coin selection** as the stop-loss replacement — the
+`dcaScore ≥ 50` survival gate lifts PF 1.58 → 3.53 and caps worst drawdown 99.98% → 43%. Two signals:
 
-- **DCA score (0–100)** — "how safe is it to DCA this coin?" from **market cap** (death risk) +
-  **weekly trend** (long-term structure alive). Label: ≥70 An toàn / ≥50 Khá / ≥30 Rủi ro / <30 Tránh.
-- **Action zone** — `GOM` (oversold near 20d low → add a layer) / `CHO` (wait) / `CHOT` (reclaimed
-  EMA34 → take profit).
+- **DCA score (0–100)** — survival gate: **market cap** (death risk) + **weekly trend** (structure
+  alive). Label: ≥70 An toàn / ≥50 Khá / ≥30 Rủi ro / <30 Tránh. GOM is HARD-gated at ≥50.
+- **Action zone** (`accZone`, from `computeAccumulationSignal`) — `GOM` (deep bottom 50–85% from peak +
+  tight sideways base + RSI≤45 **AND** dcaScore≥50 → gom) / `CHO` (wait) / `Hồi` (price back above EMA34
+  → no longer a bottom entry; exit is the x2 target on the position, not this zone).
 
-The earlier trend-following Entry Score (`tracking-coins-entry-score`) is superseded for display but
-its column/logic remain in the DB and scan (harmless) — see that doc.
+The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the dip-buy `dcaZone`
+(oversold near 20d low) remain in the DB/scan (harmless, unused for display) — see those docs.
 
 ## Main Flow
 1. Daily/manual scan (`TrackingCoinScanService` worker, `TrackingCoinsService.scanOneCoin` API)
@@ -38,14 +42,14 @@ Each DCA buy (layer) is logged per coin via the **DCA position** tab inside the 
 Clicking the layers icon in the row actions (which shows the layer count when holding) opens the
 same detail modal used by a row click, but with the **DCA position** tab pre-selected instead of
 Overview. From the buy log the API derives:
-- **avgEntry** = Σusd / Σ(usd/price) — the real break-even, since "reclaim EMA34" only profits above it.
-- **capitalDeployed** = Σusd, **layers** = buy count (capped at 5 in the UI).
-- **nextAddPrice** = lastAdd × 0.92 (the backtested −8% step).
+- **avgEntry** = Σusd / Σ(usd/price) — the real break-even and the base for the x2 target.
+- **capitalDeployed** = Σusd, **layers** = buy count (capped at 3 in the UI — the 3-tier ladder).
+- **nextAddPrice** = lastAdd × 0.85 (the backtested −15% ladder step).
 - **live P&L** = (livePrice − avgEntry) / avgEntry, computed client-side from the feed's live price.
 
-The panel shows a **profit-aware take-profit hint**: green when livePrice ≥ avgEntry ("reclaim EMA34
-= chốt có lãi"), amber otherwise ("EMA34 có thể vẫn lỗ; chốt khi giá ≥ giá TB"). "Đóng vị thế" clears
-all buys after taking profit. The row's list view also shows a lightweight `dcaPosition` aggregate
+The panel shows the **x2 take-profit target**: `target = avgEntry × 2`. Amber while below (shows the
+target price and the remaining % to +100%), green when livePrice ≥ target ("Đã đạt target x2 → CHỐT
+TOÀN BỘ"). "Đóng vị thế" clears all buys after selling. The row's list view also shows a lightweight `dcaPosition` aggregate
 (layers / avgEntry / capitalDeployed) so a holding is visible at a glance.
 
 ## Portfolio sync (two-way)
@@ -71,10 +75,14 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - **Missing signal** (never scanned) → DCA cell shows "—".
 - **Null RSI** in zone derivation defaults to 50 (treated as not-oversold → not GOM).
 - **No buys logged** → `dcaPosition` is null; the action button shows the layers icon, not a count.
-- Adding a buy is blocked in the UI once 5 layers are reached (the strategy cap).
+- Adding a buy is blocked in the UI once 3 layers are reached (the 3-tier ladder cap).
+- **Stale rows scanned before 2026-07-12** carry `accZone = null` (or the old dd 40–70% band) → the DCA
+  cell zone shows "—" until the next 4h scan recomputes with the dd 50–85% config.
 
 ## Related Files (FE / BE / Worker)
-- `packages/core/src/analysis/dca-signal.ts` — `computeDcaScore` + `dcaZone`
+- `packages/core/src/analysis/accumulation-signal.ts` — `computeAccumulationSignal` (the displayed `accZone`; dd 50–85% + base + RSI + `dcaScore≥50` gate)
+- `packages/core/src/analysis/dca-signal.ts` — `computeDcaScore` (survival score) + legacy `dcaZone` (dip-buy, no longer displayed)
+- `apps/web/src/app/accumulation/page.tsx` — redirect stub → `/tracking-coins` (page merged 2026-07-12)
 - `packages/core/src/analysis/small-cap-signal.ts` — `computePaTrend`/`computeTimeframeTrend` (PA trend, daily-plan style)
 - `packages/core/src/analysis/small-cap-signal.spec.ts` — trend unit tests
 - `packages/core/src/analysis/dca-signal.spec.ts` — unit tests

@@ -18,7 +18,7 @@ type CoinSetup = {
   dcaMaxLayers: number | null;
 };
 
-const DEFAULT_DCA_MAX_LAYERS = 5;
+const DEFAULT_DCA_MAX_LAYERS = 3; // bottom-DCA ladder: 3 tiers × −15% (2026-07-12 backtest)
 
 type DcaBuyRow = { id: string; price: number; usd: number; boughtAt: Date };
 
@@ -386,8 +386,9 @@ export class TrackingCoinsService {
       layers: agg?.layers ?? 0,
       avgEntry: agg?.avgEntry ?? null,
       capitalDeployed: agg?.capitalDeployed ?? 0,
-      // Next layer triggers 8% below the last add (matches the backtested -8% step).
-      nextAddPrice: lastAdd != null ? Number((lastAdd * 0.92).toFixed(8)) : null,
+      // Next layer triggers 15% below the last add (bottom-DCA ladder, 3 tiers × −15% —
+      // claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged).
+      nextAddPrice: lastAdd != null ? Number((lastAdd * 0.85).toFixed(8)) : null,
       pnlPct: agg && agg.avgEntry > 0 && currentPrice > 0
         ? Number((((currentPrice - agg.avgEntry) / agg.avgEntry) * 100).toFixed(2))
         : null,

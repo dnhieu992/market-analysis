@@ -1,3 +1,9 @@
+> **MERGED (2026-07-12).** `/accumulation` was merged into `/tracking-coins` and now redirects there.
+> The strategy is unchanged in spirit but retuned per `claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged.md`:
+> entry band **dd 50–85%** (was 40–70%), and the exit is a **full take-profit at x2 (+100%)** off the
+> DCA average cost — not the EMA34 reclaim. The `computeAccumulationSignal` `accZone` documented below is
+> now the primary signal shown on `/tracking-coins`. See `docs/features/tracking-coins-dca-dashboard/`.
+
 ## Description
 The **Accumulation DCA** page (`/accumulation`) is a spot, **no-stop-loss** DCA dashboard
 that surfaces coins sitting in a high-quality **accumulation zone**: down 40–70% from their

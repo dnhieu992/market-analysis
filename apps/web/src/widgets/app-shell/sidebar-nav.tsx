@@ -64,13 +64,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: '/tracking-coins',
-    label: 'Tracking Coins',
-    description: 'Theo dõi coin tự nhập tay'
-  },
-  {
-    href: '/accumulation',
-    label: 'Tích luỹ (Accumulation)',
-    description: 'Gom spot no-SL · vùng tích luỹ + cổng dcaScore'
+    label: 'Tracking Coins · Gom đáy',
+    description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
     href: '/day-trading',

@@ -181,7 +181,7 @@ const ZONE_FILTERS: ReadonlyArray<{ key: ZoneFilter; label: string }> = [
   { key: 'all', label: 'Tất cả' },
   { key: 'GOM', label: 'GOM' },
   { key: 'CHO', label: 'Chờ' },
-  { key: 'CHOT', label: 'CHỐT' },
+  { key: 'CHOT', label: 'Hồi' },
 ];
 
 const QUALITY_FILTERS: ReadonlyArray<{ key: QualityFilter; label: string }> = [
@@ -200,9 +200,9 @@ const TREND_FILTERS: ReadonlyArray<{ key: TrendFilter; label: string }> = [
 ];
 
 const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; title: string }> = {
-  GOM:  { label: 'GOM',  cls: 'tc-zone--gom',  title: 'Quá bán + gần đáy 20 ngày → vùng gom thêm (add layer)' },
-  CHOT: { label: 'CHỐT', cls: 'tc-zone--chot', title: 'Giá đã reclaim EMA34 → chốt nếu đang ôm' },
-  CHO:  { label: 'Chờ',  cls: 'tc-zone--cho',  title: 'Dưới EMA34 nhưng chưa đủ sâu để gom' },
+  GOM:  { label: 'GOM',  cls: 'tc-zone--gom',  title: 'Đáy mạnh (giảm 50–85% + nền đi ngang, RSI thấp) đã qua cổng dcaScore≥50 → gom (spot, no SL, target x2)' },
+  CHOT: { label: 'Hồi',  cls: 'tc-zone--chot', title: 'Giá đã hồi lên EMA34 → không còn là điểm gom đáy (chốt theo target x2 ở tab DCA)' },
+  CHO:  { label: 'Chờ',  cls: 'tc-zone--cho',  title: 'Chưa vào vùng đáy chất lượng hoặc chưa qua cổng dcaScore' },
 };
 
 function DcaCell({ score, zone }: { score: number | null | undefined; zone: 'GOM' | 'CHO' | 'CHOT' | null | undefined }) {
@@ -535,7 +535,7 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
 
 /* ── DCA position dialog — buy log, average, P&L, profit-aware chốt ─ */
 
-const DCA_MAX_LAYERS = 5;
+const DCA_MAX_LAYERS = 3; // bottom-DCA ladder: 3 tiers × −15% (2026-07-12 backtest)
 
 function fmtNum(n: number): string {
   if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -655,14 +655,18 @@ function DcaPositionPanel({ symbol, livePrice, onChanged }: {
                 </div>
               </div>
 
-              {avg != null && (
-                <p className={`dcapos-hint ${inProfit ? 'dcapos-hint--ok' : 'dcapos-hint--warn'}`}>
-                  {inProfit
-                    ? '✓ Giá hiện > giá TB → khi reclaim EMA34/EMA89 là CHỐT có lãi.'
-                    : '⚠ Giá hiện < giá TB → reclaim EMA34 có thể vẫn lỗ. Chốt khi giá ≥ giá TB.'}
-                  {pos?.nextAddPrice != null && ` · Gom layer kế ở ~$${fmtNum(pos.nextAddPrice)} (−8%).`}
-                </p>
-              )}
+              {avg != null && (() => {
+                const target = avg * 2; // full exit at x2 (+100%) — the backtested sweet spot
+                const hitTarget = livePnlPct != null && livePnlPct >= 100;
+                return (
+                  <p className={`dcapos-hint ${hitTarget ? 'dcapos-hint--ok' : 'dcapos-hint--warn'}`}>
+                    {hitTarget
+                      ? `✓ Đã đạt target x2 ($${fmtNum(target)}) → CHỐT TOÀN BỘ.`
+                      : `🎯 Target CHỐT: x2 = $${fmtNum(target)} (+100% từ giá TB${livePnlPct != null ? `, còn ${(100 - livePnlPct).toFixed(0)}%` : ''}). Gom đáy, ôm tới x2 — no SL.`}
+                    {pos?.nextAddPrice != null && ` · Gom layer kế ở ~$${fmtNum(pos.nextAddPrice)} (−15%).`}
+                  </p>
+                );
+              })()}
 
               {/* portfolio sync target */}
               {portfolios.length > 0 ? (
@@ -837,7 +841,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
   const zoneCounts = useMemo(() => {
     const c: Record<ZoneFilter, number> = { all: base.length, GOM: 0, CHO: 0, CHOT: 0 };
-    for (const x of base) if (x.signal) c[x.signal.dcaZone] += 1;
+    for (const x of base) { const z = x.signal?.accZone; if (z) c[z] += 1; }
     return c;
   }, [base]);
 
@@ -858,7 +862,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const sorted = useMemo(() => {
     const filtered = base.filter((c) => {
       const sig = c.signal;
-      if (zoneFilter !== 'all' && sig?.dcaZone !== zoneFilter) return false;
+      if (zoneFilter !== 'all' && sig?.accZone !== zoneFilter) return false;
       if (qualityFilter !== 'all' && (sig == null || dcaBucketKey(sig.dcaScore) !== qualityFilter)) return false;
       if (trendFilter !== 'all' && (sig == null || trendGroup(sig.trend) !== trendFilter)) return false;
       return true;
@@ -909,11 +913,12 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         {/* header */}
         <div className="tc-page-header">
           <div className="tc-page-header-left">
-            <h1 className="scr-title">Tracking Coins</h1>
+            <h1 className="scr-title">Tracking Coins · Gom đáy</h1>
             <p className="tc-page-header-sub">
+              Gom vùng đáy mạnh (giảm 50–85% + nền đi ngang) qua cổng dcaScore≥50 · spot, no SL · ladder 3×−15% · target CHỐT x2 ·{' '}
               {sorted.length < coins.length
                 ? `${sorted.length} / ${coins.length} coins hiển thị`
-                : `${coins.length} coins đang theo dõi`}
+                : `${coins.length} coins`}
             </p>
           </div>
           <div className="scr-toolbar-right">
@@ -1040,7 +1045,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </td>
                     {/* DCA — đáng DCA (quality) + vùng hành động */}
                     <td className="scr-td scr-td--num">
-                      <DcaCell score={sig?.dcaScore} zone={sig?.dcaZone} />
+                      <DcaCell score={sig?.dcaScore} zone={sig?.accZone} />
                     </td>
                     {/* Trend W / D1 / H4 */}
                     <td className="scr-td">

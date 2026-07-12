@@ -5,14 +5,16 @@ import { calculateRsi } from '../indicators/rsi';
  * Accumulation-zone DCA signal (spot, NO stop-loss).
  *
  * The user's flow: buy a beaten-down coin while it sits in a tight sideways base
- * ("vùng tích luỹ"), spot, no stop-loss, and sell when price reclaims EMA34.
+ * ("vùng tích luỹ"), spot, no stop-loss, and HOLD for a full exit at x2 (+100% off
+ * average cost) — the merged bottom-DCA strategy, not a swing/EMA34 bounce.
  *
- * Backtest verdict (claude-backtest/runs/2026-06-29-accumulation-zone-no-sl):
- * entering in the accumulation zone has a high win rate but is net-NEGATIVE on the
- * full basket — with no stop-loss the tail (coins that keep trending down / die)
- * ruins the average. So the defence that replaces a stop-loss is COIN SELECTION:
- * we only emit a BUY ("GOM") when the coin's `dcaScore` clears a survival gate
- * (market cap + weekly trend alive — see [[computeDcaScore]]).
+ * Backtest verdict (claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged, supersedes
+ * 2026-06-29-accumulation-zone-no-sl): entering in the accumulation zone and selling on
+ * the EMA34 reclaim is net-NEGATIVE (PF 0.72–0.81) — the small wins can't offset the
+ * no-SL tail. Two things fix it: (1) hold winners to a FULL exit at x2 — the sweet spot
+ * (PF 1.58; x2.5/x3 collapse the edge), and (2) COIN SELECTION as the stop-loss
+ * replacement — only emit a BUY ("GOM") when `dcaScore` clears the survival gate
+ * (market cap + weekly trend alive — see [[computeDcaScore]]; the gate lifts PF 1.58→3.53).
  *
  * This is deliberately stricter than the plain `dcaZone` GOM trigger (which only
  * looks at "RSI low near the 20-day low"): here GOM additionally requires a deep
@@ -41,8 +43,10 @@ export type AccumulationConfig = {
 };
 
 export const DEFAULT_ACC_CONFIG: AccumulationConfig = {
-  ddMin: 0.4,
-  ddMax: 0.7,
+  // dd band 50–85% is the backtested sweet spot (claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged):
+  // shallower misses real bottoms, deeper (60–90%) is dominated by dying coins (PF 0.13).
+  ddMin: 0.5,
+  ddMax: 0.85,
   baseLen: 30,
   baseMaxPct: 0.25,
   lowZonePct: 0.08,
