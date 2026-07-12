@@ -294,6 +294,7 @@ export class TrackingCoinScanService {
       accBaseWidthPct: acc?.baseWidthPct ?? null,
       accInBase: acc?.inBase ?? null,
       accGatePassed: acc?.gatePassed ?? null,
+      accBaseLow: acc?.baseLow ?? null,
     });
 
     // ── DCA signal history — append only when zone/bucket changes ──────

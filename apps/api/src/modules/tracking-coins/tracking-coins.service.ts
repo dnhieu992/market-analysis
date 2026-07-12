@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, computeAccumulationSignal, dcaZone, dcaQualityBucket, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
-import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone, AccZone } from '@app/core';
+import { computeSmallCapSignal, computeTimeframeTrend, computeLongShortScore, computeEntryScore, computeDcaScore, computeAccumulationSignal, dcaGomPlan, dcaZone, dcaQualityBucket, calculateEma, calculateRsi, calculateVolumeRatio, calcUtBotResult, calculateAtr, computeSwingLimitOrder } from '@app/core';
+import type { PaTrend, OrderSigSnapshot, LimitOrderResult, DcaZone, AccZone, DcaGomPlan } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
@@ -98,6 +98,8 @@ export type TrackingCoinWithSignal = {
     accBaseWidthPct: number | null;
     accInBase: boolean | null;
     accGatePassed: boolean | null;
+    /** Suggested gom price plan (entry band + −15% ×3 ladder + x2 target) from the base low. */
+    gomZone: DcaGomPlan | null;
     extPct: number | null;
     low20Pct: number | null;
     sparkline: number[];
@@ -187,6 +189,7 @@ export class TrackingCoinsService {
               accBaseWidthPct: sig.accBaseWidthPct,
               accInBase: sig.accInBase,
               accGatePassed: sig.accGatePassed,
+              gomZone: dcaGomPlan(sig.accBaseLow ?? null),
               extPct: sig.extPct,
               low20Pct: sig.low20Pct,
               sparkline: this.parseSparkline(sig.sparklineJson),
@@ -772,6 +775,7 @@ export class TrackingCoinsService {
       accBaseWidthPct: acc?.baseWidthPct ?? null,
       accInBase: acc?.inBase ?? null,
       accGatePassed: acc?.gatePassed ?? null,
+      accBaseLow: acc?.baseLow ?? null,
     });
 
     // DCA signal history — append only when zone/bucket changes vs last row.

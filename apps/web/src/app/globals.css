@@ -7362,6 +7362,48 @@ a.metric-card--link:hover {
 }
 .dcapos-hint--ok   { background: rgba(16, 185, 129, 0.12); color: #047857; }
 .dcapos-hint--warn { background: rgba(234, 179, 8, 0.12); color: #b45309; }
+
+/* suggested gom price plan (entry band + −15% ×3 ladder) */
+.dcapos-gomzone {
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.3));
+  border-radius: 8px;
+  padding: 10px;
+  margin: 0 0 10px;
+  background: rgba(59, 130, 246, 0.05);
+}
+.dcapos-gomzone__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.dcapos-gomzone__band { color: #2563eb; font-variant-numeric: tabular-nums; }
+.dcapos-gomzone__ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dcapos-gomzone__ladder li {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.dcapos-gomzone__tier { color: var(--text-muted, #64748b); }
+.dcapos-gomzone__price { font-weight: 600; font-variant-numeric: tabular-nums; }
+.dcapos-gomzone__step { color: var(--text-muted, #64748b); font-size: 0.72rem; }
+.dcapos-gomzone__foot {
+  margin: 8px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
 .dcapos-portfolio {
   display: flex;
   flex-direction: column;

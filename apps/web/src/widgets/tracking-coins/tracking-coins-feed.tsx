@@ -344,7 +344,7 @@ function CoinDetailModal({ coin, initialTab, livePrice, onChanged, onClose }: {
 
         <div className="dialog-body tc-detail-body">
           {tab === 'overview' && <CoinOverview coin={coin} />}
-          {tab === 'dca' && <DcaPositionPanel symbol={coin.symbol} livePrice={livePrice} onChanged={onChanged} />}
+          {tab === 'dca' && <DcaPositionPanel symbol={coin.symbol} livePrice={livePrice} gomZone={coin.signal?.gomZone ?? null} onChanged={onChanged} />}
           {tab === 'history' && <CoinSignalHistory symbol={coin.symbol} />}
           {tab === 'journal' && <CoinJournalPanel symbol={coin.symbol} />}
         </div>
@@ -635,9 +635,10 @@ function priceInputStr(n: number): string {
   return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 8 });
 }
 
-function DcaPositionPanel({ symbol, livePrice, onChanged }: {
+function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
   symbol: string;
   livePrice: number | null;
+  gomZone: NonNullable<TrackingCoinRow['signal']>['gomZone'];
   onChanged: () => void;
 }) {
   const [pos, setPos] = useState<DcaPosition | null>(null);
@@ -752,6 +753,32 @@ function DcaPositionPanel({ symbol, livePrice, onChanged }: {
                   </p>
                 );
               })()}
+
+              {/* suggested gom price plan (from the base low) — where to place the DCA ladder */}
+              {gomZone && (
+                <div className="dcapos-gomzone">
+                  <div className="dcapos-gomzone__head">
+                    <span>Vùng gom gợi ý</span>
+                    <span className="dcapos-gomzone__band">
+                      ${fmtNum(gomZone.zoneLow)} – ${fmtNum(gomZone.zoneHigh)}
+                    </span>
+                  </div>
+                  <ol className="dcapos-gomzone__ladder">
+                    {gomZone.ladder.map((p, i) => (
+                      <li key={i}>
+                        <span className="dcapos-gomzone__tier">Lệnh {i + 1}</span>
+                        <span className="dcapos-gomzone__price">${fmtNum(p)}</span>
+                        <span className="dcapos-gomzone__step">{i === 0 ? 'mép trên vùng' : '−15% so với lệnh trước'}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="dcapos-gomzone__foot">
+                    Nếu đủ 3 lệnh: giá TB ~${fmtNum(gomZone.avgCost)} → chốt x2 ~${fmtNum(gomZone.targetX2)}.
+                    <br />
+                    <span className="scr-muted">Bước −15% là spacing cố định của chiến lược (gợi ý, chưa tối ưu riêng).</span>
+                  </p>
+                </div>
+              )}
 
               {/* portfolio sync target */}
               {portfolios.length > 0 ? (

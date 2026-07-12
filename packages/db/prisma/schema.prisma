@@ -451,6 +451,7 @@ model TrackingCoinSignal {
   accBaseWidthPct Float?
   accInBase       Boolean?
   accGatePassed   Boolean?
+  accBaseLow      Float?
   scannedAt       DateTime     @default(now())
   coin           TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
 

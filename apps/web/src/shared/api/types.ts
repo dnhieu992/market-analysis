@@ -460,6 +460,13 @@ export type TrackingCoinRow = {
     accBaseWidthPct: number | null;
     accInBase: boolean | null;
     accGatePassed: boolean | null;
+    gomZone: {
+      zoneLow: number;
+      zoneHigh: number;
+      ladder: number[];
+      avgCost: number;
+      targetX2: number;
+    } | null;
     extPct: number | null;
     low20Pct: number | null;
     sparkline: number[];

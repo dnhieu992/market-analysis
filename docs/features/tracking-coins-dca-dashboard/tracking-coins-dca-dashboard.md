@@ -61,6 +61,20 @@ target price and the remaining % to +100%), green when livePrice ≥ target ("Đ
 TOÀN BỘ"). "Đóng vị thế" clears all buys after selling. The row's list view also shows a lightweight `dcaPosition` aggregate
 (layers / avgEntry / capitalDeployed) so a holding is visible at a glance.
 
+## Suggested gom price plan (Vùng gom gợi ý)
+The DCA position tab also shows a **suggested accumulation price plan** derived from the coin's
+consolidation base low (`accBaseLow`, persisted with the signal). It turns the binary GOM label into
+concrete limit levels (`dcaGomPlan` in `@app/core`):
+- **Entry band** = base low → base low × 1.08 (`zoneLow`–`zoneHigh`) — the price range where the GOM
+  trigger actually fires (`lowZonePct` = 0.08).
+- **3-tier ladder** = `[zoneHigh, zoneHigh×0.85, zoneHigh×0.85²]` — the backtested −15% spacing
+  (`claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged.md`).
+- **avgCost** = harmonic mean of the ladder (equal-USD tranches), **targetX2** = avgCost × 2.
+
+The block is advisory: the −15% step is the strategy's fixed spacing, **not** a swept optimum, and the
+UI labels it as such. It complements `nextAddPrice` (which anchors to the user's *actual* last buy);
+the plan is the pre-trade suggestion, `nextAddPrice` is the live next-add once buying has started.
+
 ## Portfolio sync (two-way)
 Each DCA layer mirrors a portfolio **CoinTransaction**, so the dashboard and the user's
 portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
@@ -89,7 +103,10 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
   cell zone shows "—" until the next 4h scan recomputes with the dd 50–85% config.
 
 ## Related Files (FE / BE / Worker)
-- `packages/core/src/analysis/accumulation-signal.ts` — `computeAccumulationSignal` (the displayed `accZone`; dd 50–85% + base + RSI + `dcaScore≥50` gate)
+- `packages/core/src/analysis/accumulation-signal.ts` — `computeAccumulationSignal` (the displayed `accZone`; dd 50–85% + base + RSI + `dcaScore≥50` gate; exposes `baseLow`) + `dcaGomPlan` (suggested entry band + −15% ×3 ladder + x2 target)
+- `packages/core/src/analysis/accumulation-signal.spec.ts` — accumulation + `dcaGomPlan` unit tests
+- `packages/db/prisma/migrations/20260712120000_add_signal_acc_base_low/migration.sql` — `accBaseLow` column
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaPositionPanel` renders the "Vùng gom gợi ý" block
 - `packages/core/src/analysis/dca-signal.ts` — `computeDcaScore` (survival score) + legacy `dcaZone` (dip-buy, no longer displayed)
 - `apps/web/src/app/accumulation/page.tsx` — redirect stub → `/tracking-coins` (page merged 2026-07-12)
 - `packages/core/src/analysis/small-cap-signal.ts` — `computePaTrend`/`computeTimeframeTrend` (PA trend, daily-plan style)

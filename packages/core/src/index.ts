@@ -14,8 +14,8 @@ export { computeEntryScore } from './analysis/entry-score';
 export type { EntryScoreParams, EntryScoreResult } from './analysis/entry-score';
 export { computeDcaScore, dcaZone, dcaQualityBucket, computeDcaTimingSignal } from './analysis/dca-signal';
 export type { DcaScoreParams, DcaZoneParams, DcaZone, DcaBucket, DcaTimingSignal, DcaTimingSeries } from './analysis/dca-signal';
-export { computeAccumulationSignal, DEFAULT_ACC_CONFIG } from './analysis/accumulation-signal';
-export type { AccZone, AccumulationConfig, AccumulationParams, AccumulationSignal } from './analysis/accumulation-signal';
+export { computeAccumulationSignal, DEFAULT_ACC_CONFIG, dcaGomPlan, DEFAULT_GOM_PLAN_CONFIG } from './analysis/accumulation-signal';
+export type { AccZone, AccumulationConfig, AccumulationParams, AccumulationSignal, DcaGomPlan, DcaGomPlanConfig } from './analysis/accumulation-signal';
 export { analyzeMarketStructure } from './analysis/market-structure';
 export type {
   MarketStructure,

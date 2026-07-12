@@ -84,9 +84,72 @@ export type AccumulationSignal = {
   ema34Above: boolean;
   /** dcaScore cleared the survival gate. */
   gatePassed: boolean;
+  /** Consolidation base low (D1) over the last `baseLen` candles — anchors the gom price plan. */
+  baseLow: number | null;
   /** Short human-readable explanation (Vietnamese, for the dashboard). */
   reason: string;
 };
+
+/**
+ * Suggested accumulation price plan derived from the consolidation base low.
+ *
+ * Turns the binary GOM signal into concrete levels: the entry band (base low →
+ * base low + `lowZonePct`, where GOM actually triggers) and a 3-tier −15% ladder
+ * matching the backtested bottom-DCA strategy
+ * (claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged). Tranches are equal-USD,
+ * so the average cost is the harmonic mean of the fill prices, and the take-profit
+ * is a full exit at x2 (the PF 1.58 sweet spot).
+ *
+ * The −15% step is the strategy's fixed spacing, NOT a swept optimum — surface it as
+ * a suggestion.
+ */
+export type DcaGomPlan = {
+  /** Bottom of the entry band (base low). */
+  zoneLow: number;
+  /** Top of the entry band (base low × (1 + lowZonePct)) — the GOM trigger ceiling. */
+  zoneHigh: number;
+  /** Suggested limit prices [L1, L2, L3]; L1 = zoneHigh, each next tier −stepPct below. */
+  ladder: number[];
+  /** Average cost if all tiers fill with equal USD (harmonic mean of the ladder). */
+  avgCost: number;
+  /** Full-exit target = avgCost × 2 (+100%). */
+  targetX2: number;
+};
+
+export type DcaGomPlanConfig = {
+  /** Entry band width above the base low (fraction). Matches `AccumulationConfig.lowZonePct`. */
+  lowZonePct: number;
+  /** Ladder spacing between tiers (fraction below the previous tier). */
+  stepPct: number;
+  /** Number of ladder tiers. */
+  tiers: number;
+};
+
+export const DEFAULT_GOM_PLAN_CONFIG: DcaGomPlanConfig = {
+  lowZonePct: DEFAULT_ACC_CONFIG.lowZonePct,
+  stepPct: 0.15,
+  tiers: 3,
+};
+
+/** Build the suggested gom price plan from a consolidation base low. Returns null when baseLow is invalid. */
+export function dcaGomPlan(baseLow: number | null, cfg: Partial<DcaGomPlanConfig> = {}): DcaGomPlan | null {
+  if (baseLow == null || !(baseLow > 0)) return null;
+  const { lowZonePct, stepPct, tiers } = { ...DEFAULT_GOM_PLAN_CONFIG, ...cfg };
+  const zoneLow = baseLow;
+  const zoneHigh = baseLow * (1 + lowZonePct);
+  const ladder = Array.from({ length: tiers }, (_, i) => zoneHigh * (1 - stepPct) ** i);
+  // Equal-USD tranches → average cost is the harmonic mean of the fill prices.
+  const invSum = ladder.reduce((s, p) => s + 1 / p, 0);
+  const avgCost = ladder.length / invSum;
+  const round = (n: number) => Number(n.toFixed(8));
+  return {
+    zoneLow: round(zoneLow),
+    zoneHigh: round(zoneHigh),
+    ladder: ladder.map(round),
+    avgCost: round(avgCost),
+    targetX2: round(avgCost * 2),
+  };
+}
 
 export function computeAccumulationSignal(p: AccumulationParams): AccumulationSignal | null {
   const cfg = { ...DEFAULT_ACC_CONFIG, ...(p.cfg ?? {}) };
@@ -150,5 +213,6 @@ export function computeAccumulationSignal(p: AccumulationParams): AccumulationSi
     reason = `Chưa vào vùng tích luỹ (${why}) → chờ`;
   }
 
-  return { zone, drawdownPct, baseWidthPct, inBase, rsi, ema34Above, gatePassed, reason };
+  const baseLow = rangeLow > 0 && isFinite(rangeLow) ? Number(rangeLow.toFixed(8)) : null;
+  return { zone, drawdownPct, baseWidthPct, inBase, rsi, ema34Above, gatePassed, baseLow, reason };
 }
