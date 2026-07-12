@@ -70,11 +70,11 @@ export type PatternConfig = {
 };
 
 export const DEFAULT_PATTERN_CONFIG: PatternConfig = {
-  wing: 4,
-  tolPct: 2.5,
-  minHeightPct: 5,
-  minGap: 5,
-  maxGap: 60,
+  wing: 5, // pivot = lower/higher than 5 candles each side (double-bottom rule, N=5)
+  tolPct: 3, // two bottoms/tops "equal" within 3% (crypto tolerance)
+  minHeightPct: 5, // neckline ≥ 5% above/below the base
+  minGap: 10, // at least 10 candles between the two defining extremes
+  maxGap: 60, // at most 60 candles between them
   recencyBars: 25,
   maxBreakoutPct: 4,
 };
