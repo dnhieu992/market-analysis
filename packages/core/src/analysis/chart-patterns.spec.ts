@@ -45,6 +45,14 @@ describe('scanChartPatterns', () => {
     expect(m[0]!.direction).toBe('bearish');
   });
 
+  it('does not fire an inverse H&S when the "head" is one half of a wide double bottom', () => {
+    // Two near-equal deep lows (90 / 91) between the shoulders — the head is not an
+    // isolated extreme, so the middle-pivot choice is arbitrary. This is really a rounded
+    // double-bottom base, not a true IH&S. (Mirrors BTC H4 2026-07.)
+    const s = line([120, 100, 115, 90, 108, 91, 116, 100, 113]);
+    expect(scanChartPatterns(s, ['inverse_head_shoulders'])).toHaveLength(0);
+  });
+
   it('does not fire a double bottom on a steady uptrend', () => {
     const s = line([100, 110, 120, 130, 140, 150]);
     expect(scanChartPatterns(s, ALL_PATTERNS).some((m) => m.pattern === 'double_bottom')).toBe(false);

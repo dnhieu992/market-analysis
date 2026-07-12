@@ -57,6 +57,11 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
 - **Non-actionable noise** — patterns require the defining extreme to sit at the local
   extreme of the window, equal lows/highs within `tolPct`, min amplitude `minHeightPct`, and
   (for H&S) shoulder time-symmetry and 15–70% shoulder depth — so mid-range swings don't match.
+- **Wide double base mistaken for H&S** — an inverse/normal H&S is rejected when the head is
+  **not an isolated extreme**: if any other same-kind pivot between the two shoulders sits within
+  `tolPct` (3%) of the head price, the "head" is really one half of a wide double bottom/top and
+  the middle-pivot choice is arbitrary. (Caught a false BTC H4 IH&S in 2026-07 whose head at
+  57,800 had a rival low at 58,115 — 0.5% away — 33 bars earlier.)
 - **Empty selection / empty watchlist** — the widget blocks the scan and shows an inline error.
 - **Remove missing coin** — API throws `NotFoundException`.
 
@@ -66,7 +71,8 @@ selector and next to its name in each result row. Clicking opens a dialog (reuse
 `.dialog-*` modal, closes on backdrop click or Esc) describing the pattern shape and the exact
 detection criteria. Content lives in `PATTERN_RULES` in `pattern-scanner-feed.tsx` and is kept
 faithful to the detector in `chart-patterns.ts` (fractal wing 5, 3% equality tolerance, ≥5%
-amplitude, 10–60 bar gap, 25-bar recency, failed right-leg rejection, 4% stale-breakout cutoff).
+amplitude, 10–60 bar gap, 25-bar recency, failed right-leg rejection, H&S head-isolation gate,
+4% stale-breakout cutoff).
 Update `PATTERN_RULES` whenever the detector thresholds change.
 
 ## Related Files (FE / BE / Worker)

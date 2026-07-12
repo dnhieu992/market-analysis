@@ -216,6 +216,14 @@ function detectHeadShoulders(s: PatternSeries, cfg: PatternConfig, inverse: bool
         if (!headIsExtreme) continue;
         if (!near(LS.price, RS.price, cfg.tolPct)) continue;
 
+        // Head must be an ISOLATED extreme: no other same-kind pivot between the shoulders
+        // sits within tolPct of the head. Otherwise the "head" is really one half of a wide
+        // double base/top and the middle pivot choice is arbitrary — not a true H&S.
+        const headHasRival = extremes.some(
+          (p) => p.idx > LS.idx && p.idx < RS.idx && p.idx !== H.idx && near(p.price, H.price, cfg.tolPct),
+        );
+        if (headHasRival) continue;
+
         // Time symmetry: shoulders roughly equidistant from the head (a real H&S trait,
         // not three random pivots). |left-span − right-span| ≤ 50% of the total span.
         const leftSpan = H.idx - LS.idx;
