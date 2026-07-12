@@ -246,7 +246,9 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                     <span className="scr-muted">${fmtPrice(coin.price)}</span>
                   </div>
                   <div className="ps-matches">
-                    {coin.matches.map((m, i) => <MatchRow key={i} m={m} onInfo={setInfoPattern} />)}
+                    {coin.matches.map((m, i) => (
+                      <MatchRow key={i} m={m} closes={coin.closes} onInfo={setInfoPattern} />
+                    ))}
                   </div>
                 </div>
               ))}
@@ -296,7 +298,7 @@ function PatternRuleDialog({ pattern, onClose }: { pattern: PatternKind; onClose
   );
 }
 
-function MatchRow({ m, onInfo }: { m: PatternMatch; onInfo: (p: PatternKind) => void }) {
+function MatchRow({ m, closes, onInfo }: { m: PatternMatch; closes?: number[]; onInfo: (p: PatternKind) => void }) {
   const meta = PATTERN_META[m.pattern];
   return (
     <div className={`ps-match ps-match--${m.direction}`}>
@@ -315,11 +317,116 @@ function MatchRow({ m, onInfo }: { m: PatternMatch; onInfo: (p: PatternKind) => 
         <span className={`ps-dir ps-dir--${m.direction}`}>{m.direction === 'bullish' ? 'Tăng ↑' : 'Giảm ↓'}</span>
         <span className="scr-muted ps-match-meta">biên độ {m.heightPct}% · {m.barsAgo} nến trước</span>
       </div>
+      <PatternChart m={m} closes={closes} />
       <div className="ps-levels">
         <span>Neckline <b>${fmtPrice(m.neckline)}</b></span>
         <span>Target <b>${fmtPrice(m.target)}</b></span>
         <span>Stop <b>${fmtPrice(m.stop)}</b></span>
       </div>
     </div>
+  );
+}
+
+const ROLE_SHORT: Record<string, string> = {
+  'bottom-1': 'Đ1',
+  'bottom-2': 'Đ2',
+  'top-1': 'Đ1',
+  'top-2': 'Đ2',
+  'left-shoulder': 'VT',
+  'head': 'Đầu',
+  'right-shoulder': 'VP',
+};
+
+/**
+ * Inline SVG chart of the matched pattern: the close series windowed around the
+ * pivots, with the defining pivots dotted and the neckline / target / stop levels
+ * drawn as reference lines. Purely client-side — no image request, no dependency.
+ */
+function PatternChart({ m, closes }: { m: PatternMatch; closes?: number[] }) {
+  if (!closes || closes.length < 2 || m.pivots.length === 0) return null;
+
+  const W = 560;
+  const H = 170;
+  const padL = 8;
+  const padR = 52; // room for level labels on the right
+  const padT = 14;
+  const padB = 16;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  const lastIdx = closes.length - 1;
+  const pivotIdxs = m.pivots.map((p) => p.idx);
+  const minPivot = Math.min(...pivotIdxs);
+  const startIdx = Math.max(0, minPivot - 6);
+  const endIdx = lastIdx;
+  if (endIdx - startIdx < 1) return null;
+
+  const windowCloses = closes.slice(startIdx, endIdx + 1);
+  // Domain from the visible closes + neckline + stop (structural, near price).
+  // Target is left out of the domain so a far measured-move doesn't squash the line.
+  const domainVals = [...windowCloses, m.neckline, m.stop];
+  let lo = Math.min(...domainVals);
+  let hi = Math.max(...domainVals);
+  if (hi === lo) hi = lo + 1;
+  const padY = (hi - lo) * 0.06;
+  lo -= padY;
+  hi += padY;
+
+  const x = (idx: number) => padL + ((idx - startIdx) / (endIdx - startIdx)) * innerW;
+  const yRaw = (p: number) => padT + (1 - (p - lo) / (hi - lo)) * innerH;
+  const y = (p: number) => Math.max(padT, Math.min(padT + innerH, yRaw(p)));
+
+  const linePts = windowCloses.map((c, i) => `${x(startIdx + i).toFixed(1)},${yRaw(c).toFixed(1)}`).join(' ');
+  const lineColor = m.direction === 'bullish' ? '#16a34a' : '#ef4444';
+
+  const levels = [
+    { key: 'nl', label: 'NL', value: m.neckline, color: '#64748b', dash: '4 3' },
+    { key: 'tp', label: 'TP', value: m.target, color: '#16a34a', dash: '2 3' },
+    { key: 'sl', label: 'SL', value: m.stop, color: '#ef4444', dash: '2 3' },
+  ];
+
+  return (
+    <svg
+      className="ps-chart"
+      viewBox={`0 0 ${W} ${H}`}
+      role="img"
+      aria-label={`Biểu đồ ${PATTERN_META[m.pattern].label}`}
+    >
+      {/* level reference lines + right-edge labels */}
+      {levels.map((lv) => {
+        const ly = y(lv.value);
+        return (
+          <g key={lv.key}>
+            <line x1={padL} x2={padL + innerW} y1={ly} y2={ly} stroke={lv.color} strokeWidth={1} strokeDasharray={lv.dash} opacity={0.75} />
+            <text x={padL + innerW + 3} y={ly + 3} fontSize={9} fill={lv.color} fontWeight={600}>{lv.label}</text>
+          </g>
+        );
+      })}
+
+      {/* price line */}
+      <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round" />
+
+      {/* pivots */}
+      {m.pivots.map((p, i) => {
+        const px = x(p.idx);
+        const py = yRaw(p.price);
+        const below = m.direction === 'bullish';
+        return (
+          <g key={i}>
+            <circle cx={px} cy={py} r={3} fill={lineColor} stroke="#fff" strokeWidth={1} />
+            <text
+              x={px}
+              y={below ? py + 13 : py - 7}
+              fontSize={9}
+              fill="var(--text-muted, #64748b)"
+              fontWeight={600}
+              textAnchor="middle"
+            >
+              {ROLE_SHORT[p.role] ?? ''}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }

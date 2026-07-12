@@ -12,6 +12,8 @@ export type PatternScanCoinResult = {
   symbol: string;
   name: string;
   price: number;
+  /** Close series used for the scan (oldest → newest); pivot `idx` index into this. Lets the UI draw the pattern. */
+  closes: number[];
   matches: PatternMatch[];
 };
 
@@ -77,6 +79,7 @@ export class PatternScannerService {
             symbol: coin.symbol,
             name: coin.name,
             price: series.closes[series.closes.length - 1] ?? 0,
+            closes: series.closes,
             matches,
           });
         }

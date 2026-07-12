@@ -9820,6 +9820,16 @@ a.metric-card--link:hover {
 .ps-badge { font-size: 0.7rem; border-radius: 999px; padding: 1px 8px; font-weight: 600; }
 .ps-badge--confirmed { background: rgba(16, 185, 129, 0.15); color: #059669; }
 .ps-badge--forming { background: rgba(234, 179, 8, 0.15); color: #b45309; }
+.ps-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 560px;
+  margin: 8px 0 2px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+  border-radius: 8px;
+  background: var(--card, rgba(148, 163, 184, 0.04));
+}
 .ps-levels { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.78rem; margin-top: 4px; color: var(--text-muted, #64748b); }
 .ps-levels b { color: var(--text, inherit); font-variant-numeric: tabular-nums; }
 .ps-info {

@@ -759,6 +759,8 @@ export type PatternScanCoinResult = {
   symbol: string;
   name: string;
   price: number;
+  /** Close series used for the scan (oldest → newest); pivot `idx` index into this. Used to draw the pattern chart. */
+  closes: number[];
   matches: PatternMatch[];
 };
 

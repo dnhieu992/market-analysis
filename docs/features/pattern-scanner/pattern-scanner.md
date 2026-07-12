@@ -24,7 +24,15 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
 4. The service fetches up to 300 public Binance klines per watched coin, builds an OHLC
    series, and runs the selected detectors (`scanChartPatterns` in `@app/core`).
 5. Results are sorted (confirmed patterns first, then by amplitude) and returned. Coins with
-   no match are omitted. The widget renders each matching coin with its pattern rows and levels.
+   no match are omitted. Each matching coin result also carries the full `closes` series used
+   for the scan (300 points, oldest → newest) so the UI can draw the pattern. The widget renders
+   each matching coin with its pattern rows and levels.
+6. **Pattern chart (FE).** For every match the widget draws an inline SVG chart
+   (`PatternChart` in `pattern-scanner-feed.tsx`): the close series windowed from ~6 bars before
+   the first pivot through the latest candle, with the defining pivots dotted and labelled
+   (VT/Đầu/VP for H&S, Đ1/Đ2 for double top/bottom) and the neckline (NL), target (TP) and stop
+   (SL) drawn as reference lines. It is rendered purely client-side from the returned `closes` —
+   no image request, no server render, no new dependency.
 
 ## Edge Cases
 - **Too-short series** — coins with fewer than 60 klines are skipped; `scanChartPatterns`
@@ -64,7 +72,8 @@ Update `PATTERN_RULES` whenever the detector thresholds change.
 - `packages/db/src/repositories/pattern-scanner.repository.ts` — watchlist CRUD
 - `packages/db/src/index.ts` — exports `createPatternScannerRepository`
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.controller.ts` — REST endpoints
-- `apps/api/src/modules/pattern-scanner/pattern-scanner.service.ts` — fetch klines + run detectors
+- `apps/api/src/modules/pattern-scanner/pattern-scanner.service.ts` — fetch klines + run detectors; returns `closes` per matching coin
+- `apps/web/src/widgets/pattern-scanner/pattern-scanner-feed.tsx` — `PatternChart` SVG (pivots + NL/TP/SL levels) drawn from `closes`
 - `apps/api/src/modules/pattern-scanner/dto/add-coin.dto.ts`, `dto/scan.dto.ts` — request validation
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.module.ts` — module wiring
 - `apps/api/src/app.module.ts` — registers `PatternScannerModule`
