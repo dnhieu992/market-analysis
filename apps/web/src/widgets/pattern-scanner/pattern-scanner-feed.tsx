@@ -483,6 +483,22 @@ function PatternChart({ m, series, variant = 'inline' }: { m: PatternMatch; seri
   const fs = full ? 16 : 9;
   const pr = full ? 5.5 : 3.5;
 
+  // Place the NL/TP/SL labels: keep each line at its true y, but nudge the text apart
+  // so close levels (e.g. neckline ≈ target) don't print on top of each other.
+  const labelGap = fs + 3;
+  const labelTop = padT + fs * 0.7;
+  const labelBottom = padT + innerH;
+  const levelRender = levels
+    .map((lv) => ({ ...lv, lineY: y(lv.value), labelY: y(lv.value) }))
+    .sort((a, b) => a.lineY - b.lineY);
+  for (let i = 1; i < levelRender.length; i++) {
+    levelRender[i]!.labelY = Math.max(levelRender[i]!.labelY, levelRender[i - 1]!.labelY + labelGap);
+  }
+  for (let i = levelRender.length - 1; i >= 0; i--) {
+    const cap = i === levelRender.length - 1 ? labelBottom : levelRender[i + 1]!.labelY - labelGap;
+    levelRender[i]!.labelY = Math.max(labelTop, Math.min(levelRender[i]!.labelY, cap));
+  }
+
   return (
     <svg
       className={`ps-chart ps-chart--${variant}`}
@@ -491,16 +507,13 @@ function PatternChart({ m, series, variant = 'inline' }: { m: PatternMatch; seri
       role="img"
       aria-label={`Biểu đồ ${PATTERN_META[m.pattern].label}`}
     >
-      {/* level reference lines + right-edge labels */}
-      {levels.map((lv) => {
-        const ly = y(lv.value);
-        return (
-          <g key={lv.key}>
-            <line x1={padL} x2={padL + innerW} y1={ly} y2={ly} stroke={lv.color} strokeWidth={1} strokeDasharray={lv.dash} opacity={0.8} />
-            <text x={padL + innerW + 4} y={ly + fs / 3} fontSize={fs} fill={lv.color} fontWeight={600}>{lv.label}</text>
-          </g>
-        );
-      })}
+      {/* level reference lines + right-edge labels (labels de-collided) */}
+      {levelRender.map((lv) => (
+        <g key={lv.key}>
+          <line x1={padL} x2={padL + innerW} y1={lv.lineY} y2={lv.lineY} stroke={lv.color} strokeWidth={1} strokeDasharray={lv.dash} opacity={0.8} />
+          <text x={padL + innerW + 4} y={lv.labelY + fs / 3} fontSize={fs} fill={lv.color} fontWeight={600}>{lv.label}</text>
+        </g>
+      ))}
 
       {/* candlesticks */}
       {candles}

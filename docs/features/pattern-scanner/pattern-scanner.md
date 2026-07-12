@@ -32,8 +32,9 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
    chart (`#26a69a` up / `#ef5350` down, matching worker `chart-renderer.ts`): OHLC windowed
    from ~6 bars before the first pivot through the latest candle, with the defining pivots marked
    and labelled (VT/Đầu/VP for H&S, Đ1/Đ2 for double top/bottom) and the neckline (NL), target
-   (TP) and stop (SL) drawn as reference lines. Rendered purely client-side from the returned
-   OHLC — no image request, no server render, no new dependency.
+   (TP) and stop (SL) drawn as reference lines (the NL/TP/SL text labels are nudged apart so
+   close levels don't overprint). Rendered purely client-side from the returned OHLC — no image
+   request, no server render, no new dependency.
 7. **Fullscreen (FE).** Clicking the chart opens a full-screen lightbox (`ChartZoom`) rendering
    the same chart at `variant="full"` (wider viewBox + larger fonts); closes on backdrop click or
    Esc. It is rendered through a **portal to `document.body`** so a card ancestor's `backdrop-filter`
