@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch } from '@web/shared/api/types';
@@ -10,6 +10,69 @@ const PATTERN_META: Record<PatternKind, { label: string; dir: 'bullish' | 'beari
   inverse_head_shoulders: { label: 'Vai đầu vai ngược', dir: 'bullish' },
   double_top: { label: 'Hai đỉnh', dir: 'bearish' },
   head_shoulders: { label: 'Vai đầu vai', dir: 'bearish' },
+};
+
+/**
+ * Rules shown in the info dialog for each pattern. Kept faithful to the actual
+ * detector in packages/core/src/analysis/chart-patterns.ts (fractal wing 5, 3%
+ * "equal" tolerance, ≥5% amplitude, 10–60 bar gap, 25-bar recency, failed
+ * right-leg rejection, 4% stale-breakout cutoff).
+ */
+const PATTERN_RULES: Record<PatternKind, { intro: string; rules: string[] }> = {
+  double_bottom: {
+    intro: 'Mô hình đảo chiều TĂNG. Sau một nhịp giảm, giá tạo hai đáy xấp xỉ bằng nhau (hình chữ W); phá vỡ neckline xác nhận đảo chiều.',
+    rules: [
+      'Hai đáy được xác nhận bằng fractal: mỗi đáy phải thấp hơn 5 nến ở mỗi bên.',
+      'Hai đáy “bằng nhau”: chênh lệch ≤ 3%.',
+      'Hai đáy cách nhau 10–60 nến.',
+      'Neckline = đỉnh cao nhất nằm giữa hai đáy, phải cao hơn đáy ≥ 5% (biên độ mô hình).',
+      'Đáy phải là vùng thấp nhất của cửa sổ xung quanh (đáy thực sự, không phải swing giữa xu hướng).',
+      'Loại nếu nhịp hồi sau đáy 2 chỉ tạo một đỉnh THẤP HƠN neckline rồi quay đầu (right leg hỏng — thực chất là bị từ chối, không phải hai đáy).',
+      'Đáy thứ 2 phải hoàn thiện trong 25 nến gần nhất (còn mới).',
+      'Bỏ nếu giá đã phá neckline và chạy quá 4% (breakout cũ, không còn vào lệnh được).',
+      'Target = neckline + (neckline − đáy). Stop = dưới đáy 0.5%.',
+    ],
+  },
+  double_top: {
+    intro: 'Mô hình đảo chiều GIẢM. Sau một nhịp tăng, giá tạo hai đỉnh xấp xỉ bằng nhau (hình chữ M); phá vỡ neckline xác nhận đảo chiều.',
+    rules: [
+      'Hai đỉnh được xác nhận bằng fractal: mỗi đỉnh phải cao hơn 5 nến ở mỗi bên.',
+      'Hai đỉnh “bằng nhau”: chênh lệch ≤ 3%.',
+      'Hai đỉnh cách nhau 10–60 nến.',
+      'Neckline = đáy thấp nhất nằm giữa hai đỉnh, phải thấp hơn đỉnh ≥ 5% (biên độ mô hình).',
+      'Đỉnh phải là vùng cao nhất của cửa sổ xung quanh (đỉnh thực sự).',
+      'Loại nếu nhịp giảm sau đỉnh 2 chỉ tạo một đáy CAO HƠN neckline rồi bật lại (right leg hỏng).',
+      'Đỉnh thứ 2 phải hoàn thiện trong 25 nến gần nhất (còn mới).',
+      'Bỏ nếu giá đã phá neckline và chạy quá 4% (breakout cũ).',
+      'Target = neckline − (đỉnh − neckline). Stop = trên đỉnh 0.5%.',
+    ],
+  },
+  inverse_head_shoulders: {
+    intro: 'Mô hình đảo chiều TĂNG. Ba đáy: đáy giữa (đầu) thấp nhất, hai vai hai bên nông hơn và xấp xỉ bằng nhau; phá neckline xác nhận.',
+    rules: [
+      'Ba đáy xác nhận bằng fractal (thấp hơn 5 nến mỗi bên); đáy giữa (đầu) phải thấp hơn cả hai vai.',
+      'Hai vai xấp xỉ bằng nhau: chênh lệch ≤ 3%.',
+      'Đối xứng thời gian: khoảng cách vai trái→đầu và đầu→vai phải lệch nhau ≤ 50% tổng nhịp.',
+      'Neckline = trung bình hai đỉnh phản ứng (giữa vai và đầu). Biên độ đầu→neckline ≥ 5%.',
+      'Vai phải nằm giữa neckline và đầu, độ sâu 15–70% độ sâu của đầu (không quá nông cũng không quá sâu).',
+      'Đầu phải là vùng thấp nhất của cả mô hình.',
+      'Bỏ nếu giá đã phá neckline và chạy quá 4% (breakout cũ).',
+      'Target = neckline + (neckline − đầu). Stop = dưới đầu 0.5%.',
+    ],
+  },
+  head_shoulders: {
+    intro: 'Mô hình đảo chiều GIẢM. Ba đỉnh: đỉnh giữa (đầu) cao nhất, hai vai hai bên thấp hơn và xấp xỉ bằng nhau; phá neckline xác nhận.',
+    rules: [
+      'Ba đỉnh xác nhận bằng fractal (cao hơn 5 nến mỗi bên); đỉnh giữa (đầu) phải cao hơn cả hai vai.',
+      'Hai vai xấp xỉ bằng nhau: chênh lệch ≤ 3%.',
+      'Đối xứng thời gian: khoảng cách vai trái→đầu và đầu→vai phải lệch nhau ≤ 50% tổng nhịp.',
+      'Neckline = trung bình hai đáy phản ứng (giữa vai và đầu). Biên độ đầu→neckline ≥ 5%.',
+      'Vai phải nằm giữa neckline và đầu, độ sâu 15–70% độ sâu của đầu.',
+      'Đầu phải là vùng cao nhất của cả mô hình.',
+      'Bỏ nếu giá đã phá neckline và chạy quá 4% (breakout cũ).',
+      'Target = neckline − (đầu − neckline). Stop = trên đầu 0.5%.',
+    ],
+  },
 };
 
 const PATTERN_ORDER: PatternKind[] = ['double_bottom', 'double_top', 'head_shoulders', 'inverse_head_shoulders'];
@@ -39,6 +102,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<PatternScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [infoPattern, setInfoPattern] = useState<PatternKind | null>(null);
 
   function togglePattern(p: PatternKind) {
     setSelected((prev) => {
@@ -134,6 +198,15 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                 <input type="checkbox" checked={selected.has(p)} onChange={() => togglePattern(p)} />
                 <span>{m.label}</span>
                 <span className={`ps-dir ps-dir--${m.dir}`}>{m.dir === 'bullish' ? '↑' : '↓'}</span>
+                <button
+                  type="button"
+                  className="ps-info"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoPattern(p); }}
+                  aria-label={`Quy tắc mô hình ${m.label}`}
+                  title="Xem quy tắc mô hình"
+                >
+                  i
+                </button>
               </label>
             );
           })}
@@ -173,7 +246,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                     <span className="scr-muted">${fmtPrice(coin.price)}</span>
                   </div>
                   <div className="ps-matches">
-                    {coin.matches.map((m, i) => <MatchRow key={i} m={m} />)}
+                    {coin.matches.map((m, i) => <MatchRow key={i} m={m} onInfo={setInfoPattern} />)}
                   </div>
                 </div>
               ))}
@@ -181,16 +254,63 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
           )}
         </section>
       )}
+
+      {infoPattern && (
+        <PatternRuleDialog pattern={infoPattern} onClose={() => setInfoPattern(null)} />
+      )}
     </div>
   );
 }
 
-function MatchRow({ m }: { m: PatternMatch }) {
+function PatternRuleDialog({ pattern, onClose }: { pattern: PatternKind; onClose: () => void }) {
+  const meta = PATTERN_META[pattern];
+  const rule = PATTERN_RULES[pattern];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="dialog-header">
+          <span className="dialog-title">
+            {meta.label}
+            <span className={`ps-dir ps-dir--${meta.dir}`} style={{ marginLeft: 8 }}>
+              {meta.dir === 'bullish' ? 'Tăng ↑' : 'Giảm ↓'}
+            </span>
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body">
+          <p className="ps-rule-intro">{rule.intro}</p>
+          <p className="notes-section-label">Điều kiện scanner nhận diện</p>
+          <ul className="ps-rule-list">
+            {rule.rules.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MatchRow({ m, onInfo }: { m: PatternMatch; onInfo: (p: PatternKind) => void }) {
   const meta = PATTERN_META[m.pattern];
   return (
     <div className={`ps-match ps-match--${m.direction}`}>
       <div className="ps-match-top">
         <span className="ps-match-name">{meta.label}</span>
+        <button
+          type="button"
+          className="ps-info"
+          onClick={() => onInfo(m.pattern)}
+          aria-label={`Quy tắc mô hình ${meta.label}`}
+          title="Xem quy tắc mô hình"
+        >
+          i
+        </button>
         <span className={`ps-badge ps-badge--${m.status}`}>{m.status === 'confirmed' ? 'Đã phá neckline' : 'Đang hình thành'}</span>
         <span className={`ps-dir ps-dir--${m.direction}`}>{m.direction === 'bullish' ? 'Tăng ↑' : 'Giảm ↓'}</span>
         <span className="scr-muted ps-match-meta">biên độ {m.heightPct}% · {m.barsAgo} nến trước</span>

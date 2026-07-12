@@ -46,6 +46,15 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
 - **Empty selection / empty watchlist** — the widget blocks the scan and shows an inline error.
 - **Remove missing coin** — API throws `NotFoundException`.
 
+### Pattern rule info dialog (FE)
+Each pattern has an info icon (ⓘ) — both next to its checkbox in the "Pattern cần quét"
+selector and next to its name in each result row. Clicking opens a dialog (reuses the app's
+`.dialog-*` modal, closes on backdrop click or Esc) describing the pattern shape and the exact
+detection criteria. Content lives in `PATTERN_RULES` in `pattern-scanner-feed.tsx` and is kept
+faithful to the detector in `chart-patterns.ts` (fractal wing 5, 3% equality tolerance, ≥5%
+amplitude, 10–60 bar gap, 25-bar recency, failed right-leg rejection, 4% stale-breakout cutoff).
+Update `PATTERN_RULES` whenever the detector thresholds change.
+
 ## Related Files (FE / BE / Worker)
 - `packages/core/src/analysis/chart-patterns.ts` — pure pattern detectors (`scanChartPatterns`, config, types)
 - `packages/core/src/analysis/chart-patterns.spec.ts` — detector unit tests

@@ -9822,4 +9822,30 @@ a.metric-card--link:hover {
 .ps-badge--forming { background: rgba(234, 179, 8, 0.15); color: #b45309; }
 .ps-levels { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.78rem; margin-top: 4px; color: var(--text-muted, #64748b); }
 .ps-levels b { color: var(--text, inherit); font-variant-numeric: tabular-nums; }
+.ps-info {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.5));
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.ps-info:hover { border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.ps-match-name + .ps-info { margin-left: 0; }
+.ps-rule-intro { margin: 0 0 16px; font-size: 0.9rem; line-height: 1.6; color: var(--fg); }
+.ps-rule-list { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+.ps-rule-list li { font-size: 0.86rem; line-height: 1.55; color: var(--fg); }
 @media (max-width: 640px) { .ps-patterns { grid-template-columns: 1fr; } }
