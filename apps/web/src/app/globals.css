@@ -9824,12 +9824,57 @@ a.metric-card--link:hover {
   display: block;
   width: 100%;
   height: auto;
-  max-width: 560px;
-  margin: 8px 0 2px;
   border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
   border-radius: 8px;
   background: var(--card, rgba(148, 163, 184, 0.04));
 }
+/* clickable chart → opens the full-screen lightbox */
+.ps-chart-btn {
+  display: block;
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 8px 0 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  border-radius: 8px;
+}
+.ps-chart-btn:hover .ps-chart { border-color: #3b82f6; }
+.ps-chart-btn:hover .ps-chart-zoom-hint { opacity: 1; }
+.ps-chart-zoom-hint {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.55);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.ps-chart-backdrop { cursor: zoom-out; }
+.ps-chart-zoom {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: min(1100px, 94vw);
+  max-height: 90vh;
+  padding: 14px 16px 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  cursor: default;
+}
+.ps-chart-zoom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ps-chart--full { max-height: calc(90vh - 60px); }
 .ps-levels { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.78rem; margin-top: 4px; color: var(--text-muted, #64748b); }
 .ps-levels b { color: var(--text, inherit); font-variant-numeric: tabular-nums; }
 .ps-info {

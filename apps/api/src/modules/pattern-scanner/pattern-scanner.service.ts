@@ -12,7 +12,10 @@ export type PatternScanCoinResult = {
   symbol: string;
   name: string;
   price: number;
-  /** Close series used for the scan (oldest → newest); pivot `idx` index into this. Lets the UI draw the pattern. */
+  /** OHLC series used for the scan (oldest → newest, parallel arrays); pivot `idx` indexes into these. Lets the UI draw a candlestick of the pattern. */
+  opens: number[];
+  highs: number[];
+  lows: number[];
   closes: number[];
   matches: PatternMatch[];
 };
@@ -68,6 +71,7 @@ export class PatternScannerService {
         scanned++;
         if (klines.length < MIN_CANDLES) continue;
 
+        const opens = klines.map((k) => parseFloat(k[1]));
         const series = {
           highs: klines.map((k) => parseFloat(k[2])),
           lows: klines.map((k) => parseFloat(k[3])),
@@ -79,6 +83,9 @@ export class PatternScannerService {
             symbol: coin.symbol,
             name: coin.name,
             price: series.closes[series.closes.length - 1] ?? 0,
+            opens,
+            highs: series.highs,
+            lows: series.lows,
             closes: series.closes,
             matches,
           });

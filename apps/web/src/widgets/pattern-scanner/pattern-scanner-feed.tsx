@@ -247,7 +247,12 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                   </div>
                   <div className="ps-matches">
                     {coin.matches.map((m, i) => (
-                      <MatchRow key={i} m={m} closes={coin.closes} onInfo={setInfoPattern} />
+                      <MatchRow
+                        key={i}
+                        m={m}
+                        series={{ opens: coin.opens, highs: coin.highs, lows: coin.lows, closes: coin.closes }}
+                        onInfo={setInfoPattern}
+                      />
                     ))}
                   </div>
                 </div>
@@ -298,8 +303,12 @@ function PatternRuleDialog({ pattern, onClose }: { pattern: PatternKind; onClose
   );
 }
 
-function MatchRow({ m, closes, onInfo }: { m: PatternMatch; closes?: number[]; onInfo: (p: PatternKind) => void }) {
+type PatternSeries = { opens: number[]; highs: number[]; lows: number[]; closes: number[] };
+
+function MatchRow({ m, series, onInfo }: { m: PatternMatch; series?: PatternSeries; onInfo: (p: PatternKind) => void }) {
   const meta = PATTERN_META[m.pattern];
+  const [zoom, setZoom] = useState(false);
+  const hasChart = !!series && series.closes.length >= 2 && m.pivots.length > 0;
   return (
     <div className={`ps-match ps-match--${m.direction}`}>
       <div className="ps-match-top">
@@ -317,11 +326,51 @@ function MatchRow({ m, closes, onInfo }: { m: PatternMatch; closes?: number[]; o
         <span className={`ps-dir ps-dir--${m.direction}`}>{m.direction === 'bullish' ? 'Tăng ↑' : 'Giảm ↓'}</span>
         <span className="scr-muted ps-match-meta">biên độ {m.heightPct}% · {m.barsAgo} nến trước</span>
       </div>
-      <PatternChart m={m} closes={closes} />
+      {hasChart && (
+        <button
+          type="button"
+          className="ps-chart-btn"
+          onClick={() => setZoom(true)}
+          aria-label="Phóng to biểu đồ"
+          title="Bấm để phóng to"
+        >
+          <PatternChart m={m} series={series} />
+          <span className="ps-chart-zoom-hint" aria-hidden>⤢</span>
+        </button>
+      )}
       <div className="ps-levels">
         <span>Neckline <b>${fmtPrice(m.neckline)}</b></span>
         <span>Target <b>${fmtPrice(m.target)}</b></span>
         <span>Stop <b>${fmtPrice(m.stop)}</b></span>
+      </div>
+      {zoom && hasChart && (
+        <ChartZoom m={m} series={series} onClose={() => setZoom(false)} />
+      )}
+    </div>
+  );
+}
+
+/** Full-screen lightbox showing the pattern chart large; closes on backdrop click or Esc. */
+function ChartZoom({ m, series, onClose }: { m: PatternMatch; series: PatternSeries; onClose: () => void }) {
+  const meta = PATTERN_META[m.pattern];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="dialog-backdrop ps-chart-backdrop" onClick={onClose}>
+      <div className="ps-chart-zoom" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="ps-chart-zoom-head">
+          <span className="dialog-title">
+            {meta.label}
+            <span className={`ps-dir ps-dir--${meta.dir}`} style={{ marginLeft: 8 }}>
+              {meta.dir === 'bullish' ? 'Tăng ↑' : 'Giảm ↓'}
+            </span>
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <PatternChart m={m} series={series} variant="full" />
       </div>
     </div>
   );
@@ -337,18 +386,24 @@ const ROLE_SHORT: Record<string, string> = {
   'right-shoulder': 'VP',
 };
 
+// App candlestick colours (match worker chart-renderer.ts).
+const CANDLE_UP = '#26a69a';
+const CANDLE_DOWN = '#ef5350';
+
 /**
- * Inline SVG chart of the matched pattern: the close series windowed around the
- * pivots, with the defining pivots dotted and the neckline / target / stop levels
- * drawn as reference lines. Purely client-side — no image request, no dependency.
+ * Inline SVG candlestick of the matched pattern: OHLC windowed around the pivots
+ * (same green/red style as the Daily Plan chart), with the defining pivots marked
+ * and the neckline / target / stop levels drawn as reference lines. Purely
+ * client-side — no image request, no dependency. `variant="full"` renders larger.
  */
-function PatternChart({ m, closes }: { m: PatternMatch; closes?: number[] }) {
-  if (!closes || closes.length < 2 || m.pivots.length === 0) return null;
+function PatternChart({ m, series, variant = 'inline' }: { m: PatternMatch; series?: PatternSeries; variant?: 'inline' | 'full' }) {
+  if (!series || series.closes.length < 2 || m.pivots.length === 0) return null;
+  const { opens, highs, lows, closes } = series;
 
   const W = 560;
-  const H = 170;
+  const H = 190;
   const padL = 8;
-  const padR = 52; // room for level labels on the right
+  const padR = 54; // room for level labels on the right
   const padT = 14;
   const padB = 16;
   const innerW = W - padL - padR;
@@ -361,10 +416,19 @@ function PatternChart({ m, closes }: { m: PatternMatch; closes?: number[] }) {
   const endIdx = lastIdx;
   if (endIdx - startIdx < 1) return null;
 
-  const windowCloses = closes.slice(startIdx, endIdx + 1);
-  // Domain from the visible closes + neckline + stop (structural, near price).
-  // Target is left out of the domain so a far measured-move doesn't squash the line.
-  const domainVals = [...windowCloses, m.neckline, m.stop];
+  const count = endIdx - startIdx + 1;
+  const slotW = innerW / count;
+  const barW = Math.max(1.5, slotW * 0.6);
+
+  // Domain from visible highs/lows + neckline + stop (structural). Target left out
+  // so a far measured-move doesn't squash the candles.
+  const domainVals = [m.neckline, m.stop];
+  for (let i = startIdx; i <= endIdx; i++) {
+    const h = highs[i];
+    const l = lows[i];
+    if (h != null) domainVals.push(h);
+    if (l != null) domainVals.push(l);
+  }
   let lo = Math.min(...domainVals);
   let hi = Math.max(...domainVals);
   if (hi === lo) hi = lo + 1;
@@ -372,12 +436,9 @@ function PatternChart({ m, closes }: { m: PatternMatch; closes?: number[] }) {
   lo -= padY;
   hi += padY;
 
-  const x = (idx: number) => padL + ((idx - startIdx) / (endIdx - startIdx)) * innerW;
+  const xc = (idx: number) => padL + (idx - startIdx + 0.5) * slotW;
   const yRaw = (p: number) => padT + (1 - (p - lo) / (hi - lo)) * innerH;
   const y = (p: number) => Math.max(padT, Math.min(padT + innerH, yRaw(p)));
-
-  const linePts = windowCloses.map((c, i) => `${x(startIdx + i).toFixed(1)},${yRaw(c).toFixed(1)}`).join(' ');
-  const lineColor = m.direction === 'bullish' ? '#16a34a' : '#ef4444';
 
   const levels = [
     { key: 'nl', label: 'NL', value: m.neckline, color: '#64748b', dash: '4 3' },
@@ -385,9 +446,30 @@ function PatternChart({ m, closes }: { m: PatternMatch; closes?: number[] }) {
     { key: 'sl', label: 'SL', value: m.stop, color: '#ef4444', dash: '2 3' },
   ];
 
+  const candles = [];
+  for (let idx = startIdx; idx <= endIdx; idx++) {
+    const o = opens[idx];
+    const c = closes[idx];
+    const h = highs[idx];
+    const l = lows[idx];
+    if (o == null || c == null || h == null || l == null) continue;
+    const cx = xc(idx);
+    const openY = yRaw(o);
+    const closeY = yRaw(c);
+    const color = c >= o ? CANDLE_UP : CANDLE_DOWN;
+    const bodyTop = Math.min(openY, closeY);
+    const bodyH = Math.max(1, Math.abs(closeY - openY));
+    candles.push(
+      <g key={idx}>
+        <line x1={cx} x2={cx} y1={yRaw(h)} y2={yRaw(l)} stroke={color} strokeWidth={1} />
+        <rect x={cx - barW / 2} y={bodyTop} width={barW} height={bodyH} fill={color} />
+      </g>,
+    );
+  }
+
   return (
     <svg
-      className="ps-chart"
+      className={`ps-chart ps-chart--${variant}`}
       viewBox={`0 0 ${W} ${H}`}
       role="img"
       aria-label={`Biểu đồ ${PATTERN_META[m.pattern].label}`}
@@ -397,29 +479,29 @@ function PatternChart({ m, closes }: { m: PatternMatch; closes?: number[] }) {
         const ly = y(lv.value);
         return (
           <g key={lv.key}>
-            <line x1={padL} x2={padL + innerW} y1={ly} y2={ly} stroke={lv.color} strokeWidth={1} strokeDasharray={lv.dash} opacity={0.75} />
+            <line x1={padL} x2={padL + innerW} y1={ly} y2={ly} stroke={lv.color} strokeWidth={1} strokeDasharray={lv.dash} opacity={0.8} />
             <text x={padL + innerW + 3} y={ly + 3} fontSize={9} fill={lv.color} fontWeight={600}>{lv.label}</text>
           </g>
         );
       })}
 
-      {/* price line */}
-      <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round" />
+      {/* candlesticks */}
+      {candles}
 
       {/* pivots */}
       {m.pivots.map((p, i) => {
-        const px = x(p.idx);
+        const px = xc(p.idx);
         const py = yRaw(p.price);
         const below = m.direction === 'bullish';
         return (
-          <g key={i}>
-            <circle cx={px} cy={py} r={3} fill={lineColor} stroke="#fff" strokeWidth={1} />
+          <g key={`piv-${i}`}>
+            <circle cx={px} cy={py} r={3.5} fill="#2563eb" stroke="#fff" strokeWidth={1.2} />
             <text
               x={px}
-              y={below ? py + 13 : py - 7}
+              y={below ? py + 14 : py - 8}
               fontSize={9}
               fill="var(--text-muted, #64748b)"
-              fontWeight={600}
+              fontWeight={700}
               textAnchor="middle"
             >
               {ROLE_SHORT[p.role] ?? ''}

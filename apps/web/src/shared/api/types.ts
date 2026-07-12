@@ -759,7 +759,10 @@ export type PatternScanCoinResult = {
   symbol: string;
   name: string;
   price: number;
-  /** Close series used for the scan (oldest → newest); pivot `idx` index into this. Used to draw the pattern chart. */
+  /** OHLC series used for the scan (oldest → newest, parallel arrays); pivot `idx` indexes into these. Used to draw the pattern candlestick chart. */
+  opens: number[];
+  highs: number[];
+  lows: number[];
   closes: number[];
   matches: PatternMatch[];
 };

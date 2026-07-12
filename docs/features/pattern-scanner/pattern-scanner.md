@@ -24,15 +24,18 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
 4. The service fetches up to 300 public Binance klines per watched coin, builds an OHLC
    series, and runs the selected detectors (`scanChartPatterns` in `@app/core`).
 5. Results are sorted (confirmed patterns first, then by amplitude) and returned. Coins with
-   no match are omitted. Each matching coin result also carries the full `closes` series used
-   for the scan (300 points, oldest → newest) so the UI can draw the pattern. The widget renders
-   each matching coin with its pattern rows and levels.
-6. **Pattern chart (FE).** For every match the widget draws an inline SVG chart
-   (`PatternChart` in `pattern-scanner-feed.tsx`): the close series windowed from ~6 bars before
-   the first pivot through the latest candle, with the defining pivots dotted and labelled
-   (VT/Đầu/VP for H&S, Đ1/Đ2 for double top/bottom) and the neckline (NL), target (TP) and stop
-   (SL) drawn as reference lines. It is rendered purely client-side from the returned `closes` —
-   no image request, no server render, no new dependency.
+   no match are omitted. Each matching coin result also carries the full OHLC series used for
+   the scan (`opens`/`highs`/`lows`/`closes`, 300 points, oldest → newest) so the UI can draw
+   the pattern. The widget renders each matching coin with its pattern rows and levels.
+6. **Pattern chart (FE).** For every match the widget draws an inline SVG **candlestick** chart
+   (`PatternChart` in `pattern-scanner-feed.tsx`) in the same green/red style as the Daily Plan
+   chart (`#26a69a` up / `#ef5350` down, matching worker `chart-renderer.ts`): OHLC windowed
+   from ~6 bars before the first pivot through the latest candle, with the defining pivots marked
+   and labelled (VT/Đầu/VP for H&S, Đ1/Đ2 for double top/bottom) and the neckline (NL), target
+   (TP) and stop (SL) drawn as reference lines. Rendered purely client-side from the returned
+   OHLC — no image request, no server render, no new dependency.
+7. **Fullscreen (FE).** Clicking the chart opens a full-screen lightbox (`ChartZoom`, reuses the
+   `.dialog-backdrop`) rendering the same chart at `variant="full"`; closes on backdrop click or Esc.
 
 ## Edge Cases
 - **Too-short series** — coins with fewer than 60 klines are skipped; `scanChartPatterns`
