@@ -22,6 +22,8 @@ export { createDayTradingRepository } from './repositories/day-trading.repositor
 export { createLongSignalRepository } from './repositories/long-signal.repository';
 export { createDcaLadderRepository } from './repositories/dca-ladder.repository';
 export { createPatternScannerRepository } from './repositories/pattern-scanner.repository';
+export { createEmaStochScannerRepository } from './repositories/ema-stoch-scanner.repository';
+export type { EmaStochSignalUpsert } from './repositories/ema-stoch-scanner.repository';
 export { createSpotFlipWatchRepository } from './repositories/spot-flip-watch.repository';
 export { createSpotFlipDailyRepository } from './repositories/spot-flip-daily.repository';
 export type { SpotFlipDailyInput } from './repositories/spot-flip-daily.repository';

@@ -824,6 +824,54 @@ export type PatternReferenceImage = {
   createdAt: string;
 };
 
+// ── EMA Bounce Scanner (EMA-stack oversold StochRSI) ──────────────────────────
+export type EmaBounceCoin = {
+  id: string;
+  symbol: string;
+  name: string;
+  addedAt: string;
+};
+
+export type EmaBounceSignal = {
+  id: string;
+  symbol: string;
+  status: 'open' | 'hit_tp' | 'expired' | string;
+  triggeredAt: string;
+  entryPrice: number;
+  tpPrice: number;
+  distPct: number;
+  rsi: number | null;
+  stochK: number | null;
+  stochD: number | null;
+  ema34: number | null;
+  ema89: number | null;
+  ema200: number | null;
+  currentPrice: number | null;
+  pnlPct: number | null;
+  hitTpAt: string | null;
+  lastCheckedAt: string | null;
+};
+
+export type EmaBounceMatch = {
+  symbol: string;
+  price: number;
+  tpPrice: number;
+  distPct: number;
+  rsi: number;
+  stochK: number;
+  stochD: number;
+  ema34: number;
+  ema89: number;
+  ema200: number;
+};
+
+export type EmaBouncePreview = {
+  scannedAt: string;
+  scanned: number;
+  failed: number;
+  matches: EmaBounceMatch[];
+};
+
 /** Progress/result of the background coin sync (polled after a Sync Coins click). */
 export type MemeRescanStatus = {
   running: boolean;

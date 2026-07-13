@@ -32,6 +32,7 @@ import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { DcaLadderModule } from './modules/dca-ladder/dca-ladder.module';
 import { PatternScannerModule } from './modules/pattern-scanner/pattern-scanner.module';
+import { EmaStochScannerModule } from './modules/ema-stoch-scanner/ema-stoch-scanner.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { PatternScannerModule } from './modules/pattern-scanner/pattern-scanner.
     LongSignalModule,
     DcaLadderModule,
     PatternScannerModule,
+    EmaStochScannerModule,
   ],
   providers: [
     {

@@ -64,6 +64,7 @@ function noopRepository() {
 export const createSettingsRepository = noopRepository;
 export const createTrackedSetupRepository = noopRepository;
 export const createTrackingCoinsRepository = noopRepository;
+export const createEmaStochScannerRepository = noopRepository;
 export const createSmallCapRadarRepository = noopRepository;
 export const createMemeRadarRepository = noopRepository;
 export const createSpotFlipWatchRepository = noopRepository;

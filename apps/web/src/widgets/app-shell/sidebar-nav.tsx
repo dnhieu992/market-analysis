@@ -93,6 +93,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Quét mô hình giá: 2 đáy, 2 đỉnh, vai đầu vai'
   },
   {
+    href: '/ema-bounce',
+    label: 'EMA Bounce Scanner',
+    description: 'Quét 4h: giá giãn dưới EMA34/89/200 + StochRSI quá bán'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

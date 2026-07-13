@@ -37,6 +37,7 @@ describe('SchedulerService', () => {
         { scanAll: jest.fn().mockResolvedValue({ scanned: 0, failed: 0 }) } as never,
         { runDaily: jest.fn().mockResolvedValue({ scanned: 0, failed: 0 }) } as never,
         { scanAll: jest.fn().mockResolvedValue({ scanned: 0, failed: 0 }) } as never,
+        { scanAll: jest.fn().mockResolvedValue({ scanned: 0, failed: 0, triggered: 0 }) } as never,
         setupExtractionService as never,
         setupTrackingService as never,
         { syncAll: jest.fn().mockResolvedValue(undefined) } as never,

@@ -874,3 +874,47 @@ model PatternReferenceImage {
   @@index([pattern])
   @@map("pattern_reference_images")
 }
+
+// Watchlist for the /ema-bounce page — the EMA-stack oversold StochRSI bounce
+// scanner. The worker auto-scans this list every 4h and persists matched signals.
+model EmaStochWatchCoin {
+  id      String           @id @default(cuid())
+  symbol  String           @unique @db.VarChar(30)
+  name    String           @default("") @db.VarChar(100)
+  addedAt DateTime         @default(now())
+  signals EmaStochSignal[]
+
+  @@map("ema_stoch_watch_coins")
+}
+
+// A triggered signal "card": one long entry that satisfied the strategy on a closed
+// 4h candle. Outcome-tracked — currentPrice/pnlPct refresh each scan; status goes
+// open → hit_tp (price reached the +10% TP) or expired.
+model EmaStochSignal {
+  id            String            @id @default(cuid())
+  coinId        String
+  coin          EmaStochWatchCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+  symbol        String            @db.VarChar(30)
+  triggeredAt   DateTime // the 4h candle close time that produced the signal
+  status        String            @default("open") @db.VarChar(20) // open | hit_tp | expired
+  entryPrice    Float
+  tpPrice       Float
+  distPct       Float // distance below EMA34 at entry (fraction, e.g. 0.093)
+  rsi           Float?
+  stochK        Float?
+  stochD        Float?
+  ema34         Float?
+  ema89         Float?
+  ema200        Float?
+  currentPrice  Float?
+  pnlPct        Float?
+  hitTpAt       DateTime?
+  lastCheckedAt DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@unique([coinId, triggeredAt])
+  @@index([symbol])
+  @@index([status])
+  @@map("ema_stoch_signals")
+}

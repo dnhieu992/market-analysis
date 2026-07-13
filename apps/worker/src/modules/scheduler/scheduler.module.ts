@@ -10,11 +10,12 @@ import { SpotFlipDailyModule } from '../spot-flip-daily/spot-flip-daily.module';
 import { SwingSignalModule } from '../swing-signal/swing-signal.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { TrackingCoinScanModule } from '../tracking-coin-scan/tracking-coin-scan.module';
+import { EmaStochScanModule } from '../ema-stoch-scan/ema-stoch-scan.module';
 import { VisualAnalysisModule } from '../visual-analysis/visual-analysis.module';
 import { SchedulerService } from './scheduler.service';
 
 @Module({
-  imports: [AnalysisModule, DailySignalModule, TelegramModule, VisualAnalysisModule, SwingSignalModule, SmallCapScanModule, MemeScanModule, SpotFlipDailyModule, TrackingCoinScanModule, SetupTrackingModule, DcaLadderModule],
+  imports: [AnalysisModule, DailySignalModule, TelegramModule, VisualAnalysisModule, SwingSignalModule, SmallCapScanModule, MemeScanModule, SpotFlipDailyModule, TrackingCoinScanModule, EmaStochScanModule, SetupTrackingModule, DcaLadderModule],
   providers: [SchedulerService],
   exports: [SchedulerService]
 })

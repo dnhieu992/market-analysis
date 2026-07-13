@@ -41,6 +41,9 @@ import type {
   PatternWatchCoin,
   PatternScanResult,
   PatternReferenceImage,
+  EmaBounceCoin,
+  EmaBounceSignal,
+  EmaBouncePreview,
   SpotFlipAnalysis,
   SpotFlipWatchItem,
   SpotFlipDailyEntry,
@@ -970,6 +973,36 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async removePatternReference(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/pattern-scanner/references/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    // ── EMA Bounce Scanner ──────────────────────────────────────
+    async fetchEmaBounceCoins(): Promise<EmaBounceCoin[]> {
+      return fetchJson<EmaBounceCoin[]>(fetchImpl, `${baseUrl}/ema-bounce/coins`, withDefaults());
+    },
+
+    async addEmaBounceCoin(symbol: string, name?: string): Promise<EmaBounceCoin> {
+      return fetchJson<EmaBounceCoin>(
+        fetchImpl,
+        `${baseUrl}/ema-bounce/coins`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, name }),
+        }),
+      );
+    },
+
+    async removeEmaBounceCoin(symbol: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/ema-bounce/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    async fetchEmaBounceSignals(onlyOpen = false): Promise<EmaBounceSignal[]> {
+      const qs = onlyOpen ? '?open=true' : '';
+      return fetchJson<EmaBounceSignal[]>(fetchImpl, `${baseUrl}/ema-bounce/signals${qs}`, withDefaults());
+    },
+
+    async previewEmaBounce(): Promise<EmaBouncePreview> {
+      return fetchJson<EmaBouncePreview>(fetchImpl, `${baseUrl}/ema-bounce/preview`, withDefaults({ method: 'POST' }));
     },
 
     async fetchMemeRadar(): Promise<MemeCoinRow[]> {

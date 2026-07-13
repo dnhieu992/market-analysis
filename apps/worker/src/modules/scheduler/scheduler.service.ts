@@ -12,6 +12,7 @@ import { MemeScanService } from '../meme-scan/meme-scan.service';
 import { SpotFlipDailyService } from '../spot-flip-daily/spot-flip-daily.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TrackingCoinScanService } from '../tracking-coin-scan/tracking-coin-scan.service';
+import { EmaStochScanService } from '../ema-stoch-scan/ema-stoch-scan.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
 
@@ -30,6 +31,7 @@ export class SchedulerService {
     private readonly memeScanService: MemeScanService,
     private readonly spotFlipDailyService: SpotFlipDailyService,
     private readonly trackingCoinScanService: TrackingCoinScanService,
+    private readonly emaStochScanService: EmaStochScanService,
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
     private readonly dcaLadderSyncService: DcaLadderSyncService,
@@ -102,6 +104,20 @@ export class SchedulerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Tracking-coin scan failed: ${msg}`);
+    }
+  }
+
+  // Runs 2 min after each 4h candle close (00:02, 04:02, … UTC) — scan the
+  // /ema-bounce watchlist for EMA-stack oversold StochRSI entries.
+  @Cron('0 2 */4 * * *', { timeZone: 'UTC' })
+  async runEmaStochScan() {
+    this.logger.log('Running EMA-bounce scan');
+    try {
+      const result = await this.emaStochScanService.scanAll();
+      this.logger.log(`EMA-bounce scan complete — scanned: ${result.scanned}, failed: ${result.failed}, new: ${result.triggered}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`EMA-bounce scan failed: ${msg}`);
     }
   }
 

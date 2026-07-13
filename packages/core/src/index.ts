@@ -37,6 +37,14 @@ export { calculateMacd } from './indicators/macd';
 export { calculateRsi } from './indicators/rsi';
 export { extractSupportAndResistanceLevels } from './indicators/support-resistance';
 export { calculateVolumeRatio } from './indicators/volume';
+export { calculateStochRsi } from './indicators/stoch-rsi';
+export type { StochRsiSeries } from './indicators/stoch-rsi';
+export {
+  detectEmaStackOversoldEntry,
+  DEFAULT_EMA_STACK_OVERSOLD_CONFIG,
+  EMA_STACK_OVERSOLD_MIN_CANDLES,
+} from './analysis/ema-stack-oversold';
+export type { EmaStackOversoldConfig, EmaStackOversoldEntry } from './analysis/ema-stack-oversold';
 export { isUtBotUptrend, calcUtBotResult, calcUtBotSignals } from './indicators/ut-bot';
 export type { UtBotResult, UtBotBarSignal } from './indicators/ut-bot';
 export { normalizeLlmSignal } from './normalizers/normalize-llm-signal';
