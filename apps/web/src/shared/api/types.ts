@@ -776,6 +776,23 @@ export type CoinIndicators = {
   ema200: number;
 };
 
+export type PatternSignalBreakdown = {
+  rsiBull: number;
+  rsiBear: number;
+  emaBull: number;
+  emaBear: number;
+  patternBull: number;
+  patternBear: number;
+};
+
+export type PatternSignal = {
+  bullPoints: number;
+  bearPoints: number;
+  bullPct: number;
+  bearPct: number;
+  breakdown: PatternSignalBreakdown;
+};
+
 export type PatternScanCoinResult = {
   symbol: string;
   name: string;
@@ -787,6 +804,7 @@ export type PatternScanCoinResult = {
   closes: number[];
   matches: PatternMatch[];
   indicators: CoinIndicators;
+  signal: PatternSignal;
 };
 
 export type PatternScanResult = {

@@ -16,6 +16,29 @@ export type CoinIndicators = {
   ema200: number;
 };
 
+/** Per-source point breakdown so the UI can explain how the score was reached. */
+export type PatternSignalBreakdown = {
+  rsiBull: number;
+  rsiBear: number;
+  emaBull: number;
+  emaBear: number;
+  patternBull: number;
+  patternBear: number;
+};
+
+/**
+ * Weighted bull/bear score for a scanned coin, split into a tăng/giảm percentage.
+ * See `computeSignal` for the scoring rules (mirrored in the UI's info dialog).
+ */
+export type PatternSignal = {
+  bullPoints: number;
+  bearPoints: number;
+  /** Integer share 0–100; bullPct + bearPct = 100 whenever there is at least one point. */
+  bullPct: number;
+  bearPct: number;
+  breakdown: PatternSignalBreakdown;
+};
+
 export type PatternScanCoinResult = {
   symbol: string;
   name: string;
@@ -27,7 +50,53 @@ export type PatternScanCoinResult = {
   closes: number[];
   matches: PatternMatch[];
   indicators: CoinIndicators;
+  signal: PatternSignal;
 };
+
+/**
+ * Score a coin's bullish vs bearish bias from RSI, Sonic-R EMA alignment and the
+ * matched chart patterns, then split into a tăng/giảm %. Rules:
+ *   • RSI < 30 → +1 bull · RSI > 70 → +1 bear
+ *   • EMA (highest matching tier only):
+ *       price > EMA34 → +1 · > EMA34 > EMA89 → +2 · > EMA34 > EMA89 > EMA200 → +3 (bull)
+ *       the mirror ordering (price < EMA34 < EMA89 < EMA200) scores the same for bear
+ *   • each double-bottom / inverse-H&S → +1 bull · each double-top / H&S → +1 bear
+ */
+export function computeSignal(price: number, ind: CoinIndicators, matches: PatternMatch[]): PatternSignal {
+  const rsiBull = ind.rsi < 30 ? 1 : 0;
+  const rsiBear = ind.rsi > 70 ? 1 : 0;
+
+  const { ema34, ema89, ema200 } = ind;
+  let emaBull = 0;
+  if (price > ema34 && ema34 > ema89 && ema89 > ema200) emaBull = 3;
+  else if (price > ema34 && ema34 > ema89) emaBull = 2;
+  else if (price > ema34) emaBull = 1;
+  let emaBear = 0;
+  if (price < ema34 && ema34 < ema89 && ema89 < ema200) emaBear = 3;
+  else if (price < ema34 && ema34 < ema89) emaBear = 2;
+  else if (price < ema34) emaBear = 1;
+
+  let patternBull = 0;
+  let patternBear = 0;
+  for (const m of matches) {
+    if (m.pattern === 'double_bottom' || m.pattern === 'inverse_head_shoulders') patternBull += 1;
+    else if (m.pattern === 'double_top' || m.pattern === 'head_shoulders') patternBear += 1;
+  }
+
+  const bullPoints = rsiBull + emaBull + patternBull;
+  const bearPoints = rsiBear + emaBear + patternBear;
+  const total = bullPoints + bearPoints;
+  const bullPct = total > 0 ? Math.round((bullPoints / total) * 100) : 0;
+  const bearPct = total > 0 ? 100 - bullPct : 0;
+
+  return {
+    bullPoints,
+    bearPoints,
+    bullPct,
+    bearPct,
+    breakdown: { rsiBull, rsiBear, emaBull, emaBear, patternBull, patternBear },
+  };
+}
 
 export type PatternScanResult = {
   scannedAt: string;
@@ -124,16 +193,18 @@ export class PatternScannerService {
             ema89:  Number(calculateEma(series.closes, 89).toFixed(6)),
             ema200: Number(calculateEma(series.closes, 200).toFixed(6)),
           };
+          const price = series.closes[series.closes.length - 1] ?? 0;
           results.push({
             symbol: coin.symbol,
             name: coin.name,
-            price: series.closes[series.closes.length - 1] ?? 0,
+            price,
             opens,
             highs: series.highs,
             lows: series.lows,
             closes: series.closes,
             matches,
             indicators,
+            signal: computeSignal(price, indicators, matches),
           });
         }
       } catch (err) {

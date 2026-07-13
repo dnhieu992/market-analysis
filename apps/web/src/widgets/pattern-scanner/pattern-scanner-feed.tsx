@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch, PatternReferenceImage, CoinIndicators } from '@web/shared/api/types';
+import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch, PatternReferenceImage, CoinIndicators, PatternSignal } from '@web/shared/api/types';
 
 const PATTERN_META: Record<PatternKind, { label: string; dir: 'bullish' | 'bearish' }> = {
   double_bottom: { label: 'Hai đáy', dir: 'bullish' },
@@ -108,6 +108,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
   const [error, setError] = useState<string | null>(null);
   const [infoPattern, setInfoPattern] = useState<PatternKind | null>(null);
   const [infoIndicator, setInfoIndicator] = useState<'rsi' | 'sonic-r' | null>(null);
+  const [showScoreInfo, setShowScoreInfo] = useState(false);
 
   function togglePattern(p: PatternKind) {
     setSelected((prev) => {
@@ -168,7 +169,18 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
   return (
     <div className="ps">
       <header className="ps-header">
-        <h1 className="ps-title">Pattern Scanner</h1>
+        <div className="ps-title-row">
+          <h1 className="ps-title">Pattern Scanner</h1>
+          <button
+            type="button"
+            className="ps-info ps-info--title"
+            onClick={() => setShowScoreInfo(true)}
+            aria-label="Cách tính điểm tín hiệu"
+            title="Cách tính điểm tín hiệu tăng/giảm"
+          >
+            i
+          </button>
+        </div>
         <p className="ps-sub">Quét watchlist theo mô hình giá (2 đáy, 2 đỉnh, vai đầu vai…) để lọc coin đáng chú ý.</p>
       </header>
 
@@ -289,7 +301,17 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                   <div className="ps-result-head">
                     <span className="scr-symbol">{coin.symbol}</span>
                     <span className="scr-muted">${fmtPrice(coin.price)}</span>
+                    <button
+                      type="button"
+                      className="ps-info ps-info--score"
+                      onClick={() => setShowScoreInfo(true)}
+                      aria-label="Cách tính điểm"
+                      title="Cách tính điểm tín hiệu"
+                    >
+                      i
+                    </button>
                   </div>
+                  <SignalBar signal={coin.signal} />
                   <IndicatorRows price={coin.price} ind={coin.indicators} show={selectedInds} onInfo={setInfoIndicator} />
                   <div className="ps-matches">
                     {coin.matches.map((m, i) => (
@@ -314,6 +336,109 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
       {infoIndicator && (
         <IndicatorRuleDialog indicator={infoIndicator} onClose={() => setInfoIndicator(null)} />
       )}
+      {showScoreInfo && <ScoreInfoDialog onClose={() => setShowScoreInfo(false)} />}
+    </div>
+  );
+}
+
+// ── Tăng/Giảm signal bar + scoring info dialog ───────────────────────────────
+
+/** Dual bull/bear share bar (same visual language as Spot Flip's DualBar). */
+function SignalBar({ signal }: { signal: PatternSignal | undefined }) {
+  if (!signal) return null;
+  const { bullPct, bearPct, bullPoints, bearPoints } = signal;
+  const lean = bullPoints === bearPoints ? 'neutral' : bullPoints > bearPoints ? 'bull' : 'bear';
+  return (
+    <div className="ps-signal">
+      <div className="ps-signal-labels">
+        <span className="ps-signal-up">{bullPct}% Tăng <b>· {bullPoints}đ</b></span>
+        <span className={`ps-signal-lean ps-signal-lean--${lean}`}>
+          {lean === 'neutral' ? 'Cân bằng' : lean === 'bull' ? 'Thiên Tăng ↑' : 'Thiên Giảm ↓'}
+        </span>
+        <span className="ps-signal-down"><b>{bearPoints}đ ·</b> {bearPct}% Giảm</span>
+      </div>
+      <div className="ps-signal-bar">
+        <span className="ps-signal-seg-up" style={{ flexBasis: `${bullPct}%` }} />
+        <span className="ps-signal-seg-down" style={{ flexBasis: `${bearPct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** Static dialog explaining exactly how the tăng/giảm score is computed. */
+function ScoreInfoDialog({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const groups: { title: string; dir: 'bull' | 'bear' | 'both'; rows: [string, string][] }[] = [
+    {
+      title: 'RSI (14)',
+      dir: 'both',
+      rows: [
+        ['RSI < 30 (quá bán)', '+1 điểm Tăng'],
+        ['RSI > 70 (quá mua)', '+1 điểm Giảm'],
+      ],
+    },
+    {
+      title: 'Sonic R — vị thế giá so với EMA (chỉ tính bậc cao nhất thỏa mãn)',
+      dir: 'both',
+      rows: [
+        ['Nến > EMA34', '+1 điểm Tăng'],
+        ['Nến > EMA34 > EMA89', '+2 điểm Tăng'],
+        ['Nến > EMA34 > EMA89 > EMA200', '+3 điểm Tăng'],
+        ['Nến < EMA34', '+1 điểm Giảm'],
+        ['Nến < EMA34 < EMA89', '+2 điểm Giảm'],
+        ['Nến < EMA34 < EMA89 < EMA200', '+3 điểm Giảm'],
+      ],
+    },
+    {
+      title: 'Mô hình giá (mỗi mô hình khớp)',
+      dir: 'both',
+      rows: [
+        ['Hai đáy (W)', '+1 điểm Tăng'],
+        ['Vai đầu vai ngược', '+1 điểm Tăng'],
+        ['Hai đỉnh (M)', '+1 điểm Giảm'],
+        ['Vai đầu vai', '+1 điểm Giảm'],
+      ],
+    },
+  ];
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="dialog-header">
+          <span className="dialog-title">Cách tính điểm tín hiệu Tăng / Giảm</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body">
+          <p className="ps-rule-intro">
+            Mỗi coin được chấm điểm theo 3 nhóm: <b>RSI</b>, <b>Sonic R (EMA 34/89/200)</b> và <b>mô hình giá</b>.
+            Cộng tổng điểm mỗi bên rồi chia tỉ lệ: <b>%Tăng = điểm Tăng ÷ (điểm Tăng + điểm Giảm) × 100</b> (tương tự %Giảm).
+          </p>
+          {groups.map((g) => (
+            <div key={g.title} className="ps-score-group">
+              <p className="notes-section-label">{g.title}</p>
+              <div className="ps-score-table">
+                {g.rows.map(([cond, pts]) => {
+                  const isBull = pts.includes('Tăng');
+                  return (
+                    <div key={cond} className="ps-score-row">
+                      <span className="ps-score-cond">{cond}</span>
+                      <span className={`ps-score-pts ps-score-pts--${isBull ? 'bull' : 'bear'}`}>{pts}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <p className="scr-muted" style={{ marginTop: 14, fontSize: '0.82rem', lineHeight: 1.6 }}>
+            Ví dụ: nến nằm trên cả 3 EMA (+3 Tăng), có mô hình hai đáy (+1 Tăng), RSI 55 (0 điểm) → 4 điểm Tăng, 0 điểm Giảm → 100% Tăng.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

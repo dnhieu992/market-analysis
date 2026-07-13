@@ -66,6 +66,24 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
 - **Empty selection / empty watchlist** — the widget blocks the scan and shows an inline error.
 - **Remove missing coin** — API throws `NotFoundException`.
 
+### Tăng/Giảm signal score (BE + FE)
+Every matching coin also carries a weighted bull/bear **signal** (`computeSignal` in
+`pattern-scanner.service.ts`) rendered as a Spot-Flip-style dual bar (`SignalBar` in
+`pattern-scanner-feed.tsx`, `.ps-signal*` styles) at the top of each result card. Scoring:
+
+- **RSI(14):** `< 30` → +1 Tăng · `> 70` → +1 Giảm.
+- **Sonic R (EMA 34/89/200), highest matching tier only:**
+  `price > EMA34` → +1 · `> EMA34 > EMA89` → +2 · `> EMA34 > EMA89 > EMA200` → +3 (Tăng);
+  the mirror ordering (`price < EMA34 < EMA89 < EMA200`) scores the same for Giảm.
+- **Chart patterns (each match):** double-bottom / inverse-H&S → +1 Tăng · double-top / H&S → +1 Giảm.
+- **Split:** `bullPct = bullPoints / (bullPoints + bearPoints) × 100` (bearPct is the complement).
+
+An info icon (ⓘ) next to the page title **and** next to each card's price opens
+`ScoreInfoDialog` — a static modal that lists these exact rules. The scoring uses the latest
+close as the reference price and the same RSI/EMA already shown in the indicator rows, so the
+bar and the indicator badges stay consistent. Cards only appear when at least one pattern
+matches, so the total is always ≥ 1 (no divide-by-zero).
+
 ### Pattern rule info dialog (FE)
 Each pattern has an info icon (ⓘ) — both next to its checkbox in the "Pattern cần quét"
 selector and next to its name in each result row. Clicking opens a dialog (reuses the app's
@@ -97,7 +115,7 @@ selector and next to its name in each result row. Clicking opens a dialog (reuse
 - `packages/db/src/repositories/pattern-scanner.repository.ts` — watchlist + reference image CRUD
 - `packages/db/src/index.ts` — exports `createPatternScannerRepository`
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.controller.ts` — REST endpoints
-- `apps/api/src/modules/pattern-scanner/pattern-scanner.service.ts` — fetch klines + run detectors; returns `closes` per matching coin
+- `apps/api/src/modules/pattern-scanner/pattern-scanner.service.ts` — fetch klines + run detectors; returns `closes` + indicators + `signal` (`computeSignal`) per matching coin
 - `apps/web/src/widgets/pattern-scanner/pattern-scanner-feed.tsx` — `PatternChart` SVG (pivots + NL/TP/SL levels) drawn from `closes`
 - `apps/api/src/modules/pattern-scanner/dto/add-coin.dto.ts`, `dto/scan.dto.ts`, `dto/add-reference.dto.ts` — request validation
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.module.ts` — module wiring
@@ -106,6 +124,6 @@ selector and next to its name in each result row. Clicking opens a dialog (reuse
 - `apps/web/src/_pages/pattern-scanner-page/pattern-scanner-page.tsx` — server page, loads watchlist
 - `apps/web/src/widgets/pattern-scanner/pattern-scanner-feed.tsx` — client UI (watchlist, controls, results)
 - `apps/web/src/shared/api/client.ts` — `fetchPatternCoins`, `addPatternCoin`, `removePatternCoin`, `scanPatterns`, `fetchPatternReferences`, `addPatternReference`, `removePatternReference`
-- `apps/web/src/shared/api/types.ts` — `PatternKind`, `PatternWatchCoin`, `PatternMatch`, `PatternScanResult`, `PatternReferenceImage`
+- `apps/web/src/shared/api/types.ts` — `PatternKind`, `PatternWatchCoin`, `PatternMatch`, `PatternScanResult`, `PatternReferenceImage`, `PatternSignal`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — sidebar nav entry
 - `apps/web/src/app/globals.css` — `.ps-*` styles

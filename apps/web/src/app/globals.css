@@ -9853,6 +9853,42 @@ a.metric-card--link:hover {
 .ps-results { display: flex; flex-direction: column; gap: 12px; }
 .ps-result { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--surface); }
 .ps-result-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+
+/* title row (Pattern Scanner + info icon) */
+.ps-title-row { display: flex; align-items: center; gap: 9px; }
+.ps-info--title { align-self: center; }
+.ps-info--title, .ps-info--score { margin-left: 0; }
+.ps-info--score { align-self: center; }
+
+/* ── tăng/giảm signal bar (Spot-Flip DualBar look, on ps theme) ── */
+.ps-signal { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+.ps-signal-labels { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ps-signal-up { font-size: 0.78rem; font-weight: 800; color: #16a34a; }
+.ps-signal-down { font-size: 0.78rem; font-weight: 800; color: #ef4444; }
+.ps-signal-up b, .ps-signal-down b { font-weight: 800; opacity: 0.75; }
+.ps-signal-lean { font-size: 0.68rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.ps-signal-lean--bull { background: rgba(22, 163, 74, 0.14); color: #16a34a; }
+.ps-signal-lean--bear { background: rgba(239, 68, 68, 0.14); color: #ef4444; }
+.ps-signal-lean--neutral { background: rgba(148, 163, 184, 0.18); color: var(--muted); }
+.ps-signal-bar {
+  display: flex; height: 10px; width: 100%; border-radius: 999px; overflow: hidden;
+  background: rgba(148, 163, 184, 0.16);
+}
+.ps-signal-seg-up { background: #16a34a; }
+.ps-signal-seg-down { background: #ef4444; }
+
+/* ── scoring info dialog ── */
+.ps-score-group { margin-top: 14px; }
+.ps-score-group:first-of-type { margin-top: 4px; }
+.ps-score-table { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.ps-score-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 7px 11px; border-radius: 9px; background: rgba(148, 163, 184, 0.08);
+}
+.ps-score-cond { font-size: 0.84rem; color: var(--fg); }
+.ps-score-pts { font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.ps-score-pts--bull { color: #16a34a; }
+.ps-score-pts--bear { color: #ef4444; }
 .ps-matches { display: flex; flex-direction: column; }
 .ps-match { padding: 0; }
 .ps-match + .ps-match { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
