@@ -835,6 +835,7 @@ export type EmaBounceCoin = {
 export type EmaBounceSignal = {
   id: string;
   symbol: string;
+  timeframe: string;
   status: 'open' | 'hit_tp' | 'expired' | string;
   triggeredAt: string;
   entryPrice: number;
@@ -854,6 +855,7 @@ export type EmaBounceSignal = {
 
 export type EmaBounceMatch = {
   symbol: string;
+  timeframe: string;
   price: number;
   tpPrice: number;
   distPct: number;

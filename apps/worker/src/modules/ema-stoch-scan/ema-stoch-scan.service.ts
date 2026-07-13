@@ -5,8 +5,12 @@ import { createEmaStochScannerRepository } from '@app/db';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
 
-const CANDLE_LIMIT = 300; // ~50 days of 4h candles — enough for EMA200 + StochRSI warm-up
-const TIMEFRAME = '4h';
+const CANDLE_LIMIT = 300; // enough for EMA200 + StochRSI warm-up on any timeframe
+
+/** Human label for a scan timeframe, shown on cards and in Telegram. */
+function tfLabel(tf: string): string {
+  return tf === '1d' ? '1D' : tf === '4h' ? '4H' : tf.toUpperCase();
+}
 
 /** Format a price with sensible significant digits regardless of magnitude. */
 function fmtPrice(n: number): string {
@@ -27,7 +31,7 @@ export class EmaStochScanService {
     private readonly telegram: TelegramService,
   ) {}
 
-  async scanAll(): Promise<{ scanned: number; failed: number; triggered: number }> {
+  async scanAll(timeframe = '4h'): Promise<{ scanned: number; failed: number; triggered: number }> {
     const coins = await this.repo.findAllCoins();
     let scanned = 0;
     let failed = 0;
@@ -35,25 +39,25 @@ export class EmaStochScanService {
 
     for (const coin of coins) {
       try {
-        const t = await this.scanOne(coin.id, coin.symbol);
+        const t = await this.scanOne(coin.id, coin.symbol, timeframe);
         triggered += t;
         scanned++;
       } catch (err) {
         failed++;
         const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`EMA-bounce scan failed for ${coin.symbol}: ${msg}`);
+        this.logger.warn(`EMA-bounce scan (${timeframe}) failed for ${coin.symbol}: ${msg}`);
       }
     }
 
-    this.logger.log(`EMA-bounce scan done — scanned: ${scanned}, failed: ${failed}, new signals: ${triggered}`);
+    this.logger.log(`EMA-bounce scan (${timeframe}) done — scanned: ${scanned}, failed: ${failed}, new signals: ${triggered}`);
     return { scanned, failed, triggered };
   }
 
-  /** Scan one coin: detect a fresh entry on the last CLOSED 4h candle, then refresh its open cards. */
-  private async scanOne(coinId: string, symbol: string): Promise<number> {
+  /** Scan one coin: detect a fresh entry on the last CLOSED candle of `timeframe`, then refresh its open cards. */
+  private async scanOne(coinId: string, symbol: string, timeframe: string): Promise<number> {
     const klines = await this.binance.fetchKlines({
       symbol: `${symbol}USDT`,
-      timeframe: TIMEFRAME as never,
+      timeframe: timeframe as never,
       limit: CANDLE_LIMIT,
     });
 
@@ -76,6 +80,7 @@ export class EmaStochScanService {
       const triggeredAt = new Date(lastCloseTime);
       const res = await this.repo.createSignalIfNew(coinId, {
         symbol,
+        timeframe,
         triggeredAt,
         entryPrice: entry.price,
         tpPrice: entry.tpPrice,
@@ -91,13 +96,13 @@ export class EmaStochScanService {
       });
       if (res.created) {
         newSignals++;
-        this.logger.log(`EMA-bounce signal: ${symbol} @ ${entry.price} (dist -${(entry.distPct * 100).toFixed(1)}%)`);
-        await this.notify(symbol, entry);
+        this.logger.log(`EMA-bounce signal (${timeframe}): ${symbol} @ ${entry.price} (dist -${(entry.distPct * 100).toFixed(1)}%)`);
+        await this.notify(symbol, timeframe, entry);
       }
     }
 
-    // 2) Refresh this coin's OPEN cards — mark-to-market + TP check.
-    const openSignals = await this.repo.findOpenSignalsByCoin(coinId);
+    // 2) Refresh this coin's OPEN cards for THIS timeframe — mark-to-market + TP check.
+    const openSignals = await this.repo.findOpenSignalsByCoinAndTimeframe(coinId, timeframe);
     for (const sig of openSignals) {
       const trigMs = sig.triggeredAt.getTime();
       // max high across candles that closed strictly after the signal candle
@@ -118,12 +123,12 @@ export class EmaStochScanService {
   }
 
   /** Text-only Telegram alert for a fresh entry. Never throws into the scan. */
-  private async notify(symbol: string, entry: { price: number; tpPrice: number; distPct: number; rsi: number; stochK: number; stochD: number }): Promise<void> {
+  private async notify(symbol: string, timeframe: string, entry: { price: number; tpPrice: number; distPct: number; rsi: number; stochK: number; stochD: number }): Promise<void> {
     try {
       const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
       if (!chatId) return;
       const lines = [
-        `🟢 <b>EMA Bounce · ${symbol}</b> (4H)`,
+        `🟢 <b>EMA Bounce · ${symbol}</b> (${tfLabel(timeframe)})`,
         `Vào LONG: <b>${fmtPrice(entry.price)}</b>`,
         `Cách EMA34: <b>-${(entry.distPct * 100).toFixed(1)}%</b> (dưới cụm EMA34&lt;89&lt;200)`,
         `RSI ${entry.rsi.toFixed(1)} · StochRSI %K ${entry.stochK.toFixed(1)} / %D ${entry.stochD.toFixed(1)} (quá bán, cắt lên)`,

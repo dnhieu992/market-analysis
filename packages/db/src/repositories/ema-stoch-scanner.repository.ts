@@ -2,6 +2,7 @@ import { prisma } from '../client';
 
 export type EmaStochSignalUpsert = {
   symbol: string;
+  timeframe: string;
   triggeredAt: Date;
   entryPrice: number;
   tpPrice: number;
@@ -57,25 +58,24 @@ export function createEmaStochScannerRepository(client = prisma) {
       return client.emaStochSignal.findMany({ where: { coinId, status: 'open' } });
     },
 
-    findSignalByCoinAndTime(coinId: string, triggeredAt: Date) {
-      return client.emaStochSignal.findUnique({
-        where: { coinId_triggeredAt: { coinId, triggeredAt } },
-      });
+    findOpenSignalsByCoinAndTimeframe(coinId: string, timeframe: string) {
+      return client.emaStochSignal.findMany({ where: { coinId, timeframe, status: 'open' } });
     },
 
     /**
      * Insert a freshly triggered signal. Returns { created: false } if a card for the
-     * same coin+candle already exists (idempotent — safe to re-run a scan).
+     * same coin+timeframe+candle already exists (idempotent — safe to re-run a scan).
      */
     async createSignalIfNew(coinId: string, input: EmaStochSignalUpsert): Promise<{ created: boolean; id: string }> {
       const existing = await client.emaStochSignal.findUnique({
-        where: { coinId_triggeredAt: { coinId, triggeredAt: input.triggeredAt } },
+        where: { coinId_timeframe_triggeredAt: { coinId, timeframe: input.timeframe, triggeredAt: input.triggeredAt } },
       });
       if (existing) return { created: false, id: existing.id };
       const row = await client.emaStochSignal.create({
         data: {
           coinId,
           symbol: input.symbol,
+          timeframe: input.timeframe,
           triggeredAt: input.triggeredAt,
           status: 'open',
           entryPrice: input.entryPrice,

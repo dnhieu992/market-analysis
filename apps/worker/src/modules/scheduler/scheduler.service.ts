@@ -108,16 +108,29 @@ export class SchedulerService {
   }
 
   // Runs 2 min after each 4h candle close (00:02, 04:02, … UTC) — scan the
-  // /ema-bounce watchlist for EMA-stack oversold StochRSI entries.
+  // /ema-bounce watchlist on the 4h timeframe.
   @Cron('0 2 */4 * * *', { timeZone: 'UTC' })
-  async runEmaStochScan() {
-    this.logger.log('Running EMA-bounce scan');
+  async runEmaStochScan4h() {
+    this.logger.log('Running EMA-bounce scan (4h)');
     try {
-      const result = await this.emaStochScanService.scanAll();
-      this.logger.log(`EMA-bounce scan complete — scanned: ${result.scanned}, failed: ${result.failed}, new: ${result.triggered}`);
+      const result = await this.emaStochScanService.scanAll('4h');
+      this.logger.log(`EMA-bounce scan (4h) complete — scanned: ${result.scanned}, failed: ${result.failed}, new: ${result.triggered}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`EMA-bounce scan failed: ${msg}`);
+      this.logger.error(`EMA-bounce scan (4h) failed: ${msg}`);
+    }
+  }
+
+  // Runs 5 min after each daily candle close (00:05 UTC) — scan on the D1 timeframe.
+  @Cron('0 5 0 * * *', { timeZone: 'UTC' })
+  async runEmaStochScanD1() {
+    this.logger.log('Running EMA-bounce scan (1d)');
+    try {
+      const result = await this.emaStochScanService.scanAll('1d');
+      this.logger.log(`EMA-bounce scan (1d) complete — scanned: ${result.scanned}, failed: ${result.failed}, new: ${result.triggered}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`EMA-bounce scan (1d) failed: ${msg}`);
     }
   }
 

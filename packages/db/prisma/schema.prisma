@@ -895,7 +895,8 @@ model EmaStochSignal {
   coinId        String
   coin          EmaStochWatchCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
   symbol        String            @db.VarChar(30)
-  triggeredAt   DateTime // the 4h candle close time that produced the signal
+  timeframe     String            @default("4h") @db.VarChar(10) // scan timeframe: 4h | 1d
+  triggeredAt   DateTime // the candle close time that produced the signal
   status        String            @default("open") @db.VarChar(20) // open | hit_tp | expired
   entryPrice    Float
   tpPrice       Float
@@ -913,7 +914,7 @@ model EmaStochSignal {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  @@unique([coinId, triggeredAt])
+  @@unique([coinId, timeframe, triggeredAt])
   @@index([symbol])
   @@index([status])
   @@map("ema_stoch_signals")

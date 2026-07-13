@@ -9,6 +9,7 @@ const CANDLE_LIMIT = 300;
 export type EmaStochSignalDto = {
   id: string;
   symbol: string;
+  timeframe: string;
   status: string;
   triggeredAt: string;
   entryPrice: number;
@@ -57,6 +58,7 @@ export class EmaStochScannerService {
     return rows.map((r) => ({
       id: r.id,
       symbol: r.symbol,
+      timeframe: r.timeframe,
       status: r.status,
       triggeredAt: r.triggeredAt.toISOString(),
       entryPrice: r.entryPrice,
@@ -76,45 +78,50 @@ export class EmaStochScannerService {
   }
 
   /**
-   * Live, non-persisting check: run the detector on the last CLOSED 4h candle for
-   * every watched coin and return the coins that match right now. Cards/Telegram are
-   * only produced by the worker's 4h cron — this is just an immediate preview.
+   * Live, non-persisting check: run the detector on the last CLOSED candle of BOTH the
+   * 4h and 1d timeframes for every watched coin, returning the coins that match right now
+   * (each match tagged with its timeframe). Cards/Telegram are only produced by the worker
+   * crons — this is just an immediate preview.
    */
   async preview() {
     const coins = await this.repo.findAllCoins();
     const now = Date.now();
+    const timeframes = ['4h', '1d'];
     const matches: Array<{
-      symbol: string; price: number; tpPrice: number; distPct: number;
+      symbol: string; timeframe: string; price: number; tpPrice: number; distPct: number;
       rsi: number; stochK: number; stochD: number; ema34: number; ema89: number; ema200: number;
     }> = [];
     let scanned = 0;
     let failed = 0;
 
     for (const coin of coins) {
-      try {
-        const klines = await this.binance.fetchKlines({ symbol: `${coin.symbol}USDT`, timeframe: '4h' as never, limit: CANDLE_LIMIT });
-        scanned++;
-        const closed = klines.filter((k) => Number(k[6]) <= now);
-        if (closed.length < EMA_STACK_OVERSOLD_MIN_CANDLES) continue;
-        const closes = closed.map((k) => parseFloat(k[4]));
-        const entry = detectEmaStackOversoldEntry(closes);
-        if (entry) {
-          matches.push({
-            symbol: coin.symbol,
-            price: entry.price,
-            tpPrice: entry.tpPrice,
-            distPct: entry.distPct,
-            rsi: entry.rsi,
-            stochK: entry.stochK,
-            stochD: entry.stochD,
-            ema34: entry.ema34,
-            ema89: entry.ema89,
-            ema200: entry.ema200,
-          });
+      for (const tf of timeframes) {
+        try {
+          const klines = await this.binance.fetchKlines({ symbol: `${coin.symbol}USDT`, timeframe: tf as never, limit: CANDLE_LIMIT });
+          scanned++;
+          const closed = klines.filter((k) => Number(k[6]) <= now);
+          if (closed.length < EMA_STACK_OVERSOLD_MIN_CANDLES) continue;
+          const closes = closed.map((k) => parseFloat(k[4]));
+          const entry = detectEmaStackOversoldEntry(closes);
+          if (entry) {
+            matches.push({
+              symbol: coin.symbol,
+              timeframe: tf,
+              price: entry.price,
+              tpPrice: entry.tpPrice,
+              distPct: entry.distPct,
+              rsi: entry.rsi,
+              stochK: entry.stochK,
+              stochD: entry.stochD,
+              ema34: entry.ema34,
+              ema89: entry.ema89,
+              ema200: entry.ema200,
+            });
+          }
+        } catch (err) {
+          failed++;
+          this.logger.warn(`preview (${tf}) failed for ${coin.symbol}: ${err instanceof Error ? err.message : String(err)}`);
         }
-      } catch (err) {
-        failed++;
-        this.logger.warn(`preview failed for ${coin.symbol}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
