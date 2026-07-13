@@ -48,10 +48,11 @@ export class ChartPatternStrategy implements IBackTestStrategy {
     const matches = scanChartPatterns(series, patterns);
 
     for (const match of matches) {
-      // Only enter on forming patterns whose neckline is crossed THIS candle.
-      // Confirmed patterns already broke out — entering them is chasing.
-      if (match.status !== 'forming') continue;
-
+      // Enter only on the candle that FRESHLY crosses the neckline (prev still on the
+      // other side, current beyond it). The detector flips `status` to 'confirmed' the
+      // instant the close crosses, so gating on 'forming' here would reject the very
+      // breakout candle we want — the crossing check below is what proves it's fresh,
+      // and the detector's maxBreakoutPct filter already discards stale run-ups.
       const { neckline, target, stop, direction } = match;
 
       const didBreakBullish = direction === 'bullish' && prev.close < neckline && ctx.current.close > neckline;
