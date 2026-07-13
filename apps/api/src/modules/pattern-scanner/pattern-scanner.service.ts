@@ -4,6 +4,7 @@ import type { PatternKind, PatternMatch } from '@app/core';
 import { createPatternScannerRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { StorageService } from '../storage/storage.service';
 
 const CANDLE_LIMIT = 300;
 const MIN_CANDLES = 60;
@@ -34,7 +35,10 @@ export class PatternScannerService {
   private readonly logger = new Logger(PatternScannerService.name);
   private readonly repo = createPatternScannerRepository();
 
-  constructor(private readonly binance: BinanceMarketDataService) {}
+  constructor(
+    private readonly binance: BinanceMarketDataService,
+    private readonly storage: StorageService,
+  ) {}
 
   async listCoins() {
     const rows = await this.repo.findAllCoins();
@@ -52,6 +56,33 @@ export class PatternScannerService {
     const existing = await this.repo.findCoinBySymbol(upper);
     if (!existing) throw new NotFoundException(`Coin ${upper} not found`);
     await this.repo.removeCoin(upper);
+  }
+
+  async listReferences(pattern: string) {
+    const rows = await this.repo.findReferencesByPattern(pattern);
+    return rows.map((r) => ({
+      id: r.id,
+      pattern: r.pattern,
+      imageUrl: r.imageUrl,
+      notes: r.notes ?? null,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async uploadReference(file: Express.Multer.File, pattern: string, notes?: string) {
+    const date = new Date().toISOString().slice(0, 10);
+    const ext = (file.originalname.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+    const key = `pattern-refs/${pattern}/${date}-${Date.now()}.${ext}`;
+    const stored = await this.storage.uploadFile(file, key);
+    const row = await this.repo.addReference(pattern, stored.url, stored.key, notes);
+    return { id: row.id, pattern: row.pattern, imageUrl: row.imageUrl, notes: row.notes ?? null, createdAt: row.createdAt.toISOString() };
+  }
+
+  async removeReference(id: string) {
+    const row = await this.repo.findReferenceById(id);
+    if (!row) return;
+    await this.repo.removeReference(id);
+    if (row.r2Key) await this.storage.deleteByKey(row.r2Key);
   }
 
   /** Fetch each watched coin's klines and run the selected pattern detectors on-demand. */

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Candle } from '@app/core';
 
 import type { IBackTestStrategy } from './strategies/strategy.interface';
-import type { BackTestSummary, BackTestTrade, StrategyContext } from './types/back-test.types';
+import type { BackTestSummary, BackTestTrade, StrategyContext, TradeChartSnapshot } from './types/back-test.types';
 
 @Injectable()
 export class BackTestEngineService {
@@ -20,6 +20,7 @@ export class BackTestEngineService {
       breakevenTriggerPrice: number;
       forceCloseTime: Date | null;
       trailingStop: boolean;
+      chartSnapshot?: TradeChartSnapshot;
     } | null = null;
 
     for (let i = 1; i < candles.length; i++) {
@@ -60,7 +61,8 @@ export class BackTestEngineService {
             size,
             pnl,
             pnlPercent: pnl / volume,
-            outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
+            outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven',
+            chartSnapshot: openTrade.chartSnapshot,
           });
           openTrade = null;
         } else if (openTrade.trailingStop && strategy.getTrailingStopLoss) {
@@ -106,7 +108,8 @@ export class BackTestEngineService {
             breakevenTriggered: false,
             breakevenTriggerPrice,
             forceCloseTime: signal.forceCloseTime ?? null,
-            trailingStop: signal.trailingStop ?? false
+            trailingStop: signal.trailingStop ?? false,
+            chartSnapshot: signal.chartSnapshot,
           };
         }
       }
@@ -129,7 +132,8 @@ export class BackTestEngineService {
         size,
         pnl,
         pnlPercent: pnl / volume,
-        outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
+        outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven',
+        chartSnapshot: openTrade.chartSnapshot,
       });
     }
 

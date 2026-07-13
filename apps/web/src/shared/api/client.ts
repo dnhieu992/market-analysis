@@ -40,6 +40,7 @@ import type {
   PatternKind,
   PatternWatchCoin,
   PatternScanResult,
+  PatternReferenceImage,
   SpotFlipAnalysis,
   SpotFlipWatchItem,
   SpotFlipDailyEntry,
@@ -949,6 +950,26 @@ export function createApiClient(options: ApiClientOptions = {}) {
           body: JSON.stringify({ patterns, timeframe }),
         }),
       );
+    },
+
+    async fetchPatternReferences(pattern: PatternKind): Promise<PatternReferenceImage[]> {
+      return fetchJson<PatternReferenceImage[]>(fetchImpl, `${baseUrl}/pattern-scanner/references/${encodeURIComponent(pattern)}`, withDefaults());
+    },
+
+    async uploadPatternReference(pattern: PatternKind, file: File, notes?: string): Promise<PatternReferenceImage> {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('pattern', pattern);
+      if (notes) form.append('notes', notes);
+      return fetchJson<PatternReferenceImage>(
+        fetchImpl,
+        `${baseUrl}/pattern-scanner/references/upload`,
+        withDefaults({ method: 'POST', body: form }),
+      );
+    },
+
+    async removePatternReference(id: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/pattern-scanner/references/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
 
     async fetchMemeRadar(): Promise<MemeCoinRow[]> {

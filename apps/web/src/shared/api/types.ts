@@ -177,6 +177,19 @@ export type BackTestStrategy = {
   defaultTimeframe: string;
 };
 
+export type TradeChartSnapshot = {
+  opens: number[];
+  highs: number[];
+  lows: number[];
+  closes: number[];
+  pivots: Array<{ idx: number; price: number; role: string }>;
+  neckline: number;
+  target: number;
+  stop: number;
+  direction: 'bullish' | 'bearish';
+  pattern: string;
+};
+
 export type BackTestTrade = {
   entryIndex: number;
   exitIndex: number;
@@ -191,6 +204,7 @@ export type BackTestTrade = {
   pnl: number;
   pnlPercent: number;
   outcome: 'win' | 'loss' | 'breakeven';
+  chartSnapshot?: TradeChartSnapshot;
 };
 
 export type BackTestResultRecord = {
@@ -774,6 +788,14 @@ export type PatternScanResult = {
   scanned: number;
   failed: number;
   coins: PatternScanCoinResult[];
+};
+
+export type PatternReferenceImage = {
+  id: string;
+  pattern: PatternKind;
+  imageUrl: string;
+  notes: string | null;
+  createdAt: string;
 };
 
 /** Progress/result of the background coin sync (polled after a Sync Coins click). */

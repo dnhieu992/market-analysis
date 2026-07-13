@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch } from '@web/shared/api/types';
+import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch, PatternReferenceImage } from '@web/shared/api/types';
 
 const PATTERN_META: Record<PatternKind, { label: string; dir: 'bullish' | 'bearish' }> = {
   double_bottom: { label: 'Hai đáy', dir: 'bullish' },
@@ -275,33 +275,162 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
 function PatternRuleDialog({ pattern, onClose }: { pattern: PatternKind; onClose: () => void }) {
   const meta = PATTERN_META[pattern];
   const rule = PATTERN_RULES[pattern];
+  const [tab, setTab] = useState<'rules' | 'refs'>('rules');
+  const [refs, setRefs] = useState<PatternReferenceImage[]>([]);
+  const [refsLoaded, setRefsLoaded] = useState(false);
+  const [refsLoading, setRefsLoading] = useState(false);
+  const [pickedFile, setPickedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [newNotes, setNewNotes] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<PatternReferenceImage | null>(null);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (lightbox) setLightbox(null); else onClose(); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, lightbox]);
+
+  async function loadRefs() {
+    if (refsLoaded || refsLoading) return;
+    setRefsLoading(true);
+    try {
+      const data = await apiClient.fetchPatternReferences(pattern);
+      setRefs(data);
+      setRefsLoaded(true);
+    } finally {
+      setRefsLoading(false);
+    }
+  }
+
+  function switchTab(t: 'rules' | 'refs') {
+    setTab(t);
+    if (t === 'refs') loadRefs();
+  }
+
+  function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setPickedFile(file);
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(file ? URL.createObjectURL(file) : null);
+  }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pickedFile) return;
+    setAdding(true);
+    try {
+      const img = await apiClient.uploadPatternReference(pattern, pickedFile, newNotes.trim() || undefined);
+      setRefs((prev) => [img, ...prev]);
+      setPickedFile(null);
+      if (preview) { URL.revokeObjectURL(preview); setPreview(null); }
+      setNewNotes('');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setDeleting(id);
+    try {
+      await apiClient.removePatternReference(id);
+      setRefs((prev) => prev.filter((r) => r.id !== id));
+      if (lightbox?.id === id) setLightbox(null);
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="dialog-header">
-          <span className="dialog-title">
-            {meta.label}
-            <span className={`ps-dir ps-dir--${meta.dir}`} style={{ marginLeft: 8 }}>
-              {meta.dir === 'bullish' ? 'Tăng ↑' : 'Giảm ↓'}
+    <div className="dialog-backdrop" onClick={lightbox ? () => setLightbox(null) : onClose}>
+      {lightbox && (
+        <div className="ps-ref-lightbox" onClick={(e) => e.stopPropagation()}>
+          <button className="dialog-close ps-ref-lightbox-close" onClick={() => setLightbox(null)} aria-label="Đóng">✕</button>
+          <img src={lightbox.imageUrl} alt={lightbox.notes ?? 'Reference'} className="ps-ref-lightbox-img" />
+          {lightbox.notes && <p className="ps-ref-lightbox-notes">{lightbox.notes}</p>}
+        </div>
+      )}
+      {!lightbox && (
+        <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+          <div className="dialog-header">
+            <span className="dialog-title">
+              {meta.label}
+              <span className={`ps-dir ps-dir--${meta.dir}`} style={{ marginLeft: 8 }}>
+                {meta.dir === 'bullish' ? 'Tăng ↑' : 'Giảm ↓'}
+              </span>
             </span>
-          </span>
-          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+            <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+          </div>
+          <div className="ps-ref-tabs">
+            <button className={`ps-ref-tab${tab === 'rules' ? ' ps-ref-tab--active' : ''}`} onClick={() => switchTab('rules')}>Quy tắc</button>
+            <button className={`ps-ref-tab${tab === 'refs' ? ' ps-ref-tab--active' : ''}`} onClick={() => switchTab('refs')}>Ảnh thực tế</button>
+          </div>
+          {tab === 'rules' && (
+            <div className="dialog-body">
+              <p className="ps-rule-intro">{rule.intro}</p>
+              <p className="notes-section-label">Điều kiện scanner nhận diện</p>
+              <ul className="ps-rule-list">
+                {rule.rules.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+          {tab === 'refs' && (
+            <div className="dialog-body">
+              <form className="ps-ref-add" onSubmit={handleAdd}>
+                <label className="ps-ref-file-label">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="ps-ref-file-input"
+                    onChange={handleFilePick}
+                    disabled={adding}
+                  />
+                  <span className="btn btn--secondary ps-ref-file-btn">
+                    {pickedFile ? pickedFile.name : 'Chọn ảnh…'}
+                  </span>
+                </label>
+                {preview && (
+                  <img src={preview} alt="preview" className="ps-ref-preview" />
+                )}
+                <textarea
+                  className="setup-input ps-ref-notes-input"
+                  placeholder="Notes (tuỳ chọn)"
+                  rows={2}
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  disabled={adding}
+                />
+                <button className="btn btn--primary" type="submit" disabled={adding || !pickedFile}>
+                  {adding ? 'Đang upload…' : '+ Upload'}
+                </button>
+              </form>
+              {refsLoading && <p className="scr-muted" style={{ marginTop: 12 }}>Đang tải…</p>}
+              {refsLoaded && refs.length === 0 && (
+                <p className="scr-muted" style={{ marginTop: 12 }}>Chưa có ảnh nào. Thêm URL ảnh thực tế bên trên.</p>
+              )}
+              {refs.length > 0 && (
+                <div className="ps-ref-grid">
+                  {refs.map((r) => (
+                    <div key={r.id} className="ps-ref-item" onClick={() => setLightbox(r)}>
+                      <img src={r.imageUrl} alt={r.notes ?? 'Reference'} className="ps-ref-item-img" loading="lazy" />
+                      {r.notes && <p className="ps-ref-item-notes">{r.notes}</p>}
+                      <button
+                        className="notes-img-del"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}
+                        disabled={deleting === r.id}
+                        aria-label="Xóa ảnh"
+                      >
+                        {deleting === r.id ? '…' : '✕'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <div className="dialog-body">
-          <p className="ps-rule-intro">{rule.intro}</p>
-          <p className="notes-section-label">Điều kiện scanner nhận diện</p>
-          <ul className="ps-rule-list">
-            {rule.rules.map((r, i) => <li key={i}>{r}</li>)}
-          </ul>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

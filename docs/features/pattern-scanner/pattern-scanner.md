@@ -69,31 +69,43 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
 ### Pattern rule info dialog (FE)
 Each pattern has an info icon (ⓘ) — both next to its checkbox in the "Pattern cần quét"
 selector and next to its name in each result row. Clicking opens a dialog (reuses the app's
-`.dialog-*` modal, closes on backdrop click or Esc) describing the pattern shape and the exact
-detection criteria. Content lives in `PATTERN_RULES` in `pattern-scanner-feed.tsx` and is kept
-faithful to the detector in `chart-patterns.ts` (fractal wing 5, 3% equality tolerance, ≥5%
-amplitude, 10–60 bar gap, 25-bar recency, failed right-leg rejection, H&S head-isolation gate,
-4% stale-breakout cutoff).
-Update `PATTERN_RULES` whenever the detector thresholds change.
+`.dialog-*` modal, closes on backdrop click or Esc) with two tabs:
+
+- **Quy tắc** — describes the pattern shape and the exact detection criteria. Content lives in
+  `PATTERN_RULES` in `pattern-scanner-feed.tsx` and is kept faithful to the detector in
+  `chart-patterns.ts` (fractal wing 5, 3% equality tolerance, ≥5% amplitude, 10–60 bar gap,
+  25-bar recency, failed right-leg rejection, H&S head-isolation gate, 4% stale-breakout cutoff).
+  Update `PATTERN_RULES` whenever the detector thresholds change.
+
+- **Ảnh thực tế** — a reference image gallery for the pattern. The user pastes an image URL
+  (TradingView screenshot, imgur, etc.) with optional notes; images are stored in the
+  `pattern_reference_images` DB table. Images load lazily when the tab is first opened.
+  Clicking a thumbnail opens a full-screen lightbox (Esc closes). Each image has a delete button.
+
+### Pattern reference images (BE)
+- `GET /pattern-scanner/references/:pattern` — list images for a pattern (newest first)
+- `POST /pattern-scanner/references` — add `{ pattern, imageUrl, notes? }`
+- `DELETE /pattern-scanner/references/:id` — remove a reference image
 
 ## Related Files (FE / BE / Worker)
 - `packages/core/src/analysis/chart-patterns.ts` — pure pattern detectors (`scanChartPatterns`, config, types)
 - `packages/core/src/analysis/chart-patterns.spec.ts` — detector unit tests
 - `packages/core/src/index.ts` — exports the detectors/types from `@app/core`
-- `packages/db/prisma/schema.prisma` — `PatternWatchCoin` model (`pattern_watch_coins` table)
-- `packages/db/prisma/migrations/20260712170000_add_pattern_watch_coins/migration.sql` — table migration
-- `packages/db/src/repositories/pattern-scanner.repository.ts` — watchlist CRUD
+- `packages/db/prisma/schema.prisma` — `PatternWatchCoin` + `PatternReferenceImage` models
+- `packages/db/prisma/migrations/20260712170000_add_pattern_watch_coins/migration.sql` — watchlist table
+- `packages/db/prisma/migrations/20260713100000_add_pattern_reference_images/migration.sql` — reference images table
+- `packages/db/src/repositories/pattern-scanner.repository.ts` — watchlist + reference image CRUD
 - `packages/db/src/index.ts` — exports `createPatternScannerRepository`
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.controller.ts` — REST endpoints
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.service.ts` — fetch klines + run detectors; returns `closes` per matching coin
 - `apps/web/src/widgets/pattern-scanner/pattern-scanner-feed.tsx` — `PatternChart` SVG (pivots + NL/TP/SL levels) drawn from `closes`
-- `apps/api/src/modules/pattern-scanner/dto/add-coin.dto.ts`, `dto/scan.dto.ts` — request validation
+- `apps/api/src/modules/pattern-scanner/dto/add-coin.dto.ts`, `dto/scan.dto.ts`, `dto/add-reference.dto.ts` — request validation
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.module.ts` — module wiring
 - `apps/api/src/app.module.ts` — registers `PatternScannerModule`
 - `apps/web/src/app/pattern-scanner/page.tsx` — App Router route (thin re-export)
 - `apps/web/src/_pages/pattern-scanner-page/pattern-scanner-page.tsx` — server page, loads watchlist
 - `apps/web/src/widgets/pattern-scanner/pattern-scanner-feed.tsx` — client UI (watchlist, controls, results)
-- `apps/web/src/shared/api/client.ts` — `fetchPatternCoins`, `addPatternCoin`, `removePatternCoin`, `scanPatterns`
-- `apps/web/src/shared/api/types.ts` — `PatternKind`, `PatternWatchCoin`, `PatternMatch`, `PatternScanResult`
+- `apps/web/src/shared/api/client.ts` — `fetchPatternCoins`, `addPatternCoin`, `removePatternCoin`, `scanPatterns`, `fetchPatternReferences`, `addPatternReference`, `removePatternReference`
+- `apps/web/src/shared/api/types.ts` — `PatternKind`, `PatternWatchCoin`, `PatternMatch`, `PatternScanResult`, `PatternReferenceImage`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — sidebar nav entry
 - `apps/web/src/app/globals.css` — `.ps-*` styles

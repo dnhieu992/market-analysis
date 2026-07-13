@@ -9,6 +9,21 @@ export type StrategyContext = {
   params: Record<string, unknown>;       // strategy-specific parameters from the UI
 };
 
+/** Pre-sliced OHLC window + pattern geometry attached to a trade for chart rendering. */
+export type TradeChartSnapshot = {
+  opens: number[];
+  highs: number[];
+  lows: number[];
+  closes: number[];
+  /** Pivot points with idx remapped relative to the sliced window. */
+  pivots: Array<{ idx: number; price: number; role: string }>;
+  neckline: number;
+  target: number;
+  stop: number;
+  direction: 'bullish' | 'bearish';
+  pattern: string;
+};
+
 export type TradeSignal = {
   direction: 'long' | 'short';
   entryPrice: number;
@@ -18,6 +33,8 @@ export type TradeSignal = {
   forceCloseTime?: Date;
   /** If true, the engine calls strategy.getTrailingStopLoss() each candle to ratchet the SL */
   trailingStop?: boolean;
+  /** Optional chart snapshot for visual review — populated by strategies that detect patterns. */
+  chartSnapshot?: TradeChartSnapshot;
 };
 
 export type BackTestTrade = {
@@ -34,6 +51,7 @@ export type BackTestTrade = {
   pnl: number;
   pnlPercent: number;
   outcome: 'win' | 'loss' | 'breakeven';
+  chartSnapshot?: TradeChartSnapshot;
 };
 
 export type BackTestSummary = {

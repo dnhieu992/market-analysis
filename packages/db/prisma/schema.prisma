@@ -860,3 +860,17 @@ model PatternWatchCoin {
 
   @@map("pattern_watch_coins")
 }
+
+// Reference images attached to each pattern kind — real-world examples the user
+// collects as study material (image URL + optional notes, no file upload needed).
+model PatternReferenceImage {
+  id        String   @id @default(cuid())
+  pattern   String   @db.VarChar(30)
+  imageUrl  String   @db.Text
+  r2Key     String?  @db.VarChar(500)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([pattern])
+  @@map("pattern_reference_images")
+}

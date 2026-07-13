@@ -1,13 +1,77 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { BackTestResult, BackTestResultRecord, BackTestStrategy } from '@web/shared/api/types';
+import type { BackTestResult, BackTestResultRecord, BackTestStrategy, TradeChartSnapshot } from '@web/shared/api/types';
 
 const apiClient = createApiClient();
 
 const TIMEFRAMES = ['5m', '15m', 'M30', '1h', '4h', '1d'];
+
+function TradeChart({ snap, width = 480, height = 260 }: { snap: TradeChartSnapshot; width?: number; height?: number }) {
+  const L = 8, R = 28, T = 12, B = 12;
+  const innerW = width - L - R;
+  const innerH = height - T - B;
+  const n = snap.highs.length;
+
+  const allPrices = [...snap.highs, ...snap.lows, snap.neckline, snap.target, snap.stop];
+  const priceMin = Math.min(...allPrices);
+  const priceMax = Math.max(...allPrices);
+  const margin = (priceMax - priceMin) * 0.06;
+  const lo = priceMin - margin;
+  const hi = priceMax + margin;
+  const range = hi - lo || 1;
+
+  const px = (i: number) => L + (i + 0.5) * (innerW / n);
+  const py = (price: number) => T + (1 - (price - lo) / range) * innerH;
+  const cw = Math.max(2, (innerW / n) * 0.65);
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+      height={height}
+      style={{ display: 'block', background: '#0f172a', borderRadius: 8 }}
+    >
+      {[
+        { price: snap.neckline, color: '#60a5fa', label: 'N' },
+        { price: snap.target,   color: '#34d399', label: 'T' },
+        { price: snap.stop,     color: '#f87171', label: 'S' },
+      ].map(({ price, color, label }) => {
+        const y = py(price);
+        return (
+          <g key={label}>
+            <line x1={L} y1={y} x2={width - R} y2={y} stroke={color} strokeWidth={1} strokeDasharray="4 3" opacity={0.75} />
+            <text x={width - R + 3} y={y + 3.5} fontSize={9} fill={color} fontFamily="monospace">{label}</text>
+          </g>
+        );
+      })}
+      {snap.highs.map((_, i) => {
+        const o = snap.opens[i]!;
+        const c = snap.closes[i]!;
+        const h = snap.highs[i]!;
+        const l = snap.lows[i]!;
+        const bull = c >= o;
+        const color = bull ? '#34d399' : '#f87171';
+        const x = px(i);
+        const bodyY1 = py(Math.max(o, c));
+        const bodyY2 = py(Math.min(o, c));
+        const bodyH = Math.max(1, bodyY2 - bodyY1);
+        return (
+          <g key={i}>
+            <line x1={x} y1={py(h)} x2={x} y2={py(l)} stroke={color} strokeWidth={1} opacity={0.7} />
+            <rect x={x - cw / 2} y={bodyY1} width={cw} height={bodyH} fill={color} opacity={0.85} />
+          </g>
+        );
+      })}
+      {snap.pivots.map((p, i) => (
+        <circle key={i} cx={px(p.idx)} cy={py(p.price)} r={3.5} fill="none" stroke="#fbbf24" strokeWidth={1.5} />
+      ))}
+    </svg>
+  );
+}
 
 type BackTestFeedProps = Readonly<{
   strategies: BackTestStrategy[];
@@ -51,6 +115,8 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
   // RSI Reversal params
   const [rsiTpPct, setRsiTpPct] = useState(10);
   const [rsiSlPct, setRsiSlPct] = useState(10);
+  // Chart Pattern params
+  const [chartPatterns, setChartPatterns] = useState<string[]>(['double_bottom', 'double_top', 'head_shoulders', 'inverse_head_shoulders']);
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BackTestResult | null>(null);
@@ -58,6 +124,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
   const [selectedResult, setSelectedResult] = useState<BackTestResult | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [lightboxSnap, setLightboxSnap] = useState<TradeChartSnapshot | null>(null);
 
   async function handleRun() {
     setStatus('running');
@@ -71,6 +138,8 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
           ? { tpSteps: fomoTpSteps, entryHourUtc: fomoEntryHour, exitHourUtc: fomoExitHour }
         : strategy === 'rsi-reversal'
           ? { tpPct: rsiTpPct / 100, slPct: rsiSlPct / 100 }
+        : strategy === 'chart-pattern'
+          ? { patterns: chartPatterns }
           : undefined;
 
       const res = await apiClient.runBackTest({
@@ -208,6 +277,33 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                   />
                 </div>
               </>
+            )}
+
+            {strategy === 'chart-pattern' && (
+              <div className="settings-field back-test-patterns-field">
+                <label className="settings-label">Patterns</label>
+                <div className="back-test-pattern-checks">
+                  {([
+                    { id: 'double_bottom', label: 'Hai đáy ↑' },
+                    { id: 'double_top', label: 'Hai đỉnh ↓' },
+                    { id: 'head_shoulders', label: 'Vai đầu vai ↓' },
+                    { id: 'inverse_head_shoulders', label: 'Vai đầu vai ngược ↑' },
+                  ] as const).map((p) => (
+                    <label key={p.id} className="back-test-pattern-check">
+                      <input
+                        type="checkbox"
+                        checked={chartPatterns.includes(p.id)}
+                        onChange={(e) =>
+                          setChartPatterns((prev) =>
+                            e.target.checked ? [...prev, p.id] : prev.filter((x) => x !== p.id)
+                          )
+                        }
+                      />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
             )}
 
             {strategy === 'fomo-short' && (
@@ -381,6 +477,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                       <th>PnL</th>
                       <th>PnL %</th>
                       <th>Outcome</th>
+                      <th>Chart</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -402,6 +499,17 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                           {trade.pnlPercent >= 0 ? '+' : ''}{pct(trade.pnlPercent)}
                         </td>
                         <td><span className={`back-test-outcome back-test-outcome--${trade.outcome}`}>{trade.outcome}</span></td>
+                        <td>
+                          {trade.chartSnapshot && (
+                            <button
+                              className="bt-chart-btn"
+                              onClick={() => setLightboxSnap(trade.chartSnapshot!)}
+                              title="View pattern chart"
+                            >
+                              <TradeChart snap={trade.chartSnapshot} width={80} height={44} />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -410,6 +518,29 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
             </div>
           )}
         </section>
+      )}
+
+      {/* Chart lightbox */}
+      {lightboxSnap && createPortal(
+        <div
+          className="bt-chart-lightbox"
+          onClick={() => setLightboxSnap(null)}
+          onKeyDown={(e) => e.key === 'Escape' && setLightboxSnap(null)}
+          role="dialog"
+          aria-modal
+        >
+          <div className="bt-chart-lightbox-inner" onClick={(e) => e.stopPropagation()}>
+            <button className="bt-chart-lightbox-close" onClick={() => setLightboxSnap(null)}>&#x2715;</button>
+            <p className="bt-chart-lightbox-title">{lightboxSnap.pattern.replace(/_/g, ' ')} &middot; {lightboxSnap.direction}</p>
+            <TradeChart snap={lightboxSnap} width={640} height={340} />
+            <div className="bt-chart-lightbox-meta">
+              <span className="bt-chart-meta-chip bt-chart-meta-chip--n">N {lightboxSnap.neckline.toFixed(4)}</span>
+              <span className="bt-chart-meta-chip bt-chart-meta-chip--t">T {lightboxSnap.target.toFixed(4)}</span>
+              <span className="bt-chart-meta-chip bt-chart-meta-chip--s">S {lightboxSnap.stop.toFixed(4)}</span>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* History */}
@@ -501,6 +632,7 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                                   <th>PnL</th>
                                   <th>PnL %</th>
                                   <th>Outcome</th>
+                                  <th>Chart</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -522,6 +654,17 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                                       {trade.pnlPercent >= 0 ? '+' : ''}{pct(trade.pnlPercent)}
                                     </td>
                                     <td><span className={`back-test-outcome back-test-outcome--${trade.outcome}`}>{trade.outcome}</span></td>
+                                    <td>
+                                      {trade.chartSnapshot && (
+                                        <button
+                                          className="bt-chart-btn"
+                                          onClick={() => setLightboxSnap(trade.chartSnapshot!)}
+                                          title="View pattern chart"
+                                        >
+                                          <TradeChart snap={trade.chartSnapshot} width={80} height={44} />
+                                        </button>
+                                      )}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>

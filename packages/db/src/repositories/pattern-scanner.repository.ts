@@ -1,6 +1,6 @@
 import { prisma } from '../client';
 
-/** Watchlist CRUD for the /pattern-scanner page (stateless scanner — no persisted signals). */
+/** Watchlist + reference-image CRUD for the /pattern-scanner page (stateless scanner — no persisted signals). */
 export function createPatternScannerRepository(client = prisma) {
   return {
     findAllCoins() {
@@ -21,6 +21,27 @@ export function createPatternScannerRepository(client = prisma) {
 
     removeCoin(symbol: string) {
       return client.patternWatchCoin.delete({ where: { symbol } });
+    },
+
+    findReferencesByPattern(pattern: string) {
+      return client.patternReferenceImage.findMany({
+        where: { pattern },
+        orderBy: { createdAt: 'desc' },
+      });
+    },
+
+    findReferenceById(id: string) {
+      return client.patternReferenceImage.findUnique({ where: { id } });
+    },
+
+    addReference(pattern: string, imageUrl: string, r2Key?: string, notes?: string) {
+      return client.patternReferenceImage.create({
+        data: { pattern, imageUrl, r2Key, notes },
+      });
+    },
+
+    removeReference(id: string) {
+      return client.patternReferenceImage.delete({ where: { id } });
     },
   };
 }
