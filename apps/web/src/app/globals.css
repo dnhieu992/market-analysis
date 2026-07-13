@@ -10158,55 +10158,86 @@ a.metric-card--link:hover {
 .bt-chart-meta-chip--t { color: #34d399; }
 .bt-chart-meta-chip--s { color: #f87171; }
 
-/* ── Pattern scanner — indicator bar (RSI + Sonic R EMA) ────────────────── */
-.ps-ind-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px 0 8px;
+/* ── Pattern scanner — indicator checkboxes ──────────────────────────────── */
+.ps-ind-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.ps-ind-section-title {
+  margin: 0 0 10px;
   font-size: 0.78rem;
-  font-weight: 600;
-  font-family: monospace;
-}
-.ps-ind-sep {
-  width: 1px;
-  height: 14px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-/* RSI badge */
-.ps-ind-rsi {
-  padding: 2px 8px;
-  border-radius: 5px;
-  background: rgba(255,255,255,0.06);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
   color: var(--muted);
 }
-.ps-ind-rsi--ob { background: rgba(248,113,113,0.15); color: #f87171; }
-.ps-ind-rsi--os { background: rgba(52,211,153,0.15);  color: #34d399; }
-.ps-ind-rsi--neutral { background: rgba(250,189,0,0.12); color: #fbbf24; }
-
-/* EMA label + chips */
-.ps-ind-ema-label {
-  color: var(--muted);
+.ps-check--indicator {
+  border-color: rgba(148, 163, 184, 0.25);
+}
+.ps-check--indicator:has(input:checked) {
+  background: rgba(100,116,139,0.12);
+  border-color: rgba(148,163,184,0.4);
+}
+.ps-check-sub {
   font-size: 0.72rem;
-  letter-spacing: 0.04em;
-}
-.ps-ind-ema {
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-size: 0.76rem;
-}
-.ps-ind-ema--above { background: rgba(52,211,153,0.12); color: #34d399; }
-.ps-ind-ema--below { background: rgba(248,113,113,0.12); color: #f87171; }
-
-/* Stack alignment chip */
-.ps-ind-align {
-  padding: 2px 8px;
-  border-radius: 5px;
-  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--muted);
   margin-left: 2px;
 }
-.ps-ind-align--bull  { background: rgba(52,211,153,0.14); color: #34d399; }
-.ps-ind-align--bear  { background: rgba(248,113,113,0.14); color: #f87171; }
-.ps-ind-align--mixed { background: rgba(255,255,255,0.06); color: var(--muted); }
+
+/* ── Pattern scanner — indicator result rows ─────────────────────────────── */
+.ps-ind-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 6px;
+}
+.ps-ind-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  background: rgba(255,255,255,0.03);
+  font-size: 0.82rem;
+}
+.ps-ind-row--bullish { border-left-color: #34d399; }
+.ps-ind-row--bearish { border-left-color: #f87171; }
+.ps-ind-row--neutral { border-left-color: #fbbf24; }
+.ps-ind-row-name {
+  font-weight: 700;
+  font-size: 0.8rem;
+  min-width: 68px;
+  color: var(--fg);
+}
+.ps-ind-row-value {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--fg);
+}
+/* RSI zone badges */
+.ps-ind-badge--ob      { background: rgba(248,113,113,0.15); color: #f87171; }
+.ps-ind-badge--os      { background: rgba(52,211,153,0.15);  color: #34d399; }
+.ps-ind-badge--neutral { background: rgba(250,189,0,0.12);   color: #fbbf24; }
+/* Sonic R stack badges */
+.ps-ind-badge--bull  { background: rgba(52,211,153,0.15);  color: #34d399; }
+.ps-ind-badge--bear  { background: rgba(248,113,113,0.15); color: #f87171; }
+.ps-ind-badge--mixed { background: rgba(255,255,255,0.06); color: var(--muted); }
+/* EMA chips */
+.ps-ind-emas {
+  display: flex;
+  gap: 5px;
+  margin-left: 4px;
+}
+.ps-ind-ema-chip {
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  font-family: monospace;
+  font-weight: 700;
+}
+.ps-ind-ema-chip--above { background: rgba(52,211,153,0.12); color: #34d399; }
+.ps-ind-ema-chip--below { background: rgba(248,113,113,0.12); color: #f87171; }

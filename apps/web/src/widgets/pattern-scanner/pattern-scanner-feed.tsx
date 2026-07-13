@@ -99,6 +99,7 @@ const apiClient = createApiClient();
 export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatchCoin[] }) {
   const [coins, setCoins] = useState<PatternWatchCoin[]>(initialCoins);
   const [selected, setSelected] = useState<Set<PatternKind>>(new Set(PATTERN_ORDER));
+  const [selectedInds, setSelectedInds] = useState<Set<'rsi' | 'sonic-r'>>(new Set(['rsi', 'sonic-r']));
   const [timeframe, setTimeframe] = useState('1d');
   const [newSymbol, setNewSymbol] = useState('');
   const [adding, setAdding] = useState(false);
@@ -111,6 +112,14 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(p)) next.delete(p); else next.add(p);
+      return next;
+    });
+  }
+
+  function toggleInd(k: 'rsi' | 'sonic-r') {
+    setSelectedInds((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
       return next;
     });
   }
@@ -214,6 +223,22 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
             );
           })}
         </div>
+
+        <div className="ps-ind-section">
+          <p className="ps-ind-section-title">Chỉ báo đánh giá</p>
+          <div className="ps-patterns">
+            <label className="ps-check ps-check--indicator">
+              <input type="checkbox" checked={selectedInds.has('rsi')} onChange={() => toggleInd('rsi')} />
+              <span>RSI(14)</span>
+            </label>
+            <label className="ps-check ps-check--indicator">
+              <input type="checkbox" checked={selectedInds.has('sonic-r')} onChange={() => toggleInd('sonic-r')} />
+              <span>Sonic R</span>
+              <span className="ps-check-sub">EMA 34 · 89 · 200</span>
+            </label>
+          </div>
+        </div>
+
         <div className="ps-actions">
           <label className="ps-tf">
             Khung
@@ -248,7 +273,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                     <span className="scr-symbol">{coin.symbol}</span>
                     <span className="scr-muted">${fmtPrice(coin.price)}</span>
                   </div>
-                  <IndicatorBar price={coin.price} ind={coin.indicators} />
+                  <IndicatorRows price={coin.price} ind={coin.indicators} show={selectedInds} />
                   <div className="ps-matches">
                     {coin.matches.map((m, i) => (
                       <MatchRow
@@ -436,7 +461,7 @@ function PatternRuleDialog({ pattern, onClose }: { pattern: PatternKind; onClose
   );
 }
 
-// ── Indicator bar ─────────────────────────────────────────────────────────────
+// ── Indicator rows ────────────────────────────────────────────────────────────
 
 function rsiZone(rsi: number): 'ob' | 'os' | 'neutral' {
   if (rsi >= 70) return 'ob';
@@ -450,35 +475,47 @@ function emaAlignment(ind: CoinIndicators): 'bull' | 'bear' | 'mixed' {
   return 'mixed';
 }
 
-function IndicatorBar({ price, ind }: { price: number; ind: CoinIndicators }) {
-  const zone = rsiZone(ind.rsi);
+function IndicatorRows({ price, ind, show }: { price: number; ind: CoinIndicators | undefined; show: Set<'rsi' | 'sonic-r'> }) {
+  if (!ind || show.size === 0) return null;
+  const zone  = rsiZone(ind.rsi);
   const align = emaAlignment(ind);
   const aboveEma34  = price > ind.ema34;
   const aboveEma89  = price > ind.ema89;
   const aboveEma200 = price > ind.ema200;
 
   return (
-    <div className="ps-ind-bar">
-      <span className={`ps-ind-rsi ps-ind-rsi--${zone}`} title={`RSI(14) = ${ind.rsi}`}>
-        RSI&nbsp;{ind.rsi.toFixed(1)}
-      </span>
-      <span className="ps-ind-sep" />
-      <span className="ps-ind-ema-label">EMA</span>
-      {([34, 89, 200] as const).map((period, i) => {
-        const above = [aboveEma34, aboveEma89, aboveEma200][i]!;
-        return (
-          <span
-            key={period}
-            className={`ps-ind-ema ps-ind-ema--${above ? 'above' : 'below'}`}
-            title={`EMA${period} = ${[ind.ema34, ind.ema89, ind.ema200][i]}`}
-          >
-            {period}{above ? '↑' : '↓'}
+    <div className="ps-ind-rows">
+      {show.has('rsi') && (
+        <div className={`ps-ind-row ps-ind-row--${zone === 'ob' ? 'bearish' : zone === 'os' ? 'bullish' : 'neutral'}`}>
+          <span className="ps-ind-row-name">RSI(14)</span>
+          <span className={`ps-badge ps-ind-badge--${zone}`}>
+            {zone === 'ob' ? 'Overbought' : zone === 'os' ? 'Oversold' : 'Neutral'}
           </span>
-        );
-      })}
-      <span className={`ps-ind-align ps-ind-align--${align}`} title="Xếp hàng 3 EMA (Sonic R)">
-        {align === 'bull' ? 'Stack↑' : align === 'bear' ? 'Stack↓' : 'Mixed'}
-      </span>
+          <span className="ps-ind-row-value">{ind.rsi.toFixed(1)}</span>
+        </div>
+      )}
+      {show.has('sonic-r') && (
+        <div className={`ps-ind-row ps-ind-row--${align === 'bull' ? 'bullish' : align === 'bear' ? 'bearish' : 'neutral'}`}>
+          <span className="ps-ind-row-name">Sonic R</span>
+          <span className={`ps-badge ps-ind-badge--${align}`}>
+            {align === 'bull' ? 'Bullish Stack' : align === 'bear' ? 'Bearish Stack' : 'Mixed'}
+          </span>
+          <span className="ps-ind-emas">
+            {([34, 89, 200] as const).map((p, i) => {
+              const above = [aboveEma34, aboveEma89, aboveEma200][i]!;
+              return (
+                <span
+                  key={p}
+                  className={`ps-ind-ema-chip ps-ind-ema-chip--${above ? 'above' : 'below'}`}
+                  title={`EMA${p} = ${[ind.ema34, ind.ema89, ind.ema200][i]}`}
+                >
+                  {p}{above ? '↑' : '↓'}
+                </span>
+              );
+            })}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
