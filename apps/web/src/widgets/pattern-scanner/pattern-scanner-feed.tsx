@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch, PatternReferenceImage } from '@web/shared/api/types';
+import type { PatternKind, PatternWatchCoin, PatternScanResult, PatternMatch, PatternReferenceImage, CoinIndicators } from '@web/shared/api/types';
 
 const PATTERN_META: Record<PatternKind, { label: string; dir: 'bullish' | 'bearish' }> = {
   double_bottom: { label: 'Hai đáy', dir: 'bullish' },
@@ -248,6 +248,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                     <span className="scr-symbol">{coin.symbol}</span>
                     <span className="scr-muted">${fmtPrice(coin.price)}</span>
                   </div>
+                  <IndicatorBar price={coin.price} ind={coin.indicators} />
                   <div className="ps-matches">
                     {coin.matches.map((m, i) => (
                       <MatchRow
@@ -431,6 +432,53 @@ function PatternRuleDialog({ pattern, onClose }: { pattern: PatternKind; onClose
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Indicator bar ─────────────────────────────────────────────────────────────
+
+function rsiZone(rsi: number): 'ob' | 'os' | 'neutral' {
+  if (rsi >= 70) return 'ob';
+  if (rsi <= 30) return 'os';
+  return 'neutral';
+}
+
+function emaAlignment(ind: CoinIndicators): 'bull' | 'bear' | 'mixed' {
+  if (ind.ema34 > ind.ema89 && ind.ema89 > ind.ema200) return 'bull';
+  if (ind.ema34 < ind.ema89 && ind.ema89 < ind.ema200) return 'bear';
+  return 'mixed';
+}
+
+function IndicatorBar({ price, ind }: { price: number; ind: CoinIndicators }) {
+  const zone = rsiZone(ind.rsi);
+  const align = emaAlignment(ind);
+  const aboveEma34  = price > ind.ema34;
+  const aboveEma89  = price > ind.ema89;
+  const aboveEma200 = price > ind.ema200;
+
+  return (
+    <div className="ps-ind-bar">
+      <span className={`ps-ind-rsi ps-ind-rsi--${zone}`} title={`RSI(14) = ${ind.rsi}`}>
+        RSI&nbsp;{ind.rsi.toFixed(1)}
+      </span>
+      <span className="ps-ind-sep" />
+      <span className="ps-ind-ema-label">EMA</span>
+      {([34, 89, 200] as const).map((period, i) => {
+        const above = [aboveEma34, aboveEma89, aboveEma200][i]!;
+        return (
+          <span
+            key={period}
+            className={`ps-ind-ema ps-ind-ema--${above ? 'above' : 'below'}`}
+            title={`EMA${period} = ${[ind.ema34, ind.ema89, ind.ema200][i]}`}
+          >
+            {period}{above ? '↑' : '↓'}
+          </span>
+        );
+      })}
+      <span className={`ps-ind-align ps-ind-align--${align}`} title="Xếp hàng 3 EMA (Sonic R)">
+        {align === 'bull' ? 'Stack↑' : align === 'bear' ? 'Stack↓' : 'Mixed'}
+      </span>
     </div>
   );
 }

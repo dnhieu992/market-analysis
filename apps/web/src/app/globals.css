@@ -10157,3 +10157,56 @@ a.metric-card--link:hover {
 .bt-chart-meta-chip--n { color: #60a5fa; }
 .bt-chart-meta-chip--t { color: #34d399; }
 .bt-chart-meta-chip--s { color: #f87171; }
+
+/* ── Pattern scanner — indicator bar (RSI + Sonic R EMA) ────────────────── */
+.ps-ind-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: monospace;
+}
+.ps-ind-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+/* RSI badge */
+.ps-ind-rsi {
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.06);
+  color: var(--muted);
+}
+.ps-ind-rsi--ob { background: rgba(248,113,113,0.15); color: #f87171; }
+.ps-ind-rsi--os { background: rgba(52,211,153,0.15);  color: #34d399; }
+.ps-ind-rsi--neutral { background: rgba(250,189,0,0.12); color: #fbbf24; }
+
+/* EMA label + chips */
+.ps-ind-ema-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+.ps-ind-ema {
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.76rem;
+}
+.ps-ind-ema--above { background: rgba(52,211,153,0.12); color: #34d399; }
+.ps-ind-ema--below { background: rgba(248,113,113,0.12); color: #f87171; }
+
+/* Stack alignment chip */
+.ps-ind-align {
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 0.74rem;
+  margin-left: 2px;
+}
+.ps-ind-align--bull  { background: rgba(52,211,153,0.14); color: #34d399; }
+.ps-ind-align--bear  { background: rgba(248,113,113,0.14); color: #f87171; }
+.ps-ind-align--mixed { background: rgba(255,255,255,0.06); color: var(--muted); }

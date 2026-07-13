@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { scanChartPatterns } from '@app/core';
+import { scanChartPatterns, calculateRsi, calculateEma } from '@app/core';
 import type { PatternKind, PatternMatch } from '@app/core';
 import { createPatternScannerRepository } from '@app/db';
 
@@ -8,6 +8,13 @@ import { StorageService } from '../storage/storage.service';
 
 const CANDLE_LIMIT = 300;
 const MIN_CANDLES = 60;
+
+export type CoinIndicators = {
+  rsi: number;
+  ema34: number;
+  ema89: number;
+  ema200: number;
+};
 
 export type PatternScanCoinResult = {
   symbol: string;
@@ -19,6 +26,7 @@ export type PatternScanCoinResult = {
   lows: number[];
   closes: number[];
   matches: PatternMatch[];
+  indicators: CoinIndicators;
 };
 
 export type PatternScanResult = {
@@ -110,6 +118,12 @@ export class PatternScannerService {
         };
         const matches = scanChartPatterns(series, patterns);
         if (matches.length > 0) {
+          const indicators: CoinIndicators = {
+            rsi:   Number(calculateRsi(series.closes, 14).toFixed(1)),
+            ema34:  Number(calculateEma(series.closes, 34).toFixed(6)),
+            ema89:  Number(calculateEma(series.closes, 89).toFixed(6)),
+            ema200: Number(calculateEma(series.closes, 200).toFixed(6)),
+          };
           results.push({
             symbol: coin.symbol,
             name: coin.name,
@@ -119,6 +133,7 @@ export class PatternScannerService {
             lows: series.lows,
             closes: series.closes,
             matches,
+            indicators,
           });
         }
       } catch (err) {

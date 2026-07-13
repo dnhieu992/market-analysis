@@ -769,6 +769,13 @@ export type PatternMatch = {
   pivots: { idx: number; price: number; role: string }[];
 };
 
+export type CoinIndicators = {
+  rsi: number;
+  ema34: number;
+  ema89: number;
+  ema200: number;
+};
+
 export type PatternScanCoinResult = {
   symbol: string;
   name: string;
@@ -779,6 +786,7 @@ export type PatternScanCoinResult = {
   lows: number[];
   closes: number[];
   matches: PatternMatch[];
+  indicators: CoinIndicators;
 };
 
 export type PatternScanResult = {
