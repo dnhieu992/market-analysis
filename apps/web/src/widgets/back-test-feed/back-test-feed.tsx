@@ -115,6 +115,11 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
   // RSI Reversal params
   const [rsiTpPct, setRsiTpPct] = useState(10);
   const [rsiSlPct, setRsiSlPct] = useState(10);
+  // EMA-stack oversold StochRSI bounce params
+  const [emaOsTpPct, setEmaOsTpPct] = useState(10);
+  const [emaOsDistMin, setEmaOsDistMin] = useState(7);
+  const [emaOsDistMax, setEmaOsDistMax] = useState(15);
+  const [emaOsLevel, setEmaOsLevel] = useState(20);
   // Chart Pattern params
   const [chartPatterns, setChartPatterns] = useState<string[]>(['double_bottom', 'double_top', 'head_shoulders', 'inverse_head_shoulders']);
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
@@ -138,6 +143,13 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
           ? { tpSteps: fomoTpSteps, entryHourUtc: fomoEntryHour, exitHourUtc: fomoExitHour }
         : strategy === 'rsi-reversal'
           ? { tpPct: rsiTpPct / 100, slPct: rsiSlPct / 100 }
+        : strategy === 'ema-stack-oversold-stochrsi'
+          ? {
+              tpPct: emaOsTpPct / 100,
+              distMin: emaOsDistMin / 100,
+              distMax: emaOsDistMax / 100,
+              osLevel: emaOsLevel
+            }
         : strategy === 'chart-pattern'
           ? { patterns: chartPatterns }
           : undefined;
@@ -274,6 +286,56 @@ export function BackTestFeed({ strategies, initialResults }: BackTestFeedProps) 
                     step={0.1}
                     value={rsiSlPct}
                     onChange={(e) => setRsiSlPct(Number(e.target.value))}
+                  />
+                </div>
+              </>
+            )}
+
+            {strategy === 'ema-stack-oversold-stochrsi' && (
+              <>
+                <div className="settings-field">
+                  <label className="settings-label">Take Profit (%)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0.1}
+                    step={0.1}
+                    value={emaOsTpPct}
+                    onChange={(e) => setEmaOsTpPct(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">Cách EMA34 tối thiểu (%)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={emaOsDistMin}
+                    onChange={(e) => setEmaOsDistMin(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">Cách EMA34 tối đa (%)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={emaOsDistMax}
+                    onChange={(e) => setEmaOsDistMax(Number(e.target.value))}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label className="settings-label">StochRSI oversold (&lt;)</label>
+                  <input
+                    className="settings-input"
+                    type="number"
+                    min={1}
+                    max={50}
+                    step={1}
+                    value={emaOsLevel}
+                    onChange={(e) => setEmaOsLevel(Number(e.target.value))}
                   />
                 </div>
               </>
