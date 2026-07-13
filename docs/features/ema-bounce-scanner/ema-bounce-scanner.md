@@ -1,10 +1,12 @@
 ## Description
 The **EMA Bounce Scanner** (`/ema-bounce`) is a stateful watchlist scanner for the
 "extended-below-EMA-stack oversold StochRSI bounce" LONG strategy. The user maintains a
-coin watchlist; the worker auto-scans it **every 4h** (right after each 4h candle closes),
-and for any coin that satisfies the rule it **persists a signal card** and **sends a
-text Telegram alert**. Cards are **outcome-tracked**: each scan refreshes the open card's
-current price / PnL% and closes it as `hit_tp` once price reaches the +10% target.
+coin watchlist; the worker auto-scans it on **two timeframes** — **4H** (right after each
+4h candle closes) and **D1** (once daily) — and for any coin that satisfies the rule it
+**persists a signal card** (tagged with the scan timeframe) and **sends a text Telegram
+alert**. Cards are **outcome-tracked**: each scan refreshes the open card's current price /
+PnL% and closes it as `hit_tp` once price reaches the +10% target. Signals are keyed by
+`(coin, timeframe, candle-close)`, so the same coin can have both a 4H and a D1 card.
 
 Entry rule (shared with the `/strategy-test` backtest strategy via
 `detectEmaStackOversoldEntry` in `@app/core`), evaluated on the last CLOSED 4h candle:
@@ -20,20 +22,23 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
 ## Main Flow
 1. User opens `/ema-bounce`, adds coins (`POST /ema-bounce/coins`, symbol upper-cased and
    any `USDT` suffix stripped) or removes them (`DELETE /ema-bounce/coins/:symbol`).
-2. **Worker cron** (`SchedulerService.runEmaStochScan`, `@Cron('0 2 */4 * * *')` UTC → 00:02,
-   04:02, …) calls `EmaStochScanService.scanAll()`. For each watched coin it fetches 300 4h
-   klines, drops the still-forming candle (`closeTime > now`), and runs the detector on the
-   last closed candle.
-3. On a match it calls `repo.createSignalIfNew(coinId, …)` — idempotent on `(coinId, triggeredAt)`
-   so re-running a scan never double-alerts. If newly created it sends a text Telegram message.
-4. It then refreshes every OPEN card for that coin: computes max high since the trigger; if
-   `≥ tpPrice` → `markSignalHitTp` (+10% locked), else `updateSignalMark` (currentPrice/pnlPct).
+2. **Worker crons** — `runEmaStochScan4h` (`@Cron('0 2 */4 * * *')` UTC → 00:02, 04:02, …)
+   calls `scanAll('4h')`; `runEmaStochScanD1` (`@Cron('0 5 0 * * *')` UTC → 00:05 daily) calls
+   `scanAll('1d')`. For each watched coin `scanOne` fetches 300 klines of that timeframe, drops
+   the still-forming candle (`closeTime > now`), and runs the detector on the last closed candle.
+3. On a match it calls `repo.createSignalIfNew(coinId, { timeframe, … })` — idempotent on
+   `(coinId, timeframe, triggeredAt)` so re-running a scan never double-alerts. If newly created
+   it sends a text Telegram message that includes the timeframe label (4H / 1D).
+4. It then refreshes that coin's OPEN cards **for the same timeframe**
+   (`findOpenSignalsByCoinAndTimeframe`): computes max high since the trigger; if `≥ tpPrice`
+   → `markSignalHitTp` (+10% locked), else `updateSignalMark` (currentPrice/pnlPct).
 5. The page (`ema-bounce-page.tsx`) server-loads the watchlist (`GET /ema-bounce/coins`) and
    cards (`GET /ema-bounce/signals`) and renders the client widget: watchlist manager, a
    "Quét ngay" live preview, and a grid of outcome-tracked signal cards (status badge, entry,
    current, PnL%, TP, distance below EMA34, RSI, StochRSI).
-6. **Live preview** (`POST /ema-bounce/preview`) runs the same detector on-demand without
-   persisting or alerting — immediate feedback before the next cron.
+6. **Live preview** (`POST /ema-bounce/preview`) runs the same detector on-demand on **both**
+   the 4H and 1D timeframes without persisting or alerting — each match is tagged with its
+   timeframe, giving immediate feedback before the next cron.
 
 ## Edge Cases
 - **Forming candle** — klines are filtered to `closeTime ≤ now` so the detector never uses the
@@ -55,6 +60,7 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
 - `packages/core/src/index.ts` — exports the detector/indicator
 - `packages/db/prisma/schema.prisma` — `EmaStochWatchCoin` + `EmaStochSignal` models
 - `packages/db/prisma/migrations/20260713150000_add_ema_stoch_scanner/migration.sql` — tables
+- `packages/db/prisma/migrations/20260713170000_ema_stoch_signal_timeframe/migration.sql` — adds `timeframe` + `(coinId, timeframe, triggeredAt)` unique (creates the new index *before* dropping the old one, which backs the coinId FK)
 - `packages/db/src/repositories/ema-stoch-scanner.repository.ts` — watchlist + signal CRUD/outcome
 - `packages/db/src/index.ts` — exports `createEmaStochScannerRepository`
 - `apps/worker/src/modules/ema-stoch-scan/ema-stoch-scan.service.ts` — 4h scan, persist, Telegram, outcome tracking
