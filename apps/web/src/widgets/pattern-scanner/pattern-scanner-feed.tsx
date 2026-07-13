@@ -231,11 +231,27 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
             <label className="ps-check ps-check--indicator">
               <input type="checkbox" checked={selectedInds.has('rsi')} onChange={() => toggleInd('rsi')} />
               <span>RSI(14)</span>
+              <button
+                type="button"
+                className="ps-info"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoIndicator('rsi'); }}
+                title="Hướng dẫn RSI"
+              >
+                i
+              </button>
             </label>
             <label className="ps-check ps-check--indicator">
               <input type="checkbox" checked={selectedInds.has('sonic-r')} onChange={() => toggleInd('sonic-r')} />
               <span>Sonic R</span>
               <span className="ps-check-sub">EMA 34 · 89 · 200</span>
+              <button
+                type="button"
+                className="ps-info"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoIndicator('sonic-r'); }}
+                title="Hướng dẫn Sonic R"
+              >
+                i
+              </button>
             </label>
           </div>
         </div>
