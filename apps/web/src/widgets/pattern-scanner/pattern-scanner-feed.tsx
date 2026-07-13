@@ -107,6 +107,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
   const [result, setResult] = useState<PatternScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [infoPattern, setInfoPattern] = useState<PatternKind | null>(null);
+  const [infoIndicator, setInfoIndicator] = useState<'rsi' | 'sonic-r' | null>(null);
 
   function togglePattern(p: PatternKind) {
     setSelected((prev) => {
@@ -273,7 +274,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                     <span className="scr-symbol">{coin.symbol}</span>
                     <span className="scr-muted">${fmtPrice(coin.price)}</span>
                   </div>
-                  <IndicatorRows price={coin.price} ind={coin.indicators} show={selectedInds} />
+                  <IndicatorRows price={coin.price} ind={coin.indicators} show={selectedInds} onInfo={setInfoIndicator} />
                   <div className="ps-matches">
                     {coin.matches.map((m, i) => (
                       <MatchRow
@@ -293,6 +294,9 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
 
       {infoPattern && (
         <PatternRuleDialog pattern={infoPattern} onClose={() => setInfoPattern(null)} />
+      )}
+      {infoIndicator && (
+        <IndicatorRuleDialog indicator={infoIndicator} onClose={() => setInfoIndicator(null)} />
       )}
     </div>
   );
@@ -461,6 +465,192 @@ function PatternRuleDialog({ pattern, onClose }: { pattern: PatternKind; onClose
   );
 }
 
+// ── Indicator info + reference dialog ────────────────────────────────────────
+
+const INDICATOR_META: Record<'rsi' | 'sonic-r', { label: string; dbKey: string }> = {
+  'rsi':     { label: 'RSI(14)', dbKey: 'rsi' },
+  'sonic-r': { label: 'Sonic R — EMA 34/89/200', dbKey: 'sonic_r' },
+};
+
+const INDICATOR_RULES: Record<'rsi' | 'sonic-r', { intro: string; rules: string[] }> = {
+  'rsi': {
+    intro: 'RSI (Relative Strength Index) đo momentum của giá: so sánh mức tăng trung bình và mức giảm trung bình trong 14 nến gần nhất. Kết quả là một số từ 0–100.',
+    rules: [
+      'RSI > 70 → Overbought: coin tăng quá nhanh, xác suất pullback cao. Tránh long mới, chú ý tín hiệu đảo chiều giảm.',
+      'RSI < 30 → Oversold: coin giảm quá mức, xác suất bounce cao. Chú ý tín hiệu đảo chiều tăng.',
+      'RSI 30–70 → Neutral: vùng giao dịch bình thường, momentum không cực đoan.',
+      'Bullish divergence: giá tạo đáy thấp hơn nhưng RSI tạo đáy cao hơn → cảnh báo đảo chiều tăng.',
+      'Bearish divergence: giá tạo đỉnh cao hơn nhưng RSI tạo đỉnh thấp hơn → cảnh báo đảo chiều giảm.',
+      'Trong uptrend mạnh, RSI có thể duy trì >60 trong nhiều tuần — không short chỉ vì RSI cao.',
+      'Dùng RSI để xác nhận hoặc lọc setup từ mô hình giá, không phải lý do vào lệnh đơn lẻ.',
+      'Kết hợp tốt nhất: RSI oversold (<30) + mô hình hai đáy hoặc vai đầu vai ngược → setup chất lượng cao.',
+    ],
+  },
+  'sonic-r': {
+    intro: 'Sonic R System dùng 3 đường EMA (34, 89, 200) để xác định xu hướng và vị thế của giá so với momentum ngắn/trung/dài hạn. Khi 3 đường xếp hàng theo thứ tự, xu hướng được coi là mạnh và rõ ràng.',
+    rules: [
+      'Stack Bullish (EMA34 > EMA89 > EMA200): xu hướng tăng mạnh. Ưu tiên tìm long setup, tránh bán khống.',
+      'Stack Bearish (EMA34 < EMA89 < EMA200): xu hướng giảm mạnh. Ưu tiên short, tránh long.',
+      'Mixed (3 đường chưa xếp hàng): thị trường đang chuyển xu hướng hoặc sideways — cẩn thận với false breakout.',
+      'Giá > EMA34 > EMA89 > EMA200: vị thế lý tưởng để long (trend + momentum cùng chiều tăng).',
+      'Giá < EMA34 < EMA89 < EMA200: vị thế lý tưởng để short.',
+      'EMA34 là đường nhanh nhất, hoạt động như hỗ trợ động (uptrend) hoặc kháng cự động (downtrend).',
+      'EMA200 là xu hướng dài hạn — giá trên EMA200 là bull territory, dưới là bear territory.',
+      'Kết hợp tốt nhất: pattern breakout (hai đáy, vai đầu vai) cùng chiều với Sonic R Stack → xác suất thành công cao hơn nhiều.',
+    ],
+  },
+};
+
+function IndicatorRuleDialog({ indicator, onClose }: { indicator: 'rsi' | 'sonic-r'; onClose: () => void }) {
+  const meta = INDICATOR_META[indicator];
+  const rule = INDICATOR_RULES[indicator];
+  const [tab, setTab] = useState<'rules' | 'refs'>('rules');
+  const [refs, setRefs] = useState<PatternReferenceImage[]>([]);
+  const [refsLoaded, setRefsLoaded] = useState(false);
+  const [refsLoading, setRefsLoading] = useState(false);
+  const [pickedFile, setPickedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [newNotes, setNewNotes] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<PatternReferenceImage | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (lightbox) setLightbox(null); else onClose(); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, lightbox]);
+
+  async function loadRefs() {
+    if (refsLoaded || refsLoading) return;
+    setRefsLoading(true);
+    try {
+      const data = await apiClient.fetchPatternReferences(meta.dbKey);
+      setRefs(data);
+      setRefsLoaded(true);
+    } finally {
+      setRefsLoading(false);
+    }
+  }
+
+  function switchTab(t: 'rules' | 'refs') {
+    setTab(t);
+    if (t === 'refs') loadRefs();
+  }
+
+  function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setPickedFile(file);
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(file ? URL.createObjectURL(file) : null);
+  }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pickedFile) return;
+    setAdding(true);
+    try {
+      const img = await apiClient.uploadPatternReference(meta.dbKey, pickedFile, newNotes.trim() || undefined);
+      setRefs((prev) => [img, ...prev]);
+      setPickedFile(null);
+      if (preview) { URL.revokeObjectURL(preview); setPreview(null); }
+      setNewNotes('');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setDeleting(id);
+    try {
+      await apiClient.removePatternReference(id);
+      setRefs((prev) => prev.filter((r) => r.id !== id));
+      if (lightbox?.id === id) setLightbox(null);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={lightbox ? () => setLightbox(null) : onClose}>
+      {lightbox && (
+        <div className="ps-ref-lightbox" onClick={(e) => e.stopPropagation()}>
+          <button className="dialog-close ps-ref-lightbox-close" onClick={() => setLightbox(null)} aria-label="Đóng">✕</button>
+          <img src={lightbox.imageUrl} alt={lightbox.notes ?? 'Reference'} className="ps-ref-lightbox-img" />
+          {lightbox.notes && <p className="ps-ref-lightbox-notes">{lightbox.notes}</p>}
+        </div>
+      )}
+      {!lightbox && (
+        <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+          <div className="dialog-header">
+            <span className="dialog-title">{meta.label}</span>
+            <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+          </div>
+          <div className="ps-ref-tabs">
+            <button className={`ps-ref-tab${tab === 'rules' ? ' ps-ref-tab--active' : ''}`} onClick={() => switchTab('rules')}>Hướng dẫn</button>
+            <button className={`ps-ref-tab${tab === 'refs' ? ' ps-ref-tab--active' : ''}`} onClick={() => switchTab('refs')}>Ảnh thực tế</button>
+          </div>
+          {tab === 'rules' && (
+            <div className="dialog-body">
+              <p className="ps-rule-intro">{rule.intro}</p>
+              <p className="notes-section-label">Cách đọc tín hiệu</p>
+              <ul className="ps-rule-list">
+                {rule.rules.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+          {tab === 'refs' && (
+            <div className="dialog-body">
+              <form className="ps-ref-add" onSubmit={handleAdd}>
+                <label className="ps-ref-file-label">
+                  <input type="file" accept="image/*" className="ps-ref-file-input" onChange={handleFilePick} disabled={adding} />
+                  <span className="btn btn--secondary ps-ref-file-btn">
+                    {pickedFile ? pickedFile.name : 'Chọn ảnh…'}
+                  </span>
+                </label>
+                {preview && <img src={preview} alt="preview" className="ps-ref-preview" />}
+                <textarea
+                  className="setup-input ps-ref-notes-input"
+                  placeholder="Notes (tuỳ chọn)"
+                  rows={2}
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  disabled={adding}
+                />
+                <button className="btn btn--primary" type="submit" disabled={adding || !pickedFile}>
+                  {adding ? 'Đang upload…' : '+ Upload'}
+                </button>
+              </form>
+              {refsLoading && <p className="scr-muted" style={{ marginTop: 12 }}>Đang tải…</p>}
+              {refsLoaded && refs.length === 0 && (
+                <p className="scr-muted" style={{ marginTop: 12 }}>Chưa có ảnh nào.</p>
+              )}
+              {refs.length > 0 && (
+                <div className="ps-ref-grid">
+                  {refs.map((r) => (
+                    <div key={r.id} className="ps-ref-item" onClick={() => setLightbox(r)}>
+                      <img src={r.imageUrl} alt={r.notes ?? 'Reference'} className="ps-ref-item-img" loading="lazy" />
+                      {r.notes && <p className="ps-ref-item-notes">{r.notes}</p>}
+                      <button
+                        className="notes-img-del"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}
+                        disabled={deleting === r.id}
+                        aria-label="Xóa ảnh"
+                      >
+                        {deleting === r.id ? '…' : '✕'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Indicator rows ────────────────────────────────────────────────────────────
 
 function rsiZone(rsi: number): 'ob' | 'os' | 'neutral' {
@@ -475,7 +665,12 @@ function emaAlignment(ind: CoinIndicators): 'bull' | 'bear' | 'mixed' {
   return 'mixed';
 }
 
-function IndicatorRows({ price, ind, show }: { price: number; ind: CoinIndicators | undefined; show: Set<'rsi' | 'sonic-r'> }) {
+function IndicatorRows({ price, ind, show, onInfo }: {
+  price: number;
+  ind: CoinIndicators | undefined;
+  show: Set<'rsi' | 'sonic-r'>;
+  onInfo: (k: 'rsi' | 'sonic-r') => void;
+}) {
   if (!ind || show.size === 0) return null;
   const zone  = rsiZone(ind.rsi);
   const align = emaAlignment(ind);
@@ -488,6 +683,7 @@ function IndicatorRows({ price, ind, show }: { price: number; ind: CoinIndicator
       {show.has('rsi') && (
         <div className={`ps-ind-row ps-ind-row--${zone === 'ob' ? 'bearish' : zone === 'os' ? 'bullish' : 'neutral'}`}>
           <span className="ps-ind-row-name">RSI(14)</span>
+          <button type="button" className="ps-info" onClick={() => onInfo('rsi')} title="Hướng dẫn RSI">i</button>
           <span className={`ps-badge ps-ind-badge--${zone}`}>
             {zone === 'ob' ? 'Overbought' : zone === 'os' ? 'Oversold' : 'Neutral'}
           </span>
@@ -497,6 +693,7 @@ function IndicatorRows({ price, ind, show }: { price: number; ind: CoinIndicator
       {show.has('sonic-r') && (
         <div className={`ps-ind-row ps-ind-row--${align === 'bull' ? 'bullish' : align === 'bear' ? 'bearish' : 'neutral'}`}>
           <span className="ps-ind-row-name">Sonic R</span>
+          <button type="button" className="ps-info" onClick={() => onInfo('sonic-r')} title="Hướng dẫn Sonic R">i</button>
           <span className={`ps-badge ps-ind-badge--${align}`}>
             {align === 'bull' ? 'Bullish Stack' : align === 'bear' ? 'Bearish Stack' : 'Mixed'}
           </span>

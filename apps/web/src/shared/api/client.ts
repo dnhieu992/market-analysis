@@ -952,11 +952,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    async fetchPatternReferences(pattern: PatternKind): Promise<PatternReferenceImage[]> {
+    async fetchPatternReferences(pattern: PatternKind | string): Promise<PatternReferenceImage[]> {
       return fetchJson<PatternReferenceImage[]>(fetchImpl, `${baseUrl}/pattern-scanner/references/${encodeURIComponent(pattern)}`, withDefaults());
     },
 
-    async uploadPatternReference(pattern: PatternKind, file: File, notes?: string): Promise<PatternReferenceImage> {
+    async uploadPatternReference(pattern: PatternKind | string, file: File, notes?: string): Promise<PatternReferenceImage> {
       const form = new FormData();
       form.append('file', file);
       form.append('pattern', pattern);
