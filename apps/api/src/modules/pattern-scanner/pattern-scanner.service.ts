@@ -185,40 +185,48 @@ export class PatternScannerService {
           lows: klines.map((k) => parseFloat(k[3])),
           closes: klines.map((k) => parseFloat(k[4])),
         };
+        // Every coin with enough candles is returned — the tăng/giảm signal is
+        // always shown; a matched chart pattern is extra context, not a filter.
         const matches = scanChartPatterns(series, patterns);
-        if (matches.length > 0) {
-          const indicators: CoinIndicators = {
-            rsi:   Number(calculateRsi(series.closes, 14).toFixed(1)),
-            ema34:  Number(calculateEma(series.closes, 34).toFixed(6)),
-            ema89:  Number(calculateEma(series.closes, 89).toFixed(6)),
-            ema200: Number(calculateEma(series.closes, 200).toFixed(6)),
-          };
-          const price = series.closes[series.closes.length - 1] ?? 0;
-          results.push({
-            symbol: coin.symbol,
-            name: coin.name,
-            price,
-            opens,
-            highs: series.highs,
-            lows: series.lows,
-            closes: series.closes,
-            matches,
-            indicators,
-            signal: computeSignal(price, indicators, matches),
-          });
-        }
+        const indicators: CoinIndicators = {
+          rsi:   Number(calculateRsi(series.closes, 14).toFixed(1)),
+          ema34:  Number(calculateEma(series.closes, 34).toFixed(6)),
+          ema89:  Number(calculateEma(series.closes, 89).toFixed(6)),
+          ema200: Number(calculateEma(series.closes, 200).toFixed(6)),
+        };
+        const price = series.closes[series.closes.length - 1] ?? 0;
+        results.push({
+          symbol: coin.symbol,
+          name: coin.name,
+          price,
+          opens,
+          highs: series.highs,
+          lows: series.lows,
+          closes: series.closes,
+          matches,
+          indicators,
+          signal: computeSignal(price, indicators, matches),
+        });
       } catch (err) {
         failed++;
         this.logger.warn(`scan failed for ${coin.symbol}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
-    // Confirmed patterns first, then by amplitude (most significant on top).
+    // Ordering (most actionable on top): confirmed patterns → any pattern →
+    // then by how strongly the tăng/giảm signal leans. Coins without a matched
+    // pattern still appear, ranked by their signal skew.
+    const leanMag = (r: PatternScanCoinResult) => Math.abs(r.signal.bullPoints - r.signal.bearPoints);
+    const maxHeight = (r: PatternScanCoinResult) => (r.matches.length ? Math.max(...r.matches.map((m) => m.heightPct)) : 0);
     results.sort((a, b) => {
       const aConf = a.matches.some((m) => m.status === 'confirmed') ? 1 : 0;
       const bConf = b.matches.some((m) => m.status === 'confirmed') ? 1 : 0;
       if (aConf !== bConf) return bConf - aConf;
-      return Math.max(...b.matches.map((m) => m.heightPct)) - Math.max(...a.matches.map((m) => m.heightPct));
+      const aHas = a.matches.length ? 1 : 0;
+      const bHas = b.matches.length ? 1 : 0;
+      if (aHas !== bHas) return bHas - aHas;
+      if (aHas && bHas && maxHeight(a) !== maxHeight(b)) return maxHeight(b) - maxHeight(a);
+      return leanMag(b) - leanMag(a);
     });
 
     return {

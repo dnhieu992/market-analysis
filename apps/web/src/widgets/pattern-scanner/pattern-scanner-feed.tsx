@@ -151,7 +151,6 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
   }
 
   async function handleScan() {
-    if (selected.size === 0) { setError('Chọn ít nhất 1 pattern.'); return; }
     if (coins.length === 0) { setError('Watchlist trống — thêm coin trước.'); return; }
     setScanning(true);
     setError(null);
@@ -181,7 +180,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
             i
           </button>
         </div>
-        <p className="ps-sub">Quét watchlist theo mô hình giá (2 đáy, 2 đỉnh, vai đầu vai…) để lọc coin đáng chú ý.</p>
+        <p className="ps-sub">Quét toàn bộ watchlist: mỗi coin đều hiện điểm tín hiệu Tăng/Giảm (RSI + Sonic R + mô hình giá); coin nào khớp mô hình sẽ kèm chart nến.</p>
       </header>
 
       {/* Watchlist */}
@@ -293,7 +292,7 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
             </span>
           </div>
           {result.coins.length === 0 ? (
-            <p className="scr-muted">Không coin nào khớp pattern đã chọn.</p>
+            <p className="scr-muted">Không quét được coin nào (watchlist trống hoặc thiếu dữ liệu nến).</p>
           ) : (
             <div className="ps-results">
               {result.coins.map((coin) => (
@@ -314,14 +313,18 @@ export function PatternScannerFeed({ initialCoins }: { initialCoins: PatternWatc
                   <SignalBar signal={coin.signal} />
                   <IndicatorRows price={coin.price} ind={coin.indicators} show={selectedInds} onInfo={setInfoIndicator} />
                   <div className="ps-matches">
-                    {coin.matches.map((m, i) => (
-                      <MatchRow
-                        key={i}
-                        m={m}
-                        series={{ opens: coin.opens, highs: coin.highs, lows: coin.lows, closes: coin.closes }}
-                        onInfo={setInfoPattern}
-                      />
-                    ))}
+                    {coin.matches.length === 0 ? (
+                      <p className="scr-muted ps-no-pattern">Không có mô hình giá khớp — điểm chỉ từ RSI &amp; Sonic R.</p>
+                    ) : (
+                      coin.matches.map((m, i) => (
+                        <MatchRow
+                          key={i}
+                          m={m}
+                          series={{ opens: coin.opens, highs: coin.highs, lows: coin.lows, closes: coin.closes }}
+                          onInfo={setInfoPattern}
+                        />
+                      ))
+                    )}
                   </div>
                 </div>
               ))}

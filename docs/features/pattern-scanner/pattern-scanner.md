@@ -1,8 +1,11 @@
 ## Description
 The **Pattern Scanner** (`/pattern-scanner`) is a stateless, on-demand tool that scans a
-user-managed coin watchlist for classic chart patterns and reports each pattern's key
-trading levels. It exists to quickly surface which watched coins are printing an actionable
-reversal formation on a chosen timeframe, without persisting any signals.
+user-managed coin watchlist and reports, for **every** watched coin, a weighted Tăng/Giảm
+signal (RSI + Sonic-R EMA alignment + any matched chart pattern) plus each pattern's key
+trading levels. It exists to quickly rank the whole watchlist by bullish/bearish bias on a
+chosen timeframe and surface which coins are also printing an actionable reversal formation,
+without persisting any signals. Every coin with enough candles is returned — a matched chart
+pattern is extra context, not a filter.
 
 Detected patterns (pure price action, confirmed fractal pivots only):
 - **Hai đáy** (`double_bottom`) — bullish reversal
@@ -23,10 +26,13 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
    then clicks **Scan** → `POST /pattern-scanner/scan { patterns, timeframe }`.
 4. The service fetches up to 300 public Binance klines per watched coin, builds an OHLC
    series, and runs the selected detectors (`scanChartPatterns` in `@app/core`).
-5. Results are sorted (confirmed patterns first, then by amplitude) and returned. Coins with
-   no match are omitted. Each matching coin result also carries the full OHLC series used for
+5. **Every** watched coin with ≥ 60 klines is returned (no pattern filter). Results are sorted
+   confirmed patterns first → coins with any pattern → then by how strongly the Tăng/Giảm signal
+   leans (`|bullPoints − bearPoints|`). Each coin result carries the full OHLC series used for
    the scan (`opens`/`highs`/`lows`/`closes`, 300 points, oldest → newest) so the UI can draw
-   the pattern. The widget renders each matching coin with its pattern rows and levels.
+   the pattern. The widget renders each coin with its signal bar, indicator rows, and — when a
+   pattern matched — its pattern rows/levels/chart; coins with no match show a short note that
+   the score is from RSI &amp; Sonic R only.
 6. **Pattern chart (FE).** For every match the widget draws an inline SVG **candlestick** chart
    (`PatternChart` in `pattern-scanner-feed.tsx`) in the same green/red style as the Daily Plan
    chart (`#26a69a` up / `#ef5350` down, matching worker `chart-renderer.ts`): OHLC windowed
@@ -63,11 +69,14 @@ already broken in the pattern's direction), `neckline` (breakout trigger), measu
   `tolPct` (3%) of the head price, the "head" is really one half of a wide double bottom/top and
   the middle-pivot choice is arbitrary. (Caught a false BTC H4 IH&S in 2026-07 whose head at
   57,800 had a rival low at 58,115 — 0.5% away — 33 bars earlier.)
-- **Empty selection / empty watchlist** — the widget blocks the scan and shows an inline error.
+- **No pattern selected** — allowed; the scan still returns every coin with an RSI/Sonic-R-only
+  signal (the pattern contribution is simply 0). Only an empty watchlist blocks the scan.
+- **Coin with no matched pattern** — still returned and shown; the `ps-matches` area renders a
+  short "Không có mô hình giá khớp" note instead of pattern rows.
 - **Remove missing coin** — API throws `NotFoundException`.
 
 ### Tăng/Giảm signal score (BE + FE)
-Every matching coin also carries a weighted bull/bear **signal** (`computeSignal` in
+Every returned coin carries a weighted bull/bear **signal** (`computeSignal` in
 `pattern-scanner.service.ts`) rendered as a Spot-Flip-style dual bar (`SignalBar` in
 `pattern-scanner-feed.tsx`, `.ps-signal*` styles) at the top of each result card. Scoring:
 
@@ -81,8 +90,9 @@ Every matching coin also carries a weighted bull/bear **signal** (`computeSignal
 An info icon (ⓘ) next to the page title **and** next to each card's price opens
 `ScoreInfoDialog` — a static modal that lists these exact rules. The scoring uses the latest
 close as the reference price and the same RSI/EMA already shown in the indicator rows, so the
-bar and the indicator badges stay consistent. Cards only appear when at least one pattern
-matches, so the total is always ≥ 1 (no divide-by-zero).
+bar and the indicator badges stay consistent. Because the EMA tier always scores ≥ 1 (price is
+either above or below EMA34), the point total is effectively always ≥ 1, so `bullPct`/`bearPct`
+render even for coins with no matched pattern (no divide-by-zero).
 
 ### Pattern rule info dialog (FE)
 Each pattern has an info icon (ⓘ) — both next to its checkbox in the "Pattern cần quét"
@@ -115,7 +125,7 @@ selector and next to its name in each result row. Clicking opens a dialog (reuse
 - `packages/db/src/repositories/pattern-scanner.repository.ts` — watchlist + reference image CRUD
 - `packages/db/src/index.ts` — exports `createPatternScannerRepository`
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.controller.ts` — REST endpoints
-- `apps/api/src/modules/pattern-scanner/pattern-scanner.service.ts` — fetch klines + run detectors; returns `closes` + indicators + `signal` (`computeSignal`) per matching coin
+- `apps/api/src/modules/pattern-scanner/pattern-scanner.service.ts` — fetch klines + run detectors; returns `closes` + indicators + `signal` (`computeSignal`) for **every** watched coin (no pattern filter), sorted by confirmed → has-pattern → signal lean
 - `apps/web/src/widgets/pattern-scanner/pattern-scanner-feed.tsx` — `PatternChart` SVG (pivots + NL/TP/SL levels) drawn from `closes`
 - `apps/api/src/modules/pattern-scanner/dto/add-coin.dto.ts`, `dto/scan.dto.ts`, `dto/add-reference.dto.ts` — request validation
 - `apps/api/src/modules/pattern-scanner/pattern-scanner.module.ts` — module wiring
