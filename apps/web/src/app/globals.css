@@ -10329,5 +10329,48 @@ a.metric-card--link:hover {
 .eb-score-warm { color: #f59e0b; }
 .eb-score-cold { color: #94a3b8; }
 .eb-stoch-num { color: var(--muted); font-size: 11px; }
+
+/* ── Trading Journal (/journal) ─────────────────────────────── */
+.tj-page { display: flex; flex-direction: column; gap: 16px; max-width: 900px; }
+.tj-header { display: flex; flex-direction: column; gap: 4px; }
+.tj-title { font-size: 22px; font-weight: 800; }
+.tj-sub { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.tj-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.tj-error { background: rgba(239,68,68,0.14); color: #ef4444; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.tj-row { display: flex; gap: 10px; align-items: center; }
+.tj-between { justify-content: space-between; }
+.tj-field { display: flex; flex-direction: column; gap: 6px; }
+.tj-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.tj-datefield { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.tj-datelabel { font-size: 13px; color: var(--muted); text-transform: capitalize; }
+.tj-input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 14px; }
+.tj-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tj-chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(59,130,246,0.14); color: #3b82f6; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.tj-chip-sm { font-size: 11px; padding: 2px 8px; }
+.tj-chip-x { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+.tj-tag-input { border: none; background: transparent; color: inherit; font-size: 13px; outline: none; min-width: 120px; padding: 3px 4px; }
+.tj-thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+.tj-thumb { position: relative; width: 96px; height: 96px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.tj-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tj-thumb-pending { border-style: dashed; }
+.tj-thumb-x { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(0,0,0,0.6); color: #fff; cursor: pointer; font-size: 13px; line-height: 1; }
+.tj-thumb-tag { position: absolute; bottom: 2px; left: 2px; font-size: 10px; font-weight: 700; background: rgba(245,158,11,0.9); color: #000; border-radius: 4px; padding: 0 4px; }
+.tj-upload { display: flex; align-items: center; justify-content: center; width: 96px; height: 96px; border: 1px dashed var(--border); border-radius: 8px; cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 600; }
+.tj-upload:hover { color: var(--accent); border-color: var(--accent); }
+.tj-btn { padding: 9px 16px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tj-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tj-btn-danger { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+.tj-btn:disabled { opacity: 0.6; cursor: default; }
+.tj-saved { color: #26a69a; font-size: 13px; font-weight: 600; }
+.tj-h2 { font-size: 16px; font-weight: 700; }
+.tj-muted { color: var(--muted); font-size: 13px; }
+.tj-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tj-item { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.tj-item:hover { border-color: var(--accent); }
+.tj-item-active { border-color: var(--accent); background: rgba(59,130,246,0.06); }
+.tj-item-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; text-transform: capitalize; }
+.tj-item-imgs { font-size: 12px; color: var(--muted); }
+.tj-item-preview { font-size: 13px; color: var(--muted); }
+.tj-item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .eb-tf { font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; vertical-align: middle; }
 .eb-select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 13px; }

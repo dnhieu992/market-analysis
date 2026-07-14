@@ -44,6 +44,7 @@ import type {
   EmaBounceCoin,
   EmaBounceSignal,
   EmaBouncePreview,
+  TradingJournalEntry,
   SpotFlipAnalysis,
   SpotFlipWatchItem,
   SpotFlipDailyEntry,
@@ -1003,6 +1004,27 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async previewEmaBounce(): Promise<EmaBouncePreview> {
       return fetchJson<EmaBouncePreview>(fetchImpl, `${baseUrl}/ema-bounce/preview`, withDefaults({ method: 'POST' }));
+    },
+
+    // ── Trading Journal ─────────────────────────────────────────
+    async fetchJournalEntries(): Promise<TradingJournalEntry[]> {
+      return fetchJson<TradingJournalEntry[]>(fetchImpl, `${baseUrl}/journal`, withDefaults());
+    },
+
+    async saveJournalEntry(input: { date: string; content: string; images: string[]; tags: string[] }): Promise<TradingJournalEntry> {
+      return fetchJson<TradingJournalEntry>(
+        fetchImpl,
+        `${baseUrl}/journal`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async deleteJournalEntry(id: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
 
     async fetchMemeRadar(): Promise<MemeCoinRow[]> {

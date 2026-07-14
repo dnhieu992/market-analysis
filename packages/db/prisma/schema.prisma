@@ -80,6 +80,21 @@ model Order {
   @@index([symbol, status, openedAt])
 }
 
+// A daily trading journal entry — freeform Markdown notes (analysis + emotions) plus
+// trade-model images and freeform tags. One entry per calendar day (upserted by `date`).
+// Kept as a corpus to later fine-tune an LLM "clone" of the trader and review discipline.
+model TradingJournalEntry {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  content   String   @db.LongText
+  images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
+  tags      Json     @default("[]") // string[] of freeform tags
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trading_journal_entries")
+}
+
 model TelegramMessageLog {
   id            String              @id @default(cuid())
   analysisRunId String?

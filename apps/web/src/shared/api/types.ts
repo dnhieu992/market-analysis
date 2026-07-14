@@ -880,6 +880,17 @@ export type EmaBouncePreview = {
   matches: EmaBounceMatch[];
 };
 
+/** A daily trading-journal entry (one per calendar day). */
+export type TradingJournalEntry = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  content: string;
+  images: string[];
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** Progress/result of the background coin sync (polled after a Sync Coins click). */
 export type MemeRescanStatus = {
   running: boolean;
