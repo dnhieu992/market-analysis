@@ -899,7 +899,8 @@ model EmaStochSignal {
   triggeredAt   DateTime // the candle close time that produced the signal
   status        String            @default("open") @db.VarChar(20) // open | hit_tp | expired
   stage         String            @default("reach") @db.VarChar(10) // monitoring stage: near | reach | risk
-  note          String?           @db.VarChar(255) // short reason for the current stage
+  note          String?           @db.VarChar(255) // short reason / met conditions for the current stage
+  score         Int               @default(0) // 0–100 weighted setup-completeness score
   entryPrice    Float
   tpPrice       Float
   distPct       Float // distance below EMA34 at entry (fraction, e.g. 0.093)

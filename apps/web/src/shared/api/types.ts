@@ -839,6 +839,7 @@ export type EmaBounceSignal = {
   status: 'open' | 'hit_tp' | 'expired' | string;
   stage: 'near' | 'reach' | 'risk' | string;
   note: string | null;
+  score: number;
   triggeredAt: string;
   entryPrice: number;
   tpPrice: number;
@@ -860,6 +861,7 @@ export type EmaBounceMatch = {
   timeframe: string;
   stage: 'near' | 'reach' | 'risk' | string;
   note: string;
+  score: number;
   price: number;
   tpPrice: number;
   distPct: number;

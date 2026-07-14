@@ -42,8 +42,11 @@ export type { StochRsiSeries } from './indicators/stoch-rsi';
 export {
   detectEmaStackOversoldEntry,
   detectEmaStackOversoldSignal,
+  scoreEmaStackOversoldSetup,
   DEFAULT_EMA_STACK_OVERSOLD_CONFIG,
   DEFAULT_EMA_STACK_NEAR_CONFIG,
+  EMA_STACK_SCORE_WEIGHTS,
+  EMA_STACK_OS_NEAR_LEVEL,
   EMA_STACK_OVERSOLD_MIN_CANDLES,
 } from './analysis/ema-stack-oversold';
 export type {
@@ -52,6 +55,8 @@ export type {
   EmaStackNearConfig,
   EmaStackOversoldSignal,
   EmaStackSignalStage,
+  EmaStackScoredSetup,
+  EmaStackScoreBreakdown,
 } from './analysis/ema-stack-oversold';
 export { isUtBotUptrend, calcUtBotResult, calcUtBotSignals } from './indicators/ut-bot';
 export type { UtBotResult, UtBotBarSignal } from './indicators/ut-bot';

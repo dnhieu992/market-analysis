@@ -36,6 +36,13 @@ function badgeFor(s: { status: string; stage: string }): { label: string; cls: s
   return STAGE_META[s.stage] ?? STAGE_META.reach!;
 }
 
+/** Colour band for the 0–100 completeness score: hot ≥70, warm ≥40, else cold. */
+function scoreCls(score: number): string {
+  if (score >= 70) return 'eb-score-hot';
+  if (score >= 40) return 'eb-score-warm';
+  return 'eb-score-cold';
+}
+
 function tfLabel(tf: string): string {
   return tf === '1d' ? '1D' : tf === '4h' ? '4H' : tf.toUpperCase();
 }
@@ -57,6 +64,7 @@ export function EmaBounceFeed({
   const [showOpenOnly, setShowOpenOnly] = useState(false);
   const [tfFilter, setTfFilter] = useState<'all' | '4h' | '1d'>('all');
   const [stageFilter, setStageFilter] = useState<'all' | 'near' | 'reach' | 'risk'>('all');
+  const [minScore, setMinScore] = useState(0);
 
   async function addCoin() {
     const sym = newSymbol.trim().toUpperCase();
@@ -109,7 +117,10 @@ export function EmaBounceFeed({
   const shown = signals
     .filter((s) => (showOpenOnly ? s.status === 'open' : true))
     .filter((s) => (tfFilter === 'all' ? true : s.timeframe === tfFilter))
-    .filter((s) => (stageFilter === 'all' ? true : s.stage === stageFilter));
+    .filter((s) => (stageFilter === 'all' ? true : s.stage === stageFilter))
+    .filter((s) => s.score >= minScore)
+    .slice()
+    .sort((a, b) => b.score - a.score);
 
   return (
     <div className="eb-page">
@@ -122,9 +133,13 @@ export function EmaBounceFeed({
             và <b>D1</b> (mỗi ngày).
           </p>
           <p className="eb-sub">
-            Mỗi card đi qua 3 giai đoạn: <b className="eb-near">⏳ Gần thoả mãn</b> (giãn 5–18%, StochRSI sắp/vừa cắt —
-            để canh chart) → <b className="eb-reach">🟢 Thoả mãn</b> (đủ điều kiện vào lệnh) →{' '}
-            <b className="eb-risk">🔔 Gần TP</b> (giá đã gần chạm TP +10%). Mỗi lần đổi giai đoạn đều gửi Telegram.
+            Card hiện <b>sớm</b> khi coin ở dưới EMA34 + đạt <b>ít nhất 1</b> tín hiệu, kèm <b>điểm 0–100</b> theo mức độ
+            hoàn thiện: Stack <b>20</b> · Giãn <b>25/12</b> · Quá bán <b>25/12</b> · Cắt lên <b>30/15</b>. Điểm càng cao,
+            setup càng gần chuẩn — sắp theo điểm giảm dần.
+          </p>
+          <p className="eb-sub">
+            Giai đoạn: <b className="eb-near">⏳ Gần thoả mãn</b> → <b className="eb-reach">🟢 Thoả mãn</b> (đủ điều kiện
+            vào lệnh) → <b className="eb-risk">🔔 Gần TP</b>. Telegram chỉ báo khi <b>điểm ≥ 70</b> hoặc lên thoả mãn/gần TP.
           </p>
         </div>
       </header>
@@ -172,6 +187,7 @@ export function EmaBounceFeed({
                       <b>{m.symbol} <span className="eb-tf">{tfLabel(m.timeframe)}</span></b>
                       <span className={`eb-badge ${meta.cls}`}>{meta.label}</span>
                     </div>
+                    <div className="eb-kv"><span>Điểm</span><span className={`eb-score-inline ${scoreCls(m.score)}`}>{m.score}đ</span></div>
                     <div className="eb-kv"><span>Giá</span><span>{fmtPrice(m.price)}</span></div>
                     <div className="eb-kv"><span>Cách EMA34</span><span className="eb-red">-{(m.distPct * 100).toFixed(1)}%</span></div>
                     <div className="eb-kv"><span>StochRSI</span><span>%K {m.stochK.toFixed(1)} / %D {m.stochD.toFixed(1)}</span></div>
@@ -191,6 +207,12 @@ export function EmaBounceFeed({
         <div className="eb-row eb-between">
           <h2 className="eb-h2">Tín hiệu ({shown.length})</h2>
           <div className="eb-row">
+            <select className="eb-select" value={minScore} onChange={(e) => setMinScore(Number(e.target.value))}>
+              <option value={0}>Mọi điểm</option>
+              <option value={40}>Điểm ≥ 40</option>
+              <option value={55}>Điểm ≥ 55</option>
+              <option value={70}>Điểm ≥ 70</option>
+            </select>
             <select className="eb-select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value as 'all' | 'near' | 'reach' | 'risk')}>
               <option value="all">Mọi giai đoạn</option>
               <option value="near">⏳ Gần thoả mãn</option>
@@ -222,8 +244,13 @@ export function EmaBounceFeed({
                     <b className="eb-signal-sym">{s.symbol} <span className="eb-tf">{tfLabel(s.timeframe)}</span></b>
                     <span className={`eb-badge ${st.cls}`}>{st.label}</span>
                   </div>
-                  <div className="eb-signal-pnl" style={{ color: pnl >= 0 ? '#26a69a' : '#ef5350' }}>
-                    {fmtPct(pnl)}
+                  <div className="eb-signal-topline">
+                    <div className="eb-signal-pnl" style={{ color: pnl >= 0 ? '#26a69a' : '#ef5350' }}>
+                      {fmtPct(pnl)}
+                    </div>
+                    <div className={`eb-score ${scoreCls(s.score)}`} title="Điểm hoàn thiện setup 0–100">
+                      {s.score}<span className="eb-score-u">đ</span>
+                    </div>
                   </div>
                   <div className="eb-kv"><span>{s.stage === 'near' ? 'Giá canh' : 'Vào lệnh'}</span><span>{fmtPrice(s.entryPrice)}</span></div>
                   <div className="eb-kv"><span>Hiện tại</span><span>{fmtPrice(s.currentPrice)}</span></div>

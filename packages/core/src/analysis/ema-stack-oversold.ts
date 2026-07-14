@@ -233,3 +233,148 @@ export function detectEmaStackOversoldSignal(
     tpPrice: price * (1 + cfg.tpPct),
   };
 }
+
+/**
+ * Scored monitoring setup — the loosest net of all. Instead of gating on ALL conditions,
+ * this surfaces any coin **below EMA34** that meets **at least one** signal condition
+ * (stretched / oversold / StochRSI cross) and returns a **0–100 score** so the /ema-bounce
+ * page can rank partial setups. The more of the setup is in place, the higher the score.
+ *
+ * Weighted points (partial credit for "gần"):
+ *   - Bearish EMA stack (EMA34<89<200) ............ 20
+ *   - Stretched below EMA34: 7–15% = 25, 5–7%/15–18% = 12
+ *   - StochRSI oversold: %K<20 = 25, %K<30 = 12
+ *   - StochRSI cross: fresh bullish cross in oversold = 30, about-to-cross = 15
+ *
+ * `stage` = 'reach' when the full strict entry is present (stack + strict distance + fresh
+ * cross), else 'near'. Returns null when price is not below EMA34 or no signal condition
+ * is met (so a plain downtrend with none of the three signals never shows).
+ */
+export const EMA_STACK_SCORE_WEIGHTS = {
+  stack: 20,
+  distFull: 25,
+  distNear: 12,
+  osFull: 25,
+  osNear: 12,
+  crossFull: 30,
+  crossNear: 15,
+} as const;
+
+/** %K below this (but not below osLevel) earns partial oversold points. */
+export const EMA_STACK_OS_NEAR_LEVEL = 30;
+
+export type EmaStackScoreBreakdown = {
+  stack: number;
+  distance: number;
+  oversold: number;
+  cross: number;
+};
+
+export type EmaStackScoredSetup = EmaStackOversoldEntry & {
+  /** 0–100 weighted completeness score. */
+  score: number;
+  breakdown: EmaStackScoreBreakdown;
+  /** Short Vietnamese labels for the met conditions, for the card note. */
+  reasons: string[];
+  stage: EmaStackSignalStage;
+  crossed: boolean;
+  aboutToCross: boolean;
+};
+
+export function scoreEmaStackOversoldSetup(
+  closes: number[],
+  config: Partial<EmaStackOversoldConfig & EmaStackNearConfig> = {},
+): EmaStackScoredSetup | null {
+  const cfg = { ...DEFAULT_EMA_STACK_OVERSOLD_CONFIG, ...DEFAULT_EMA_STACK_NEAR_CONFIG, ...config };
+  const W = EMA_STACK_SCORE_WEIGHTS;
+  if (closes.length < EMA_STACK_OVERSOLD_MIN_CANDLES) return null;
+
+  const price = closes[closes.length - 1]!;
+  const ema34 = calculateEma(closes, 34);
+  const ema89 = calculateEma(closes, 89);
+  const ema200 = calculateEma(closes, 200);
+
+  // Gate: only coins BELOW EMA34 are in this LONG-bounce universe.
+  if (!(price < ema34)) return null;
+
+  const distPct = (ema34 - price) / ema34;
+
+  const { k, d } = calculateStochRsi(closes);
+  const n = closes.length;
+  const kNow = k[n - 1];
+  const kPrev = k[n - 2];
+  const dNow = d[n - 1];
+  const dPrev = d[n - 2];
+  if (
+    kNow === undefined || kPrev === undefined || dNow === undefined || dPrev === undefined ||
+    Number.isNaN(kNow) || Number.isNaN(kPrev) || Number.isNaN(dNow) || Number.isNaN(dPrev)
+  ) {
+    return null;
+  }
+
+  // Most recent bullish cross in oversold within the lookback window.
+  let crossIdx = -1;
+  const oldest = Math.max(1, n - cfg.crossLookback);
+  for (let i = n - 1; i >= oldest; i--) {
+    const kc = k[i], kc0 = k[i - 1], dc = d[i], dc0 = d[i - 1];
+    if (kc === undefined || kc0 === undefined || dc === undefined || dc0 === undefined) continue;
+    if (kc0 <= dc0 && kc > dc && kc < cfg.osLevel) { crossIdx = i; break; }
+  }
+  const crossed = crossIdx >= 0;
+  const runSinceCross = crossed ? (price - closes[crossIdx]!) / closes[crossIdx]! : 0;
+  const freshCross = crossed && runSinceCross <= cfg.maxRunPct;
+  const gap = dNow - kNow;
+  const aboutToCross =
+    !freshCross && kNow <= dNow && kNow >= kPrev && gap <= cfg.crossGap && kNow < cfg.osLevel;
+
+  // ── Weighted breakdown ──────────────────────────────────────────
+  const stack = ema34 < ema89 && ema89 < ema200 ? W.stack : 0;
+
+  let distance = 0;
+  if (distPct >= cfg.distMin && distPct <= cfg.distMax) distance = W.distFull;
+  else if (distPct >= cfg.nearDistMin && distPct <= cfg.nearDistMax) distance = W.distNear;
+
+  let oversold = 0;
+  if (kNow < cfg.osLevel) oversold = W.osFull;
+  else if (kNow < EMA_STACK_OS_NEAR_LEVEL) oversold = W.osNear;
+
+  let cross = 0;
+  if (freshCross) cross = W.crossFull;
+  else if (aboutToCross) cross = W.crossNear;
+
+  // Need at least ONE signal condition (distance / oversold / cross) — a plain downtrend
+  // below EMA34 with none of the three does not produce a card.
+  if (distance + oversold + cross <= 0) return null;
+
+  const score = stack + distance + oversold + cross;
+
+  const reasons: string[] = [];
+  if (stack) reasons.push('Dưới cụm EMA34<89<200');
+  if (distance === W.distFull) reasons.push(`Giãn ${(distPct * 100).toFixed(1)}% (chuẩn)`);
+  else if (distance === W.distNear) reasons.push(`Giãn ${(distPct * 100).toFixed(1)}%`);
+  if (oversold === W.osFull) reasons.push(`Quá bán %K ${kNow.toFixed(0)}`);
+  else if (oversold === W.osNear) reasons.push(`Gần quá bán %K ${kNow.toFixed(0)}`);
+  if (cross === W.crossFull) reasons.push('StochRSI cắt lên');
+  else if (cross === W.crossNear) reasons.push(`StochRSI sắp cắt (%D−%K ${gap.toFixed(1)})`);
+
+  const isReach = stack === W.stack && distance === W.distFull && cross === W.crossFull;
+  const stage: EmaStackSignalStage = isReach ? 'reach' : 'near';
+
+  return {
+    score,
+    breakdown: { stack, distance, oversold, cross },
+    reasons,
+    stage,
+    crossed,
+    aboutToCross,
+    price,
+    ema34,
+    ema89,
+    ema200,
+    distPct,
+    rsi: calculateRsi(closes, 14),
+    stochK: kNow,
+    stochD: dNow,
+    tpPrice: price * (1 + cfg.tpPct),
+  };
+}

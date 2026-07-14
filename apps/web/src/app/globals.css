@@ -10321,5 +10321,12 @@ a.metric-card--link:hover {
 .eb-reach { color: #26a69a; }
 .eb-risk { color: #ef4444; }
 .eb-signal-note { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 4px; line-height: 1.35; }
+.eb-signal-topline { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.eb-score { font-size: 22px; font-weight: 800; line-height: 1; }
+.eb-score-u { font-size: 12px; font-weight: 700; margin-left: 1px; opacity: 0.8; }
+.eb-score-inline { font-weight: 700; }
+.eb-score-hot { color: #26a69a; }
+.eb-score-warm { color: #f59e0b; }
+.eb-score-cold { color: #94a3b8; }
 .eb-tf { font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; vertical-align: middle; }
 .eb-select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 13px; }

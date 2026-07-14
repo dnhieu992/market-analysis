@@ -6,26 +6,35 @@ coin watchlist; the worker auto-scans it on **two timeframes** — **4H** (right
 coins that are *about to* qualify (not only ones that already do) so the user can eyeball
 the chart before deciding to enter.
 
-Each watched coin gets **at most one open card per timeframe**, which walks a **stage
-lifecycle**: `near → reach → risk`, then closes as `hit_tp`. Every stage change fires a
-**labeled Telegram alert**. Cards are outcome-tracked: each scan refreshes current price /
-PnL%, advances the stage, and closes as `hit_tp` once price reaches the +10% target. Cards
-are keyed by `(coin, timeframe, candle-close)`, so the same coin can have both a 4H and a
-D1 card.
+Each watched coin gets **at most one open card per timeframe**, carrying a **0–100 score**
+and walking a **stage lifecycle** `near → reach → risk`, then closing as `hit_tp`. Cards are
+outcome-tracked: each scan refreshes current price / PnL% / recomputed score, advances the
+stage, and closes as `hit_tp` at the +10% target. Cards are keyed by `(coin, timeframe,
+candle-close)`, so a coin can have both a 4H and a D1 card.
 
-**Two detectors in `@app/core`** (both evaluated on the last CLOSED candle):
+**Telegram is selective** (creation gate is loose, so cards are many): an alert fires only
+when a card is created/updated to **score ≥ 70** (`ALERT_MIN_SCORE`), or on a `reach` / `risk`
+transition. Low-score cards are **page-only**. A never-reached `near` card whose setup fully
+faded (no signal condition left, not in profit) is **expired** so the page stays clean.
+
+**Detectors in `@app/core`** (evaluated on the last CLOSED candle):
 - `detectEmaStackOversoldEntry` — the *strict* entry (unchanged), shared with the
   `/strategy-test` backtest. Fires only on the exact cross candle.
-- `detectEmaStackOversoldSignal` — the *scanner* detector. Structural gate: `close < EMA34
-  < EMA89 < EMA200` and distance in a **wide 5–18%** band below EMA34. Returns the best
-  stage:
-  - **`reach`** (= actionable entry) — StochRSI(14/14/3/3) bullish cross in oversold within
-    the last 3 candles, distance in the **strict 7–15%** band, and price has not run more
-    than **5%** past the cross close. (The exact-cross-candle case is the strict signal.)
-  - **`near`** (= watch) — under the stack + in the 5–18% band, and EITHER the StochRSI
-    lines are converging about to cross up in oversold (`%D−%K ≤ 6`, `%K < 20`), OR they
-    crossed but the distance is a touch off (too shallow / a bit deep).
-  - `null` when not even near, or when a cross already ran > 5% (a missed/late entry).
+- `scoreEmaStackOversoldSetup` — the **scanner detector** the page/worker use now. Instead
+  of gating on ALL conditions, it surfaces any coin **below EMA34** that meets **at least
+  one** signal condition and returns a **0–100 weighted completeness score** so partial
+  setups can be ranked. Weighted points (partial credit for "gần"):
+  - Bearish EMA stack (`EMA34<89<200`) — **20**
+  - Stretched below EMA34 — **25** at 7–15%, **12** at 5–7% / 15–18%
+  - StochRSI oversold — **25** at `%K<20`, **12** at `%K<30`
+  - StochRSI cross — **30** fresh bullish cross in oversold (within 3 candles, not run > 5%),
+    **15** about-to-cross (`%D−%K ≤ 6`, `%K<20`)
+
+  `stage = reach` when the full strict entry is present (stack + 7–15% + fresh cross), else
+  `near`. Returns `null` when price is not below EMA34, or no signal condition is met (a
+  plain downtrend never produces a card). Weights live in `EMA_STACK_SCORE_WEIGHTS`.
+- `detectEmaStackOversoldSignal` — the earlier binary near/reach detector, kept exported but
+  no longer used by the scanner (superseded by the scored version).
 
 **Stage `risk`** is set during tracking (not by the detector): once an open card's price
 reaches within **2%** of its +10% TP (`RISK_BAND`), it advances to `risk` — a heads-up that
@@ -89,6 +98,7 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
 - `packages/core/src/indicators/stoch-rsi.ts` — `calculateStochRsi` (TradingView 14/14/3/3)
 - `packages/core/src/analysis/ema-stack-oversold.ts` — strict `detectEmaStackOversoldEntry` + the scanner's `detectEmaStackOversoldSignal` (near/reach + note) + config/const
 - `packages/db/prisma/migrations/20260714120000_ema_stoch_signal_stage/migration.sql` — adds `stage` (default `reach`) + `note` columns
+- `packages/db/prisma/migrations/20260714140000_ema_stoch_signal_score/migration.sql` — adds the `score` (0–100) column
 - `packages/core/src/index.ts` — exports the detector/indicator
 - `packages/db/prisma/schema.prisma` — `EmaStochWatchCoin` + `EmaStochSignal` models
 - `packages/db/prisma/migrations/20260713150000_add_ema_stoch_scanner/migration.sql` — tables

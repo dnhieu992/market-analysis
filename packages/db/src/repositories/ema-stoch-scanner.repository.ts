@@ -6,6 +6,7 @@ export type EmaStochSignalUpsert = {
   triggeredAt: Date;
   stage: string;
   note?: string | null;
+  score?: number;
   entryPrice: number;
   tpPrice: number;
   distPct: number;
@@ -82,6 +83,7 @@ export function createEmaStochScannerRepository(client = prisma) {
           status: 'open',
           stage: input.stage,
           note: input.note ?? null,
+          score: input.score ?? 0,
           entryPrice: input.entryPrice,
           tpPrice: input.tpPrice,
           distPct: input.distPct,
@@ -99,19 +101,33 @@ export function createEmaStochScannerRepository(client = prisma) {
       return { created: true, id: row.id };
     },
 
-    /** Refresh an open card's mark-to-market fields. */
-    updateSignalMark(id: string, currentPrice: number, pnlPct: number) {
+    /**
+     * Refresh an open card each scan: mark-to-market plus, optionally, the recomputed
+     * score / reason note / advanced stage. Pass `undefined` for any field to leave it
+     * unchanged (Prisma ignores undefined).
+     */
+    updateSignalMark(
+      id: string,
+      data: { currentPrice: number; pnlPct: number; score?: number; note?: string | null; stage?: string },
+    ) {
       return client.emaStochSignal.update({
         where: { id },
-        data: { currentPrice, pnlPct, lastCheckedAt: new Date() },
+        data: {
+          currentPrice: data.currentPrice,
+          pnlPct: data.pnlPct,
+          score: data.score,
+          note: data.note ?? undefined,
+          stage: data.stage,
+          lastCheckedAt: new Date(),
+        },
       });
     },
 
-    /** Advance an open card's monitoring stage (near → reach → risk) + reason note. */
-    updateSignalStage(id: string, stage: string, note?: string | null) {
+    /** Close a faded card (never reached a real entry, setup gone) so the page stays clean. */
+    expireSignal(id: string) {
       return client.emaStochSignal.update({
         where: { id },
-        data: { stage, note: note ?? null, lastCheckedAt: new Date() },
+        data: { status: 'expired', lastCheckedAt: new Date() },
       });
     },
 

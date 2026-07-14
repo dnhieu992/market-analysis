@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { detectEmaStackOversoldSignal, EMA_STACK_OVERSOLD_MIN_CANDLES } from '@app/core';
+import { scoreEmaStackOversoldSetup, EMA_STACK_OVERSOLD_MIN_CANDLES } from '@app/core';
 import { createEmaStochScannerRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
@@ -13,6 +13,7 @@ export type EmaStochSignalDto = {
   status: string;
   stage: string;
   note: string | null;
+  score: number;
   triggeredAt: string;
   entryPrice: number;
   tpPrice: number;
@@ -64,6 +65,7 @@ export class EmaStochScannerService {
       status: r.status,
       stage: r.stage,
       note: r.note ?? null,
+      score: r.score ?? 0,
       triggeredAt: r.triggeredAt.toISOString(),
       entryPrice: r.entryPrice,
       tpPrice: r.tpPrice,
@@ -92,7 +94,7 @@ export class EmaStochScannerService {
     const now = Date.now();
     const timeframes = ['4h', '1d'];
     const matches: Array<{
-      symbol: string; timeframe: string; stage: string; note: string; price: number; tpPrice: number; distPct: number;
+      symbol: string; timeframe: string; stage: string; note: string; score: number; price: number; tpPrice: number; distPct: number;
       rsi: number; stochK: number; stochD: number; ema34: number; ema89: number; ema200: number;
     }> = [];
     let scanned = 0;
@@ -106,22 +108,23 @@ export class EmaStochScannerService {
           const closed = klines.filter((k) => Number(k[6]) <= now);
           if (closed.length < EMA_STACK_OVERSOLD_MIN_CANDLES) continue;
           const closes = closed.map((k) => parseFloat(k[4]));
-          const signal = detectEmaStackOversoldSignal(closes);
-          if (signal) {
+          const setup = scoreEmaStackOversoldSetup(closes);
+          if (setup) {
             matches.push({
               symbol: coin.symbol,
               timeframe: tf,
-              stage: signal.stage,
-              note: signal.note,
-              price: signal.price,
-              tpPrice: signal.tpPrice,
-              distPct: signal.distPct,
-              rsi: signal.rsi,
-              stochK: signal.stochK,
-              stochD: signal.stochD,
-              ema34: signal.ema34,
-              ema89: signal.ema89,
-              ema200: signal.ema200,
+              stage: setup.stage,
+              note: setup.reasons.join(' • '),
+              score: setup.score,
+              price: setup.price,
+              tpPrice: setup.tpPrice,
+              distPct: setup.distPct,
+              rsi: setup.rsi,
+              stochK: setup.stochK,
+              stochD: setup.stochD,
+              ema34: setup.ema34,
+              ema89: setup.ema89,
+              ema200: setup.ema200,
             });
           }
         } catch (err) {
@@ -131,6 +134,7 @@ export class EmaStochScannerService {
       }
     }
 
+    matches.sort((a, b) => b.score - a.score);
     return { scannedAt: new Date().toISOString(), scanned, failed, matches };
   }
 }
