@@ -14,5 +14,8 @@ export function calculateEma(values: number[], period: number): number {
     ema = value * smoothing + ema * (1 - smoothing);
   }
 
-  return Number(ema.toFixed(6));
+  // Return full precision. Do NOT round to a fixed number of decimals here — for micro-priced
+  // coins (PEPE ~2.7e-6, SHIB, BONK) rounding to 6 decimals collapses the EMA to ~1 significant
+  // figure and fabricates a large distance-from-EMA error. Callers round for display if needed.
+  return ema;
 }

@@ -190,9 +190,10 @@ export class PatternScannerService {
         const matches = scanChartPatterns(series, patterns);
         const indicators: CoinIndicators = {
           rsi:   Number(calculateRsi(series.closes, 14).toFixed(1)),
-          ema34:  Number(calculateEma(series.closes, 34).toFixed(6)),
-          ema89:  Number(calculateEma(series.closes, 89).toFixed(6)),
-          ema200: Number(calculateEma(series.closes, 200).toFixed(6)),
+          // Keep full EMA precision — .toFixed(6) collapses micro-priced coins (PEPE, SHIB); FE formats for display.
+          ema34:  calculateEma(series.closes, 34),
+          ema89:  calculateEma(series.closes, 89),
+          ema200: calculateEma(series.closes, 200),
         };
         const price = series.closes[series.closes.length - 1] ?? 0;
         results.push({
