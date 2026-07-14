@@ -26,6 +26,14 @@ function tfLabel(tf: string): string {
   return tf === '1d' ? '1D' : tf === '4h' ? '4H' : tf.toUpperCase();
 }
 
+/** Human-readable StochRSI reading: zone + momentum direction (%K above %D = đà tăng). */
+function stochLabel(k: number, d: number): string {
+  const zone =
+    k < 20 ? 'Quá bán' : k < 30 ? 'Gần quá bán' : k > 80 ? 'Quá mua' : k > 70 ? 'Gần quá mua' : 'Trung tính';
+  const dir = k > d ? 'đà tăng ↑' : k < d ? 'đà giảm ↓' : 'đi ngang';
+  return `${zone}, ${dir}`;
+}
+
 /** Format a price with sensible significant digits regardless of magnitude. */
 function fmtPrice(n: number): string {
   if (!Number.isFinite(n)) return '—';
@@ -223,7 +231,7 @@ export class EmaStochScanService {
         lines = [
           `⏳ <b>GẦN THOẢ MÃN · ${symbol}</b> (${tf}) · <b>${m.score}đ</b>`,
           `Giá: <b>${fmtPrice(m.price)}</b> · cách EMA34 <b>-${(m.distPct * 100).toFixed(1)}%</b>`,
-          `StochRSI %K ${m.stochK.toFixed(1)} / %D ${m.stochD.toFixed(1)}`,
+          `StochRSI: <b>${stochLabel(m.stochK, m.stochD)}</b> (${m.stochK.toFixed(1)}/${m.stochD.toFixed(1)})`,
           `📝 ${m.note}`,
           `👀 Chưa vào — mở chart xem có nên chờ không.`,
         ];
@@ -232,7 +240,7 @@ export class EmaStochScanService {
           `🟢 <b>THOẢ MÃN · ${symbol}</b> (${tf}) · <b>${m.score}đ</b>`,
           `Vào LONG: <b>${fmtPrice(m.price)}</b>`,
           `Cách EMA34: <b>-${(m.distPct * 100).toFixed(1)}%</b> (dưới cụm EMA34&lt;89&lt;200)`,
-          `RSI ${m.rsi.toFixed(1)} · StochRSI %K ${m.stochK.toFixed(1)} / %D ${m.stochD.toFixed(1)} (quá bán, cắt lên)`,
+          `RSI ${m.rsi.toFixed(1)} · StochRSI: <b>${stochLabel(m.stochK, m.stochD)}</b> (${m.stochK.toFixed(1)}/${m.stochD.toFixed(1)})`,
           `🎯 TP +10%: <b>${fmtPrice(m.tpPrice)}</b>`,
           `⚠️ Chiến lược không cắt lỗ — giữ tới khi chạm TP.`,
         ];

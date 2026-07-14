@@ -47,6 +47,18 @@ function tfLabel(tf: string): string {
   return tf === '1d' ? '1D' : tf === '4h' ? '4H' : tf.toUpperCase();
 }
 
+/**
+ * Human-readable StochRSI reading: zone (quá bán/quá mua) + momentum direction
+ * (%K above %D = đà tăng). Turns raw "%K 9.3 / %D 5.4" into "Quá bán, đà tăng ↑".
+ */
+function stochLabel(k: number | null | undefined, d: number | null | undefined): string {
+  if (k == null || d == null || !Number.isFinite(k) || !Number.isFinite(d)) return '—';
+  const zone =
+    k < 20 ? 'Quá bán' : k < 30 ? 'Gần quá bán' : k > 80 ? 'Quá mua' : k > 70 ? 'Gần quá mua' : 'Trung tính';
+  const dir = k > d ? 'đà tăng ↑' : k < d ? 'đà giảm ↓' : 'đi ngang';
+  return `${zone}, ${dir}`;
+}
+
 export function EmaBounceFeed({
   initialCoins,
   initialSignals,
@@ -190,7 +202,7 @@ export function EmaBounceFeed({
                     <div className="eb-kv"><span>Điểm</span><span className={`eb-score-inline ${scoreCls(m.score)}`}>{m.score}đ</span></div>
                     <div className="eb-kv"><span>Giá</span><span>{fmtPrice(m.price)}</span></div>
                     <div className="eb-kv"><span>Cách EMA34</span><span className="eb-red">-{(m.distPct * 100).toFixed(1)}%</span></div>
-                    <div className="eb-kv"><span>StochRSI</span><span>%K {m.stochK.toFixed(1)} / %D {m.stochD.toFixed(1)}</span></div>
+                    <div className="eb-kv"><span>StochRSI</span><span>{stochLabel(m.stochK, m.stochD)}<span className="eb-stoch-num"> ({m.stochK.toFixed(1)}/{m.stochD.toFixed(1)})</span></span></div>
                     <div className="eb-kv"><span>TP +10%</span><span className="eb-green">{fmtPrice(m.tpPrice)}</span></div>
                     {m.note && <div className="eb-signal-note">{m.note}</div>}
                   </div>
@@ -257,7 +269,10 @@ export function EmaBounceFeed({
                   <div className="eb-kv"><span>TP +10%</span><span className="eb-green">{fmtPrice(s.tpPrice)}</span></div>
                   <div className="eb-kv"><span>Cách EMA34</span><span className="eb-red">-{(s.distPct * 100).toFixed(1)}%</span></div>
                   <div className="eb-kv"><span>RSI</span><span>{s.rsi != null ? s.rsi.toFixed(1) : '—'}</span></div>
-                  <div className="eb-kv"><span>StochRSI</span><span>{s.stochK != null ? `%K ${s.stochK.toFixed(1)} / %D ${s.stochD?.toFixed(1)}` : '—'}</span></div>
+                  <div className="eb-kv" title="StochRSI: %K là đường nhanh, %D là đường tín hiệu chậm. %K trên %D = đà tăng.">
+                    <span>StochRSI</span>
+                    <span>{stochLabel(s.stochK, s.stochD)}{s.stochK != null && <span className="eb-stoch-num"> ({s.stochK.toFixed(1)}/{s.stochD?.toFixed(1)})</span>}</span>
+                  </div>
                   {s.note && <div className="eb-signal-note">{s.note}</div>}
                   <div className="eb-kv eb-kv-time"><span>Kích hoạt</span><span>{fmtTime(s.triggeredAt)}</span></div>
                 </div>
