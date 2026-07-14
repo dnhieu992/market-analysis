@@ -23,11 +23,18 @@ function fmtTime(iso: string): string {
   return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  open: { label: 'Đang mở', cls: 'eb-badge-open' },
-  hit_tp: { label: 'Đã chạm TP +10%', cls: 'eb-badge-tp' },
-  expired: { label: 'Hết hạn', cls: 'eb-badge-exp' },
+const STAGE_META: Record<string, { label: string; cls: string }> = {
+  near: { label: '⏳ Gần thoả mãn', cls: 'eb-badge-near' },
+  reach: { label: '🟢 Thoả mãn', cls: 'eb-badge-reach' },
+  risk: { label: '🔔 Gần TP', cls: 'eb-badge-risk' },
 };
+
+/** Badge for a persisted card: closed states win, otherwise show the monitoring stage. */
+function badgeFor(s: { status: string; stage: string }): { label: string; cls: string } {
+  if (s.status === 'hit_tp') return { label: 'Đã chạm TP +10%', cls: 'eb-badge-tp' };
+  if (s.status === 'expired') return { label: 'Hết hạn', cls: 'eb-badge-exp' };
+  return STAGE_META[s.stage] ?? STAGE_META.reach!;
+}
 
 function tfLabel(tf: string): string {
   return tf === '1d' ? '1D' : tf === '4h' ? '4H' : tf.toUpperCase();
@@ -49,6 +56,7 @@ export function EmaBounceFeed({
   const [preview, setPreview] = useState<EmaBounceMatch[] | null>(null);
   const [showOpenOnly, setShowOpenOnly] = useState(false);
   const [tfFilter, setTfFilter] = useState<'all' | '4h' | '1d'>('all');
+  const [stageFilter, setStageFilter] = useState<'all' | 'near' | 'reach' | 'risk'>('all');
 
   async function addCoin() {
     const sym = newSymbol.trim().toUpperCase();
@@ -100,7 +108,8 @@ export function EmaBounceFeed({
 
   const shown = signals
     .filter((s) => (showOpenOnly ? s.status === 'open' : true))
-    .filter((s) => (tfFilter === 'all' ? true : s.timeframe === tfFilter));
+    .filter((s) => (tfFilter === 'all' ? true : s.timeframe === tfFilter))
+    .filter((s) => (stageFilter === 'all' ? true : s.stage === stageFilter));
 
   return (
     <div className="eb-page">
@@ -110,7 +119,12 @@ export function EmaBounceFeed({
           <p className="eb-sub">
             LONG khi giá dưới cụm <b>EMA34&lt;89&lt;200</b>, giãn <b>7–15%</b> dưới EMA34 và StochRSI %K
             cắt lên %D trong vùng quá bán. TP <b>+10%</b>, không cắt lỗ. Worker tự quét khung <b>4H</b> (mỗi 4h)
-            và <b>D1</b> (mỗi ngày) → tạo card + gửi Telegram, ghi rõ khung quét.
+            và <b>D1</b> (mỗi ngày).
+          </p>
+          <p className="eb-sub">
+            Mỗi card đi qua 3 giai đoạn: <b className="eb-near">⏳ Gần thoả mãn</b> (giãn 5–18%, StochRSI sắp/vừa cắt —
+            để canh chart) → <b className="eb-reach">🟢 Thoả mãn</b> (đủ điều kiện vào lệnh) →{' '}
+            <b className="eb-risk">🔔 Gần TP</b> (giá đã gần chạm TP +10%). Mỗi lần đổi giai đoạn đều gửi Telegram.
           </p>
         </div>
       </header>
@@ -145,23 +159,27 @@ export function EmaBounceFeed({
       {/* Live preview matches */}
       {preview && (
         <section className="eb-card">
-          <h2 className="eb-h2">Khớp ngay bây giờ ({preview.length})</h2>
+          <h2 className="eb-h2">Gần / khớp ngay bây giờ ({preview.length})</h2>
           {preview.length === 0 ? (
-            <p className="eb-muted">Không có coin nào khớp trên nến 4h vừa đóng.</p>
+            <p className="eb-muted">Không có coin nào gần hoặc khớp trên nến vừa đóng.</p>
           ) : (
             <div className="eb-grid">
-              {preview.map((m) => (
-                <div key={`${m.symbol}-${m.timeframe}`} className="eb-mini">
-                  <div className="eb-mini-head">
-                    <b>{m.symbol} <span className="eb-tf">{tfLabel(m.timeframe)}</span></b>
-                    <span className="eb-badge eb-badge-open">khớp</span>
+              {preview.map((m) => {
+                const meta = STAGE_META[m.stage] ?? STAGE_META.reach!;
+                return (
+                  <div key={`${m.symbol}-${m.timeframe}`} className="eb-mini">
+                    <div className="eb-mini-head">
+                      <b>{m.symbol} <span className="eb-tf">{tfLabel(m.timeframe)}</span></b>
+                      <span className={`eb-badge ${meta.cls}`}>{meta.label}</span>
+                    </div>
+                    <div className="eb-kv"><span>Giá</span><span>{fmtPrice(m.price)}</span></div>
+                    <div className="eb-kv"><span>Cách EMA34</span><span className="eb-red">-{(m.distPct * 100).toFixed(1)}%</span></div>
+                    <div className="eb-kv"><span>StochRSI</span><span>%K {m.stochK.toFixed(1)} / %D {m.stochD.toFixed(1)}</span></div>
+                    <div className="eb-kv"><span>TP +10%</span><span className="eb-green">{fmtPrice(m.tpPrice)}</span></div>
+                    {m.note && <div className="eb-signal-note">{m.note}</div>}
                   </div>
-                  <div className="eb-kv"><span>Giá</span><span>{fmtPrice(m.price)}</span></div>
-                  <div className="eb-kv"><span>Cách EMA34</span><span className="eb-red">-{(m.distPct * 100).toFixed(1)}%</span></div>
-                  <div className="eb-kv"><span>StochRSI</span><span>%K {m.stochK.toFixed(1)} / %D {m.stochD.toFixed(1)}</span></div>
-                  <div className="eb-kv"><span>TP +10%</span><span className="eb-green">{fmtPrice(m.tpPrice)}</span></div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <p className="eb-note">Đây là bản xem nhanh (không lưu). Card &amp; Telegram do worker tạo mỗi 4h.</p>
@@ -173,6 +191,12 @@ export function EmaBounceFeed({
         <div className="eb-row eb-between">
           <h2 className="eb-h2">Tín hiệu ({shown.length})</h2>
           <div className="eb-row">
+            <select className="eb-select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value as 'all' | 'near' | 'reach' | 'risk')}>
+              <option value="all">Mọi giai đoạn</option>
+              <option value="near">⏳ Gần thoả mãn</option>
+              <option value="reach">🟢 Thoả mãn</option>
+              <option value="risk">🔔 Gần TP</option>
+            </select>
             <select className="eb-select" value={tfFilter} onChange={(e) => setTfFilter(e.target.value as 'all' | '4h' | '1d')}>
               <option value="all">Tất cả khung</option>
               <option value="4h">4H</option>
@@ -190,7 +214,7 @@ export function EmaBounceFeed({
         ) : (
           <div className="eb-grid">
             {shown.map((s) => {
-              const st = STATUS_META[s.status] ?? { label: s.status, cls: 'eb-badge-exp' };
+              const st = badgeFor(s);
               const pnl = s.pnlPct ?? 0;
               return (
                 <div key={s.id} className="eb-signal">
@@ -201,12 +225,13 @@ export function EmaBounceFeed({
                   <div className="eb-signal-pnl" style={{ color: pnl >= 0 ? '#26a69a' : '#ef5350' }}>
                     {fmtPct(pnl)}
                   </div>
-                  <div className="eb-kv"><span>Vào lệnh</span><span>{fmtPrice(s.entryPrice)}</span></div>
+                  <div className="eb-kv"><span>{s.stage === 'near' ? 'Giá canh' : 'Vào lệnh'}</span><span>{fmtPrice(s.entryPrice)}</span></div>
                   <div className="eb-kv"><span>Hiện tại</span><span>{fmtPrice(s.currentPrice)}</span></div>
                   <div className="eb-kv"><span>TP +10%</span><span className="eb-green">{fmtPrice(s.tpPrice)}</span></div>
                   <div className="eb-kv"><span>Cách EMA34</span><span className="eb-red">-{(s.distPct * 100).toFixed(1)}%</span></div>
                   <div className="eb-kv"><span>RSI</span><span>{s.rsi != null ? s.rsi.toFixed(1) : '—'}</span></div>
                   <div className="eb-kv"><span>StochRSI</span><span>{s.stochK != null ? `%K ${s.stochK.toFixed(1)} / %D ${s.stochD?.toFixed(1)}` : '—'}</span></div>
+                  {s.note && <div className="eb-signal-note">{s.note}</div>}
                   <div className="eb-kv eb-kv-time"><span>Kích hoạt</span><span>{fmtTime(s.triggeredAt)}</span></div>
                 </div>
               );

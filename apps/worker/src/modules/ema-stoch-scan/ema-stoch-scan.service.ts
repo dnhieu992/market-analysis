@@ -1,11 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { detectEmaStackOversoldEntry, EMA_STACK_OVERSOLD_MIN_CANDLES } from '@app/core';
+import {
+  detectEmaStackOversoldSignal,
+  EMA_STACK_OVERSOLD_MIN_CANDLES,
+  type EmaStackSignalStage,
+} from '@app/core';
 import { createEmaStochScannerRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 const CANDLE_LIMIT = 300; // enough for EMA200 + StochRSI warm-up on any timeframe
+
+/** How close to the +10% TP counts as the "risk" (near-TP) stage. */
+const RISK_BAND = 0.02;
+
+/** Stage ordering — a card only ever advances (never falls back). */
+type Stage = EmaStackSignalStage | 'risk';
+const STAGE_RANK: Record<string, number> = { near: 0, reach: 1, risk: 2 };
 
 /** Human label for a scan timeframe, shown on cards and in Telegram. */
 function tfLabel(tf: string): string {
@@ -53,7 +64,15 @@ export class EmaStochScanService {
     return { scanned, failed, triggered };
   }
 
-  /** Scan one coin: detect a fresh entry on the last CLOSED candle of `timeframe`, then refresh its open cards. */
+  /**
+   * Scan one coin on `timeframe`:
+   *  - if it already has an OPEN card → refresh mark-to-market, TP-check, and advance its
+   *    stage (near → reach → risk), alerting once per new stage;
+   *  - otherwise, if the detector fires, create a fresh card at its detected stage
+   *    (near / reach) and alert.
+   * At most one open card per coin+timeframe, so a "near" watch flips in place to "reach"
+   * when the entry actually triggers — no duplicate cards.
+   */
   private async scanOne(coinId: string, symbol: string, timeframe: string): Promise<number> {
     const klines = await this.binance.fetchKlines({
       symbol: `${symbol}USDT`,
@@ -72,69 +91,128 @@ export class EmaStochScanService {
     const lastClose = closes[closes.length - 1]!;
     const lastCloseTime = closeTimes[closeTimes.length - 1]!;
 
-    let newSignals = 0;
-
-    // 1) Fresh entry on the just-closed candle.
-    const entry = detectEmaStackOversoldEntry(closes);
-    if (entry) {
-      const triggeredAt = new Date(lastCloseTime);
-      const res = await this.repo.createSignalIfNew(coinId, {
-        symbol,
-        timeframe,
-        triggeredAt,
-        entryPrice: entry.price,
-        tpPrice: entry.tpPrice,
-        distPct: entry.distPct,
-        rsi: entry.rsi,
-        stochK: entry.stochK,
-        stochD: entry.stochD,
-        ema34: entry.ema34,
-        ema89: entry.ema89,
-        ema200: entry.ema200,
-        currentPrice: entry.price,
-        pnlPct: 0,
-      });
-      if (res.created) {
-        newSignals++;
-        this.logger.log(`EMA-bounce signal (${timeframe}): ${symbol} @ ${entry.price} (dist -${(entry.distPct * 100).toFixed(1)}%)`);
-        await this.notify(symbol, timeframe, entry);
-      }
-    }
-
-    // 2) Refresh this coin's OPEN cards for THIS timeframe — mark-to-market + TP check.
+    const signal = detectEmaStackOversoldSignal(closes);
     const openSignals = await this.repo.findOpenSignalsByCoinAndTimeframe(coinId, timeframe);
+
+    // 1) Refresh + advance existing open cards.
     for (const sig of openSignals) {
       const trigMs = sig.triggeredAt.getTime();
-      // max high across candles that closed strictly after the signal candle
       let maxHighSince = -Infinity;
       for (let i = 0; i < closeTimes.length; i++) {
         if (closeTimes[i]! > trigMs && highs[i]! > maxHighSince) maxHighSince = highs[i]!;
       }
       const pnlPct = ((lastClose - sig.entryPrice) / sig.entryPrice) * 100;
+
       if (maxHighSince >= sig.tpPrice) {
         const tpPnl = ((sig.tpPrice - sig.entryPrice) / sig.entryPrice) * 100;
         await this.repo.markSignalHitTp(sig.id, lastClose, Number(tpPnl.toFixed(2)), new Date());
-      } else {
-        await this.repo.updateSignalMark(sig.id, lastClose, Number(pnlPct.toFixed(2)));
+        continue;
+      }
+
+      await this.repo.updateSignalMark(sig.id, lastClose, Number(pnlPct.toFixed(2)));
+
+      // Stage progression — monotonic (near → reach → risk).
+      const curRank = STAGE_RANK[sig.stage] ?? STAGE_RANK.reach!;
+      let nextStage: Stage = sig.stage as Stage;
+      let nextNote = sig.note ?? '';
+      if (lastClose >= sig.tpPrice * (1 - RISK_BAND)) {
+        nextStage = 'risk';
+        nextNote = `Giá +${pnlPct.toFixed(1)}% — gần chạm TP +10%`;
+      } else if (signal && signal.stage === 'reach') {
+        nextStage = 'reach';
+        nextNote = signal.note;
+      }
+      if ((STAGE_RANK[nextStage] ?? 0) > curRank) {
+        await this.repo.updateSignalStage(sig.id, nextStage, nextNote);
+        this.logger.log(`EMA-bounce ${symbol} (${timeframe}) ${sig.stage} → ${nextStage}`);
+        await this.notifyStage(symbol, timeframe, nextStage, {
+          price: lastClose,
+          tpPrice: sig.tpPrice,
+          distPct: sig.distPct,
+          rsi: sig.rsi ?? 0,
+          stochK: sig.stochK ?? 0,
+          stochD: sig.stochD ?? 0,
+          pnlPct,
+          note: nextNote,
+        });
       }
     }
 
-    return newSignals;
+    // 2) No open card yet → create one at its detected stage.
+    if (openSignals.length === 0 && signal) {
+      const res = await this.repo.createSignalIfNew(coinId, {
+        symbol,
+        timeframe,
+        triggeredAt: new Date(lastCloseTime),
+        stage: signal.stage,
+        note: signal.note,
+        entryPrice: signal.price,
+        tpPrice: signal.tpPrice,
+        distPct: signal.distPct,
+        rsi: signal.rsi,
+        stochK: signal.stochK,
+        stochD: signal.stochD,
+        ema34: signal.ema34,
+        ema89: signal.ema89,
+        ema200: signal.ema200,
+        currentPrice: signal.price,
+        pnlPct: 0,
+      });
+      if (res.created) {
+        this.logger.log(`EMA-bounce ${signal.stage} (${timeframe}): ${symbol} @ ${signal.price} (dist -${(signal.distPct * 100).toFixed(1)}%)`);
+        await this.notifyStage(symbol, timeframe, signal.stage, {
+          price: signal.price,
+          tpPrice: signal.tpPrice,
+          distPct: signal.distPct,
+          rsi: signal.rsi,
+          stochK: signal.stochK,
+          stochD: signal.stochD,
+          pnlPct: 0,
+          note: signal.note,
+        });
+        return 1;
+      }
+    }
+
+    return 0;
   }
 
-  /** Text-only Telegram alert for a fresh entry. Never throws into the scan. */
-  private async notify(symbol: string, timeframe: string, entry: { price: number; tpPrice: number; distPct: number; rsi: number; stochK: number; stochD: number }): Promise<void> {
+  /** Labeled Telegram alert per stage transition. Never throws into the scan. */
+  private async notifyStage(
+    symbol: string,
+    timeframe: string,
+    stage: Stage,
+    m: { price: number; tpPrice: number; distPct: number; rsi: number; stochK: number; stochD: number; pnlPct: number; note: string },
+  ): Promise<void> {
     try {
       const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
       if (!chatId) return;
-      const lines = [
-        `🟢 <b>EMA Bounce · ${symbol}</b> (${tfLabel(timeframe)})`,
-        `Vào LONG: <b>${fmtPrice(entry.price)}</b>`,
-        `Cách EMA34: <b>-${(entry.distPct * 100).toFixed(1)}%</b> (dưới cụm EMA34&lt;89&lt;200)`,
-        `RSI ${entry.rsi.toFixed(1)} · StochRSI %K ${entry.stochK.toFixed(1)} / %D ${entry.stochD.toFixed(1)} (quá bán, cắt lên)`,
-        `🎯 TP +10%: <b>${fmtPrice(entry.tpPrice)}</b>`,
-        `⚠️ Chiến lược không cắt lỗ — giữ tới khi chạm TP.`,
-      ];
+      const tf = tfLabel(timeframe);
+      let lines: string[];
+      if (stage === 'near') {
+        lines = [
+          `⏳ <b>GẦN THOẢ MÃN · ${symbol}</b> (${tf})`,
+          `Giá: <b>${fmtPrice(m.price)}</b> · cách EMA34 <b>-${(m.distPct * 100).toFixed(1)}%</b>`,
+          `StochRSI %K ${m.stochK.toFixed(1)} / %D ${m.stochD.toFixed(1)}`,
+          `📝 ${m.note}`,
+          `👀 Chưa vào — mở chart xem có nên chờ không.`,
+        ];
+      } else if (stage === 'reach') {
+        lines = [
+          `🟢 <b>THOẢ MÃN · ${symbol}</b> (${tf})`,
+          `Vào LONG: <b>${fmtPrice(m.price)}</b>`,
+          `Cách EMA34: <b>-${(m.distPct * 100).toFixed(1)}%</b> (dưới cụm EMA34&lt;89&lt;200)`,
+          `RSI ${m.rsi.toFixed(1)} · StochRSI %K ${m.stochK.toFixed(1)} / %D ${m.stochD.toFixed(1)} (quá bán, cắt lên)`,
+          `🎯 TP +10%: <b>${fmtPrice(m.tpPrice)}</b>`,
+          `⚠️ Chiến lược không cắt lỗ — giữ tới khi chạm TP.`,
+        ];
+      } else {
+        lines = [
+          `🔔 <b>GẦN TP · ${symbol}</b> (${tf})`,
+          `Giá: <b>${fmtPrice(m.price)}</b> (${m.pnlPct >= 0 ? '+' : ''}${m.pnlPct.toFixed(1)}%)`,
+          `🎯 TP +10%: <b>${fmtPrice(m.tpPrice)}</b> — đã gần chạm, cân nhắc chốt/theo dõi.`,
+        ];
+      }
       await this.telegram.sendToChat(chatId, lines.join('\n'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

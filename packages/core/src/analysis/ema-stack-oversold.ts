@@ -95,3 +95,141 @@ export function detectEmaStackOversoldEntry(
     tpPrice: price * (1 + cfg.tpPct),
   };
 }
+
+/**
+ * "Near / reach" monitoring detector — a wider net than the strict entry above.
+ *
+ * The strict `detectEmaStackOversoldEntry` only fires on the exact cross candle. For the
+ * /ema-bounce watchlist the user wants to ALSO surface coins that are *about to* qualify,
+ * so they can eyeball the chart before deciding. This returns the best stage:
+ *
+ *   - `reach` — the entry actually fired: bearish EMA stack, stretched 7–15% below EMA34,
+ *     and a StochRSI bullish cross in oversold happened within the last `crossLookback`
+ *     candles while price has NOT yet run more than `maxRunPct` past the cross close.
+ *     (The exact-cross-candle case is the strict signal.)
+ *   - `near` — almost there: still under the EMA stack and inside a wider 5–18% band, and
+ *     EITHER the StochRSI lines are converging about to cross up in oversold, OR they have
+ *     crossed but the distance is a bit off (too shallow / a touch deep).
+ *
+ * Returns null when not even "near" (or when price already ran > maxRunPct past a cross —
+ * a missed/late entry that isn't worth surfacing fresh).
+ */
+export type EmaStackSignalStage = 'near' | 'reach';
+
+export type EmaStackNearConfig = {
+  nearDistMin: number;   // widened min distance below EMA34 for "near", e.g. 0.05
+  nearDistMax: number;   // widened max distance below EMA34 for "near", e.g. 0.18
+  crossLookback: number; // how many recent candles back a cross still counts, e.g. 3
+  maxRunPct: number;     // max run past the cross close to still count as fresh, e.g. 0.05
+  crossGap: number;      // max (%D − %K) gap to count lines as "about to cross", e.g. 6
+};
+
+export const DEFAULT_EMA_STACK_NEAR_CONFIG: EmaStackNearConfig = {
+  nearDistMin: 0.05,
+  nearDistMax: 0.18,
+  crossLookback: 3,
+  maxRunPct: 0.05,
+  crossGap: 6,
+};
+
+export type EmaStackOversoldSignal = EmaStackOversoldEntry & {
+  stage: EmaStackSignalStage;
+  /** Short Vietnamese explanation of why it's at this stage (shown on the card). */
+  note: string;
+  /** A StochRSI bullish cross in oversold happened within the lookback window. */
+  crossed: boolean;
+  /** The StochRSI lines are converging, about to cross up in oversold (no cross yet). */
+  aboutToCross: boolean;
+};
+
+export function detectEmaStackOversoldSignal(
+  closes: number[],
+  config: Partial<EmaStackOversoldConfig & EmaStackNearConfig> = {},
+): EmaStackOversoldSignal | null {
+  const cfg = { ...DEFAULT_EMA_STACK_OVERSOLD_CONFIG, ...DEFAULT_EMA_STACK_NEAR_CONFIG, ...config };
+  if (closes.length < EMA_STACK_OVERSOLD_MIN_CANDLES) return null;
+
+  const price = closes[closes.length - 1]!;
+  const ema34 = calculateEma(closes, 34);
+  const ema89 = calculateEma(closes, 89);
+  const ema200 = calculateEma(closes, 200);
+
+  // 1) structural: still under a bearish EMA stack
+  if (!(price < ema34 && ema34 < ema89 && ema89 < ema200)) return null;
+
+  // 2) inside the WIDER near band (the strict 7–15% band is a subset of this)
+  const distPct = (ema34 - price) / ema34;
+  if (distPct < cfg.nearDistMin || distPct > cfg.nearDistMax) return null;
+
+  const { k, d } = calculateStochRsi(closes);
+  const n = closes.length;
+  const kNow = k[n - 1];
+  const kPrev = k[n - 2];
+  const dNow = d[n - 1];
+  const dPrev = d[n - 2];
+  if (
+    kNow === undefined || kPrev === undefined || dNow === undefined || dPrev === undefined ||
+    Number.isNaN(kNow) || Number.isNaN(kPrev) || Number.isNaN(dNow) || Number.isNaN(dPrev)
+  ) {
+    return null;
+  }
+
+  // 3a) most recent bullish cross in oversold within the lookback window
+  let crossIdx = -1;
+  const oldest = Math.max(1, n - cfg.crossLookback);
+  for (let i = n - 1; i >= oldest; i--) {
+    const kc = k[i], kc0 = k[i - 1], dc = d[i], dc0 = d[i - 1];
+    if (kc === undefined || kc0 === undefined || dc === undefined || dc0 === undefined) continue;
+    if (kc0 <= dc0 && kc > dc && kc < cfg.osLevel) { crossIdx = i; break; }
+  }
+  const crossed = crossIdx >= 0;
+
+  // 3b) lines converging, about to cross up in oversold (no confirmed cross yet)
+  const gap = dNow - kNow;
+  const aboutToCross =
+    !crossed && kNow <= dNow && kNow >= kPrev && gap <= cfg.crossGap && kNow < cfg.osLevel;
+
+  if (!crossed && !aboutToCross) return null;
+
+  // Reject stale entries: a cross that already ran past maxRunPct is a missed setup.
+  const runSinceCross = crossed ? (price - closes[crossIdx]!) / closes[crossIdx]! : 0;
+  if (crossed && runSinceCross > cfg.maxRunPct) return null;
+
+  const inReachDist = distPct >= cfg.distMin && distPct <= cfg.distMax;
+
+  let stage: EmaStackSignalStage;
+  let note: string;
+  if (crossed && inReachDist) {
+    stage = 'reach';
+    const ago = n - 1 - crossIdx;
+    const run = `${runSinceCross >= 0 ? '+' : ''}${(runSinceCross * 100).toFixed(1)}%`;
+    note = ago === 0
+      ? 'StochRSI vừa cắt lên trong vùng quá bán'
+      : `Đã cắt lên ${ago} nến trước, giá ${run}`;
+  } else {
+    stage = 'near';
+    if (crossed && !inReachDist) {
+      note = distPct < cfg.distMin
+        ? `Đã cắt lên nhưng mới giãn ${(distPct * 100).toFixed(1)}% (chưa đủ ${(cfg.distMin * 100).toFixed(0)}%)`
+        : `Đã cắt lên, giãn ${(distPct * 100).toFixed(1)}% (hơi sâu, >${(cfg.distMax * 100).toFixed(0)}%)`;
+    } else {
+      note = `StochRSI sắp cắt lên (%K dưới %D ${gap.toFixed(1)} điểm), giãn ${(distPct * 100).toFixed(1)}%`;
+    }
+  }
+
+  return {
+    stage,
+    note,
+    crossed,
+    aboutToCross,
+    price,
+    ema34,
+    ema89,
+    ema200,
+    distPct,
+    rsi: calculateRsi(closes, 14),
+    stochK: kNow,
+    stochD: dNow,
+    tpPrice: price * (1 + cfg.tpPct),
+  };
+}

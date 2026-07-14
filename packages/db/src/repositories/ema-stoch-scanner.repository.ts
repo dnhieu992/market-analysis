@@ -4,6 +4,8 @@ export type EmaStochSignalUpsert = {
   symbol: string;
   timeframe: string;
   triggeredAt: Date;
+  stage: string;
+  note?: string | null;
   entryPrice: number;
   tpPrice: number;
   distPct: number;
@@ -78,6 +80,8 @@ export function createEmaStochScannerRepository(client = prisma) {
           timeframe: input.timeframe,
           triggeredAt: input.triggeredAt,
           status: 'open',
+          stage: input.stage,
+          note: input.note ?? null,
           entryPrice: input.entryPrice,
           tpPrice: input.tpPrice,
           distPct: input.distPct,
@@ -100,6 +104,14 @@ export function createEmaStochScannerRepository(client = prisma) {
       return client.emaStochSignal.update({
         where: { id },
         data: { currentPrice, pnlPct, lastCheckedAt: new Date() },
+      });
+    },
+
+    /** Advance an open card's monitoring stage (near → reach → risk) + reason note. */
+    updateSignalStage(id: string, stage: string, note?: string | null) {
+      return client.emaStochSignal.update({
+        where: { id },
+        data: { stage, note: note ?? null, lastCheckedAt: new Date() },
       });
     },
 
