@@ -10331,7 +10331,7 @@ a.metric-card--link:hover {
 .eb-stoch-num { color: var(--muted); font-size: 11px; }
 
 /* ── Trading Journal (/journal) ─────────────────────────────── */
-.tj-page { display: flex; flex-direction: column; gap: 16px; max-width: 900px; }
+.tj-page { display: flex; flex-direction: column; gap: 16px; max-width: 900px; margin: 0 auto; padding: 8px; width: 100%; }
 .tj-header { display: flex; flex-direction: column; gap: 4px; }
 .tj-title { font-size: 22px; font-weight: 800; }
 .tj-sub { color: var(--muted); font-size: 13px; line-height: 1.5; }
