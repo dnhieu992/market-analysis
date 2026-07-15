@@ -23,6 +23,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Dashboard summary'
   },
   {
+    href: '/journal',
+    label: 'Trading Journal',
+    description: 'Nhật ký phân tích & cảm xúc hàng ngày + ảnh mô hình'
+  },
+  {
     href: '/portfolio',
     label: 'Portfolio',
     description: 'Coin holdings & PnL tracker'
@@ -96,11 +101,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/ema-bounce',
     label: 'EMA Bounce Scanner',
     description: 'Quét 4h: giá giãn dưới EMA34/89/200 + StochRSI quá bán'
-  },
-  {
-    href: '/journal',
-    label: 'Trading Journal',
-    description: 'Nhật ký phân tích & cảm xúc hàng ngày + ảnh mô hình'
   },
   {
     href: '/skills',
