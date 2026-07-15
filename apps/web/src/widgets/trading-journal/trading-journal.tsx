@@ -37,6 +37,7 @@ export function TradingJournal({ initialEntries }: { initialEntries: TradingJour
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [tagDraft, setTagDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reformatting, setReformatting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [loadedDate, setLoadedDate] = useState<string>('');
@@ -60,6 +61,21 @@ export function TradingJournal({ initialEntries }: { initialEntries: TradingJour
     const t = tagDraft.trim().replace(/,+$/, '').trim();
     if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
     setTagDraft('');
+  }
+
+  async function reformat() {
+    if (!content.trim() || reformatting) return;
+    setReformatting(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const formatted = await api.reformatJournal(content);
+      if (formatted.trim()) setContent(formatted);
+    } catch {
+      setError('Format lại nhật ký thất bại');
+    } finally {
+      setReformatting(false);
+    }
   }
 
   function onFilesPicked(e: ChangeEvent<HTMLInputElement>) {
@@ -132,7 +148,18 @@ export function TradingJournal({ initialEntries }: { initialEntries: TradingJour
         </div>
 
         <div className="tj-field">
-          <span className="tj-label">Nội dung</span>
+          <div className="tj-row tj-between">
+            <span className="tj-label">Nội dung</span>
+            <button
+              type="button"
+              className="tj-btn tj-btn-ghost tj-btn-sm"
+              onClick={reformat}
+              disabled={reformatting || !content.trim()}
+              title="Nhờ Claude (Haiku) format lại nội dung cho gọn gàng"
+            >
+              {reformatting ? 'Đang format…' : '✨ Format lại'}
+            </button>
+          </div>
           <MarkdownEditor
             value={content}
             onChange={setContent}

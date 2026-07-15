@@ -1027,6 +1027,19 @@ export function createApiClient(options: ApiClientOptions = {}) {
       await fetchImpl(`${baseUrl}/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
 
+    async reformatJournal(content: string): Promise<string> {
+      const res = await fetchJson<{ content: string }>(
+        fetchImpl,
+        `${baseUrl}/journal/reformat`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        }),
+      );
+      return res.content;
+    },
+
     async fetchMemeRadar(): Promise<MemeCoinRow[]> {
       return fetchJson<MemeCoinRow[]>(fetchImpl, `${baseUrl}/meme-radar`, withDefaults());
     },

@@ -10360,6 +10360,9 @@ a.metric-card--link:hover {
 .tj-btn { padding: 9px 16px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .tj-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .tj-btn-danger { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+.tj-btn-ghost { background: transparent; border-color: var(--border); color: var(--accent); }
+.tj-btn-ghost:hover:not(:disabled) { border-color: var(--accent); }
+.tj-btn-sm { padding: 5px 12px; font-size: 13px; }
 .tj-btn:disabled { opacity: 0.6; cursor: default; }
 .tj-saved { color: #26a69a; font-size: 13px; font-weight: 600; }
 .tj-h2 { font-size: 16px; font-weight: 700; }

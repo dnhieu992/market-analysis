@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Inject, Param, Post } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { ReformatJournalDto } from './dto/reformat-journal.dto';
 import { UpsertJournalDto } from './dto/upsert-journal.dto';
 import { JournalService } from './journal.service';
 
@@ -29,6 +30,12 @@ export class JournalController {
   @ApiOperation({ summary: 'Create or update the journal entry for a day' })
   upsert(@Body() body: UpsertJournalDto) {
     return this.service.upsert(body);
+  }
+
+  @Post('reformat')
+  @ApiOperation({ summary: 'Reformat raw journal markdown via Claude Haiku' })
+  reformat(@Body() body: ReformatJournalDto) {
+    return this.service.reformat(body.content);
   }
 
   @Delete(':id')

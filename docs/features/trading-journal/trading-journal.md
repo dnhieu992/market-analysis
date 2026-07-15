@@ -20,6 +20,12 @@ so entries are kept as free text plus tags, with images stored in Cloudflare R2.
 5. The **past-entries list** below shows every day (date, image count, first-line preview,
    tags). Clicking an item opens that day in the editor. **Xoá ngày này** deletes via
    `DELETE /journal/:id`.
+6. **✨ Format lại** (next to the "Nội dung" label): sends the current editor content to
+   `POST /journal/reformat`, which asks **Claude Haiku** (`claude-haiku-4-5-20251001`, hard-coded
+   — not the app's `CLAUDE_MODEL`) to clean up the raw markdown (headings, bullet lists, bold key
+   levels, fix typos / HTML entities, fix broken indentation) while preserving meaning and the
+   Vietnamese voice. The returned markdown replaces the editor content; nothing is persisted until
+   the user hits Save. This does **not** change the data on its own.
 
 ## Edge Cases
 - **One entry per day** — the `TradingJournalEntry.date` column is `@unique`; `POST /journal`
@@ -39,16 +45,17 @@ so entries are kept as free text plus tags, with images stored in Cloudflare R2.
 - `packages/db/prisma/migrations/20260714160000_add_trading_journal/migration.sql` — creates the table
 - `packages/db/src/repositories/trading-journal.repository.ts` — `createTradingJournalRepository` (findAll/findByDate/upsertByDate/deleteById)
 - `packages/db/src/index.ts` — exports the repository + `TradingJournalUpsert`
-- `apps/api/src/modules/journal/journal.service.ts` — CRUD + DTO mapping (Json → string[], date-only handling)
-- `apps/api/src/modules/journal/journal.controller.ts` — `GET /journal`, `GET /journal/:date`, `POST /journal`, `DELETE /journal/:id`
+- `apps/api/src/modules/journal/journal.service.ts` — CRUD + DTO mapping (Json → string[], date-only handling) + `reformat()` (Claude Haiku call)
+- `apps/api/src/modules/journal/journal.controller.ts` — `GET /journal`, `GET /journal/:date`, `POST /journal`, `POST /journal/reformat`, `DELETE /journal/:id`
 - `apps/api/src/modules/journal/dto/upsert-journal.dto.ts` — validated upsert body
+- `apps/api/src/modules/journal/dto/reformat-journal.dto.ts` — validated reformat body (`{ content }`)
 - `apps/api/src/modules/journal/journal.module.ts` — module wiring
 - `apps/api/src/app.module.ts` — registers `JournalModule`
 - `apps/api/src/modules/upload/*` — existing `POST /upload/images` (Cloudflare R2) reused for images
 - `apps/web/src/app/journal/page.tsx` — App Router route (thin re-export)
 - `apps/web/src/_pages/journal-page/journal-page.tsx` — server page, loads entries
 - `apps/web/src/widgets/trading-journal/trading-journal.tsx` — client UI (editor, tags, image upload, entry list)
-- `apps/web/src/shared/api/client.ts` — `fetchJournalEntries`, `saveJournalEntry`, `deleteJournalEntry` (+ reused `uploadImages`)
+- `apps/web/src/shared/api/client.ts` — `fetchJournalEntries`, `saveJournalEntry`, `deleteJournalEntry`, `reformatJournal` (+ reused `uploadImages`)
 - `apps/web/src/shared/api/types.ts` — `TradingJournalEntry`
 - `apps/web/src/shared/ui/markdown-editor/markdown-editor.tsx` — reused TipTap editor
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — sidebar nav entry
