@@ -77,7 +77,9 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
    server-rendered PNG from `GET /ema-bounce/chart`. The chart mirrors the daily-plan visual
    pipeline (candlesticks + S/R + current-price line via `chartjs-node-canvas`) but is tuned to
    this strategy: **EMA34/89/200** (the stack the setup uses) plus dashed **Entry** and **TP +10%**
-   lines. The visible window (~140 candles) is **centered on the setup candle** (`focusTime` =
+   lines, and a **StochRSI(14,14,3,3) pane** below price (%K blue / %D orange, 20/80 zones) — the
+   same oscillator the scanner triggers on. The chart is rendered light-mode (white background).
+   The visible window (~140 candles) is **centered on the setup candle** (`focusTime` =
    the card's `triggeredAt`) with a faint highlight band on that candle, so the "vùng giá thoả
    mãn" sits in the middle. Preview matches (which happen "now") have no `focusTime`, so they show
    the most recent candles instead.

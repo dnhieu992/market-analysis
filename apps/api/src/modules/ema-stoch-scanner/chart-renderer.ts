@@ -19,6 +19,9 @@ export type EmaBounceChartInput = {
   supportLevels: number[];
   resistanceLevels: number[];
   currentPrice: number;
+  /** StochRSI %K / %D series (0–100), aligned with candles[] — drawn in a pane below price. */
+  stochK: number[];
+  stochD: number[];
   /** Optional planned entry price — drawn as a dashed yellow line. */
   entryPrice?: number | null;
   /** Optional take-profit price — drawn as a dashed green line. */
@@ -28,7 +31,9 @@ export type EmaBounceChartInput = {
 };
 
 const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 800;
+const CANVAS_HEIGHT = 980;
+// Height reserved at the bottom for the StochRSI oscillator pane.
+const STOCH_PANE_HEIGHT = 180;
 
 /**
  * Draws OHLC candlesticks and, when a focus candle is given, a faint vertical
@@ -90,10 +95,103 @@ function buildCandlestickPlugin(
   };
 }
 
+/**
+ * Draws a StochRSI oscillator pane in the reserved band below the price chart:
+ * %K (blue) / %D (orange) lines, 20/80 oversold-overbought guides + shaded zones.
+ */
+function buildStochRsiPlugin(stochK: number[], stochD: number[]): Plugin {
+  return {
+    id: 'stochrsi',
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      const xScale = scales['x'];
+      if (!xScale) return;
+
+      const left = xScale.left;
+      const right = xScale.left + xScale.width;
+      const bandTop = chartArea.bottom + 26;
+      const bandBottom = chart.height - 28;
+      const bandH = bandBottom - bandTop;
+      const yFor = (v: number) => bandBottom - (Math.max(0, Math.min(100, v)) / 100) * bandH;
+
+      ctx.save();
+
+      // Shaded oversold (<20) and overbought (>80) zones.
+      ctx.fillStyle = 'rgba(38,166,154,0.07)';
+      ctx.fillRect(left, yFor(20), right - left, bandBottom - yFor(20));
+      ctx.fillStyle = 'rgba(239,83,80,0.07)';
+      ctx.fillRect(left, bandTop, right - left, yFor(80) - bandTop);
+
+      // Panel border.
+      ctx.strokeStyle = 'rgba(15,23,42,0.15)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left, bandTop, right - left, bandH);
+
+      // Guide lines at 80 / 50 / 20 with right-edge labels.
+      const guide = (val: number, color: string, dash: number[]) => {
+        const y = yFor(val);
+        ctx.beginPath();
+        ctx.setLineDash(dash);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = color;
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(String(val), right - 4, y - 3);
+      };
+      guide(80, 'rgba(239,83,80,0.65)', [4, 3]);
+      guide(50, 'rgba(100,116,139,0.4)', [2, 3]);
+      guide(20, 'rgba(38,166,154,0.65)', [4, 3]);
+
+      // %D (slow) then %K (fast) on top.
+      const drawLine = (arr: number[], color: string) => {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.6;
+        let started = false;
+        for (let i = 0; i < arr.length; i++) {
+          const v = arr[i];
+          if (v == null || Number.isNaN(v)) {
+            started = false;
+            continue;
+          }
+          const x = xScale.getPixelForValue(i);
+          const y = yFor(v);
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+      };
+      drawLine(stochD, '#f59e0b');
+      drawLine(stochK, '#2563eb');
+
+      // Title + inline legend.
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = '#334155';
+      ctx.fillText('StochRSI (14,14,3,3)', left + 6, bandTop + 14);
+      ctx.fillStyle = '#2563eb';
+      ctx.fillText('%K', left + 150, bandTop + 14);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('%D', left + 180, bandTop + 14);
+
+      ctx.restore();
+    },
+  };
+}
+
 export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<Buffer> {
   const {
     candles, ema34, ema89, ema200, supportLevels, resistanceLevels,
-    currentPrice, entryPrice, tpPrice, symbol, timeframe, focusIndex = null,
+    currentPrice, stochK, stochD, entryPrice, tpPrice, symbol, timeframe, focusIndex = null,
   } = input;
 
   const labels = candles.map((_, i) => i);
@@ -205,7 +303,8 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
       responsive: false,
       animation: false,
       layout: {
-        padding: { top: 40, right: 20, bottom: 20, left: 10 },
+        // Reserve the bottom band for the StochRSI pane drawn by its plugin.
+        padding: { top: 40, right: 20, bottom: STOCH_PANE_HEIGHT + 30, left: 10 },
       },
       scales: {
         x: {
@@ -240,7 +339,7 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
         },
       },
     },
-    plugins: [buildCandlestickPlugin(candles, focusIndex)],
+    plugins: [buildCandlestickPlugin(candles, focusIndex), buildStochRsiPlugin(stochK, stochD)],
   };
 
   // Anchor the y-axis to the visible price range (candles + EMAs + plan lines).

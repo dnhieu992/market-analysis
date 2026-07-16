@@ -3,6 +3,7 @@ import {
   scoreEmaStackOversoldSetup,
   EMA_STACK_OVERSOLD_MIN_CANDLES,
   extractSupportAndResistanceLevels,
+  calculateStochRsi,
 } from '@app/core';
 import { createEmaStochScannerRepository } from '@app/db';
 
@@ -207,6 +208,8 @@ export class EmaStochScannerService {
     const ema34Full = computeEmaSeries(closes, 34);
     const ema89Full = computeEmaSeries(closes, 89);
     const ema200Full = computeEmaSeries(closes, 200);
+    // Same StochRSI(14,14,3,3) the scanner uses, so the pane matches the signal.
+    const { k: stochKFull, d: stochDFull } = calculateStochRsi(closes);
 
     // Locate the candle whose window contains `focusTime` (falls back to nearest
     // open ≤ focusTime). null → no valid focus, show the latest candles.
@@ -237,6 +240,8 @@ export class EmaStochScannerService {
     const ema34 = ema34Full.slice(startIdx, endIdx);
     const ema89 = ema89Full.slice(startIdx, endIdx);
     const ema200 = ema200Full.slice(startIdx, endIdx);
+    const stochK = stochKFull.slice(startIdx, endIdx);
+    const stochD = stochDFull.slice(startIdx, endIdx);
     const focusIndex = fullFocusIdx != null ? fullFocusIdx - startIdx : null;
 
     const { supportLevels, resistanceLevels } = extractSupportAndResistanceLevels(displayCandles, 2);
@@ -252,6 +257,8 @@ export class EmaStochScannerService {
       supportLevels: supportLevels.filter(Number.isFinite),
       resistanceLevels: resistanceLevels.filter(Number.isFinite),
       currentPrice,
+      stochK,
+      stochD,
       entryPrice: params.entry ?? null,
       tpPrice: params.tp ?? null,
       focusIndex,
