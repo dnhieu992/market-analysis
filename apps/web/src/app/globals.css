@@ -10394,14 +10394,18 @@ a.metric-card--link:hover {
 }
 .eb-chart-btn:hover { border-color: var(--accent); background: rgba(59,130,246,0.08); }
 
-.eb-chart-dialog { background: #1a1a2e; }
-.eb-chart-note { font-size: 12px; font-weight: 500; color: var(--muted); }
+.eb-chart-dialog { background: #ffffff; color: #0f172a; }
+.eb-chart-dialog .dialog-header { border-bottom-color: #e2e8f0; }
+.eb-chart-dialog .dialog-title { color: #0f172a; }
+.eb-chart-dialog .dialog-close { color: #64748b; }
+.eb-chart-dialog .dialog-close:hover { background: rgba(15,23,42,0.06); color: #0f172a; }
+.eb-chart-note { font-size: 12px; font-weight: 500; color: #64748b; }
 .eb-chart-body {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px;
-  background: #1a1a2e;
+  background: #ffffff;
 }
-.eb-chart-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
-.eb-chart-status { color: var(--muted); font-size: 14px; padding: 40px; }
+.eb-chart-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0; }
+.eb-chart-status { color: #64748b; font-size: 14px; padding: 40px; }

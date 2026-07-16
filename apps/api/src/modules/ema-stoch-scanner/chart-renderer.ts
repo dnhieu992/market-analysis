@@ -53,7 +53,7 @@ function buildCandlestickPlugin(
       if (focusIndex != null && focusIndex >= 0 && focusIndex < candles.length) {
         const fx = xScale.getPixelForValue(focusIndex);
         ctx.save();
-        ctx.fillStyle = 'rgba(255, 235, 59, 0.10)';
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.12)';
         ctx.fillRect(fx - barWidth, yScale.top, barWidth * 2, yScale.bottom - yScale.top);
         ctx.restore();
       }
@@ -190,7 +190,7 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
         {
           label: 'Giá hiện tại',
           data: flatLine(currentPrice),
-          borderColor: 'rgba(255, 255, 255, 0.5)',
+          borderColor: 'rgba(30, 41, 59, 0.55)',
           borderWidth: 1,
           borderDash: [4, 4],
           pointRadius: 0,
@@ -214,10 +214,10 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
         y: {
           position: 'right',
           grid: {
-            color: 'rgba(255,255,255,0.05)',
+            color: 'rgba(15,23,42,0.08)',
           },
           ticks: {
-            color: '#aaa',
+            color: '#475569',
             font: { size: 11 },
           },
         },
@@ -227,7 +227,7 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
           display: true,
           position: 'top',
           labels: {
-            color: '#ccc',
+            color: '#334155',
             font: { size: 11 },
             filter: (item) => item.text !== '_range',
           },
@@ -235,7 +235,7 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
         title: {
           display: true,
           text: `${symbol} ${timeframe}`,
-          color: '#eee',
+          color: '#0f172a',
           font: { size: 14, weight: 'bold' },
         },
       },
@@ -263,7 +263,7 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
   const chartCanvas = new ChartJSNodeCanvas({
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT,
-    backgroundColour: '#1a1a2e',
+    backgroundColour: '#ffffff',
   });
 
   return chartCanvas.renderToBuffer(config);

@@ -93,7 +93,9 @@ function ChartDialog({ target, onClose }: { target: ChartTarget; onClose: () => 
     setImgSrc(null);
     setFailed(false);
 
-    fetch(chartUrl(target), { credentials: 'include', cache: 'no-store' })
+    // Unique `_t` per open so a service worker can't hand back a stale/failed
+    // cached response — forces a fresh network hit every time.
+    fetch(`${chartUrl(target)}&_t=${Date.now()}`, { credentials: 'include', cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.blob();
