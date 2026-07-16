@@ -70,13 +70,16 @@ type ChartTarget = {
   tp?: number;
 };
 
-/** Builds the authenticated API URL for the full-indicator chart PNG. */
+/** Builds the API URL for the full-indicator chart PNG. */
 function chartUrl(t: ChartTarget): string {
   const params = new URLSearchParams({ symbol: t.symbol, timeframe: t.timeframe });
   if (t.focusTime != null) params.set('focusTime', String(t.focusTime));
   if (t.entry != null && Number.isFinite(t.entry)) params.set('entry', String(t.entry));
   if (t.tp != null && Number.isFinite(t.tp)) params.set('tp', String(t.tp));
-  return `${resolveApiBaseUrl('/ema-bounce/chart')}?${params.toString()}`;
+  // Concatenate (don't pass a path to resolveApiBaseUrl — its new URL() drops
+  // the "/api-proxy" prefix for absolute paths, sending the request to the web
+  // server instead of the API).
+  return `${resolveApiBaseUrl()}/ema-bounce/chart?${params.toString()}`;
 }
 
 /** Fullscreen chart dialog — portalled to <body> so card backdrop-filters can't trap it. */
