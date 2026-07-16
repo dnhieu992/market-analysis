@@ -80,6 +80,12 @@ importers:
       axios:
         specifier: ^1.8.4
         version: 1.14.0
+      chart.js:
+        specifier: ^4.4.8
+        version: 4.5.1
+      chartjs-node-canvas:
+        specifier: ^5.0.0
+        version: 5.0.0(chart.js@4.5.1)
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1

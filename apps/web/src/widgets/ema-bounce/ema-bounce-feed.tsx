@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
-import { createApiClient } from '@web/shared/api/client';
+import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import type { EmaBounceCoin, EmaBounceSignal, EmaBounceMatch } from '@web/shared/api/types';
 
 function fmtPrice(n: number | null | undefined): string {
@@ -59,6 +60,73 @@ function stochLabel(k: number | null | undefined, d: number | null | undefined):
   return `${zone}, ${dir}`;
 }
 
+/** What to plot when the "Xem chart" dialog opens. */
+type ChartTarget = {
+  symbol: string;
+  timeframe: string;
+  label: string;
+  focusTime?: number; // ms — center the window on the setup candle
+  entry?: number;
+  tp?: number;
+};
+
+/** Builds the authenticated API URL for the full-indicator chart PNG. */
+function chartUrl(t: ChartTarget): string {
+  const params = new URLSearchParams({ symbol: t.symbol, timeframe: t.timeframe });
+  if (t.focusTime != null) params.set('focusTime', String(t.focusTime));
+  if (t.entry != null && Number.isFinite(t.entry)) params.set('entry', String(t.entry));
+  if (t.tp != null && Number.isFinite(t.tp)) params.set('tp', String(t.tp));
+  return `${resolveApiBaseUrl('/ema-bounce/chart')}?${params.toString()}`;
+}
+
+/** Fullscreen chart dialog — portalled to <body> so card backdrop-filters can't trap it. */
+function ChartDialog({ target, onClose }: { target: ChartTarget; onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    setFailed(false);
+  }, [target]);
+
+  // Close on Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            {target.symbol} <span className="eb-tf">{target.label}</span>
+            {target.focusTime == null && <span className="eb-chart-note"> · chart hiện tại</span>}
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body eb-chart-body">
+          {loading && !failed && <div className="eb-chart-status">Đang tải chart…</div>}
+          {failed ? (
+            <div className="eb-chart-status">Không tải được chart. Thử lại sau.</div>
+          ) : (
+            <img
+              className="eb-chart-img"
+              src={chartUrl(target)}
+              alt={`${target.symbol} ${target.label} chart`}
+              onLoad={() => setLoading(false)}
+              onError={() => { setLoading(false); setFailed(true); }}
+              style={{ display: loading ? 'none' : 'block' }}
+            />
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function EmaBounceFeed({
   initialCoins,
   initialSignals,
@@ -77,6 +145,7 @@ export function EmaBounceFeed({
   const [tfFilter, setTfFilter] = useState<'all' | '4h' | '1d'>('all');
   const [stageFilter, setStageFilter] = useState<'all' | 'near' | 'reach' | 'risk'>('all');
   const [minScore, setMinScore] = useState(0);
+  const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
 
   async function addCoin() {
     const sym = newSymbol.trim().toUpperCase();
@@ -205,6 +274,18 @@ export function EmaBounceFeed({
                     <div className="eb-kv"><span>StochRSI</span><span>{stochLabel(m.stochK, m.stochD)}<span className="eb-stoch-num"> ({m.stochK.toFixed(1)}/{m.stochD.toFixed(1)})</span></span></div>
                     <div className="eb-kv"><span>TP +10%</span><span className="eb-green">{fmtPrice(m.tpPrice)}</span></div>
                     {m.note && <div className="eb-signal-note">{m.note}</div>}
+                    <button
+                      className="eb-chart-btn"
+                      onClick={() => setChartTarget({
+                        symbol: m.symbol,
+                        timeframe: m.timeframe,
+                        label: tfLabel(m.timeframe),
+                        entry: m.price,
+                        tp: m.tpPrice,
+                      })}
+                    >
+                      📈 Xem chart
+                    </button>
                   </div>
                 );
               })}
@@ -275,12 +356,29 @@ export function EmaBounceFeed({
                   </div>
                   {s.note && <div className="eb-signal-note">{s.note}</div>}
                   <div className="eb-kv eb-kv-time"><span>Kích hoạt</span><span>{fmtTime(s.triggeredAt)}</span></div>
+                  <button
+                    className="eb-chart-btn"
+                    onClick={() => setChartTarget({
+                      symbol: s.symbol,
+                      timeframe: s.timeframe,
+                      label: tfLabel(s.timeframe),
+                      focusTime: new Date(s.triggeredAt).getTime(),
+                      entry: s.entryPrice,
+                      tp: s.tpPrice,
+                    })}
+                  >
+                    📈 Xem chart
+                  </button>
                 </div>
               );
             })}
           </div>
         )}
       </section>
+
+      {chartTarget && (
+        <ChartDialog target={chartTarget} onClose={() => setChartTarget(null)} />
+      )}
     </div>
   );
 }

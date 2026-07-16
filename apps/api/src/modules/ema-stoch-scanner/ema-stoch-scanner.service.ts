@@ -1,10 +1,41 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { scoreEmaStackOversoldSetup, EMA_STACK_OVERSOLD_MIN_CANDLES } from '@app/core';
+import {
+  scoreEmaStackOversoldSetup,
+  EMA_STACK_OVERSOLD_MIN_CANDLES,
+  extractSupportAndResistanceLevels,
+} from '@app/core';
 import { createEmaStochScannerRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { renderEmaBounceChart, type OhlcCandle } from './chart-renderer';
 
 const CANDLE_LIMIT = 300;
+
+// How many candles to show in the "view chart" dialog. Centered on the setup
+// candle when a focus time is provided, otherwise the most recent ones.
+const CHART_DISPLAY_CANDLES = 140;
+
+/** Standard EMA series aligned 1:1 with `closes` (NaN before it has enough data). */
+function computeEmaSeries(closes: number[], period: number): number[] {
+  const smoothing = 2 / (period + 1);
+  const result: number[] = [];
+  let ema = 0;
+
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) {
+      result.push(NaN);
+      continue;
+    }
+    if (i === period - 1) {
+      ema = closes.slice(0, period).reduce((s, v) => s + v, 0) / period;
+    } else {
+      ema = closes[i]! * smoothing + ema * (1 - smoothing);
+    }
+    result.push(Number(ema.toFixed(8)));
+  }
+
+  return result;
+}
 
 export type EmaStochSignalDto = {
   id: string;
@@ -136,5 +167,94 @@ export class EmaStochScannerService {
 
     matches.sort((a, b) => b.score - a.score);
     return { scannedAt: new Date().toISOString(), scanned, failed, matches };
+  }
+
+  /**
+   * Renders a full-indicator PNG chart (EMA34/89/200 + S/R + optional entry/TP
+   * lines) for the given symbol/timeframe. When `focusTime` is supplied the
+   * visible window is centered on the candle that satisfied the setup so the
+   * "vùng giá thoả mãn" sits in the middle; otherwise the latest candles show.
+   */
+  async generateChart(params: {
+    symbol: string;
+    timeframe: string;
+    focusTime?: number | null;
+    entry?: number | null;
+    tp?: number | null;
+  }): Promise<Buffer> {
+    const bare = params.symbol.trim().toUpperCase().replace(/USDT$/, '');
+    const pair = `${bare}USDT`;
+    const timeframe = params.timeframe === '1d' ? '1d' : '4h';
+
+    const klines = await this.binance.fetchKlines({
+      symbol: pair,
+      timeframe: timeframe as never,
+      limit: CANDLE_LIMIT,
+    });
+    if (klines.length === 0) {
+      throw new NotFoundException(`No candles for ${pair} ${timeframe}`);
+    }
+
+    const candles: OhlcCandle[] = klines.map((k) => ({
+      time: Number(k[0]),
+      open: parseFloat(k[1]),
+      high: parseFloat(k[2]),
+      low: parseFloat(k[3]),
+      close: parseFloat(k[4]),
+    }));
+
+    const closes = candles.map((c) => c.close);
+    const ema34Full = computeEmaSeries(closes, 34);
+    const ema89Full = computeEmaSeries(closes, 89);
+    const ema200Full = computeEmaSeries(closes, 200);
+
+    // Locate the candle whose window contains `focusTime` (falls back to nearest
+    // open ≤ focusTime). null → no valid focus, show the latest candles.
+    let fullFocusIdx: number | null = null;
+    if (params.focusTime != null && Number.isFinite(params.focusTime)) {
+      const t = params.focusTime;
+      const closeTimes = klines.map((k) => Number(k[6]));
+      for (let i = 0; i < candles.length; i++) {
+        if (t >= candles[i]!.time && t <= closeTimes[i]!) {
+          fullFocusIdx = i;
+          break;
+        }
+        if (candles[i]!.time <= t) fullFocusIdx = i;
+      }
+    }
+
+    // Build the display window, centered on the focus candle when present.
+    let startIdx: number;
+    if (fullFocusIdx != null) {
+      startIdx = Math.round(fullFocusIdx - CHART_DISPLAY_CANDLES / 2);
+    } else {
+      startIdx = candles.length - CHART_DISPLAY_CANDLES;
+    }
+    startIdx = Math.max(0, Math.min(startIdx, Math.max(0, candles.length - CHART_DISPLAY_CANDLES)));
+    const endIdx = Math.min(candles.length, startIdx + CHART_DISPLAY_CANDLES);
+
+    const displayCandles = candles.slice(startIdx, endIdx);
+    const ema34 = ema34Full.slice(startIdx, endIdx);
+    const ema89 = ema89Full.slice(startIdx, endIdx);
+    const ema200 = ema200Full.slice(startIdx, endIdx);
+    const focusIndex = fullFocusIdx != null ? fullFocusIdx - startIdx : null;
+
+    const { supportLevels, resistanceLevels } = extractSupportAndResistanceLevels(displayCandles, 2);
+    const currentPrice = candles[candles.length - 1]!.close;
+
+    return renderEmaBounceChart({
+      symbol: pair,
+      timeframe: timeframe === '1d' ? 'D1' : 'H4',
+      candles: displayCandles,
+      ema34,
+      ema89,
+      ema200,
+      supportLevels: supportLevels.filter(Number.isFinite),
+      resistanceLevels: resistanceLevels.filter(Number.isFinite),
+      currentPrice,
+      entryPrice: params.entry ?? null,
+      tpPrice: params.tp ?? null,
+      focusIndex,
+    });
   }
 }

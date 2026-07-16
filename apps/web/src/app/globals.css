@@ -10377,3 +10377,31 @@ a.metric-card--link:hover {
 .tj-item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .eb-tf { font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; vertical-align: middle; }
 .eb-select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 13px; }
+
+/* ── EMA-bounce "Xem chart" button + fullscreen chart dialog ── */
+.eb-chart-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.eb-chart-btn:hover { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+
+.eb-chart-dialog { background: #1a1a2e; }
+.eb-chart-note { font-size: 12px; font-weight: 500; color: var(--muted); }
+.eb-chart-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: #1a1a2e;
+}
+.eb-chart-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+.eb-chart-status { color: var(--muted); font-size: 14px; padding: 40px; }

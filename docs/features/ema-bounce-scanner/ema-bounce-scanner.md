@@ -72,6 +72,23 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
 6. **Live preview** (`POST /ema-bounce/preview`) runs the same scanner detector on-demand on
    **both** the 4H and 1D timeframes without persisting or alerting — each match is tagged with
    its timeframe, stage, and note, giving immediate feedback before the next cron.
+7. **View chart** — every signal card and preview match has a **📈 Xem chart** button. It opens
+   a fullscreen dialog (portalled to `<body>` so card backdrop-filters can't trap it) showing a
+   server-rendered PNG from `GET /ema-bounce/chart`. The chart mirrors the daily-plan visual
+   pipeline (candlesticks + S/R + current-price line via `chartjs-node-canvas`) but is tuned to
+   this strategy: **EMA34/89/200** (the stack the setup uses) plus dashed **Entry** and **TP +10%**
+   lines. The visible window (~140 candles) is **centered on the setup candle** (`focusTime` =
+   the card's `triggeredAt`) with a faint highlight band on that candle, so the "vùng giá thoả
+   mãn" sits in the middle. Preview matches (which happen "now") have no `focusTime`, so they show
+   the most recent candles instead.
+
+## Chart endpoint
+`GET /ema-bounce/chart?symbol=&timeframe=&focusTime=&entry=&tp=` → `image/png` (auth-protected
+like all routes). `symbol` is normalized (`USDT` suffix optional); `timeframe` is `4h` or `1d`.
+`focusTime` (ms) centers the window on the matching candle (nearest open ≤ focusTime); when
+omitted or out of range the latest candles show. `entry`/`tp` draw the dashed plan lines. EMAs
+are computed on the full 300-candle fetch then sliced to the display window so they stay accurate
+at the left edge. Served as a `StreamableFile` (no `express` type dependency needed).
 
 ## Edge Cases
 - **Forming candle** — klines are filtered to `closeTime ≤ now` so the detector never uses the
@@ -109,12 +126,15 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
 - `apps/worker/src/modules/ema-stoch-scan/ema-stoch-scan.module.ts` — module wiring (Market + Telegram)
 - `apps/worker/src/modules/scheduler/scheduler.service.ts` — `runEmaStochScan` cron (`0 2 */4 * * *` UTC)
 - `apps/worker/src/modules/scheduler/scheduler.module.ts` — imports `EmaStochScanModule`
-- `apps/api/src/modules/ema-stoch-scanner/*` — controller/service/dto (coins CRUD, signals, preview)
+- `apps/api/src/modules/ema-stoch-scanner/*` — controller/service/dto (coins CRUD, signals, preview, **chart PNG**)
+- `apps/api/src/modules/ema-stoch-scanner/chart-renderer.ts` — `chartjs-node-canvas` renderer (EMA34/89/200 + S/R + Entry/TP + focus band)
+- `apps/api/package.json` — adds `chart.js` + `chartjs-node-canvas` deps for the chart endpoint
 - `apps/api/src/app.module.ts` — registers `EmaStochScannerModule`
 - `apps/web/src/app/ema-bounce/page.tsx` — App Router route (thin re-export)
 - `apps/web/src/_pages/ema-bounce-page/ema-bounce-page.tsx` — server page, loads watchlist + signals
 - `apps/web/src/widgets/ema-bounce/ema-bounce-feed.tsx` — client UI (watchlist, preview, card grid)
-- `apps/web/src/shared/api/client.ts` — `fetchEmaBounceCoins`, `addEmaBounceCoin`, `removeEmaBounceCoin`, `fetchEmaBounceSignals`, `previewEmaBounce`
+- `apps/web/src/widgets/ema-bounce/ema-bounce-feed.tsx` — also hosts `ChartDialog` (fullscreen chart, portalled to `<body>`) + the "📈 Xem chart" buttons
+- `apps/web/src/shared/api/client.ts` — `fetchEmaBounceCoins`, `addEmaBounceCoin`, `removeEmaBounceCoin`, `fetchEmaBounceSignals`, `previewEmaBounce`, `resolveApiBaseUrl` (builds the chart image URL)
 - `apps/web/src/shared/api/types.ts` — `EmaBounceCoin`, `EmaBounceSignal`, `EmaBounceMatch`, `EmaBouncePreview`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — sidebar nav entry
 - `apps/web/src/app/globals.css` — `.eb-*` styles
