@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Header, Inject, Param, Post, Query, StreamableFile } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { Public } from '../auth/public.decorator';
 import { AddCoinDto } from './dto/add-coin.dto';
 import { EmaStochScannerService } from './ema-stoch-scanner.service';
 
@@ -44,6 +45,7 @@ export class EmaStochScannerController {
   }
 
   @Get('chart')
+  @Public() // chart shows only public Binance market data — no auth so <img> works without cookies
   @Header('Content-Type', 'image/png')
   @Header('Cache-Control', 'private, max-age=300')
   @ApiOperation({
