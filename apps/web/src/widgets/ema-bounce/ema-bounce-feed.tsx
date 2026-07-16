@@ -81,12 +81,36 @@ function chartUrl(t: ChartTarget): string {
 
 /** Fullscreen chart dialog — portalled to <body> so card backdrop-filters can't trap it. */
 function ChartDialog({ target, onClose }: { target: ChartTarget; onClose: () => void }) {
-  const [loading, setLoading] = useState(true);
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
+  // Fetch the PNG through the app's authenticated fetch path (credentials +
+  // no-store so the service worker can't serve a stale/opaque response), then
+  // render it as a blob URL — a raw <img src> can 401 or be intercepted.
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setImgSrc(null);
     setFailed(false);
+
+    fetch(chartUrl(target), { credentials: 'include', cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImgSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [target]);
 
   // Close on Escape.
@@ -107,18 +131,12 @@ function ChartDialog({ target, onClose }: { target: ChartTarget; onClose: () => 
           <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
         </div>
         <div className="dialog-body eb-chart-body">
-          {loading && !failed && <div className="eb-chart-status">Đang tải chart…</div>}
           {failed ? (
             <div className="eb-chart-status">Không tải được chart. Thử lại sau.</div>
+          ) : imgSrc ? (
+            <img className="eb-chart-img" src={imgSrc} alt={`${target.symbol} ${target.label} chart`} />
           ) : (
-            <img
-              className="eb-chart-img"
-              src={chartUrl(target)}
-              alt={`${target.symbol} ${target.label} chart`}
-              onLoad={() => setLoading(false)}
-              onError={() => { setLoading(false); setFailed(true); }}
-              style={{ display: loading ? 'none' : 'block' }}
-            />
+            <div className="eb-chart-status">Đang tải chart…</div>
           )}
         </div>
       </div>
