@@ -15,6 +15,25 @@ const MARGIN_COIN = 'USDT';
 
 type BitgetEnvelope<T> = { code: string; msg: string; data: T };
 
+/** Raw shape of one row from `/api/v2/mix/position/all-position` (only fields we read). */
+export type BitgetRawPosition = {
+  symbol: string;
+  marginCoin: string;
+  holdSide: 'long' | 'short';
+  marginMode: string;
+  total: string;
+  available: string;
+  leverage: string;
+  openPriceAvg: string;
+  markPrice: string;
+  liquidationPrice: string;
+  breakEvenPrice: string;
+  marginSize: string;
+  unrealizedPL: string;
+  achievedProfits: string;
+  uTime: string;
+};
+
 export class BitgetTradeClient {
   private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 8_000 });
   private readonly apiKey = process.env.BITGET_API_KEY ?? '';
@@ -37,6 +56,16 @@ export class BitgetTradeClient {
     });
     const open = data.find((p) => p.holdSide === holdSide && Number(p.total) > 0);
     return open ? Number(open.total) : 0;
+  }
+
+  /** Every open position across all symbols, or [] if the account is flat. */
+  async getAllPositions(): Promise<BitgetRawPosition[]> {
+    const data = await this.request<BitgetRawPosition[]>(
+      'GET',
+      '/api/v2/mix/position/all-position',
+      { productType: this.productType, marginCoin: MARGIN_COIN },
+    );
+    return (data ?? []).filter((p) => Number(p.total) > 0);
   }
 
   /** Flash-close the open position for a side at market (reduce-only). */

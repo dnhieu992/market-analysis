@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 import { AnalysisModule } from './modules/analysis/analysis.module';
 import { DayTradingModule } from './modules/day-trading/day-trading.module';
+import { BitgetModule } from './modules/bitget/bitget.module';
 import { LongSignalModule } from './modules/long-signal/long-signal.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -64,6 +65,7 @@ import { JournalModule } from './modules/journal/journal.module';
     SpotFlipModule,
     TrackingCoinsModule,
     DayTradingModule,
+    BitgetModule,
     LongSignalModule,
     DcaLadderModule,
     PatternScannerModule,

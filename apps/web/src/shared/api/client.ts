@@ -61,6 +61,7 @@ import type {
   DayTradingSettings,
   DayTradingPrice,
   UpdateDayTradingSettingsInput,
+  BitgetPositionsResponse,
   LongSignal,
   LongSignalsResponse,
   LongSignalStats,
@@ -1238,6 +1239,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
           body: JSON.stringify(input),
         }),
       );
+    },
+
+    async fetchBitgetPositions(): Promise<BitgetPositionsResponse> {
+      return fetchJson<BitgetPositionsResponse>(fetchImpl, `${baseUrl}/bitget/positions`, withDefaults({}));
     },
 
     async fetchLongSignals(params: { status?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): Promise<LongSignalsResponse> {

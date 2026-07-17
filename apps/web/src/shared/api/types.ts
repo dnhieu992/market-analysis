@@ -633,6 +633,32 @@ export type DayTradingPrice = {
   at: string;
 };
 
+export type BitgetPosition = {
+  symbol: string;
+  holdSide: 'long' | 'short';
+  marginMode: string;
+  leverage: number;
+  size: number;
+  entryPrice: number;
+  markPrice: number;
+  liquidationPrice: number | null;
+  breakEvenPrice: number | null;
+  marginUsd: number;
+  notionalUsd: number;
+  unrealizedPnlUsd: number;
+  roePct: number;
+  realizedPnlUsd: number;
+  updatedAt: string | null;
+};
+
+export type BitgetPositionsResponse = {
+  configured: boolean;
+  positions: BitgetPosition[];
+  totalUnrealizedPnlUsd: number;
+  totalMarginUsd: number;
+  fetchedAt: string;
+};
+
 // ── Long Signal (LONG-only intraday FOMO gated by the M30 UTBot trend) ─────────
 
 export type LongSignal = {
