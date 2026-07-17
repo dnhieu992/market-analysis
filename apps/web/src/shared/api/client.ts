@@ -45,6 +45,7 @@ import type {
   EmaBounceSignal,
   EmaBouncePreview,
   TradingJournalEntry,
+  TradingJournalRevision,
   SpotFlipAnalysis,
   SpotFlipWatchItem,
   SpotFlipDailyEntry,
@@ -1020,6 +1021,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(input),
         }),
+      );
+    },
+
+    async fetchJournalRevisions(entryId: string): Promise<TradingJournalRevision[]> {
+      return fetchJson<TradingJournalRevision[]>(
+        fetchImpl,
+        `${baseUrl}/journal/${encodeURIComponent(entryId)}/revisions`,
+        withDefaults(),
       );
     },
 

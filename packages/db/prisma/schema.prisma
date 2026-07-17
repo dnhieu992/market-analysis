@@ -91,8 +91,23 @@ model TradingJournalEntry {
   tags      Json     @default("[]") // string[] of freeform tags
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  revisions TradingJournalRevision[]
 
   @@map("trading_journal_entries")
+}
+
+/// Snapshot of a day's journal as it looked right after one save — the intra-day history.
+model TradingJournalRevision {
+  id        String   @id @default(cuid())
+  entryId   String
+  content   String   @db.LongText
+  images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
+  tags      Json     @default("[]") // string[] of freeform tags
+  createdAt DateTime @default(now())
+  entry     TradingJournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, createdAt])
+  @@map("trading_journal_revisions")
 }
 
 model TelegramMessageLog {

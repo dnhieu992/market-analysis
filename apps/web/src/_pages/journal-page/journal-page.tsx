@@ -1,13 +1,19 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
 import { TradingJournal } from '@web/widgets/trading-journal/trading-journal';
-import type { TradingJournalEntry } from '@web/shared/api/types';
+import type { TradingJournalEntry, TradingJournalRevision } from '@web/shared/api/types';
 
-async function loadEntries(): Promise<TradingJournalEntry[]> {
-  const client = createServerApiClient();
-  return client.fetchJournalEntries().catch(() => [] as TradingJournalEntry[]);
+/** Same UTC-based "today" the editor defaults to, so the history panel matches on first paint. */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default async function JournalPage() {
-  const entries = await loadEntries();
-  return <TradingJournal initialEntries={entries} />;
+  const client = createServerApiClient();
+  const entries = await client.fetchJournalEntries().catch(() => [] as TradingJournalEntry[]);
+  const todayEntry = entries.find((e) => e.date === todayIso());
+  const revisions = todayEntry
+    ? await client.fetchJournalRevisions(todayEntry.id).catch(() => [] as TradingJournalRevision[])
+    : [];
+
+  return <TradingJournal initialEntries={entries} initialRevisions={revisions} />;
 }

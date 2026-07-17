@@ -897,6 +897,15 @@ export type TradingJournalEntry = {
   updatedAt: string;
 };
 
+/** One save of a day's journal, as it looked at that moment (intra-day history). */
+export type TradingJournalRevision = {
+  id: string;
+  content: string;
+  images: string[];
+  tags: string[];
+  createdAt: string; // ISO timestamp of the save
+};
+
 /** Progress/result of the background coin sync (polled after a Sync Coins click). */
 export type MemeRescanStatus = {
   running: boolean;

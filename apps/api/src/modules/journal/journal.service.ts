@@ -27,6 +27,15 @@ export type JournalEntryDto = {
   updatedAt: string;
 };
 
+/** One save of a day, as it looked at that moment. */
+export type JournalRevisionDto = {
+  id: string;
+  content: string;
+  images: string[];
+  tags: string[];
+  createdAt: string;
+};
+
 /** Coerce a Prisma Json column (unknown at the type level) to a string[]. */
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -48,6 +57,14 @@ type JournalRow = {
   updatedAt: Date;
 };
 
+type JournalRevisionRow = {
+  id: string;
+  content: string;
+  images: unknown;
+  tags: unknown;
+  createdAt: Date;
+};
+
 @Injectable()
 export class JournalService {
   private readonly repo = createTradingJournalRepository();
@@ -64,6 +81,16 @@ export class JournalService {
     };
   }
 
+  private mapRevision(r: JournalRevisionRow): JournalRevisionDto {
+    return {
+      id: r.id,
+      content: r.content,
+      images: toStringArray(r.images),
+      tags: toStringArray(r.tags),
+      createdAt: r.createdAt.toISOString(),
+    };
+  }
+
   async list(): Promise<JournalEntryDto[]> {
     const rows = await this.repo.findAll();
     return rows.map((r) => this.map(r));
@@ -74,7 +101,15 @@ export class JournalService {
     return row ? this.map(row) : null;
   }
 
-  /** Create or update the entry for a calendar day. */
+  /** Intra-day save history for one day, newest first. */
+  async listRevisions(entryId: string): Promise<JournalRevisionDto[]> {
+    const entry = await this.repo.findById(entryId);
+    if (!entry) throw new NotFoundException(`Journal entry ${entryId} not found`);
+    const rows = await this.repo.findRevisionsByEntryId(entryId);
+    return rows.map((r: JournalRevisionRow) => this.mapRevision(r));
+  }
+
+  /** Create or update the entry for a calendar day; the repository snapshots it as a revision. */
   async upsert(input: { date: string; content: string; images?: string[]; tags?: string[] }): Promise<JournalEntryDto> {
     const row = await this.repo.upsertByDate({
       date: toDateOnly(input.date),

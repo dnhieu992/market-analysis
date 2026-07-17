@@ -26,6 +26,12 @@ export class JournalController {
     return this.service.getByDate(date);
   }
 
+  @Get(':id/revisions')
+  @ApiOperation({ summary: 'List the intra-day save history of an entry, newest first' })
+  listRevisions(@Param('id') id: string) {
+    return this.service.listRevisions(id);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create or update the journal entry for a day' })
   upsert(@Body() body: UpsertJournalDto) {
