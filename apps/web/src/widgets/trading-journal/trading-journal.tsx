@@ -193,6 +193,11 @@ export function TradingJournal({
   // Which entry the `revisions` in state belong to — the server already sent today's.
   const loadedRevFor = useRef<string | null>(initialEntries.find((e) => e.date === todayIso())?.id ?? null);
 
+  // Always the latest editor text, so save() can tell whether the user kept typing while the
+  // reformat was in flight (see the guard in save()).
+  const contentRef = useRef(content);
+  contentRef.current = content;
+
   const loadRevisions = useCallback(async (entryId: string | null) => {
     loadedRevFor.current = entryId;
     if (!entryId) {
@@ -238,12 +243,13 @@ export function TradingJournal({
     setWarning(null);
     setSaved(false);
 
-    let finalContent = content;
-    const textChanged = content !== (currentEntry?.content ?? '');
-    if (content.trim() && textChanged) {
+    const submitted = content;
+    let finalContent = submitted;
+    const textChanged = submitted !== (currentEntry?.content ?? '');
+    if (submitted.trim() && textChanged) {
       setPhase('formatting');
       try {
-        const formatted = await api.reformatJournal(content);
+        const formatted = await api.reformatJournal(submitted);
         if (formatted.trim()) finalContent = formatted;
       } catch {
         // Never lose the trader's writing because Claude is unreachable — save the raw text.
@@ -263,7 +269,14 @@ export function TradingJournal({
         const rest = prev.filter((e) => e.id !== entry.id && e.date !== entry.date);
         return [entry, ...rest].sort((a, b) => b.date.localeCompare(a.date));
       });
-      setContent(finalContent);
+      // The editor stays live during the (multi-second) reformat. If the trader kept typing,
+      // their newer text must win — overwriting it with the formatted older text would silently
+      // eat what they just wrote. It stays in the editor for the next save instead.
+      if (contentRef.current === submitted) {
+        setContent(finalContent);
+      } else {
+        setWarning('Bạn gõ thêm trong lúc đang lưu — phần vừa gõ chưa được lưu, bấm Cập nhật lần nữa.');
+      }
       setImages(allImages);
       setPendingFiles([]);
       setSaved(true);
