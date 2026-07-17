@@ -7,6 +7,10 @@ export type EmaStochSignalUpsert = {
   stage: string;
   note?: string | null;
   score?: number;
+  /** Higher-TF PA trend that fed the score's PA block. */
+  htfTrend?: string | null;
+  /** Entry-TF swing structure that fed the score's PA block. */
+  swingStructure?: string | null;
   entryPrice: number;
   tpPrice: number;
   distPct: number;
@@ -84,6 +88,8 @@ export function createEmaStochScannerRepository(client = prisma) {
           stage: input.stage,
           note: input.note ?? null,
           score: input.score ?? 0,
+          htfTrend: input.htfTrend ?? null,
+          swingStructure: input.swingStructure ?? null,
           entryPrice: input.entryPrice,
           tpPrice: input.tpPrice,
           distPct: input.distPct,
@@ -108,7 +114,15 @@ export function createEmaStochScannerRepository(client = prisma) {
      */
     updateSignalMark(
       id: string,
-      data: { currentPrice: number; pnlPct: number; score?: number; note?: string | null; stage?: string },
+      data: {
+        currentPrice: number;
+        pnlPct: number;
+        score?: number;
+        note?: string | null;
+        stage?: string;
+        htfTrend?: string | null;
+        swingStructure?: string | null;
+      },
     ) {
       return client.emaStochSignal.update({
         where: { id },
@@ -118,6 +132,8 @@ export function createEmaStochScannerRepository(client = prisma) {
           score: data.score,
           note: data.note ?? undefined,
           stage: data.stage,
+          htfTrend: data.htfTrend ?? undefined,
+          swingStructure: data.swingStructure ?? undefined,
           lastCheckedAt: new Date(),
         },
       });

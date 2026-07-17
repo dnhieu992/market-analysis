@@ -33,14 +33,28 @@ export type SmallCapSignalResult = {
   swingStructure: SwingStructure;
 };
 
+/**
+ * Swing structure + trend for one timeframe. Same 1-bar-pivot maths as the
+ * dashboard's `trend`/`weekTrend`, exposed for callers that also need the raw
+ * HH/HL structure (e.g. the /ema-bounce PA block, which reads "has the downtrend
+ * stopped making lower lows?" — a question the 5-level trend alone can't answer).
+ */
+export function computeTimeframeStructure(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+): { trend: PaTrend; swingStructure: SwingStructure } {
+  if (closes.length < 20) return { trend: 'Neutral', swingStructure: 'Mixed' };
+  const ema89 = calculateEma(closes, 89);
+  return computePaTrend(closes, highs, lows, ema89);
+}
+
 export function computeTimeframeTrend(
   closes: number[],
   highs: number[],
   lows: number[],
 ): PaTrend {
-  if (closes.length < 20) return 'Neutral';
-  const ema89 = calculateEma(closes, 89);
-  return computePaTrend(closes, highs, lows, ema89).trend;
+  return computeTimeframeStructure(closes, highs, lows).trend;
 }
 
 export function computeSmallCapSignal(

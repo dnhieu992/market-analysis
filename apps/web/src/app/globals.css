@@ -10330,6 +10330,26 @@ a.metric-card--link:hover {
 .eb-score-cold { color: #94a3b8; }
 .eb-stoch-num { color: var(--muted); font-size: 11px; }
 
+/* PA block badges — same colour language as the /tracking-coins trend badges. */
+.eb-pa-row { display: inline-flex; gap: 4px; align-items: center; }
+.eb-pa-pts { color: var(--muted); font-size: 11px; }
+.eb-pa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.eb-pa--strong-up   { background: #dcfce7; color: #15803d; }
+.eb-pa--up          { background: #f0fdf4; color: #16a34a; }
+.eb-pa--neutral     { background: #f1f5f9; color: #64748b; }
+.eb-pa--down        { background: #fff7ed; color: #c2410c; }
+.eb-pa--strong-down { background: #fee2e2; color: #dc2626; }
+
 /* ── Trading Journal (/journal) ─────────────────────────────── */
 .tj-page { display: flex; flex-direction: column; gap: 16px; max-width: 900px; margin: 0 auto; padding: 8px; width: 100%; }
 .tj-header { display: flex; flex-direction: column; gap: 4px; }

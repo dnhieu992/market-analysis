@@ -1,6 +1,7 @@
 import { calculateEma } from '../indicators/ema';
 import { calculateRsi } from '../indicators/rsi';
 import { calculateStochRsi } from '../indicators/stoch-rsi';
+import { computeTimeframeStructure, type PaTrend, type SwingStructure } from './small-cap-signal';
 
 /**
  * "Extended-below-EMA-stack oversold StochRSI bounce" entry detector (LONG only).
@@ -241,24 +242,66 @@ export function detectEmaStackOversoldSignal(
  * page can rank partial setups. The more of the setup is in place, the higher the score.
  *
  * Weighted points (partial credit for "gần"):
- *   - Bearish EMA stack (EMA34<89<200) ............ 20
- *   - Stretched below EMA34: 7–15% = 25, 5–7%/15–18% = 12
- *   - StochRSI oversold: %K<20 = 25, %K<30 = 12
- *   - StochRSI cross: fresh bullish cross in oversold = 30, about-to-cross = 15
+ *   - Bearish EMA stack (EMA34<89<200) ............ 15
+ *   - Stretched below EMA34: 7–15% = 20, 5–7%/15–18% = 10
+ *   - StochRSI oversold: %K<20 = 20, %K<30 = 10
+ *   - StochRSI cross: fresh bullish cross in oversold = 25, about-to-cross = 12
+ *   - Price action (see below) .................... 20
+ *
+ * ── Why a PA block, and why THESE two reads ──────────────────────────────────
+ * This setup is, by construction, a LONG bought into a downtrend (price under EMA34,
+ * bearish stack). So the entry timeframe's own PA trend is ~always Down and carries no
+ * information — scoring it would just subtract a constant. The two PA facts that DO
+ * separate a good bounce from a falling knife:
+ *
+ *   1. `htfTrend` (12) — the higher timeframe's trend (D1 for a 4H setup, W1 for a D1
+ *      setup). A dip bought while the HTF still trends up is a pullback; the same dip
+ *      under a collapsing HTF is a knife. This is the /tracking-coins alignment idea
+ *      (`computeEntryScore`) applied to the bounce.
+ *   2. `swingStructure` (8) — the entry timeframe's own HH/HL structure. Still printing
+ *      lower lows (LH_LL) = the downtrend has not stopped; a higher low (LH_HL) = a base
+ *      is forming under price, which is what a bounce needs.
+ *
+ * PA deliberately does NOT count toward the "at least one signal condition" gate — it is
+ * context that ranks a setup, not a reason to surface a coin. A bad HTF only costs points
+ * (the card still appears, it just won't clear the Telegram threshold), keeping the
+ * scanner's wide-net "early monitoring" design intact.
  *
  * `stage` = 'reach' when the full strict entry is present (stack + strict distance + fresh
- * cross), else 'near'. Returns null when price is not below EMA34 or no signal condition
- * is met (so a plain downtrend with none of the three signals never shows).
+ * cross), else 'near' — PA does not affect the stage. Returns null when price is not below
+ * EMA34 or no signal condition is met (so a plain downtrend never shows).
  */
 export const EMA_STACK_SCORE_WEIGHTS = {
-  stack: 20,
-  distFull: 25,
-  distNear: 12,
-  osFull: 25,
-  osNear: 12,
-  crossFull: 30,
-  crossNear: 15,
+  stack: 15,
+  distFull: 20,
+  distNear: 10,
+  osFull: 20,
+  osNear: 10,
+  crossFull: 25,
+  crossNear: 12,
+  /** Max points for higher-timeframe trend alignment. */
+  htfTrend: 12,
+  /** Max points for entry-timeframe swing structure. */
+  structure: 8,
 } as const;
+
+/** Higher-timeframe PA trend → points. Bouncing WITH the bigger trend scores; against it, zero. */
+export const EMA_STACK_HTF_TREND_POINTS: Record<PaTrend, number> = {
+  StrongUp: 12,
+  Up: 10,
+  Neutral: 6,
+  Down: 3,
+  StrongDown: 0,
+};
+
+/** Entry-timeframe swing structure → points. Rewards a downtrend that stopped making lower lows. */
+export const EMA_STACK_STRUCTURE_POINTS: Record<SwingStructure, number> = {
+  HH_HL: 8, // đỉnh & đáy đều cao dần — cấu trúc đã đảo
+  LH_HL: 6, // đáy cao dần, đỉnh còn thấp dần — đang nén, đáy hình thành
+  Mixed: 4, // swing bằng nhau / chưa rõ
+  HH_LL: 2, // biên độ mở rộng — chưa ổn định
+  LH_LL: 0, // còn phá đáy — dao đang rơi
+};
 
 /** %K below this (but not below osLevel) earns partial oversold points. */
 export const EMA_STACK_OS_NEAR_LEVEL = 30;
@@ -268,6 +311,20 @@ export type EmaStackScoreBreakdown = {
   distance: number;
   oversold: number;
   cross: number;
+  htfTrend: number;
+  structure: number;
+};
+
+/** Price-action context for the PA block — the caller supplies the higher-timeframe read. */
+export type EmaStackPaInput = {
+  /** Entry-timeframe highs, aligned 1:1 with `closes`. */
+  highs: number[];
+  /** Entry-timeframe lows, aligned 1:1 with `closes`. */
+  lows: number[];
+  /** Higher-timeframe PA trend: D1 for a 4H setup, W1 for a D1 setup. */
+  htfTrend: PaTrend;
+  /** Display label of the higher timeframe, e.g. 'D1' | 'W1' — used in the reason text. */
+  htfLabel: string;
 };
 
 export type EmaStackScoredSetup = EmaStackOversoldEntry & {
@@ -279,10 +336,35 @@ export type EmaStackScoredSetup = EmaStackOversoldEntry & {
   stage: EmaStackSignalStage;
   crossed: boolean;
   aboutToCross: boolean;
+  /** Higher-timeframe PA trend the PA block scored. */
+  htfTrend: PaTrend;
+  /** Display label of the timeframe `htfTrend` was read on, e.g. 'D1' | 'W1'. */
+  htfLabel: string;
+  /** Entry-timeframe swing structure the PA block scored. */
+  swingStructure: SwingStructure;
+};
+
+/** Vietnamese trend wording for the card note. */
+const PA_TREND_LABEL: Record<PaTrend, string> = {
+  StrongUp: 'tăng mạnh ↑↑',
+  Up: 'tăng ↑',
+  Neutral: 'đi ngang →',
+  Down: 'giảm ↓',
+  StrongDown: 'giảm mạnh ↓↓',
+};
+
+/** Vietnamese structure wording for the card note. */
+const PA_STRUCTURE_LABEL: Record<SwingStructure, string> = {
+  HH_HL: 'Cấu trúc đã đảo (HH+HL)',
+  LH_HL: 'Đáy cao dần — đang tạo đáy',
+  Mixed: 'Cấu trúc chưa rõ',
+  HH_LL: 'Biên độ mở rộng (HH+LL)',
+  LH_LL: 'Còn phá đáy (LH+LL)',
 };
 
 export function scoreEmaStackOversoldSetup(
   closes: number[],
+  pa: EmaStackPaInput,
   config: Partial<EmaStackOversoldConfig & EmaStackNearConfig> = {},
 ): EmaStackScoredSetup | null {
   const cfg = { ...DEFAULT_EMA_STACK_OVERSOLD_CONFIG, ...DEFAULT_EMA_STACK_NEAR_CONFIG, ...config };
@@ -343,10 +425,16 @@ export function scoreEmaStackOversoldSetup(
   else if (aboutToCross) cross = W.crossNear;
 
   // Need at least ONE signal condition (distance / oversold / cross) — a plain downtrend
-  // below EMA34 with none of the three does not produce a card.
+  // below EMA34 with none of the three does not produce a card. PA is context that ranks
+  // a surfaced setup, so it is deliberately excluded from this gate.
   if (distance + oversold + cross <= 0) return null;
 
-  const score = stack + distance + oversold + cross;
+  // ── Price action (see the doc comment above for why only these two reads) ──
+  const { swingStructure } = computeTimeframeStructure(closes, pa.highs, pa.lows);
+  const htfTrend = EMA_STACK_HTF_TREND_POINTS[pa.htfTrend];
+  const structure = EMA_STACK_STRUCTURE_POINTS[swingStructure];
+
+  const score = stack + distance + oversold + cross + htfTrend + structure;
 
   const reasons: string[] = [];
   if (stack) reasons.push('Dưới cụm EMA34<89<200');
@@ -356,17 +444,25 @@ export function scoreEmaStackOversoldSetup(
   else if (oversold === W.osNear) reasons.push(`Gần quá bán %K ${kNow.toFixed(0)}`);
   if (cross === W.crossFull) reasons.push('StochRSI cắt lên');
   else if (cross === W.crossNear) reasons.push(`StochRSI sắp cắt (%D−%K ${gap.toFixed(1)})`);
+  // PA reasons always show — "ngược trend D1" is exactly the warning worth reading.
+  reasons.push(
+    `Trend ${pa.htfLabel} ${PA_TREND_LABEL[pa.htfTrend]}${htfTrend >= W.htfTrend - 2 ? ' (thuận)' : htfTrend === 0 ? ' (ngược)' : ''}`,
+  );
+  reasons.push(PA_STRUCTURE_LABEL[swingStructure]);
 
   const isReach = stack === W.stack && distance === W.distFull && cross === W.crossFull;
   const stage: EmaStackSignalStage = isReach ? 'reach' : 'near';
 
   return {
     score,
-    breakdown: { stack, distance, oversold, cross },
+    breakdown: { stack, distance, oversold, cross, htfTrend, structure },
     reasons,
     stage,
     crossed,
     aboutToCross,
+    htfTrend: pa.htfTrend,
+    htfLabel: pa.htfLabel,
+    swingStructure,
     price,
     ema34,
     ema89,
@@ -377,4 +473,15 @@ export function scoreEmaStackOversoldSetup(
     stochD: dNow,
     tpPrice: price * (1 + cfg.tpPct),
   };
+}
+
+/**
+ * One-line PA summary of a scored setup, for the Telegram alert. Leads with the points the
+ * PA block contributed, so a "95đ but the weekly is collapsing" setup reads as what it is.
+ */
+export function formatEmaStackPa(setup: EmaStackScoredSetup): string {
+  const pts = setup.breakdown.htfTrend + setup.breakdown.structure;
+  const max = EMA_STACK_SCORE_WEIGHTS.htfTrend + EMA_STACK_SCORE_WEIGHTS.structure;
+  const warn = setup.breakdown.htfTrend === 0 ? ' ⚠️' : '';
+  return `PA ${pts}/${max}đ — Trend ${setup.htfLabel} ${PA_TREND_LABEL[setup.htfTrend]}${warn} · ${PA_STRUCTURE_LABEL[setup.swingStructure]}`;
 }

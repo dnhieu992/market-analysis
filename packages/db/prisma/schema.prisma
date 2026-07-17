@@ -916,6 +916,8 @@ model EmaStochSignal {
   stage         String            @default("reach") @db.VarChar(10) // monitoring stage: near | reach | risk
   note          String?           @db.VarChar(255) // short reason / met conditions for the current stage
   score         Int               @default(0) // 0–100 weighted setup-completeness score
+  htfTrend      String?           @db.VarChar(12) // higher-TF PA trend scored by the PA block: StrongUp | Up | Neutral | Down | StrongDown
+  swingStructure String?          @db.VarChar(8) // entry-TF swing structure: HH_HL | HH_LL | LH_HL | LH_LL | Mixed
   entryPrice    Float
   tpPrice       Float
   distPct       Float // distance below EMA34 at entry (fraction, e.g. 0.093)

@@ -1,9 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   scoreEmaStackOversoldSetup,
+  computeTimeframeTrend,
   EMA_STACK_OVERSOLD_MIN_CANDLES,
   extractSupportAndResistanceLevels,
   calculateStochRsi,
+  type PaTrend,
 } from '@app/core';
 import { createEmaStochScannerRepository } from '@app/db';
 
@@ -11,6 +13,15 @@ import { BinanceMarketDataService } from '../market/binance-market-data.service'
 import { renderEmaBounceChart, type OhlcCandle } from './chart-renderer';
 
 const CANDLE_LIMIT = 300;
+
+/** Candles fetched for the higher-timeframe PA trend (EMA89 + swing pivots need far less). */
+const HTF_CANDLE_LIMIT = 200;
+
+/** The timeframe whose PA trend gives a setup its context — must match the worker's map. */
+const HTF_OF: Record<string, { tf: string; label: string }> = {
+  '4h': { tf: '1d', label: 'D1' },
+  '1d': { tf: '1w', label: 'W1' },
+};
 
 // How many candles to show in the "view chart" dialog. Centered on the setup
 // candle when a focus time is provided, otherwise the most recent ones.
@@ -46,6 +57,8 @@ export type EmaStochSignalDto = {
   stage: string;
   note: string | null;
   score: number;
+  htfTrend: string | null;
+  swingStructure: string | null;
   triggeredAt: string;
   entryPrice: number;
   tpPrice: number;
@@ -98,6 +111,8 @@ export class EmaStochScannerService {
       stage: r.stage,
       note: r.note ?? null,
       score: r.score ?? 0,
+      htfTrend: r.htfTrend ?? null,
+      swingStructure: r.swingStructure ?? null,
       triggeredAt: r.triggeredAt.toISOString(),
       entryPrice: r.entryPrice,
       tpPrice: r.tpPrice,
@@ -128,6 +143,7 @@ export class EmaStochScannerService {
     const matches: Array<{
       symbol: string; timeframe: string; stage: string; note: string; score: number; price: number; tpPrice: number; distPct: number;
       rsi: number; stochK: number; stochD: number; ema34: number; ema89: number; ema200: number;
+      htfTrend: string; swingStructure: string;
     }> = [];
     let scanned = 0;
     let failed = 0;
@@ -140,7 +156,13 @@ export class EmaStochScannerService {
           const closed = klines.filter((k) => Number(k[6]) <= now);
           if (closed.length < EMA_STACK_OVERSOLD_MIN_CANDLES) continue;
           const closes = closed.map((k) => parseFloat(k[4]));
-          const setup = scoreEmaStackOversoldSetup(closes);
+          const htf = HTF_OF[tf] ?? { tf: '1d', label: 'D1' };
+          const setup = scoreEmaStackOversoldSetup(closes, {
+            highs: closed.map((k) => parseFloat(k[2])),
+            lows: closed.map((k) => parseFloat(k[3])),
+            htfTrend: await this.htfTrend(coin.symbol, tf, now),
+            htfLabel: htf.label,
+          });
           if (setup) {
             matches.push({
               symbol: coin.symbol,
@@ -157,6 +179,8 @@ export class EmaStochScannerService {
               ema34: setup.ema34,
               ema89: setup.ema89,
               ema200: setup.ema200,
+              htfTrend: setup.htfTrend,
+              swingStructure: setup.swingStructure,
             });
           }
         } catch (err) {
@@ -168,6 +192,28 @@ export class EmaStochScannerService {
 
     matches.sort((a, b) => b.score - a.score);
     return { scannedAt: new Date().toISOString(), scanned, failed, matches };
+  }
+
+  /**
+   * PA trend of the timeframe ABOVE the one being scanned — mirrors the worker's read so a
+   * "Quét ngay" preview scores identically to the card the cron will create. Only CLOSED
+   * higher-TF candles count (no repaint); 'Neutral' when history is too short.
+   */
+  private async htfTrend(symbol: string, timeframe: string, now: number): Promise<PaTrend> {
+    const htf = HTF_OF[timeframe];
+    if (!htf) return 'Neutral';
+    const klines = await this.binance.fetchKlines({
+      symbol: `${symbol}USDT`,
+      timeframe: htf.tf as never,
+      limit: HTF_CANDLE_LIMIT,
+    });
+    const closed = klines.filter((k) => Number(k[6]) <= now);
+    if (closed.length < 20) return 'Neutral';
+    return computeTimeframeTrend(
+      closed.map((k) => parseFloat(k[4])),
+      closed.map((k) => parseFloat(k[2])),
+      closed.map((k) => parseFloat(k[3])),
+    );
   }
 
   /**

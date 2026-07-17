@@ -840,6 +840,10 @@ export type EmaBounceSignal = {
   stage: 'near' | 'reach' | 'risk' | string;
   note: string | null;
   score: number;
+  /** Higher-TF PA trend scored by the PA block (D1 for a 4H card, W1 for a D1 card). */
+  htfTrend: PaTrend | null;
+  /** Entry-TF swing structure scored by the PA block. */
+  swingStructure: SwingStructure | null;
   triggeredAt: string;
   entryPrice: number;
   tpPrice: number;
@@ -871,6 +875,8 @@ export type EmaBounceMatch = {
   ema34: number;
   ema89: number;
   ema200: number;
+  htfTrend: PaTrend;
+  swingStructure: SwingStructure;
 };
 
 export type EmaBouncePreview = {

@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   scoreEmaStackOversoldSetup,
+  computeTimeframeTrend,
+  formatEmaStackPa,
   EMA_STACK_OVERSOLD_MIN_CANDLES,
   type EmaStackSignalStage,
+  type PaTrend,
 } from '@app/core';
 import { createEmaStochScannerRepository } from '@app/db';
 
@@ -10,6 +13,18 @@ import { BinanceMarketDataService } from '../market/binance-market-data.service'
 import { TelegramService } from '../telegram/telegram.service';
 
 const CANDLE_LIMIT = 300; // enough for EMA200 + StochRSI warm-up on any timeframe
+
+/** Candles fetched for the higher-timeframe PA trend (EMA89 + swing pivots need far less). */
+const HTF_CANDLE_LIMIT = 200;
+
+/** The timeframe whose PA trend gives a setup its context: a 4H bounce is read against D1, a D1 bounce against W1. */
+const HTF_OF: Record<string, { tf: string; label: string }> = {
+  '4h': { tf: '1d', label: 'D1' },
+  '1d': { tf: '1w', label: 'W1' },
+};
+
+/** DB `note` column is VARCHAR(255) — reasons now include PA text, so clamp defensively. */
+const NOTE_MAX = 255;
 
 /** How close to the +10% TP counts as the "risk" (near-TP) stage. */
 const RISK_BAND = 0.02;
@@ -32,6 +47,11 @@ function stochLabel(k: number, d: number): string {
     k < 20 ? 'Quá bán' : k < 30 ? 'Gần quá bán' : k > 80 ? 'Quá mua' : k > 70 ? 'Gần quá mua' : 'Trung tính';
   const dir = k > d ? 'đà tăng ↑' : k < d ? 'đà giảm ↓' : 'đi ngang';
   return `${zone}, ${dir}`;
+}
+
+/** Join reason labels into the card note, clamped to the column width. */
+function noteOf(reasons: string[]): string {
+  return reasons.join(' • ').slice(0, NOTE_MAX);
 }
 
 /** Format a price with sensible significant digits regardless of magnitude. */
@@ -87,6 +107,29 @@ export class EmaStochScanService {
    * At most one open card per coin+timeframe, so a low-score watch flips in place to a
    * higher score / reach — no duplicate cards.
    */
+  /**
+   * PA trend of the timeframe ABOVE the one being scanned — the context that separates a
+   * pullback from a knife. Only CLOSED higher-TF candles are used (a 4h scan runs while the
+   * D1 candle is still forming), so the read never repaints. Falls back to 'Neutral' — a
+   * young coin without weekly history shouldn't be scored as if the HTF were bearish.
+   */
+  private async htfTrend(symbol: string, timeframe: string, now: number): Promise<PaTrend> {
+    const htf = HTF_OF[timeframe];
+    if (!htf) return 'Neutral';
+    const klines = await this.binance.fetchKlines({
+      symbol: `${symbol}USDT`,
+      timeframe: htf.tf as never,
+      limit: HTF_CANDLE_LIMIT,
+    });
+    const closed = klines.filter((k) => Number(k[6]) <= now);
+    if (closed.length < 20) return 'Neutral';
+    return computeTimeframeTrend(
+      closed.map((k) => parseFloat(k[4])),
+      closed.map((k) => parseFloat(k[2])),
+      closed.map((k) => parseFloat(k[3])),
+    );
+  }
+
   private async scanOne(coinId: string, symbol: string, timeframe: string): Promise<number> {
     const klines = await this.binance.fetchKlines({
       symbol: `${symbol}USDT`,
@@ -101,11 +144,18 @@ export class EmaStochScanService {
 
     const closes = closed.map((k) => parseFloat(k[4]));
     const highs = closed.map((k) => parseFloat(k[2]));
+    const lows = closed.map((k) => parseFloat(k[3]));
     const closeTimes = closed.map((k) => Number(k[6]));
     const lastClose = closes[closes.length - 1]!;
     const lastCloseTime = closeTimes[closeTimes.length - 1]!;
 
-    const setup = scoreEmaStackOversoldSetup(closes);
+    const htf = HTF_OF[timeframe] ?? { tf: '1d', label: 'D1' };
+    const setup = scoreEmaStackOversoldSetup(closes, {
+      highs,
+      lows,
+      htfTrend: await this.htfTrend(symbol, timeframe, now),
+      htfLabel: htf.label,
+    });
     const openSignals = await this.repo.findOpenSignalsByCoinAndTimeframe(coinId, timeframe);
 
     // 1) Refresh + advance existing open cards.
@@ -130,7 +180,7 @@ export class EmaStochScanService {
       }
 
       const score = setup?.score ?? sig.score ?? 0;
-      const reasonNote = setup ? setup.reasons.join(' • ') : sig.note ?? '';
+      const reasonNote = setup ? noteOf(setup.reasons) : sig.note ?? '';
 
       // Stage progression — monotonic (near → reach → risk).
       const curRank = STAGE_RANK[sig.stage] ?? STAGE_RANK.reach!;
@@ -141,7 +191,7 @@ export class EmaStochScanService {
         nextNote = `Giá +${pnlPct.toFixed(1)}% — gần chạm TP +10%`;
       } else if (setup && setup.stage === 'reach') {
         nextStage = 'reach';
-        nextNote = setup.reasons.join(' • ');
+        nextNote = noteOf(setup.reasons);
       }
       const advanced = (STAGE_RANK[nextStage] ?? 0) > curRank;
       const heatedUp = !advanced && nextStage === 'near' && (sig.score ?? 0) < ALERT_MIN_SCORE && score >= ALERT_MIN_SCORE;
@@ -152,6 +202,9 @@ export class EmaStochScanService {
         score,
         note: nextNote,
         stage: advanced ? nextStage : undefined,
+        // PA moves while a card is open — keep the badge in sync with the score it fed.
+        htfTrend: setup?.htfTrend,
+        swingStructure: setup?.swingStructure,
       });
 
       if (advanced || heatedUp) {
@@ -167,13 +220,14 @@ export class EmaStochScanService {
           pnlPct,
           score,
           note: nextNote,
+          pa: setup ? formatEmaStackPa(setup) : null,
         });
       }
     }
 
     // 2) No open card yet → create one at its detected stage + score.
     if (openSignals.length === 0 && setup) {
-      const note = setup.reasons.join(' • ');
+      const note = noteOf(setup.reasons);
       const res = await this.repo.createSignalIfNew(coinId, {
         symbol,
         timeframe,
@@ -181,6 +235,8 @@ export class EmaStochScanService {
         stage: setup.stage,
         note,
         score: setup.score,
+        htfTrend: setup.htfTrend,
+        swingStructure: setup.swingStructure,
         entryPrice: setup.price,
         tpPrice: setup.tpPrice,
         distPct: setup.distPct,
@@ -206,6 +262,7 @@ export class EmaStochScanService {
             pnlPct: 0,
             score: setup.score,
             note,
+            pa: formatEmaStackPa(setup),
           });
         }
         return 1;
@@ -220,7 +277,7 @@ export class EmaStochScanService {
     symbol: string,
     timeframe: string,
     stage: Stage,
-    m: { price: number; tpPrice: number; distPct: number; rsi: number; stochK: number; stochD: number; pnlPct: number; score: number; note: string },
+    m: { price: number; tpPrice: number; distPct: number; rsi: number; stochK: number; stochD: number; pnlPct: number; score: number; note: string; pa?: string | null },
   ): Promise<void> {
     try {
       const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
@@ -232,6 +289,7 @@ export class EmaStochScanService {
           `⏳ <b>GẦN THOẢ MÃN · ${symbol}</b> (${tf}) · <b>${m.score}đ</b>`,
           `Giá: <b>${fmtPrice(m.price)}</b> · cách EMA34 <b>-${(m.distPct * 100).toFixed(1)}%</b>`,
           `StochRSI: <b>${stochLabel(m.stochK, m.stochD)}</b> (${m.stochK.toFixed(1)}/${m.stochD.toFixed(1)})`,
+          ...(m.pa ? [`📊 ${m.pa}`] : []),
           `📝 ${m.note}`,
           `👀 Chưa vào — mở chart xem có nên chờ không.`,
         ];
@@ -241,6 +299,7 @@ export class EmaStochScanService {
           `Vào LONG: <b>${fmtPrice(m.price)}</b>`,
           `Cách EMA34: <b>-${(m.distPct * 100).toFixed(1)}%</b> (dưới cụm EMA34&lt;89&lt;200)`,
           `RSI ${m.rsi.toFixed(1)} · StochRSI: <b>${stochLabel(m.stochK, m.stochD)}</b> (${m.stochK.toFixed(1)}/${m.stochD.toFixed(1)})`,
+          ...(m.pa ? [`📊 ${m.pa}`] : []),
           `🎯 TP +10%: <b>${fmtPrice(m.tpPrice)}</b>`,
           `⚠️ Chiến lược không cắt lỗ — giữ tới khi chạm TP.`,
         ];

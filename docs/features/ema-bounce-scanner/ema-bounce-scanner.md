@@ -24,15 +24,51 @@ faded (no signal condition left, not in profit) is **expired** so the page stays
   of gating on ALL conditions, it surfaces any coin **below EMA34** that meets **at least
   one** signal condition and returns a **0–100 weighted completeness score** so partial
   setups can be ranked. Weighted points (partial credit for "gần"):
-  - Bearish EMA stack (`EMA34<89<200`) — **20**
-  - Stretched below EMA34 — **25** at 7–15%, **12** at 5–7% / 15–18%
-  - StochRSI oversold — **25** at `%K<20`, **12** at `%K<30`
-  - StochRSI cross — **30** fresh bullish cross in oversold (within 3 candles, not run > 5%),
-    **15** about-to-cross (`%D−%K ≤ 6`, `%K<20`)
+  - Bearish EMA stack (`EMA34<89<200`) — **15**
+  - Stretched below EMA34 — **20** at 7–15%, **10** at 5–7% / 15–18%
+  - StochRSI oversold — **20** at `%K<20`, **10** at `%K<30`
+  - StochRSI cross — **25** fresh bullish cross in oversold (within 3 candles, not run > 5%),
+    **12** about-to-cross (`%D−%K ≤ 6`, `%K<20`)
+  - **Price action — 20** (see below)
 
   `stage = reach` when the full strict entry is present (stack + 7–15% + fresh cross), else
-  `near`. Returns `null` when price is not below EMA34, or no signal condition is met (a
-  plain downtrend never produces a card). Weights live in `EMA_STACK_SCORE_WEIGHTS`.
+  `near` — **PA does not affect the stage**. Returns `null` when price is not below EMA34, or
+  no signal condition is met (a plain downtrend never produces a card). Weights live in
+  `EMA_STACK_SCORE_WEIGHTS`.
+
+### The price action block (20đ)
+
+This setup is by construction a LONG bought **into a downtrend** (price under EMA34, bearish
+stack), so the entry timeframe's own PA trend is ~always `Down` and carries no information —
+scoring it would subtract a constant from every card. The two PA reads that actually separate
+a bounce from a falling knife, and that the block scores:
+
+| Read | Max | Points |
+|------|-----|--------|
+| **`htfTrend`** — trend of the timeframe ABOVE the setup (a **4H** card is read against **D1**, a **1D** card against **W1**) | 12 | `StrongUp` 12 · `Up` 10 · `Neutral` 6 · `Down` 3 · `StrongDown` 0 |
+| **`swingStructure`** — the entry timeframe's own HH/HL structure | 8 | `HH_HL` 8 · `LH_HL` 6 · `Mixed` 4 · `HH_LL` 2 · `LH_LL` 0 |
+
+Both come from `computeTimeframeStructure` (`@app/core`) — the same 1-bar-pivot maths
+`/tracking-coins` uses for `trend` / `weekTrend`, so the two pages read structure identically.
+The idea mirrors `computeEntryScore`'s multi-timeframe alignment, applied to a bounce: a dip
+bought while the higher timeframe still trends up is a **pullback**; the same dip under a
+collapsing HTF is a **knife**. `LH_LL` means price is still printing lower lows (the downtrend
+has not stopped); `LH_HL` means a higher low — a base forming, which is what a bounce needs.
+
+**PA is context that ranks, not a reason to surface.** It is deliberately excluded from the
+"at least one signal condition" gate, and a bad HTF is **not** a hard gate (unlike
+`/tracking-coins`, which gates `d1Trend` Down/StrongDown to `entryScore = 0`). A knife still
+gets a card — it just scores too low to clear `ALERT_MIN_SCORE`, keeping the scanner's wide-net
+"early monitoring" design intact. Points tables: `EMA_STACK_HTF_TREND_POINTS` /
+`EMA_STACK_STRUCTURE_POINTS`; `formatEmaStackPa` renders the one-line Telegram summary.
+
+> **Measured on 43 live cards (40 coins × 4H/1D, 2026-07-17):** the block discriminates rather
+> than shifting everything — PA totals span all 11 values 0–20 (median 6). **44% of cards sit
+> against a `StrongDown` HTF** (37% Neutral, 19% Up/StrongUp), i.e. nearly half of what the
+> scanner surfaces is knife-catching. Alerts (≥70đ) went **3 → 1**: HBAR 1D `70đ → 55đ`
+> (W1 StrongDown, PA 0/20) and ICP 4H `75đ → 66đ` (PA 6/20) fell silent, while good-PA bounces
+> re-ranked up (AXS/ENJ 4H `45đ → 53đ`, PA 18/20). Since median PA is 6/20, the effective
+> alert bar rose — if Telegram gets too quiet, lower `ALERT_MIN_SCORE` rather than reweighting.
 - `detectEmaStackOversoldSignal` — the earlier binary near/reach detector, kept exported but
   no longer used by the scanner (superseded by the scored version).
 
@@ -52,8 +88,9 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
 2. **Worker crons** — `runEmaStochScan4h` (`@Cron('0 2 */4 * * *')` UTC → 00:02, 04:02, …)
    calls `scanAll('4h')`; `runEmaStochScanD1` (`@Cron('0 5 0 * * *')` UTC → 00:05 daily) calls
    `scanAll('1d')`. For each watched coin `scanOne` fetches 300 klines of that timeframe, drops
-   the still-forming candle (`closeTime > now`), and runs `detectEmaStackOversoldSignal` on the
-   last closed candle.
+   the still-forming candle (`closeTime > now`), fetches 200 klines of the **higher timeframe**
+   (`HTF_OF`: 4h→1d, 1d→1w) for the PA trend, and runs the scored detector on the last closed
+   candle.
 3. `scanOne` first **refreshes + advances** the coin's existing OPEN cards for this timeframe
    (`findOpenSignalsByCoinAndTimeframe`): computes max high since the trigger; if `≥ tpPrice`
    → `markSignalHitTp` (+10% locked). Otherwise `updateSignalMark` (currentPrice/pnlPct), then
@@ -106,6 +143,17 @@ at the left edge. Served as a `StreamableFile` (no `express` type dependency nee
   returns `null` (not surfaced fresh); an already-open card keeps tracking toward TP regardless.
 - **Too-short history** — coins with fewer than `EMA_STACK_OVERSOLD_MIN_CANDLES` (~236) closed
   4h candles are skipped (EMA200 + StochRSI warm-up).
+- **Forming higher-TF candle** — the HTF fetch is filtered to `closeTime ≤ now` too, so a 4h
+  scan at 04:02 reads yesterday's closed D1, never the D1 candle still forming. No repaint.
+- **Too-short HTF history** — a coin with fewer than 20 closed W1 candles (a young listing on a
+  1D card) scores `htfTrend = 'Neutral'` (6/12), not 0 — absent history must not read as bearish.
+- **PA on pre-existing cards** — `htfTrend` / `swingStructure` are nullable; cards created before
+  the PA migration render without the PA row until the next scan refreshes them (`updateSignalMark`
+  rewrites both every scan, since PA moves while a card is open).
+- **Note overflow** — `note` is `VARCHAR(255)` and PA appends two more reasons, so the worker
+  clamps the joined reasons via `noteOf()` before persisting.
+- **Extra Binance calls** — the HTF read doubles fetches per coin (2 → 4 in the preview, which
+  scans both timeframes). Acceptable for a hand-maintained watchlist; revisit if it grows large.
 - **TP over multiple candles** — TP-hit is detected from the max high of all candles closed
   after the trigger, so a target reached between two 4h scans is still caught.
 - **No Telegram chat id** — `notify()` no-ops when `TELEGRAM_CHAT_ID` is empty; a send failure
@@ -115,7 +163,10 @@ at the left edge. Served as a `StreamableFile` (no `express` type dependency nee
 
 ## Related Files (FE / BE / Worker)
 - `packages/core/src/indicators/stoch-rsi.ts` — `calculateStochRsi` (TradingView 14/14/3/3)
-- `packages/core/src/analysis/ema-stack-oversold.ts` — strict `detectEmaStackOversoldEntry` + the scanner's `detectEmaStackOversoldSignal` (near/reach + note) + config/const
+- `packages/core/src/analysis/ema-stack-oversold.ts` — strict `detectEmaStackOversoldEntry` + the scanner's `detectEmaStackOversoldSignal` (near/reach + note) + `scoreEmaStackOversoldSetup` (**PA block**) + `formatEmaStackPa` + config/const
+- `packages/core/src/analysis/ema-stack-oversold.spec.ts` — PA block tests (HTF ranks monotonically, PA can't surface a coin alone, PA can't change the stage)
+- `packages/core/src/analysis/small-cap-signal.ts` — `computeTimeframeStructure` (trend **+ swingStructure**, shared with `/tracking-coins`); `computeTimeframeTrend` now delegates to it
+- `packages/db/prisma/migrations/20260717120000_ema_stoch_signal_pa_trend/migration.sql` — adds nullable `htfTrend` + `swingStructure` columns
 - `packages/db/prisma/migrations/20260714120000_ema_stoch_signal_stage/migration.sql` — adds `stage` (default `reach`) + `note` columns
 - `packages/db/prisma/migrations/20260714140000_ema_stoch_signal_score/migration.sql` — adds the `score` (0–100) column
 - `packages/core/src/index.ts` — exports the detector/indicator

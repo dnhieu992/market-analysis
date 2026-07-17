@@ -1,5 +1,5 @@
 export { buildIndicatorSnapshot } from './analysis/indicator-snapshot';
-export { computeSmallCapSignal, computeTimeframeTrend } from './analysis/small-cap-signal';
+export { computeSmallCapSignal, computeTimeframeTrend, computeTimeframeStructure } from './analysis/small-cap-signal';
 export type { SmallCapStage, SmallCapSignalResult, PaTrend, SwingStructure } from './analysis/small-cap-signal';
 export { computeLongShortScore } from './analysis/long-short-score';
 export type { LongShortScore, LongShortScoreParams } from './analysis/long-short-score';
@@ -43,9 +43,12 @@ export {
   detectEmaStackOversoldEntry,
   detectEmaStackOversoldSignal,
   scoreEmaStackOversoldSetup,
+  formatEmaStackPa,
   DEFAULT_EMA_STACK_OVERSOLD_CONFIG,
   DEFAULT_EMA_STACK_NEAR_CONFIG,
   EMA_STACK_SCORE_WEIGHTS,
+  EMA_STACK_HTF_TREND_POINTS,
+  EMA_STACK_STRUCTURE_POINTS,
   EMA_STACK_OS_NEAR_LEVEL,
   EMA_STACK_OVERSOLD_MIN_CANDLES,
 } from './analysis/ema-stack-oversold';
@@ -56,6 +59,7 @@ export type {
   EmaStackOversoldSignal,
   EmaStackSignalStage,
   EmaStackScoredSetup,
+  EmaStackPaInput,
   EmaStackScoreBreakdown,
 } from './analysis/ema-stack-oversold';
 export { isUtBotUptrend, calcUtBotResult, calcUtBotSignals } from './indicators/ut-bot';

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
-import type { EmaBounceCoin, EmaBounceSignal, EmaBounceMatch } from '@web/shared/api/types';
+import type { EmaBounceCoin, EmaBounceSignal, EmaBounceMatch, PaTrend, SwingStructure } from '@web/shared/api/types';
 
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -58,6 +58,62 @@ function stochLabel(k: number | null | undefined, d: number | null | undefined):
     k < 20 ? 'Quá bán' : k < 30 ? 'Gần quá bán' : k > 80 ? 'Quá mua' : k > 70 ? 'Gần quá mua' : 'Trung tính';
   const dir = k > d ? 'đà tăng ↑' : k < d ? 'đà giảm ↓' : 'đi ngang';
   return `${zone}, ${dir}`;
+}
+
+/* ── Price action badges ──────────────────────────────────────────
+ * The setup is a LONG bought into a downtrend, so the entry timeframe's own trend says
+ * nothing. These two reads carry the PA block's 20 points: the HIGHER timeframe's trend
+ * (is this a pullback or a knife?) and the entry timeframe's swing structure (has it
+ * stopped making lower lows?). Mirrors /tracking-coins' trend badges.
+ */
+const HTF_TREND_META: Record<PaTrend, { label: string; cls: string; pts: number }> = {
+  StrongUp:   { label: '↑↑', cls: 'eb-pa--strong-up',   pts: 12 },
+  Up:         { label: '↑',  cls: 'eb-pa--up',          pts: 10 },
+  Neutral:    { label: '→',  cls: 'eb-pa--neutral',     pts: 6 },
+  Down:       { label: '↓',  cls: 'eb-pa--down',        pts: 3 },
+  StrongDown: { label: '↓↓', cls: 'eb-pa--strong-down', pts: 0 },
+};
+
+const STRUCTURE_META: Record<SwingStructure, { label: string; desc: string; cls: string; pts: number }> = {
+  HH_HL: { label: 'HH+HL', desc: 'Đỉnh & đáy đều cao dần — cấu trúc đã đảo chiều', cls: 'eb-pa--strong-up',   pts: 8 },
+  LH_HL: { label: 'LH+HL', desc: 'Đáy cao dần, đỉnh còn thấp dần — đang nén, đáy hình thành', cls: 'eb-pa--up', pts: 6 },
+  Mixed: { label: 'Mixed', desc: 'Swing bằng nhau / cấu trúc chưa rõ', cls: 'eb-pa--neutral',  pts: 4 },
+  HH_LL: { label: 'HH+LL', desc: 'Biên độ mở rộng — chưa ổn định', cls: 'eb-pa--down',        pts: 2 },
+  LH_LL: { label: 'LH+LL', desc: 'Còn phá đáy — dao đang rơi', cls: 'eb-pa--strong-down',      pts: 0 },
+};
+
+/** Which timeframe a card's PA context is read on: a 4H setup is judged against D1, a D1 against W1. */
+function htfLabelOf(tf: string): string {
+  return tf === '1d' ? 'W1' : 'D1';
+}
+
+/** The card's PA row — HTF trend + swing structure, each showing what it contributed. */
+function PaRow({ timeframe, htfTrend, swingStructure }: {
+  timeframe: string;
+  htfTrend: PaTrend | null;
+  swingStructure: SwingStructure | null;
+}) {
+  if (!htfTrend && !swingStructure) return null;
+  const htf = htfTrend ? HTF_TREND_META[htfTrend] : null;
+  const st = swingStructure ? STRUCTURE_META[swingStructure] : null;
+  const total = (htf?.pts ?? 0) + (st?.pts ?? 0);
+  return (
+    <div className="eb-kv" title="Price action: trend khung lớn + cấu trúc swing khung vào lệnh (tối đa 20đ trong tổng điểm)">
+      <span>PA <span className="eb-pa-pts">{total}/20đ</span></span>
+      <span className="eb-pa-row">
+        {htf && (
+          <span className={`eb-pa ${htf.cls}`} title={`Trend ${htfLabelOf(timeframe)} — ${htf.pts}đ`}>
+            {htfLabelOf(timeframe)} {htf.label}
+          </span>
+        )}
+        {st && (
+          <span className={`eb-pa ${st.cls}`} title={`${st.desc} — ${st.pts}đ`}>
+            {st.label}
+          </span>
+        )}
+      </span>
+    </div>
+  );
 }
 
 /** What to plot when the "Xem chart" dialog opens. */
@@ -238,8 +294,15 @@ export function EmaBounceFeed({
           </p>
           <p className="eb-sub">
             Card hiện <b>sớm</b> khi coin ở dưới EMA34 + đạt <b>ít nhất 1</b> tín hiệu, kèm <b>điểm 0–100</b> theo mức độ
-            hoàn thiện: Stack <b>20</b> · Giãn <b>25/12</b> · Quá bán <b>25/12</b> · Cắt lên <b>30/15</b>. Điểm càng cao,
-            setup càng gần chuẩn — sắp theo điểm giảm dần.
+            hoàn thiện: Stack <b>15</b> · Giãn <b>20/10</b> · Quá bán <b>20/10</b> · Cắt lên <b>25/12</b> ·{' '}
+            <b>PA 20</b>. Điểm càng cao, setup càng gần chuẩn — sắp theo điểm giảm dần.
+          </p>
+          <p className="eb-sub">
+            <b>PA (20đ)</b> — setup này vốn là bắt đáy trong downtrend, nên trend của chính khung vào lệnh không có ý
+            nghĩa. Hai thứ được chấm là <b>trend khung lớn</b> (12đ — card 4H đọc D1, card 1D đọc W1: ↑↑ 12 · ↑ 10 ·
+            → 6 · ↓ 3 · ↓↓ 0) và <b>cấu trúc swing</b> khung vào lệnh (8đ — HH+HL 8 · LH+HL 6 · Mixed 4 · HH+LL 2 ·
+            LH+LL 0). Bắt đáy <b>thuận</b> khung lớn là nhịp chỉnh; <b>ngược</b> khung lớn là bắt dao rơi — vẫn hiện
+            card nhưng điểm thấp nên không bắn Telegram.
           </p>
           <p className="eb-sub">
             Giai đoạn: <b className="eb-near">⏳ Gần thoả mãn</b> → <b className="eb-reach">🟢 Thoả mãn</b> (đủ điều kiện
@@ -296,6 +359,7 @@ export function EmaBounceFeed({
                     <div className="eb-kv"><span>Cách EMA34</span><span className="eb-red">-{(m.distPct * 100).toFixed(1)}%</span></div>
                     <div className="eb-kv"><span>StochRSI</span><span>{stochLabel(m.stochK, m.stochD)}<span className="eb-stoch-num"> ({m.stochK.toFixed(1)}/{m.stochD.toFixed(1)})</span></span></div>
                     <div className="eb-kv"><span>TP +10%</span><span className="eb-green">{fmtPrice(m.tpPrice)}</span></div>
+                    <PaRow timeframe={m.timeframe} htfTrend={m.htfTrend} swingStructure={m.swingStructure} />
                     {m.note && <div className="eb-signal-note">{m.note}</div>}
                     <button
                       className="eb-chart-btn"
@@ -377,6 +441,7 @@ export function EmaBounceFeed({
                     <span>StochRSI</span>
                     <span>{stochLabel(s.stochK, s.stochD)}{s.stochK != null && <span className="eb-stoch-num"> ({s.stochK.toFixed(1)}/{s.stochD?.toFixed(1)})</span>}</span>
                   </div>
+                  <PaRow timeframe={s.timeframe} htfTrend={s.htfTrend} swingStructure={s.swingStructure} />
                   {s.note && <div className="eb-signal-note">{s.note}</div>}
                   <div className="eb-kv eb-kv-time"><span>Kích hoạt</span><span>{fmtTime(s.triggeredAt)}</span></div>
                   <button
