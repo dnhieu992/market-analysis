@@ -10357,6 +10357,8 @@ a.metric-card--link:hover {
 .tj-sub { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .tj-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .tj-error { background: rgba(239,68,68,0.14); color: #ef4444; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.tj-warn { background: rgba(245,158,11,0.14); color: #f59e0b; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.tj-hint { font-size: 12px; color: var(--muted); }
 .tj-row { display: flex; gap: 10px; align-items: center; }
 .tj-between { justify-content: space-between; }
 .tj-field { display: flex; flex-direction: column; gap: 6px; }

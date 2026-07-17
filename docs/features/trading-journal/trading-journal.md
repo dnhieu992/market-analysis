@@ -23,9 +23,14 @@ before it.
 3. Content is edited with the shared **MarkdownEditor** (TipTap, lazy-loaded). Tags are added
    as chips (Enter / comma). Images are picked from disk and previewed locally as "mới" (not yet
    uploaded).
-4. **Save** (`Cập nhật` / `Lưu nhật ký`): any newly-picked files are first uploaded to
-   Cloudflare R2 via `POST /upload/images` (returns URLs), appended to the existing image URLs,
-   then the whole entry is upserted via `POST /journal` (`{ date, content, images, tags }`).
+4. **Save** (`Cập nhật` / `Lưu nhật ký`) — one button that formats *then* persists:
+   1. If the text changed since the last save, it goes to `POST /journal/reformat` (Claude Haiku)
+      and the cleaned markdown replaces the editor content. The button reads `✨ Đang format…`.
+      A tags/images-only save skips this step entirely.
+   2. Any newly-picked files are uploaded to Cloudflare R2 via `POST /upload/images` (returns
+      URLs) and appended to the existing image URLs.
+   3. The entry is upserted via `POST /journal` (`{ date, content, images, tags }`) with the
+      **formatted** content — so what is persisted is exactly what the editor now shows.
    The API keys on `date`, so re-saving the same day updates in place. In the same transaction
    the repository appends a `TradingJournalRevision` snapshot of what was just saved, then the
    widget reloads the history panel.
@@ -37,12 +42,23 @@ before it.
 6. The **past-entries list** below shows every day (date, image count, first-line preview,
    tags) — still **one item per day**, unchanged by revisions. Clicking an item opens that day in
    the editor. **Xoá ngày này** deletes via `DELETE /journal/:id`.
-7. **✨ Format lại** (next to the "Nội dung" label): sends the current editor content to
-   `POST /journal/reformat`, which asks **Claude Haiku** (`claude-haiku-4-5-20251001`, hard-coded
-   — not the app's `CLAUDE_MODEL`) to clean up the raw markdown (headings, bullet lists, bold key
-   levels, fix typos / HTML entities, fix broken indentation) while preserving meaning and the
-   Vietnamese voice. The returned markdown replaces the editor content; nothing is persisted until
-   the user hits Save. This does **not** change the data on its own.
+**Reformat** (`POST /journal/reformat`) asks **Claude Sonnet** (`claude-sonnet-4-6`, hard-coded —
+not the app's `CLAUDE_MODEL`) to clean up the raw markdown (headings, bullet lists, bold key
+levels, fix typos / HTML entities, fix broken indentation) while preserving meaning and the
+Vietnamese voice. It used to be a separate **✨ Format lại** button the user pressed before
+saving; it is now step 1 of Save and has no button of its own.
+
+Because it runs on the whole day's text at every save, the format must be a **fixed point** —
+already-clean text has to come back verbatim, or Haiku/Sonnet would re-word the 09:00 paragraphs
+and the 14:30 revision diff would show lines the trader never touched, defeating the history
+panel. Two things buy that:
+- The `##` grouping rule has a hard threshold (**≥3 lines → always** add headings). The old
+  "khi phù hợp" wording was non-deterministic: the first pass often skipped headings and a later
+  pass added them, restructuring text written hours earlier.
+- The model is **Sonnet, not Haiku**. Measured on a real entry: Haiku 4.5 changed 1-3 of 5 lines
+  on a second pass even with the idempotency rule; Sonnet 4.6 converged on the first pass and
+  returned it byte-identical on the second, keeping 6/6 morning lines verbatim when an afternoon
+  line was appended. A journal is saved a handful of times a day, so the cost delta is negligible.
 
 ## Edge Cases
 - **One entry per day** — the `TradingJournalEntry.date` column is `@unique`; `POST /journal`
@@ -54,6 +70,12 @@ before it.
   "(chưa có nội dung)".
 - **Upload failure** — surfaced as "Lưu nhật ký thất bại"; the entry is not saved so no partial
   state is persisted (upload happens before the upsert).
+- **Reformat failure during Save** — non-fatal by design: the save continues with the trader's
+  raw text and a yellow "Không format lại được (Claude lỗi) — đã lưu nguyên văn bạn viết." warning.
+  A journal entry must never be lost because the Claude API is down.
+- **Re-saving without editing** — the reformat is skipped when the content equals the last saved
+  content, so an LLM round-trip cannot rewrite the day (and pollute its diffs) when the user only
+  touched tags or images, or just clicked Cập nhật twice.
 - **Save with no changes** — `upsertByDate` compares content/images/tags against the newest
   revision and skips the insert when they match, so hammering "Cập nhật" does not pad the
   timeline with identical snapshots.
@@ -87,7 +109,7 @@ before it.
 - `apps/api/src/modules/upload/*` — existing `POST /upload/images` (Cloudflare R2) reused for images
 - `apps/web/src/app/journal/page.tsx` — App Router route (thin re-export)
 - `apps/web/src/_pages/journal-page/journal-page.tsx` — server page, loads entries + today's revisions
-- `apps/web/src/widgets/trading-journal/trading-journal.tsx` — client UI (editor, tags, image upload, history panel + `RevisionRow`, entry list)
+- `apps/web/src/widgets/trading-journal/trading-journal.tsx` — client UI (editor, tags, image upload, history panel + `RevisionRow`, entry list); `save()` = reformat → upload → upsert
 - `apps/web/src/widgets/trading-journal/diff-lines.ts` — LCS line diff + `diffStat` (+N/−M, first added line) used by the history panel
 - `apps/web/src/widgets/trading-journal/diff-lines.spec.ts` — unit tests for the diff
 - `apps/web/src/shared/api/client.ts` — `fetchJournalEntries`, `saveJournalEntry`, `fetchJournalRevisions`, `deleteJournalEntry`, `reformatJournal` (+ reused `uploadImages`)

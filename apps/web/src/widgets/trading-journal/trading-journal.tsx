@@ -162,9 +162,9 @@ export function TradingJournal({
   const [images, setImages] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [tagDraft, setTagDraft] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [reformatting, setReformatting] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'formatting' | 'saving'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [loadedDate, setLoadedDate] = useState<string>('');
   const [revisions, setRevisions] = useState<TradingJournalRevision[]>(initialRevisions);
@@ -180,12 +180,14 @@ export function TradingJournal({
     setPendingFiles([]);
     setTagDraft('');
     setSaved(false);
+    setWarning(null);
     setExpandedRev(null);
     setLoadedDate(date);
   }
 
   const currentEntry = entries.find((e) => e.date === date) ?? null;
   const currentEntryId = currentEntry?.id ?? null;
+  const busy = phase !== 'idle';
   const pendingPreviews = useMemo(() => pendingFiles.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })), [pendingFiles]);
 
   // Which entry the `revisions` in state belong to — the server already sent today's.
@@ -220,42 +222,48 @@ export function TradingJournal({
     setTagDraft('');
   }
 
-  async function reformat() {
-    if (!content.trim() || reformatting) return;
-    setReformatting(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const formatted = await api.reformatJournal(content);
-      if (formatted.trim()) setContent(formatted);
-    } catch {
-      setError('Format lại nhật ký thất bại');
-    } finally {
-      setReformatting(false);
-    }
-  }
-
   function onFilesPicked(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length) setPendingFiles((prev) => [...prev, ...files]);
     e.target.value = '';
   }
 
+  /**
+   * Save = format then persist. The reformat is skipped when the text is unchanged since the
+   * last save (a tags/images-only update), so re-saving cannot churn the day's wording — and
+   * with it the revision diffs — through the LLM for nothing.
+   */
   async function save() {
-    setBusy(true);
     setError(null);
+    setWarning(null);
     setSaved(false);
+
+    let finalContent = content;
+    const textChanged = content !== (currentEntry?.content ?? '');
+    if (content.trim() && textChanged) {
+      setPhase('formatting');
+      try {
+        const formatted = await api.reformatJournal(content);
+        if (formatted.trim()) finalContent = formatted;
+      } catch {
+        // Never lose the trader's writing because Claude is unreachable — save the raw text.
+        setWarning('Không format lại được (Claude lỗi) — đã lưu nguyên văn bạn viết.');
+      }
+    }
+
+    setPhase('saving');
     try {
       let allImages = images;
       if (pendingFiles.length) {
         const urls = await api.uploadImages(pendingFiles);
         allImages = [...images, ...urls];
       }
-      const entry = await api.saveJournalEntry({ date, content, images: allImages, tags });
+      const entry = await api.saveJournalEntry({ date, content: finalContent, images: allImages, tags });
       setEntries((prev) => {
         const rest = prev.filter((e) => e.id !== entry.id && e.date !== entry.date);
         return [entry, ...rest].sort((a, b) => b.date.localeCompare(a.date));
       });
+      setContent(finalContent);
       setImages(allImages);
       setPendingFiles([]);
       setSaved(true);
@@ -263,7 +271,7 @@ export function TradingJournal({
     } catch {
       setError('Lưu nhật ký thất bại');
     } finally {
-      setBusy(false);
+      setPhase('idle');
     }
   }
 
@@ -280,7 +288,7 @@ export function TradingJournal({
   async function remove() {
     if (!currentEntry) return;
     if (!confirm(`Xoá nhật ký ngày ${date}? Toàn bộ lịch sử trong ngày cũng sẽ mất.`)) return;
-    setBusy(true);
+    setPhase('saving');
     try {
       await api.deleteJournalEntry(currentEntry.id);
       setEntries((prev) => prev.filter((e) => e.id !== currentEntry.id));
@@ -291,7 +299,7 @@ export function TradingJournal({
       loadedRevFor.current = null;
       setRevisions([]);
     } finally {
-      setBusy(false);
+      setPhase('idle');
     }
   }
 
@@ -307,6 +315,7 @@ export function TradingJournal({
       </header>
 
       {error && <div className="tj-error">{error}</div>}
+      {warning && <div className="tj-warn">{warning}</div>}
 
       {/* Editor */}
       <section className="tj-card tj-editor">
@@ -321,15 +330,7 @@ export function TradingJournal({
         <div className="tj-field">
           <div className="tj-row tj-between">
             <span className="tj-label">Nội dung</span>
-            <button
-              type="button"
-              className="tj-btn tj-btn-ghost tj-btn-sm"
-              onClick={reformat}
-              disabled={reformatting || !content.trim()}
-              title="Nhờ Claude (Haiku) format lại nội dung cho gọn gàng"
-            >
-              {reformatting ? 'Đang format…' : '✨ Format lại'}
-            </button>
+            <span className="tj-hint">✨ Claude tự format lại khi bạn bấm {currentEntry ? 'Cập nhật' : 'Lưu nhật ký'}</span>
           </div>
           <MarkdownEditor
             value={content}
@@ -389,9 +390,15 @@ export function TradingJournal({
         <div className="tj-row tj-between">
           <div className="tj-row">
             <button className="tj-btn tj-btn-primary" onClick={save} disabled={busy}>
-              {busy ? 'Đang lưu…' : currentEntry ? 'Cập nhật' : 'Lưu nhật ký'}
+              {phase === 'formatting'
+                ? '✨ Đang format…'
+                : phase === 'saving'
+                  ? 'Đang lưu…'
+                  : currentEntry
+                    ? 'Cập nhật'
+                    : 'Lưu nhật ký'}
             </button>
-            {saved && <span className="tj-saved">✓ Đã lưu</span>}
+            {saved && <span className="tj-saved">✓ Đã format &amp; lưu</span>}
           </div>
           {currentEntry && <button className="tj-btn tj-btn-danger" onClick={remove} disabled={busy}>Xoá ngày này</button>}
         </div>
