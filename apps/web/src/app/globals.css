@@ -10547,6 +10547,9 @@ a.metric-card--link:hover {
   margin-bottom: 8px;
 }
 .bg-toggle-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
