@@ -91,6 +91,9 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
 
   const { configured, trades, summary, fetchedAt } = data;
 
+  // Sort closed trades by PnL % descending — biggest winners first.
+  const sortedTrades = [...trades].sort((a, b) => b.netProfitPct - a.netProfitPct);
+
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
       <div className="bg-head">
@@ -173,7 +176,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map((t) => (
+                  {sortedTrades.map((t) => (
                     <TradeRow key={t.positionId} t={t} />
                   ))}
                 </tbody>
