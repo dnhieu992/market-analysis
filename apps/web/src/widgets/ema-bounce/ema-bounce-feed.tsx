@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
@@ -206,6 +206,186 @@ function ChartDialog({ target, onClose }: { target: ChartTarget; onClose: () => 
   );
 }
 
+/** How the scanner works — the same explanatory copy, moved into a click-to-open dialog. */
+function InfoDialog({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">EMA Bounce Scanner — cách hoạt động</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body">
+          <p className="eb-sub eb-sub--dialog">
+            LONG khi giá dưới cụm <b>EMA34&lt;89&lt;200</b>, giãn <b>7–15%</b> dưới EMA34 và StochRSI %K
+            cắt lên %D trong vùng quá bán. TP <b>+10%</b>, không cắt lỗ. Worker tự quét khung <b>4H</b> (mỗi 4h)
+            và <b>D1</b> (mỗi ngày).
+          </p>
+          <p className="eb-sub eb-sub--dialog">
+            Card hiện <b>sớm</b> khi coin ở dưới EMA34 + đạt <b>ít nhất 1</b> tín hiệu, kèm <b>điểm 0–100</b> theo mức độ
+            hoàn thiện:
+          </p>
+          <ul className="eb-score-list">
+            <li><b>Stack</b> — cụm EMA34&lt;89&lt;200 đúng thứ tự: <b>15đ</b></li>
+            <li><b>Giãn</b> — giá cách EMA34 7–15%: <b>20đ</b> / một phần <b>10đ</b></li>
+            <li><b>Quá bán</b> — StochRSI trong vùng quá bán: <b>20đ</b> / gần <b>10đ</b></li>
+            <li><b>Cắt lên</b> — %K cắt lên %D: <b>25đ</b> / sắp cắt <b>12đ</b></li>
+            <li><b>PA</b> — trend khung lớn + cấu trúc swing: <b>20đ</b></li>
+          </ul>
+          <p className="eb-sub eb-sub--dialog">
+            Điểm càng cao, setup càng gần chuẩn — sắp theo điểm giảm dần.
+          </p>
+          <p className="eb-sub eb-sub--dialog">
+            <b>PA (20đ)</b> — setup này vốn là bắt đáy trong downtrend, nên trend của chính khung vào lệnh không có ý
+            nghĩa. Hai thứ được chấm là <b>trend khung lớn</b> (12đ — card 4H đọc D1, card 1D đọc W1: ↑↑ 12 · ↑ 10 ·
+            → 6 · ↓ 3 · ↓↓ 0) và <b>cấu trúc swing</b> khung vào lệnh (8đ — HH+HL 8 · LH+HL 6 · Mixed 4 · HH+LL 2 ·
+            LH+LL 0). Bắt đáy <b>thuận</b> khung lớn là nhịp chỉnh; <b>ngược</b> khung lớn là bắt dao rơi — vẫn hiện
+            card nhưng điểm thấp nên không bắn Telegram.
+          </p>
+          <p className="eb-sub eb-sub--dialog">
+            Giai đoạn: <b className="eb-near">⏳ Gần thoả mãn</b> → <b className="eb-reach">🟢 Thoả mãn</b> (đủ điều kiện
+            vào lệnh) → <b className="eb-risk">🔔 Gần TP</b>. Telegram chỉ báo khi <b>điểm ≥ 70</b> hoặc lên thoả mãn/gần TP.
+          </p>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Manage-watchlist dialog: input to add a new coin + full list of tracked coins with delete. */
+function ManageCoinsDialog({ coins, onAdd, onRemove, busy, onClose }: {
+  coins: EmaBounceCoin[];
+  onAdd: (sym: string) => Promise<void>;
+  onRemove: (sym: string) => Promise<void>;
+  busy: boolean;
+  onClose: () => void;
+}) {
+  const [newSymbol, setNewSymbol] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  async function submit() {
+    const sym = newSymbol.trim().toUpperCase();
+    if (!sym) return;
+    setLocalError(null);
+    try {
+      await onAdd(sym);
+      setNewSymbol('');
+    } catch {
+      setLocalError(`Không thêm được ${sym}`);
+    }
+  }
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Quản lý coin theo dõi ({coins.length})</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="dialog-body">
+          <div className="eb-row">
+            <input
+              className="eb-input"
+              placeholder="Thêm coin (VD: SOL)"
+              value={newSymbol}
+              onChange={(e) => setNewSymbol(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              disabled={busy}
+              autoFocus
+            />
+            <button className="eb-btn eb-btn-primary" onClick={submit} disabled={busy}>Thêm</button>
+          </div>
+          {localError && <div className="eb-error eb-manage-error">{localError}</div>}
+          <div className="eb-manage-list">
+            {coins.length === 0 ? (
+              <p className="eb-muted">Chưa có coin nào trong danh sách theo dõi.</p>
+            ) : (
+              coins.map((c) => (
+                <div key={c.id} className="eb-manage-item">
+                  <span className="eb-manage-sym">{c.symbol}</span>
+                  <button className="eb-manage-x" onClick={() => onRemove(c.symbol)} disabled={busy} title="Xoá">
+                    Xoá
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Checkbox dropdown to filter the signal feed by one or more coins (empty = all). */
+function CoinMultiSelect({ coins, selected, onChange }: {
+  coins: EmaBounceCoin[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const label = selected.length === 0 ? 'Mọi coin' : `${selected.length} coin`;
+
+  function toggle(sym: string) {
+    onChange(selected.includes(sym) ? selected.filter((s) => s !== sym) : [...selected, sym]);
+  }
+
+  return (
+    <div className="eb-ms" ref={ref}>
+      <button type="button" className="eb-select eb-ms-btn" onClick={() => setOpen((o) => !o)}>
+        {label} <span className="eb-ms-caret">▾</span>
+      </button>
+      {open && (
+        <div className="eb-ms-panel">
+          {coins.length === 0 ? (
+            <div className="eb-ms-empty">Chưa có coin</div>
+          ) : (
+            <>
+              {selected.length > 0 && (
+                <button type="button" className="eb-ms-clear" onClick={() => onChange([])}>Bỏ chọn tất cả</button>
+              )}
+              {coins.map((c) => (
+                <label key={c.id} className="eb-ms-item">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(c.symbol)}
+                    onChange={() => toggle(c.symbol)}
+                  />
+                  {c.symbol}
+                </label>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function EmaBounceFeed({
   initialCoins,
   initialSignals,
@@ -216,7 +396,6 @@ export function EmaBounceFeed({
   const api = createApiClient();
   const [coins, setCoins] = useState<EmaBounceCoin[]>(initialCoins);
   const [signals, setSignals] = useState<EmaBounceSignal[]>(initialSignals);
-  const [newSymbol, setNewSymbol] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<EmaBounceMatch[] | null>(null);
@@ -224,19 +403,17 @@ export function EmaBounceFeed({
   const [tfFilter, setTfFilter] = useState<'all' | '4h' | '1d'>('all');
   const [stageFilter, setStageFilter] = useState<'all' | 'near' | 'reach' | 'risk'>('all');
   const [minScore, setMinScore] = useState(0);
+  const [coinFilter, setCoinFilter] = useState<string[]>([]);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const [showManage, setShowManage] = useState(false);
 
-  async function addCoin() {
-    const sym = newSymbol.trim().toUpperCase();
-    if (!sym) return;
+  // Throws on failure so ManageCoinsDialog can surface its own error inline.
+  async function addCoin(sym: string) {
     setBusy(true);
-    setError(null);
     try {
       const coin = await api.addEmaBounceCoin(sym);
       setCoins((prev) => (prev.some((c) => c.symbol === coin.symbol) ? prev : [...prev, coin]));
-      setNewSymbol('');
-    } catch {
-      setError(`Không thêm được ${sym}`);
     } finally {
       setBusy(false);
     }
@@ -247,6 +424,7 @@ export function EmaBounceFeed({
     try {
       await api.removeEmaBounceCoin(symbol);
       setCoins((prev) => prev.filter((c) => c.symbol !== symbol));
+      setCoinFilter((prev) => prev.filter((s) => s !== symbol));
     } finally {
       setBusy(false);
     }
@@ -278,6 +456,7 @@ export function EmaBounceFeed({
     .filter((s) => (showOpenOnly ? s.status === 'open' : true))
     .filter((s) => (tfFilter === 'all' ? true : s.timeframe === tfFilter))
     .filter((s) => (stageFilter === 'all' ? true : s.stage === stageFilter))
+    .filter((s) => (coinFilter.length === 0 ? true : coinFilter.includes(s.symbol)))
     .filter((s) => s.score >= minScore)
     .slice()
     .sort((a, b) => b.score - a.score);
@@ -285,58 +464,21 @@ export function EmaBounceFeed({
   return (
     <div className="eb-page">
       <header className="eb-header">
-        <div>
+        <div className="eb-title-row">
           <h1 className="eb-title">EMA Bounce Scanner</h1>
-          <p className="eb-sub">
-            LONG khi giá dưới cụm <b>EMA34&lt;89&lt;200</b>, giãn <b>7–15%</b> dưới EMA34 và StochRSI %K
-            cắt lên %D trong vùng quá bán. TP <b>+10%</b>, không cắt lỗ. Worker tự quét khung <b>4H</b> (mỗi 4h)
-            và <b>D1</b> (mỗi ngày).
-          </p>
-          <p className="eb-sub">
-            Card hiện <b>sớm</b> khi coin ở dưới EMA34 + đạt <b>ít nhất 1</b> tín hiệu, kèm <b>điểm 0–100</b> theo mức độ
-            hoàn thiện: Stack <b>15</b> · Giãn <b>20/10</b> · Quá bán <b>20/10</b> · Cắt lên <b>25/12</b> ·{' '}
-            <b>PA 20</b>. Điểm càng cao, setup càng gần chuẩn — sắp theo điểm giảm dần.
-          </p>
-          <p className="eb-sub">
-            <b>PA (20đ)</b> — setup này vốn là bắt đáy trong downtrend, nên trend của chính khung vào lệnh không có ý
-            nghĩa. Hai thứ được chấm là <b>trend khung lớn</b> (12đ — card 4H đọc D1, card 1D đọc W1: ↑↑ 12 · ↑ 10 ·
-            → 6 · ↓ 3 · ↓↓ 0) và <b>cấu trúc swing</b> khung vào lệnh (8đ — HH+HL 8 · LH+HL 6 · Mixed 4 · HH+LL 2 ·
-            LH+LL 0). Bắt đáy <b>thuận</b> khung lớn là nhịp chỉnh; <b>ngược</b> khung lớn là bắt dao rơi — vẫn hiện
-            card nhưng điểm thấp nên không bắn Telegram.
-          </p>
-          <p className="eb-sub">
-            Giai đoạn: <b className="eb-near">⏳ Gần thoả mãn</b> → <b className="eb-reach">🟢 Thoả mãn</b> (đủ điều kiện
-            vào lệnh) → <b className="eb-risk">🔔 Gần TP</b>. Telegram chỉ báo khi <b>điểm ≥ 70</b> hoặc lên thoả mãn/gần TP.
-          </p>
+          <button
+            type="button"
+            className="eb-info-btn"
+            onClick={() => setShowInfo(true)}
+            aria-label="Thông tin về cách hoạt động"
+            title="Cách hoạt động"
+          >
+            ⓘ
+          </button>
         </div>
       </header>
 
       {error && <div className="eb-error">{error}</div>}
-
-      {/* Watchlist manager */}
-      <section className="eb-card eb-watchlist">
-        <div className="eb-row">
-          <input
-            className="eb-input"
-            placeholder="Thêm coin (VD: SOL)"
-            value={newSymbol}
-            onChange={(e) => setNewSymbol(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addCoin()}
-            disabled={busy}
-          />
-          <button className="eb-btn eb-btn-primary" onClick={addCoin} disabled={busy}>Thêm</button>
-          <button className="eb-btn" onClick={runPreview} disabled={busy || coins.length === 0}>Quét ngay</button>
-        </div>
-        <div className="eb-chips">
-          {coins.length === 0 && <span className="eb-muted">Chưa có coin nào trong danh sách theo dõi.</span>}
-          {coins.map((c) => (
-            <span key={c.id} className="eb-chip">
-              {c.symbol}
-              <button className="eb-chip-x" onClick={() => removeCoin(c.symbol)} disabled={busy} title="Xoá">×</button>
-            </span>
-          ))}
-        </div>
-      </section>
 
       {/* Live preview matches */}
       {preview && (
@@ -387,6 +529,7 @@ export function EmaBounceFeed({
         <div className="eb-row eb-between">
           <h2 className="eb-h2">Tín hiệu ({shown.length})</h2>
           <div className="eb-row">
+            <CoinMultiSelect coins={coins} selected={coinFilter} onChange={setCoinFilter} />
             <select className="eb-select" value={minScore} onChange={(e) => setMinScore(Number(e.target.value))}>
               <option value={0}>Mọi điểm</option>
               <option value={40}>Điểm ≥ 40</option>
@@ -408,6 +551,8 @@ export function EmaBounceFeed({
               <input type="checkbox" checked={showOpenOnly} onChange={(e) => setShowOpenOnly(e.target.checked)} />
               Chỉ đang mở
             </label>
+            <button className="eb-btn" onClick={() => setShowManage(true)} disabled={busy}>Quản lý coin</button>
+            <button className="eb-btn" onClick={runPreview} disabled={busy || coins.length === 0}>Quét ngay</button>
             <button className="eb-btn" onClick={refreshSignals} disabled={busy}>Làm mới</button>
           </div>
         </div>
@@ -466,6 +611,18 @@ export function EmaBounceFeed({
 
       {chartTarget && (
         <ChartDialog target={chartTarget} onClose={() => setChartTarget(null)} />
+      )}
+
+      {showInfo && <InfoDialog onClose={() => setShowInfo(false)} />}
+
+      {showManage && (
+        <ManageCoinsDialog
+          coins={coins}
+          onAdd={addCoin}
+          onRemove={removeCoin}
+          busy={busy}
+          onClose={() => setShowManage(false)}
+        />
       )}
     </div>
   );

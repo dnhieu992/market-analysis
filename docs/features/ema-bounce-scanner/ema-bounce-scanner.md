@@ -185,8 +185,8 @@ at the left edge. Served as a `StreamableFile` (no `express` type dependency nee
 - `apps/api/src/app.module.ts` — registers `EmaStochScannerModule`
 - `apps/web/src/app/ema-bounce/page.tsx` — App Router route (thin re-export)
 - `apps/web/src/_pages/ema-bounce-page/ema-bounce-page.tsx` — server page, loads watchlist + signals
-- `apps/web/src/widgets/ema-bounce/ema-bounce-feed.tsx` — client UI (watchlist, preview, card grid)
-- `apps/web/src/widgets/ema-bounce/ema-bounce-feed.tsx` — also hosts `ChartDialog` (fullscreen chart, portalled to `<body>`) + the "📈 Xem chart" buttons
+- `apps/web/src/widgets/ema-bounce/ema-bounce-feed.tsx` — client UI (card grid, preview); watchlist is managed via the "Quản lý coin" `ManageCoinsDialog` (add input + delete list) and the feed can be filtered by coin(s) through the `CoinMultiSelect` checkbox dropdown
+- `apps/web/src/widgets/ema-bounce/ema-bounce-feed.tsx` — also hosts `ChartDialog` (fullscreen chart, portalled to `<body>`) + the "📈 Xem chart" buttons, and `InfoDialog` (the "cách hoạt động" explainer opened by the ⓘ icon next to the page title)
 - `apps/web/src/shared/api/client.ts` — `fetchEmaBounceCoins`, `addEmaBounceCoin`, `removeEmaBounceCoin`, `fetchEmaBounceSignals`, `previewEmaBounce`, `resolveApiBaseUrl` (builds the chart image URL)
 - `apps/web/src/shared/api/types.ts` — `EmaBounceCoin`, `EmaBounceSignal`, `EmaBounceMatch`, `EmaBouncePreview`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — sidebar nav entry
