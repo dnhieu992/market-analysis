@@ -5,7 +5,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 
 **Force-close:** mỗi dòng có nút **Đóng** để đóng vị thế theo **giá market** ngay (reduce-only) qua `POST /bitget/positions/close` — dùng `BitgetTradeClient.closePosition()` (client Bitget dùng chung, đặt tại chính module `bitget`). Có xác nhận trước khi đóng; nếu sàn đã flat thì trả 409.
 
-**Số dư tài khoản:** tile **Số dư tài khoản** (equity = số dư ví + PnL chưa thực hiện) và **Khả dụng** (balance rảnh) lấy từ `GET /api/v2/mix/account/accounts` (marginCoin USDT). Fetch song song với positions, non-fatal (lỗi → `null` → hiển thị "—", không làm trắng bảng).
+**Số dư tài khoản:** tile **Số dư tài khoản** (equity = số dư ví + PnL chưa thực hiện) lấy từ `GET /api/v2/mix/account/accounts` (marginCoin USDT). Fetch song song với positions, non-fatal (lỗi → `null` → hiển thị "—", không làm trắng bảng). Tile **PnL chưa thực hiện** hiện **% dựa trên số dư tài khoản** (`totalUnrealizedPnlUsd ÷ accountEquity`) khi ẩn value, và số USD khi hiện value.
 
 **Ẩn/hiện value:** mặc định mọi **giá trị USD** (số dư, khả dụng, ký quỹ, PnL) bị ẩn (hiện `••••` / cột PnL chỉ hiện **%** ROE) cho riêng tư. Nút toggle **👁 Hiện value / 🙈 Ẩn value** ở góc phải trên bảng bật/tắt hiển thị số USD, lựa chọn lưu ở `localStorage` (`bitget:pnl-show-value`).
 

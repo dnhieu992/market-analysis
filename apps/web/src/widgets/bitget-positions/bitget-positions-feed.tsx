@@ -123,7 +123,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  const { configured, positions: rawPositions, fetchedAt, accountEquityUsd, availableBalanceUsd } = data;
+  const { configured, positions: rawPositions, fetchedAt, accountEquityUsd } = data;
 
   // Live mark prices straight from Bitget's public WS; recompute uPnL/ROE/notional
   // client-side so the table tracks price between the 15s authoritative refreshes.
@@ -154,7 +154,11 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
     [positions],
   );
   const totalMarginUsd = useMemo(() => positions.reduce((sum, p) => sum + p.marginUsd, 0), [positions]);
-  const totalRoePct = totalMarginUsd > 0 ? (totalUnrealizedPnlUsd / totalMarginUsd) * 100 : 0;
+  // Unrealized PnL as a % of total account equity (the "Số dư tài khoản" tile).
+  const pnlPctOfEquity =
+    accountEquityUsd != null && accountEquityUsd > 0
+      ? (totalUnrealizedPnlUsd / accountEquityUsd) * 100
+      : null;
 
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
@@ -192,12 +196,6 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
               </span>
             </div>
             <div className="bg-tile">
-              <span className="bg-tile-label">Khả dụng</span>
-              <span className="bg-tile-value">
-                {showValue ? fmtUsdPlain(availableBalanceUsd) : '••••'}
-              </span>
-            </div>
-            <div className="bg-tile">
               <span className="bg-tile-label">Vị thế đang mở</span>
               <span className="bg-tile-value">{positions.length}</span>
             </div>
@@ -208,7 +206,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
             <div className="bg-tile">
               <span className="bg-tile-label">PnL chưa thực hiện</span>
               <span className={`bg-tile-value ${pnlClass(totalUnrealizedPnlUsd)}`}>
-                {showValue ? fmtUsd(totalUnrealizedPnlUsd) : fmtPct(totalRoePct)}
+                {showValue ? fmtUsd(totalUnrealizedPnlUsd) : fmtPct(pnlPctOfEquity)}
               </span>
             </div>
           </div>

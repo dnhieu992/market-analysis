@@ -600,7 +600,6 @@ export type BitgetPositionsResponse = {
   totalUnrealizedPnlUsd: number;
   totalMarginUsd: number;
   accountEquityUsd: number | null;
-  availableBalanceUsd: number | null;
   fetchedAt: string;
 };
 

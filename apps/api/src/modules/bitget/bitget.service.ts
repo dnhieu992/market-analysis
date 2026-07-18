@@ -35,8 +35,6 @@ export type BitgetPositionsResult = {
   totalMarginUsd: number;
   /** Total wallet equity (balance + unrealized PnL), USDT. Null if unavailable. */
   accountEquityUsd: number | null;
-  /** Free/available balance not tied up as margin, USDT. Null if unavailable. */
-  availableBalanceUsd: number | null;
   fetchedAt: string;
 };
 
@@ -80,7 +78,6 @@ export class BitgetService {
         totalUnrealizedPnlUsd: 0,
         totalMarginUsd: 0,
         accountEquityUsd: null,
-        availableBalanceUsd: null,
         fetchedAt,
       };
     }
@@ -112,7 +109,6 @@ export class BitgetService {
       totalUnrealizedPnlUsd,
       totalMarginUsd,
       accountEquityUsd: balance?.accountEquity ?? null,
-      availableBalanceUsd: balance?.available ?? null,
       fetchedAt,
     };
   }
