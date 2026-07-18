@@ -133,19 +133,22 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
 
   const positions = useMemo(
     () =>
-      rawPositions.map((p) => {
-        const px = livePrices[p.symbol];
-        if (px == null || !Number.isFinite(px)) return p;
-        const dir = p.holdSide === 'long' ? 1 : -1;
-        const unrealizedPnlUsd = (px - p.entryPrice) * p.size * dir;
-        return {
-          ...p,
-          markPrice: px,
-          notionalUsd: p.size * px,
-          unrealizedPnlUsd,
-          roePct: p.marginUsd > 0 ? (unrealizedPnlUsd / p.marginUsd) * 100 : p.roePct,
-        };
-      }),
+      rawPositions
+        .map((p) => {
+          const px = livePrices[p.symbol];
+          if (px == null || !Number.isFinite(px)) return p;
+          const dir = p.holdSide === 'long' ? 1 : -1;
+          const unrealizedPnlUsd = (px - p.entryPrice) * p.size * dir;
+          return {
+            ...p,
+            markPrice: px,
+            notionalUsd: p.size * px,
+            unrealizedPnlUsd,
+            roePct: p.marginUsd > 0 ? (unrealizedPnlUsd / p.marginUsd) * 100 : p.roePct,
+          };
+        })
+        // Sort by PnL % (ROE) descending — biggest winners first.
+        .sort((a, b) => b.roePct - a.roePct),
     [rawPositions, livePrices],
   );
 
