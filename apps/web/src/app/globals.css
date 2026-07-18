@@ -10517,6 +10517,39 @@ a.metric-card--link:hover {
 /* Embedded feed inside the tabs — the outer .page already owns padding/width. */
 .bg-panel { padding: 0; }
 
+/* Toolbar above the positions table (toggle PnL value visibility). */
+.bg-table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.bg-toggle-value {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bg-toggle-value:hover { background: rgba(23, 18, 13, 0.05); }
+
+/* Per-row force-close button. */
+.bg-close-btn {
+  padding: 5px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 7px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-close-btn:hover:not(:disabled) { background: rgba(239, 68, 68, 0.18); }
+.bg-close-btn:disabled { opacity: 0.5; cursor: default; }
+
 .bg-live {
   display: inline-flex;
   align-items: center;

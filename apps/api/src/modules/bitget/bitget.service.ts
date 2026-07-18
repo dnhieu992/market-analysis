@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { summarizeBitgetClosed, type BitgetClosedSummary } from '@app/core';
 import { createBitgetClosedPositionRepository } from '@app/db';
 
@@ -133,6 +138,35 @@ export class BitgetService {
       summary: summarizeBitgetClosed(rows),
       fetchedAt,
     };
+  }
+
+  /**
+   * Force-close a live position at market (reduce-only). Reads the current size
+   * first so an already-flat side returns 409 (nothing to close) instead of a
+   * confusing exchange error. Throws 503 when credentials are missing or the
+   * exchange call fails — never report success while the position may be open.
+   */
+  async closePosition(
+    symbol: string,
+    holdSide: 'long' | 'short',
+  ): Promise<{ closed: true; symbol: string; holdSide: 'long' | 'short' }> {
+    if (!this.client.isConfigured()) {
+      throw new ServiceUnavailableException('Bitget credentials not configured — cannot close a position');
+    }
+    try {
+      const size = await this.client.getPositionSize(symbol, holdSide);
+      if (size <= 0) {
+        throw new ConflictException('Vị thế đã đóng trên sàn — không còn gì để đóng.');
+      }
+      await this.client.closePosition(symbol, holdSide);
+      this.logger.log(`Force-closed Bitget position at market: ${symbol} ${holdSide} (size ${size})`);
+      return { closed: true, symbol, holdSide };
+    } catch (err) {
+      if (err instanceof ConflictException) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to force-close ${symbol} ${holdSide}: ${msg}`);
+      throw new ServiceUnavailableException(`Không đóng được vị thế trên Bitget: ${msg}`);
+    }
   }
 
   private mapPosition(p: BitgetRawPosition): BitgetPosition {

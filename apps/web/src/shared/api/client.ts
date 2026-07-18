@@ -1246,6 +1246,22 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<BitgetPositionsResponse>(fetchImpl, `${baseUrl}/bitget/positions`, withDefaults({}));
     },
 
+    async closeBitgetPosition(symbol: string, holdSide: 'long' | 'short'): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/positions/close`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, holdSide }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đóng lệnh thất bại (HTTP ${response.status})`);
+      }
+    },
+
     async fetchBitgetHistory(params: { limit?: number; symbol?: string } = {}): Promise<BitgetHistoryResponse> {
       const qs = new URLSearchParams();
       if (params.limit) qs.set('limit', String(params.limit));

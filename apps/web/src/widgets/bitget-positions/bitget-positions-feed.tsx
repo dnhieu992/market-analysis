@@ -8,6 +8,7 @@ import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/ty
 import { useBitgetLivePrices } from './use-bitget-live-prices';
 
 const REFRESH_MS = 15_000;
+const SHOW_VALUE_KEY = 'bitget:pnl-show-value';
 
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -62,7 +63,23 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
   const [data, setData] = useState<BitgetPositionsResponse>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // PnL USD amounts are hidden by default (privacy) — only ROE% shows. Toggle
+  // persists in localStorage so the choice sticks across reloads.
+  const [showValue, setShowValue] = useState(false);
+  const [closingKey, setClosingKey] = useState<string | null>(null);
   const clientRef = useRef(createApiClient());
+
+  useEffect(() => {
+    setShowValue(localStorage.getItem(SHOW_VALUE_KEY) === '1');
+  }, []);
+
+  const toggleShowValue = useCallback(() => {
+    setShowValue((prev) => {
+      const next = !prev;
+      localStorage.setItem(SHOW_VALUE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -76,6 +93,30 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
       setLoading(false);
     }
   }, []);
+
+  const closePosition = useCallback(
+    async (symbol: string, holdSide: 'long' | 'short') => {
+      const key = `${symbol}-${holdSide}`;
+      if (
+        !window.confirm(
+          `Đóng vị thế ${holdSide.toUpperCase()} ${symbol} theo giá market ngay bây giờ?`,
+        )
+      ) {
+        return;
+      }
+      setClosingKey(key);
+      setError(null);
+      try {
+        await clientRef.current.closeBitgetPosition(symbol, holdSide);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Đóng lệnh thất bại. Thử lại sau.');
+      } finally {
+        setClosingKey(null);
+      }
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     const id = setInterval(refresh, REFRESH_MS);
@@ -113,6 +154,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
     [positions],
   );
   const totalMarginUsd = useMemo(() => positions.reduce((sum, p) => sum + p.marginUsd, 0), [positions]);
+  const totalRoePct = totalMarginUsd > 0 ? (totalUnrealizedPnlUsd / totalMarginUsd) * 100 : 0;
 
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
@@ -154,7 +196,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
             <div className="bg-tile">
               <span className="bg-tile-label">PnL chưa thực hiện</span>
               <span className={`bg-tile-value ${pnlClass(totalUnrealizedPnlUsd)}`}>
-                {fmtUsd(totalUnrealizedPnlUsd)}
+                {showValue ? fmtUsd(totalUnrealizedPnlUsd) : fmtPct(totalRoePct)}
               </span>
             </div>
           </div>
@@ -162,30 +204,50 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
           {positions.length === 0 ? (
             <div className="bg-alert">Không có vị thế nào đang mở.</div>
           ) : (
-            <div className="bg-table-wrap">
-              <table className="bg-table">
-                <thead>
-                  <tr>
-                    <th>Symbol</th>
-                    <th>Hướng</th>
-                    <th className="bg-num">Đòn bẩy</th>
-                    <th className="bg-num">Size</th>
-                    <th className="bg-num">Giá vào</th>
-                    <th className="bg-num">Giá hiện tại</th>
-                    <th className="bg-num">Hoà vốn</th>
-                    <th className="bg-num">Thanh lý</th>
-                    <th className="bg-num">Ký quỹ</th>
-                    <th className="bg-num">Giá trị</th>
-                    <th className="bg-num">PnL (uPnL)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {positions.map((p) => (
-                    <PositionRow key={`${p.symbol}-${p.holdSide}`} p={p} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="bg-table-toolbar">
+                <button
+                  type="button"
+                  className="bg-toggle-value"
+                  onClick={toggleShowValue}
+                  aria-pressed={showValue}
+                >
+                  {showValue ? '🙈 Ẩn value' : '👁 Hiện value'}
+                </button>
+              </div>
+              <div className="bg-table-wrap">
+                <table className="bg-table">
+                  <thead>
+                    <tr>
+                      <th>Symbol</th>
+                      <th>Hướng</th>
+                      <th className="bg-num">Đòn bẩy</th>
+                      <th className="bg-num">Size</th>
+                      <th className="bg-num">Giá vào</th>
+                      <th className="bg-num">Giá hiện tại</th>
+                      <th className="bg-num">Hoà vốn</th>
+                      <th className="bg-num">Thanh lý</th>
+                      <th className="bg-num">Ký quỹ</th>
+                      <th className="bg-num">Giá trị</th>
+                      <th className="bg-num">PnL {showValue ? '(uPnL)' : '(ROE)'}</th>
+                      <th className="bg-num">Đóng</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positions.map((p) => (
+                      <PositionRow
+                        key={`${p.symbol}-${p.holdSide}`}
+                        p={p}
+                        showValue={showValue}
+                        closing={closingKey === `${p.symbol}-${p.holdSide}`}
+                        disabled={closingKey !== null}
+                        onClose={closePosition}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}
@@ -193,7 +255,15 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
   );
 }
 
-function PositionRow({ p }: { p: BitgetPosition }) {
+type PositionRowProps = {
+  p: BitgetPosition;
+  showValue: boolean;
+  closing: boolean;
+  disabled: boolean;
+  onClose: (symbol: string, holdSide: 'long' | 'short') => void;
+};
+
+function PositionRow({ p, showValue, closing, disabled, onClose }: PositionRowProps) {
   const isLong = p.holdSide === 'long';
   // Flash the live-price cell green/red on each tick.
   const prevPrice = useRef(p.markPrice);
@@ -228,8 +298,18 @@ function PositionRow({ p }: { p: BitgetPosition }) {
       <td className="bg-num">{fmtUsdPlain(p.marginUsd)}</td>
       <td className="bg-num">{fmtUsdPlain(p.notionalUsd)}</td>
       <td className={`bg-num bg-pnl-cell ${pnlClass(p.unrealizedPnlUsd)}`}>
-        <span className="bg-pnl-usd">{fmtUsd(p.unrealizedPnlUsd)}</span>
+        {showValue && <span className="bg-pnl-usd">{fmtUsd(p.unrealizedPnlUsd)}</span>}
         <span className="bg-pnl-pct">{fmtPct(p.roePct)}</span>
+      </td>
+      <td className="bg-num">
+        <button
+          type="button"
+          className="bg-close-btn"
+          onClick={() => onClose(p.symbol, p.holdSide)}
+          disabled={disabled}
+        >
+          {closing ? '…' : 'Đóng'}
+        </button>
       </td>
     </tr>
   );

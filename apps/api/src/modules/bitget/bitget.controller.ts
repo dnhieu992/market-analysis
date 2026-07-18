@@ -1,7 +1,8 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { BitgetService } from './bitget.service';
+import { ClosePositionDto } from './dto/close-position.dto';
 
 @ApiTags('bitget')
 @ApiCookieAuth('market_analysis_session')
@@ -21,5 +22,11 @@ export class BitgetController {
     const parsed = Number(limit);
     const take = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 500) : 200;
     return this.service.getClosedHistory(take, symbol?.trim() || undefined);
+  }
+
+  @Post('positions/close')
+  @ApiOperation({ summary: 'Force-close a live position at the current market price' })
+  closePosition(@Body() dto: ClosePositionDto) {
+    return this.service.closePosition(dto.symbol, dto.holdSide);
   }
 }
