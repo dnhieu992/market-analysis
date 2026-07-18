@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/types';
+
+import { useBitgetLivePrices } from './use-bitget-live-prices';
 
 const REFRESH_MS = 15_000;
 
@@ -78,7 +80,37 @@ export function BitgetPositionsFeed({ initial }: Props) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  const { configured, positions, totalUnrealizedPnlUsd, totalMarginUsd, fetchedAt } = data;
+  const { configured, positions: rawPositions, fetchedAt } = data;
+
+  // Live mark prices straight from Bitget's public WS; recompute uPnL/ROE/notional
+  // client-side so the table tracks price between the 15s authoritative refreshes.
+  const { prices: livePrices, live } = useBitgetLivePrices(
+    useMemo(() => rawPositions.map((p) => p.symbol), [rawPositions]),
+  );
+
+  const positions = useMemo(
+    () =>
+      rawPositions.map((p) => {
+        const px = livePrices[p.symbol];
+        if (px == null || !Number.isFinite(px)) return p;
+        const dir = p.holdSide === 'long' ? 1 : -1;
+        const unrealizedPnlUsd = (px - p.entryPrice) * p.size * dir;
+        return {
+          ...p,
+          markPrice: px,
+          notionalUsd: p.size * px,
+          unrealizedPnlUsd,
+          roePct: p.marginUsd > 0 ? (unrealizedPnlUsd / p.marginUsd) * 100 : p.roePct,
+        };
+      }),
+    [rawPositions, livePrices],
+  );
+
+  const totalUnrealizedPnlUsd = useMemo(
+    () => positions.reduce((sum, p) => sum + p.unrealizedPnlUsd, 0),
+    [positions],
+  );
+  const totalMarginUsd = useMemo(() => positions.reduce((sum, p) => sum + p.marginUsd, 0), [positions]);
 
   return (
     <div className="page">
@@ -86,7 +118,11 @@ export function BitgetPositionsFeed({ initial }: Props) {
         <div>
           <h1>Bitget · Vị thế đang mở</h1>
           <p className="bg-sub">
-            USDT futures · cập nhật {relTime(fetchedAt)}
+            <span className={`bg-live ${live ? 'bg-live--on' : ''}`}>
+              <span className="bg-live-dot" />
+              {live ? 'LIVE' : 'offline'}
+            </span>
+            {' · '}USDT futures · đồng bộ {relTime(fetchedAt)}
             {loading ? ' · đang tải…' : ''}
           </p>
         </div>
@@ -157,6 +193,19 @@ export function BitgetPositionsFeed({ initial }: Props) {
 
 function PositionRow({ p }: { p: BitgetPosition }) {
   const isLong = p.holdSide === 'long';
+  // Flash the live-price cell green/red on each tick.
+  const prevPrice = useRef(p.markPrice);
+  const [flash, setFlash] = useState<'' | 'bg-tick--up' | 'bg-tick--down'>('');
+  useEffect(() => {
+    const prev = prevPrice.current;
+    if (Number.isFinite(p.markPrice) && p.markPrice !== prev) {
+      setFlash(p.markPrice > prev ? 'bg-tick--up' : 'bg-tick--down');
+      prevPrice.current = p.markPrice;
+      const id = setTimeout(() => setFlash(''), 500);
+      return () => clearTimeout(id);
+    }
+  }, [p.markPrice]);
+
   return (
     <tr>
       <td className="bg-symbol">{p.symbol}</td>
@@ -171,7 +220,7 @@ function PositionRow({ p }: { p: BitgetPosition }) {
       </td>
       <td className="bg-num">{fmtQty(p.size)}</td>
       <td className="bg-num">{fmtPrice(p.entryPrice)}</td>
-      <td className="bg-num">{fmtPrice(p.markPrice)}</td>
+      <td className={`bg-num bg-mark ${flash}`}>{fmtPrice(p.markPrice)}</td>
       <td className="bg-num">{fmtPrice(p.breakEvenPrice)}</td>
       <td className="bg-num bg-liq">{fmtPrice(p.liquidationPrice)}</td>
       <td className="bg-num">{fmtUsdPlain(p.marginUsd)}</td>
