@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { summarizeBitgetClosed, type BitgetClosedSummary } from '@app/core';
+import { createBitgetClosedPositionRepository } from '@app/db';
 
 import { BitgetTradeClient, type BitgetRawPosition } from '../day-trading/bitget-trade.client';
 
@@ -29,10 +31,35 @@ export type BitgetPositionsResult = {
   fetchedAt: string;
 };
 
+export type BitgetClosedTrade = {
+  positionId: string;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  marginMode: string;
+  openAvgPrice: number;
+  closeAvgPrice: number;
+  size: number;
+  netProfit: number;
+  /** Return on notional (netProfit ÷ entry notional), in %. */
+  netProfitPct: number;
+  totalFunding: number;
+  feesUsd: number;
+  openedAt: string;
+  closedAt: string;
+};
+
+export type BitgetHistoryResult = {
+  configured: boolean;
+  trades: BitgetClosedTrade[];
+  summary: BitgetClosedSummary;
+  fetchedAt: string;
+};
+
 @Injectable()
 export class BitgetService {
   private readonly logger = new Logger(BitgetService.name);
   private readonly client = new BitgetTradeClient();
+  private readonly closedRepo = createBitgetClosedPositionRepository();
 
   async getOpenPositions(): Promise<BitgetPositionsResult> {
     const fetchedAt = new Date().toISOString();
@@ -67,6 +94,43 @@ export class BitgetService {
       positions,
       totalUnrealizedPnlUsd,
       totalMarginUsd,
+      fetchedAt,
+    };
+  }
+
+  /**
+   * Closed-trade history + realized-PnL summary, read from the DB (the worker
+   * mirrors Bitget's 90-day window into `bitget_closed_positions` on a cron).
+   * `configured` reflects whether the same account credentials the worker syncs
+   * with are present, so the page can explain an empty list.
+   */
+  async getClosedHistory(limit = 200, symbol?: string): Promise<BitgetHistoryResult> {
+    const fetchedAt = new Date().toISOString();
+    const rows = await this.closedRepo.findRecent(limit, symbol);
+
+    const trades: BitgetClosedTrade[] = rows.map((r) => {
+      const notional = Math.abs(r.openAvgPrice * r.openTotalPos);
+      return {
+        positionId: r.positionId,
+        symbol: r.symbol,
+        holdSide: r.holdSide === 'short' ? 'short' : 'long',
+        marginMode: r.marginMode,
+        openAvgPrice: r.openAvgPrice,
+        closeAvgPrice: r.closeAvgPrice,
+        size: r.openTotalPos,
+        netProfit: r.netProfit,
+        netProfitPct: notional > 0 ? (r.netProfit / notional) * 100 : 0,
+        totalFunding: r.totalFunding,
+        feesUsd: r.openFee + r.closeFee,
+        openedAt: r.openedAt.toISOString(),
+        closedAt: r.closedAt.toISOString(),
+      };
+    });
+
+    return {
+      configured: this.client.isConfigured(),
+      trades,
+      summary: summarizeBitgetClosed(rows),
       fetchedAt,
     };
   }

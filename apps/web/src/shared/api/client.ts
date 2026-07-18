@@ -62,6 +62,7 @@ import type {
   DayTradingPrice,
   UpdateDayTradingSettingsInput,
   BitgetPositionsResponse,
+  BitgetHistoryResponse,
   LongSignal,
   LongSignalsResponse,
   LongSignalStats,
@@ -1243,6 +1244,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async fetchBitgetPositions(): Promise<BitgetPositionsResponse> {
       return fetchJson<BitgetPositionsResponse>(fetchImpl, `${baseUrl}/bitget/positions`, withDefaults({}));
+    },
+
+    async fetchBitgetHistory(params: { limit?: number; symbol?: string } = {}): Promise<BitgetHistoryResponse> {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.symbol) qs.set('symbol', params.symbol);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      return fetchJson<BitgetHistoryResponse>(fetchImpl, `${baseUrl}/bitget/history${suffix}`, withDefaults({}));
     },
 
     async fetchLongSignals(params: { status?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): Promise<LongSignalsResponse> {

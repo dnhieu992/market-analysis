@@ -41,6 +41,7 @@ describe('SchedulerService', () => {
         setupExtractionService as never,
         setupTrackingService as never,
         { syncAll: jest.fn().mockResolvedValue(undefined) } as never,
+        { sync: jest.fn().mockResolvedValue({ synced: 0, pages: 0 }) } as never,
         { trackedSymbols: ['BTCUSDT', 'ETHUSDT'] }
       ),
       visualAnalysisService,

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 
 import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
+import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { DcaLadderSyncService } from '../dca-ladder/dca-ladder.service';
 import { SetupExtractionService } from '../setup-tracking/setup-extraction.service';
@@ -35,6 +36,7 @@ export class SchedulerService {
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
     private readonly dcaLadderSyncService: DcaLadderSyncService,
+    private readonly bitgetHistoryService: BitgetHistoryService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -168,6 +170,18 @@ export class SchedulerService {
       this.logger.log(`DCA ladder sync — touched: ${res.touchedTiers.length}, tpReady: ${res.tpReady}`);
     } catch (err) {
       this.logger.error(`DCA ladder sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Runs every 15 minutes — mirror newly-closed Bitget positions into the DB so
+  // the /bitget-history trade log + realized PnL survive Bitget's 90-day window.
+  @Cron('*/15 * * * *', { timeZone: 'UTC' })
+  async runBitgetHistorySync() {
+    try {
+      const res = await this.bitgetHistoryService.sync();
+      if (res.synced > 0) this.logger.log(`Bitget history sync — upserted ${res.synced}`);
+    } catch (err) {
+      this.logger.error(`Bitget history sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

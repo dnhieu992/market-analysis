@@ -30,3 +30,5 @@ export { createSpotFlipWatchRepository } from './repositories/spot-flip-watch.re
 export { createSpotFlipDailyRepository } from './repositories/spot-flip-daily.repository';
 export type { SpotFlipDailyInput } from './repositories/spot-flip-daily.repository';
 export { createSpotFlipLogRepository } from './repositories/spot-flip-log.repository';
+export { createBitgetClosedPositionRepository } from './repositories/bitget-closed-position.repository';
+export type { BitgetClosedPositionInput } from './repositories/bitget-closed-position.repository';

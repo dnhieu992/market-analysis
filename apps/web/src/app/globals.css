@@ -10552,6 +10552,8 @@ a.metric-card--link:hover {
 }
 .bg-tile-label { font-size: 12px; color: var(--muted); }
 .bg-tile-value { font-size: 22px; font-weight: 700; color: var(--foreground); }
+.bg-tile-sub { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.bg-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
 
 .bg-table-wrap {
   overflow-x: auto;

@@ -83,6 +83,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Vị thế futures đang mở · uPnL & ký quỹ live'
   },
   {
+    href: '/bitget-history',
+    label: 'Bitget History',
+    description: 'Lịch sử lệnh đã đóng · realized PnL & win rate'
+  },
+  {
     href: '/long-signal',
     label: 'Long Signal',
     description: 'LONG sáng · lọc M30 UTBot · POL/XRP/SOL/TAO'

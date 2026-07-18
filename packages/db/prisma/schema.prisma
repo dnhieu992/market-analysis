@@ -905,6 +905,33 @@ model PatternReferenceImage {
   @@map("pattern_reference_images")
 }
 
+// One CLOSED Bitget USDT-futures position, synced from
+// `/api/v2/mix/position/history-position`. The worker backfills this table on a
+// schedule (dedupe by Bitget `positionId`) so the /bitget-history page has a
+// permanent trade log + realized PnL beyond Bitget's ~90-day history window.
+model BitgetClosedPosition {
+  id            String   @id @default(cuid())
+  positionId    String   @unique @db.VarChar(40) // Bitget positionId — dedupe key
+  symbol        String   @db.VarChar(30)
+  holdSide      String   @db.VarChar(8) // long | short
+  marginMode    String   @default("") @db.VarChar(12) // isolated | crossed
+  openAvgPrice  Float // average entry fill
+  closeAvgPrice Float // average exit fill
+  openTotalPos  Float // position size in base asset
+  netProfit     Float // realized PnL after fees — the number that matters
+  pnl           Float    @default(0) // gross realized pnl (before fees)
+  totalFunding  Float    @default(0)
+  openFee       Float    @default(0)
+  closeFee      Float    @default(0)
+  openedAt      DateTime // Bitget ctime
+  closedAt      DateTime // Bitget utime
+  createdAt     DateTime @default(now())
+
+  @@index([symbol])
+  @@index([closedAt])
+  @@map("bitget_closed_positions")
+}
+
 // Watchlist for the /ema-bounce page — the EMA-stack oversold StochRSI bounce
 // scanner. The worker auto-scans this list every 4h and persists matched signals.
 model EmaStochWatchCoin {

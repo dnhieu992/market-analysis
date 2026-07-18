@@ -4,6 +4,13 @@ export type { SmallCapStage, SmallCapSignalResult, PaTrend, SwingStructure } fro
 export { computeLongShortScore } from './analysis/long-short-score';
 export type { LongShortScore, LongShortScoreParams } from './analysis/long-short-score';
 export { computeSpotFlip, spotFlipShares, spotFlipSummary } from './analysis/spot-flip';
+export { normalizeBitgetClosed, summarizeBitgetClosed } from './analysis/bitget-closed';
+export type {
+  BitgetClosedRaw,
+  BitgetClosedNormalized,
+  ClosedTradeLike,
+  BitgetClosedSummary,
+} from './analysis/bitget-closed';
 export type {
   SpotFlipKline,
   SpotFlipChanges,

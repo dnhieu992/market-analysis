@@ -659,6 +659,41 @@ export type BitgetPositionsResponse = {
   fetchedAt: string;
 };
 
+export type BitgetClosedTrade = {
+  positionId: string;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  marginMode: string;
+  openAvgPrice: number;
+  closeAvgPrice: number;
+  size: number;
+  netProfit: number;
+  netProfitPct: number;
+  totalFunding: number;
+  feesUsd: number;
+  openedAt: string;
+  closedAt: string;
+};
+
+export type BitgetClosedSummary = {
+  trades: number;
+  wins: number;
+  losses: number;
+  winRatePct: number;
+  totalNetProfit: number;
+  avgNetProfit: number;
+  bestNetProfit: number;
+  worstNetProfit: number;
+  totalVolumeUsd: number;
+};
+
+export type BitgetHistoryResponse = {
+  configured: boolean;
+  trades: BitgetClosedTrade[];
+  summary: BitgetClosedSummary;
+  fetchedAt: string;
+};
+
 // ── Long Signal (LONG-only intraday FOMO gated by the M30 UTBot trend) ─────────
 
 export type LongSignal = {
