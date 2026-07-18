@@ -7,7 +7,7 @@ import {
 import { summarizeBitgetClosed, type BitgetClosedSummary } from '@app/core';
 import { createBitgetClosedPositionRepository } from '@app/db';
 
-import { BitgetTradeClient, type BitgetRawPosition } from '../day-trading/bitget-trade.client';
+import { BitgetTradeClient, type BitgetRawPosition } from './bitget-trade.client';
 
 export type BitgetPosition = {
   symbol: string;

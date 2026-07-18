@@ -32,16 +32,6 @@ export function createTelegramMessageLogRepository() {
   };
 }
 
-export function createDayTradingRepository() {
-  // Day-trading specs construct the services then override `.repo` with a
-  // per-test mock, so the default here only needs to exist (no-op shape).
-  return {
-    async logAction(data: unknown) {
-      return data;
-    },
-  };
-}
-
 export function createDcaLadderRepository() {
   // DCA ladder specs construct the service then override `.repo` with a
   // per-test mock, so the default here only needs to exist (no-op shape).
@@ -70,7 +60,6 @@ export const createMemeRadarRepository = noopRepository;
 export const createSpotFlipWatchRepository = noopRepository;
 export const createSpotFlipDailyRepository = noopRepository;
 export const createUserRepository = noopRepository;
-export const createLongSignalRepository = noopRepository;
 export const createBitgetClosedPositionRepository = noopRepository;
 export const createBitgetSyncStateRepository = noopRepository;
 

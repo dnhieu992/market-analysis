@@ -18,8 +18,6 @@ export { createConversationRepository } from './repositories/conversation.reposi
 export { createSmallCapRadarRepository } from './repositories/small-cap-radar.repository';
 export { createMemeRadarRepository } from './repositories/meme-radar.repository';
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
-export { createDayTradingRepository } from './repositories/day-trading.repository';
-export { createLongSignalRepository } from './repositories/long-signal.repository';
 export { createDcaLadderRepository } from './repositories/dca-ladder.repository';
 export { createPatternScannerRepository } from './repositories/pattern-scanner.repository';
 export { createEmaStochScannerRepository } from './repositories/ema-stoch-scanner.repository';

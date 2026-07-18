@@ -9,8 +9,7 @@
     "test": "jest --config ./jest.config.cjs",
     "start": "node dist/apps/worker/src/main.js",
     "start:dev": "ts-node src/main.ts",
-    "backtest:orders": "ts-node src/scripts/backtest-tracking-orders.ts",
-    "backtest:daytrading": "ts-node src/scripts/backtest-day-trading.ts"
+    "backtest:orders": "ts-node src/scripts/backtest-tracking-orders.ts"
   },
   "dependencies": {
     "@app/config": "workspace:*",

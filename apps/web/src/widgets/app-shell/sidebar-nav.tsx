@@ -73,19 +73,9 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
-    href: '/day-trading',
-    label: 'Day Trading',
-    description: 'BTC 15m setups · Break & Retest, Liq. Sweep'
-  },
-  {
     href: '/bitget',
     label: 'Bitget',
     description: 'Vị thế đang mở & lịch sử lệnh · uPnL, realized PnL, win rate'
-  },
-  {
-    href: '/long-signal',
-    label: 'Long Signal',
-    description: 'LONG sáng · lọc M30 UTBot · POL/XRP/SOL/TAO'
   },
   {
     href: '/dca-ladder',
