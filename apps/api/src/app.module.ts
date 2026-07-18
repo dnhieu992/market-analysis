@@ -29,7 +29,6 @@ import { UploadModule } from './modules/upload/upload.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
-import { DcaLadderModule } from './modules/dca-ladder/dca-ladder.module';
 import { PatternScannerModule } from './modules/pattern-scanner/pattern-scanner.module';
 import { EmaStochScannerModule } from './modules/ema-stoch-scanner/ema-stoch-scanner.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -63,7 +62,6 @@ import { JournalModule } from './modules/journal/journal.module';
     SpotFlipModule,
     TrackingCoinsModule,
     BitgetModule,
-    DcaLadderModule,
     PatternScannerModule,
     EmaStochScannerModule,
     JournalModule,

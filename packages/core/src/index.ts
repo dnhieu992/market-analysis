@@ -100,13 +100,3 @@ export {
   evaluateLimitOrder,
 } from './orders/tracking-coin-orders';
 export type { OrderSigSnapshot, LimitOrderResult, OrderEvalResult } from './orders/tracking-coin-orders';
-export {
-  tierPctBelow,
-  tierPrices,
-  computePosition,
-  computeTpPrice,
-  computeRealizedPnl,
-  computeBudget,
-  effectiveFirstTierPct,
-} from './analysis/dca-ladder';
-export type { DcaLadderParams, DcaFill, DcaPosition } from './analysis/dca-ladder';

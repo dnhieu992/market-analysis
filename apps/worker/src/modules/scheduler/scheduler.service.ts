@@ -5,7 +5,6 @@ import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
-import { DcaLadderSyncService } from '../dca-ladder/dca-ladder.service';
 import { SetupExtractionService } from '../setup-tracking/setup-extraction.service';
 import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
@@ -35,7 +34,6 @@ export class SchedulerService {
     private readonly emaStochScanService: EmaStochScanService,
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
-    private readonly dcaLadderSyncService: DcaLadderSyncService,
     private readonly bitgetHistoryService: BitgetHistoryService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
@@ -158,18 +156,6 @@ export class SchedulerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Setup review failed: ${msg}`);
-    }
-  }
-
-  // Runs every day at 00:10 UTC — sync the BTC DCA ladder against the closed daily candle
-  @Cron('10 0 * * *', { timeZone: 'UTC' })
-  async runDcaLadderSync() {
-    this.logger.log('Running DCA ladder daily sync');
-    try {
-      const res = await this.dcaLadderSyncService.syncDaily();
-      this.logger.log(`DCA ladder sync — touched: ${res.touchedTiers.length}, tpReady: ${res.tpReady}`);
-    } catch (err) {
-      this.logger.error(`DCA ladder sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

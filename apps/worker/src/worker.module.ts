@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { AnalysisModule } from './modules/analysis/analysis.module';
-import { DcaLadderModule } from './modules/dca-ladder/dca-ladder.module';
 import { EmaSignalModule } from './modules/ema-signal/ema-signal.module';
 import { MarketModule } from './modules/market/market.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
@@ -10,6 +9,6 @@ import { SwingSignalModule } from './modules/swing-signal/swing-signal.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), SchedulerModule, AnalysisModule, DcaLadderModule, EmaSignalModule, MarketModule, TelegramModule, SwingSignalModule]
+  imports: [ScheduleModule.forRoot(), SchedulerModule, AnalysisModule, EmaSignalModule, MarketModule, TelegramModule, SwingSignalModule]
 })
 export class WorkerModule {}

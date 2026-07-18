@@ -78,11 +78,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Vị thế đang mở & lịch sử lệnh · uPnL, realized PnL, win rate'
   },
   {
-    href: '/dca-ladder',
-    label: 'DCA Ladder',
-    description: 'BTC dip-bounce: thang DCA + chốt +10%'
-  },
-  {
     href: '/spot-flip',
     label: 'Spot Flip',
     description: 'Biến động, dip & ATR · máy tính TP/SL net phí'

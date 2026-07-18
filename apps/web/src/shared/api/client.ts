@@ -58,8 +58,6 @@ import type {
   BitgetPositionsResponse,
   BitgetHistoryResponse,
   BinanceKline,
-  DcaLadderState,
-  DcaLadderSettings,
   ImageRef,
 } from './types';
 
@@ -1196,67 +1194,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (params.symbol) qs.set('symbol', params.symbol);
       const suffix = qs.toString() ? `?${qs.toString()}` : '';
       return fetchJson<BitgetHistoryResponse>(fetchImpl, `${baseUrl}/bitget/history${suffix}`, withDefaults({}));
-    },
-
-    // ── BTC DCA Ladder ────────────────────────────────────────────────
-    async fetchDcaLadder(): Promise<DcaLadderState> {
-      return fetchJson<DcaLadderState>(fetchImpl, `${baseUrl}/dca-ladder`, withDefaults());
-    },
-
-    async updateDcaLadderSettings(body: Partial<DcaLadderSettings>): Promise<DcaLadderState> {
-      return fetchJson<DcaLadderState>(
-        fetchImpl,
-        `${baseUrl}/dca-ladder/settings`,
-        withDefaults({
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        }),
-      );
-    },
-
-    async fillDcaOrder(id: string, fillPrice: number): Promise<DcaLadderState> {
-      return fetchJson<DcaLadderState>(
-        fetchImpl,
-        `${baseUrl}/dca-ladder/orders/${encodeURIComponent(id)}/fill`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fillPrice }),
-        }),
-      );
-    },
-
-    async unfillDcaOrder(id: string): Promise<DcaLadderState> {
-      return fetchJson<DcaLadderState>(
-        fetchImpl,
-        `${baseUrl}/dca-ladder/orders/${encodeURIComponent(id)}/unfill`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    async updateDcaOrder(id: string, body: { plannedPrice?: number; fillPrice?: number }): Promise<DcaLadderState> {
-      return fetchJson<DcaLadderState>(
-        fetchImpl,
-        `${baseUrl}/dca-ladder/orders/${encodeURIComponent(id)}`,
-        withDefaults({
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        }),
-      );
-    },
-
-    async closeDcaCycle(sellPrice: number): Promise<DcaLadderState> {
-      return fetchJson<DcaLadderState>(
-        fetchImpl,
-        `${baseUrl}/dca-ladder/close`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sellPrice }),
-        }),
-      );
     },
   };
 }

@@ -849,68 +849,6 @@ export type MemeRescanStatus = {
   error: string | null;
 };
 
-// ── BTC DCA Ladder ────────────────────────────────────────────────────────────
-
-export type DcaLadderSettings = {
-  startCapital: number;
-  firstTierPct: number;
-  bearFirstTierPct: number;
-  numTiers: number;
-  stepPct: number;
-  tpPct: number;
-  feePct: number;
-  enabled: boolean;
-};
-
-export type DcaLadderCycle = {
-  id: string;
-  cycleNumber: number;
-  status: 'FLAT' | 'IN_POSITION' | 'CLOSED';
-  peak: number;
-  budget: number;
-  avgCost: number | null;
-  positionSize: number | null;
-  tpPrice: number | null;
-  realizedPnl: number | null;
-};
-
-export type DcaLadderOrder = {
-  id: string;
-  side: 'BUY' | 'SELL';
-  tierIndex: number | null;
-  plannedPrice: number;
-  fillPrice: number | null;
-  usdAmount: number | null;
-  qty: number | null;
-  status: 'ARMED' | 'PENDING_FILL' | 'FILLED' | 'CANCELLED';
-};
-
-export type DcaLadderSummary = {
-  cycleCount: number;
-  avgFillsPerCycle: number;
-  realizedPnl: number;
-  unrealizedPnl: number;
-};
-
-export type DcaLadderTimingSignal = {
-  zone: 'GOM' | 'CHO' | 'CHOT';
-  score: number;
-  bucket: 'safe' | 'ok' | 'risky' | 'avoid';
-  rsi: number | null;
-  ema34Above: boolean | null;
-  low20Pct: number | null;
-  weekTrend: 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
-};
-
-export type DcaLadderState = {
-  settings: DcaLadderSettings;
-  cycle: DcaLadderCycle;
-  orders: DcaLadderOrder[];
-  livePrice: number;
-  timingSignal: DcaLadderTimingSignal | null;
-  summary: DcaLadderSummary;
-};
-
 export type SpotFlipAnalysis = {
   symbol: string;
   price: number;

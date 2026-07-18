@@ -635,69 +635,6 @@ model MemeSignalHistory {
   @@map("meme_signal_history")
 }
 
-model DcaLadderSettings {
-  id            String   @id @default("singleton")
-  symbol        String   @unique @default("BTCUSDT") @db.VarChar(20)
-  startCapital  Float    @default(1000)
-  firstTierPct  Float    @default(5)
-  /// First tier % when the weekly trend is bear/neutral (deeper entry). Bull uses firstTierPct.
-  bearFirstTierPct Float @default(10)
-  numTiers      Int      @default(10)
-  stepPct       Float    @default(1.5)
-  tpPct         Float    @default(10)
-  feePct        Float    @default(0.05)
-  enabled       Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@map("dca_ladder_settings")
-}
-
-model DcaCycle {
-  id           String    @id @default(cuid())
-  symbol       String    @db.VarChar(20)
-  cycleNumber  Int
-  /// FLAT | IN_POSITION | CLOSED
-  status       String    @db.VarChar(20)
-  peak         Float
-  budget       Float
-  avgCost      Float?
-  positionSize Float?
-  tpPrice      Float?
-  realizedPnl  Float?
-  openedAt     DateTime  @default(now())
-  closedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  orders       DcaOrder[]
-
-  @@index([symbol, status])
-  @@map("dca_cycles")
-}
-
-model DcaOrder {
-  id           String    @id @default(cuid())
-  cycleId      String
-  cycle        DcaCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  /// BUY | SELL
-  side         String    @db.VarChar(4)
-  /// 0..numTiers-1 for buys; null for the TP sell
-  tierIndex    Int?
-  plannedPrice Float
-  fillPrice    Float?
-  usdAmount    Float?
-  qty          Float?
-  /// ARMED | PENDING_FILL | FILLED | CANCELLED
-  status       String    @db.VarChar(16)
-  filledAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  @@index([cycleId, status])
-  @@map("dca_orders")
-}
-
-
 // ── Spot Flip watchlist ───────────────────────────────────────────────────────
 // The set of coins the user tracks on the /spot-flip page. A plain persisted
 // watchlist (no signals/history) — the page still computes all metrics live from
