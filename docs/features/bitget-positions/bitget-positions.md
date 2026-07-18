@@ -1,10 +1,12 @@
 ## Description
-Trang `/bitget-positions` hiển thị **tất cả vị thế futures đang mở** trên tài khoản Bitget USDT-M (đọc trực tiếp từ sàn, không phải từ DB). Mục đích: xem nhanh trạng thái live của mọi position mà bot day-trading (hoặc trader) đang giữ — size, giá vào, giá hiện tại, ký quỹ, PnL chưa thực hiện và ROE — mà không phải mở app Bitget.
+Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất cả vị thế futures đang mở** trên tài khoản Bitget USDT-M (đọc trực tiếp từ sàn, không phải từ DB). Mục đích: xem nhanh trạng thái live của mọi position mà bot day-trading (hoặc trader) đang giữ — size, giá vào, giá hiện tại, ký quỹ, PnL chưa thực hiện và ROE — mà không phải mở app Bitget.
+
+> `/bitget` gộp 2 tab: **Vị thế đang mở** (trang này) và **Lịch sử & PnL** (xem `docs/features/bitget-history`). Hai route cũ `/bitget-positions` và `/bitget-history` redirect về trang gộp.
 
 Chỉ đọc (read-only): trang không đặt/đóng lệnh. Việc đóng lệnh vẫn nằm ở luồng day-trading (`POST /day-trading/signals/:id/close`).
 
 ## Main Flow
-1. Server component `BitgetPositionsPage` gọi `createServerApiClient().fetchBitgetPositions()` khi render (SSR), truyền dữ liệu ban đầu vào widget.
+1. Server component gộp `BitgetPage` fetch song song `fetchBitgetPositions()` + `fetchBitgetHistory()` khi render (SSR), truyền vào `BitgetTabs`; tab này render `BitgetPositionsFeed` (chế độ `embedded`).
 2. `GET /bitget/positions` (API) → `BitgetService.getOpenPositions()`:
    - Nếu chưa cấu hình credentials (`BITGET_API_KEY/SECRET/PASSPHRASE`) → trả `configured: false`, danh sách rỗng.
    - Ngược lại gọi `BitgetTradeClient.getAllPositions()` → ký HMAC-SHA256 → `GET /api/v2/mix/position/all-position?marginCoin=USDT&productType=usdt-futures`.
@@ -30,9 +32,11 @@ Chỉ đọc (read-only): trang không đặt/đóng lệnh. Việc đóng lện
 - `apps/api/src/modules/bitget/bitget.module.ts` — module, đăng ký trong `apps/api/src/app.module.ts`.
 - `apps/web/src/shared/api/types.ts` — type `BitgetPosition`, `BitgetPositionsResponse`.
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetPositions()`.
-- `apps/web/src/_pages/bitget-positions-page/bitget-positions-page.tsx` — server component tải dữ liệu.
-- `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — widget client: bảng + tile + auto-refresh 15s + ghép giá live, tính lại uPnL/ROE/notional, badge LIVE, flash ô giá.
+- `apps/web/src/_pages/bitget-page/bitget-page.tsx` — server component gộp: fetch positions + history, chọn tab từ `?tab=`.
+- `apps/web/src/widgets/bitget/bitget-tabs.tsx` — client: tab bar Vị thế / Lịch sử.
+- `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — widget client: bảng + tile + auto-refresh 15s + ghép giá live, tính lại uPnL/ROE/notional, badge LIVE, flash ô giá (prop `embedded`).
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — hook WebSocket public Bitget (ticker) trả map giá realtime + trạng thái kết nối.
-- `apps/web/src/app/bitget-positions/page.tsx` — route re-export.
-- `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — mục nav "Bitget Positions".
-- `apps/web/src/app/globals.css` — style `.bg-*` cho trang.
+- `apps/web/src/app/bitget/page.tsx` — route re-export trang gộp.
+- `apps/web/src/app/bitget-positions/page.tsx` — redirect `/bitget` (giữ bookmark cũ).
+- `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — mục nav gộp "Bitget".
+- `apps/web/src/app/globals.css` — style `.bg-*` + `.bg-tabs`/`.bg-tab`/`.bg-panel` cho trang.

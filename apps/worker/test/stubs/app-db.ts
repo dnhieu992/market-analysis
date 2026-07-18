@@ -72,6 +72,7 @@ export const createSpotFlipDailyRepository = noopRepository;
 export const createUserRepository = noopRepository;
 export const createLongSignalRepository = noopRepository;
 export const createBitgetClosedPositionRepository = noopRepository;
+export const createBitgetSyncStateRepository = noopRepository;
 
 export function createDailyAnalysisRepository() {
   return {

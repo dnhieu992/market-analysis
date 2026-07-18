@@ -1,1 +1,5 @@
-export { default } from '@web/_pages/bitget-positions-page/bitget-positions-page';
+import { redirect } from 'next/navigation';
+
+export default function BitgetPositionsRedirect() {
+  redirect('/bitget');
+}

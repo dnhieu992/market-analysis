@@ -54,9 +54,11 @@ function relTime(iso: string): string {
 
 type Props = {
   initial: BitgetPositionsResponse;
+  /** When rendered inside the merged Bitget tabs, drop the outer page chrome + title. */
+  embedded?: boolean;
 };
 
-export function BitgetPositionsFeed({ initial }: Props) {
+export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
   const [data, setData] = useState<BitgetPositionsResponse>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,10 +115,10 @@ export function BitgetPositionsFeed({ initial }: Props) {
   const totalMarginUsd = useMemo(() => positions.reduce((sum, p) => sum + p.marginUsd, 0), [positions]);
 
   return (
-    <div className="page">
+    <div className={embedded ? 'bg-panel' : 'page'}>
       <div className="bg-head">
         <div>
-          <h1>Bitget · Vị thế đang mở</h1>
+          {!embedded && <h1>Bitget · Vị thế đang mở</h1>}
           <p className="bg-sub">
             <span className={`bg-live ${live ? 'bg-live--on' : ''}`}>
               <span className="bg-live-dot" />

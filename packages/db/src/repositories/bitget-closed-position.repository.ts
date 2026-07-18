@@ -50,6 +50,16 @@ export function createBitgetClosedPositionRepository(client = prisma) {
         .then((res) => res.length);
     },
 
+    /** Drop closed trades that closed before `date` — used to trim the log to the
+     *  history-start anchor so old exchange backfill doesn't linger. Returns the
+     *  number of rows removed. */
+    async deleteClosedBefore(date: Date): Promise<number> {
+      const res = await client.bitgetClosedPosition.deleteMany({
+        where: { closedAt: { lt: date } },
+      });
+      return res.count;
+    },
+
     /** Newest-closed first, capped. Optional symbol filter. */
     findRecent(limit = 200, symbol?: string) {
       return client.bitgetClosedPosition.findMany({

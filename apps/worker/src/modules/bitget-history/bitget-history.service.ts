@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import axios, { type AxiosInstance, type Method } from 'axios';
 import { normalizeBitgetClosed, type BitgetClosedRaw } from '@app/core';
-import { createBitgetClosedPositionRepository } from '@app/db';
+import { createBitgetClosedPositionRepository, createBitgetSyncStateRepository } from '@app/db';
 
 /**
  * Syncs CLOSED Bitget USDT-futures positions into `bitget_closed_positions`.
@@ -18,6 +18,7 @@ import { createBitgetClosedPositionRepository } from '@app/db';
 
 const BASE_URL = 'https://api.bitget.com';
 const HISTORY_PATH = '/api/v2/mix/position/history-position';
+const ALL_POSITION_PATH = '/api/v2/mix/position/all-position';
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 40; // safety cap: 40 × 100 = 4000 trades per sync
@@ -31,16 +32,27 @@ type HistoryEnvelope = {
   data: { list: BitgetClosedRaw[] | null; endId?: string } | null;
 };
 
+/** One open-position row (only the fields we read to anchor the history window). */
+type OpenPositionRaw = { total?: string; cTime?: string };
+
+type OpenPositionEnvelope = {
+  code: string;
+  msg: string;
+  data: OpenPositionRaw[] | null;
+};
+
 @Injectable()
 export class BitgetHistoryService implements OnModuleInit {
   private readonly logger = new Logger(BitgetHistoryService.name);
   private readonly repo = createBitgetClosedPositionRepository();
+  private readonly stateRepo = createBitgetSyncStateRepository();
   private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 10_000 });
 
   private readonly apiKey = process.env.BITGET_API_KEY ?? '';
   private readonly apiSecret = process.env.BITGET_API_SECRET ?? '';
   private readonly passphrase = process.env.BITGET_API_PASSPHRASE ?? '';
   private readonly productType = process.env.BITGET_PRODUCT_TYPE ?? 'usdt-futures';
+  private readonly marginCoin = process.env.BITGET_MARGIN_COIN ?? 'USDT';
 
   private syncing = false;
 
@@ -75,10 +87,17 @@ export class BitgetHistoryService implements OnModuleInit {
     this.syncing = true;
     try {
       const now = Date.now();
+
+      // Anchor the trade log to when the current live positions were opened, so
+      // the history tab records only from that point forward (not Bitget's full
+      // 90-day backfill). Done once, then persisted; older rows are purged.
+      const historyStart = await this.resolveHistoryStart(now);
+      const floor = historyStart ? historyStart.getTime() : now - NINETY_DAYS_MS;
+
       const watermark = await this.repo.latestClosedAt();
       const startTime = Math.max(
-        now - NINETY_DAYS_MS,
-        watermark ? watermark.getTime() - OVERLAP_MS : now - NINETY_DAYS_MS,
+        floor,
+        watermark ? watermark.getTime() - OVERLAP_MS : floor,
       );
 
       const collected: BitgetClosedRaw[] = [];
@@ -104,7 +123,9 @@ export class BitgetHistoryService implements OnModuleInit {
 
       const rows = collected
         .map(normalizeBitgetClosed)
-        .filter((r): r is NonNullable<typeof r> => r !== null);
+        .filter((r): r is NonNullable<typeof r> => r !== null)
+        // Never store trades that closed before the anchored history start.
+        .filter((r) => r.closedAt.getTime() >= floor);
       const synced = await this.repo.upsertMany(rows);
       this.logger.log(`Bitget history sync — fetched ${collected.length}, upserted ${synced} (${pages + 1} page(s))`);
       return { synced, pages: pages + 1 };
@@ -113,18 +134,63 @@ export class BitgetHistoryService implements OnModuleInit {
     }
   }
 
-  private async request(query: Record<string, string>): Promise<HistoryEnvelope['data']> {
+  private request(query: Record<string, string>): Promise<HistoryEnvelope['data']> {
+    return this.signedGet<HistoryEnvelope>(HISTORY_PATH, query).then((env) => env.data);
+  }
+
+  /**
+   * Anchor the history-start floor once, to the open time of the earliest
+   * currently-live position. On first run (no persisted anchor yet) with open
+   * positions, persist it and purge any older backfilled rows. Returns the
+   * effective start floor, or null when it cannot be determined (account flat).
+   */
+  private async resolveHistoryStart(now: number): Promise<Date | null> {
+    const existing = await this.stateRepo.getHistoryStartAt();
+    if (existing) return existing;
+
+    const earliestOpen = await this.fetchEarliestOpenPositionTime().catch((err) => {
+      this.logger.warn(`Could not read open positions to anchor history: ${(err as Error).message}`);
+      return null;
+    });
+    if (earliestOpen == null) return null;
+
+    const start = new Date(Math.min(earliestOpen, now));
+    await this.stateRepo.setHistoryStartAt(start);
+    const purged = await this.repo.deleteClosedBefore(start);
+    this.logger.log(
+      `Anchored Bitget history start to ${start.toISOString()} (earliest open position); purged ${purged} older row(s)`,
+    );
+    return start;
+  }
+
+  /** Earliest `cTime` across all currently-open positions (ms), or null if flat. */
+  private async fetchEarliestOpenPositionTime(): Promise<number | null> {
+    const env = await this.signedGet<OpenPositionEnvelope>(ALL_POSITION_PATH, {
+      productType: this.productType,
+      marginCoin: this.marginCoin,
+    });
+    const open = (env.data ?? []).filter((p) => Number(p.total) > 0);
+    const times = open
+      .map((p) => Number(p.cTime))
+      .filter((t) => Number.isFinite(t) && t > 0);
+    return times.length > 0 ? Math.min(...times) : null;
+  }
+
+  private async signedGet<E extends { code: string; msg: string }>(
+    path: string,
+    query: Record<string, string>,
+  ): Promise<E> {
     const timestamp = Date.now().toString();
     const queryString = new URLSearchParams(
       Object.keys(query)
         .sort()
         .map((k) => [k, query[k]] as [string, string]),
     ).toString();
-    const requestPath = `${HISTORY_PATH}?${queryString}`;
+    const requestPath = queryString ? `${path}?${queryString}` : path;
     const prehash = `${timestamp}GET${requestPath}`;
     const sign = createHmac('sha256', this.apiSecret).update(prehash).digest('base64');
 
-    const res = await this.client.request<HistoryEnvelope>({
+    const res = await this.client.request<E>({
       method: 'GET' as Method,
       url: requestPath,
       headers: {
@@ -138,8 +204,8 @@ export class BitgetHistoryService implements OnModuleInit {
     });
 
     if (res.data.code !== '00000') {
-      throw new Error(`Bitget ${HISTORY_PATH} error ${res.data.code}: ${res.data.msg}`);
+      throw new Error(`Bitget ${path} error ${res.data.code}: ${res.data.msg}`);
     }
-    return res.data.data;
+    return res.data;
   }
 }

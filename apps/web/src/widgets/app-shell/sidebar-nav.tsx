@@ -78,14 +78,9 @@ const NAV_ITEMS: NavItem[] = [
     description: 'BTC 15m setups · Break & Retest, Liq. Sweep'
   },
   {
-    href: '/bitget-positions',
-    label: 'Bitget Positions',
-    description: 'Vị thế futures đang mở · uPnL & ký quỹ live'
-  },
-  {
-    href: '/bitget-history',
-    label: 'Bitget History',
-    description: 'Lịch sử lệnh đã đóng · realized PnL & win rate'
+    href: '/bitget',
+    label: 'Bitget',
+    description: 'Vị thế đang mở & lịch sử lệnh · uPnL, realized PnL, win rate'
   },
   {
     href: '/long-signal',

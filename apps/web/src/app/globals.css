@@ -10489,6 +10489,34 @@ a.metric-card--link:hover {
 .bg-refresh:hover:not(:disabled) { background: rgba(23, 18, 13, 0.05); }
 .bg-refresh:disabled { opacity: 0.5; cursor: default; }
 
+/* ── Bitget merged tabs (positions / history) ── */
+.bg-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.bg-tab {
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.bg-tab:hover { color: var(--foreground); }
+.bg-tab--active {
+  color: var(--accent, #4f46e5);
+  border-bottom-color: var(--accent, #4f46e5);
+}
+/* Embedded feed inside the tabs — the outer .page already owns padding/width. */
+.bg-panel { padding: 0; }
+
 .bg-live {
   display: inline-flex;
   align-items: center;

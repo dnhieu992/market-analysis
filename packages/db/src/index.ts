@@ -32,3 +32,4 @@ export type { SpotFlipDailyInput } from './repositories/spot-flip-daily.reposito
 export { createSpotFlipLogRepository } from './repositories/spot-flip-log.repository';
 export { createBitgetClosedPositionRepository } from './repositories/bitget-closed-position.repository';
 export type { BitgetClosedPositionInput } from './repositories/bitget-closed-position.repository';
+export { createBitgetSyncStateRepository } from './repositories/bitget-sync-state.repository';

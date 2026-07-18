@@ -61,9 +61,11 @@ function relTime(iso: string): string {
 
 type Props = {
   initial: BitgetHistoryResponse;
+  /** When rendered inside the merged Bitget tabs, drop the outer page chrome + title. */
+  embedded?: boolean;
 };
 
-export function BitgetHistoryFeed({ initial }: Props) {
+export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
   const [data, setData] = useState<BitgetHistoryResponse>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,10 +92,10 @@ export function BitgetHistoryFeed({ initial }: Props) {
   const { configured, trades, summary, fetchedAt } = data;
 
   return (
-    <div className="page">
+    <div className={embedded ? 'bg-panel' : 'page'}>
       <div className="bg-head">
         <div>
-          <h1>Bitget · Lịch sử lệnh &amp; PnL</h1>
+          {!embedded && <h1>Bitget · Lịch sử lệnh &amp; PnL</h1>}
           <p className="bg-sub">
             Vị thế đã đóng (USDT futures) · đồng bộ {relTime(fetchedAt)}
             {loading ? ' · đang tải…' : ''}

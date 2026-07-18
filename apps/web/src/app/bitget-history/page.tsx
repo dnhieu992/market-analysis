@@ -1,1 +1,5 @@
-export { default } from '@web/_pages/bitget-history-page/bitget-history-page';
+import { redirect } from 'next/navigation';
+
+export default function BitgetHistoryRedirect() {
+  redirect('/bitget?tab=history');
+}

@@ -932,6 +932,19 @@ model BitgetClosedPosition {
   @@map("bitget_closed_positions")
 }
 
+// Singleton anchor for the Bitget closed-trade log. `historyStartAt` is set once
+// to the open time of the earliest currently-live position, so the /bitget
+// history tab records only from when the current trades were opened — not the
+// full 90-day exchange backfill. Older rows are purged past this line.
+model BitgetSyncState {
+  id             String    @id @default("singleton")
+  historyStartAt DateTime? // floor for the closed-trade window; null until first anchored
+  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime  @default(now())
+
+  @@map("bitget_sync_state")
+}
+
 // Watchlist for the /ema-bounce page — the EMA-stack oversold StochRSI bounce
 // scanner. The worker auto-scans this list every 4h and persists matched signals.
 model EmaStochWatchCoin {
