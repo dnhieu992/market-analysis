@@ -46,10 +46,6 @@ import type {
   EmaBouncePreview,
   TradingJournalEntry,
   TradingJournalRevision,
-  SpotFlipAnalysis,
-  SpotFlipWatchItem,
-  SpotFlipDailyEntry,
-  SpotFlipLogEntry,
   TrackingCoinRow,
   OrderSuggestions,
   TrackingCoinOrder,
@@ -1069,74 +1065,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/meme-radar/scan`,
         withDefaults({ method: 'POST' }),
-      );
-    },
-
-    async analyzeSpotFlip(symbol: string): Promise<SpotFlipAnalysis> {
-      return fetchJson<SpotFlipAnalysis>(
-        fetchImpl,
-        `${baseUrl}/spot-flip?symbol=${encodeURIComponent(symbol)}`,
-        withDefaults(),
-      );
-    },
-
-    async fetchSpotFlipWatchlist(): Promise<SpotFlipWatchItem[]> {
-      return fetchJson<SpotFlipWatchItem[]>(fetchImpl, `${baseUrl}/spot-flip/watchlist`, withDefaults());
-    },
-
-    async fetchSpotFlipHistory(symbol: string): Promise<SpotFlipDailyEntry[]> {
-      return fetchJson<SpotFlipDailyEntry[]>(
-        fetchImpl,
-        `${baseUrl}/spot-flip/history/${encodeURIComponent(symbol)}`,
-        withDefaults(),
-      );
-    },
-
-    async addSpotFlipWatch(symbol: string, name?: string): Promise<SpotFlipWatchItem> {
-      return fetchJson<SpotFlipWatchItem>(
-        fetchImpl,
-        `${baseUrl}/spot-flip/watchlist`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, name }),
-        }),
-      );
-    },
-
-    async removeSpotFlipWatch(symbol: string): Promise<{ removed: boolean }> {
-      return fetchJson<{ removed: boolean }>(
-        fetchImpl,
-        `${baseUrl}/spot-flip/watchlist/${encodeURIComponent(symbol)}`,
-        withDefaults({ method: 'DELETE' }),
-      );
-    },
-
-    async fetchSpotFlipLogs(symbol: string): Promise<SpotFlipLogEntry[]> {
-      return fetchJson<SpotFlipLogEntry[]>(
-        fetchImpl,
-        `${baseUrl}/spot-flip/logs/${encodeURIComponent(symbol)}`,
-        withDefaults(),
-      );
-    },
-
-    async addSpotFlipLog(symbol: string, content: string): Promise<SpotFlipLogEntry> {
-      return fetchJson<SpotFlipLogEntry>(
-        fetchImpl,
-        `${baseUrl}/spot-flip/logs/${encodeURIComponent(symbol)}`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
-        }),
-      );
-    },
-
-    async deleteSpotFlipLog(id: string): Promise<{ removed: boolean }> {
-      return fetchJson<{ removed: boolean }>(
-        fetchImpl,
-        `${baseUrl}/spot-flip/logs/entry/${encodeURIComponent(id)}`,
-        withDefaults({ method: 'DELETE' }),
       );
     },
 

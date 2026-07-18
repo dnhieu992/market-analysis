@@ -21,7 +21,6 @@ import { TelegramLogsModule } from './modules/telegram-logs/telegram-logs.module
 import { TransactionModule } from './modules/transaction/transaction.module';
 import { SmallCapRadarModule } from './modules/small-cap-radar/small-cap-radar.module';
 import { MemeRadarModule } from './modules/meme-radar/meme-radar.module';
-import { SpotFlipModule } from './modules/spot-flip/spot-flip.module';
 import { TrackingCoinsModule } from './modules/tracking-coins/tracking-coins.module';
 import { TrackedSetupsModule } from './modules/tracked-setups/tracked-setups.module';
 import { SkillsModule } from './modules/skills/skills.module';
@@ -59,7 +58,6 @@ import { JournalModule } from './modules/journal/journal.module';
     SkillsModule,
     SmallCapRadarModule,
     MemeRadarModule,
-    SpotFlipModule,
     TrackingCoinsModule,
     BitgetModule,
     PatternScannerModule,

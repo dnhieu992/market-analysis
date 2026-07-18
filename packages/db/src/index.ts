@@ -23,10 +23,6 @@ export { createEmaStochScannerRepository } from './repositories/ema-stoch-scanne
 export type { EmaStochSignalUpsert } from './repositories/ema-stoch-scanner.repository';
 export { createTradingJournalRepository } from './repositories/trading-journal.repository';
 export type { TradingJournalUpsert } from './repositories/trading-journal.repository';
-export { createSpotFlipWatchRepository } from './repositories/spot-flip-watch.repository';
-export { createSpotFlipDailyRepository } from './repositories/spot-flip-daily.repository';
-export type { SpotFlipDailyInput } from './repositories/spot-flip-daily.repository';
-export { createSpotFlipLogRepository } from './repositories/spot-flip-log.repository';
 export { createBitgetClosedPositionRepository } from './repositories/bitget-closed-position.repository';
 export type { BitgetClosedPositionInput } from './repositories/bitget-closed-position.repository';
 export { createBitgetSyncStateRepository } from './repositories/bitget-sync-state.repository';

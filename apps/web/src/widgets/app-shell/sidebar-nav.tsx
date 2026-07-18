@@ -78,11 +78,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Vị thế đang mở & lịch sử lệnh · uPnL, realized PnL, win rate'
   },
   {
-    href: '/spot-flip',
-    label: 'Spot Flip',
-    description: 'Biến động, dip & ATR · máy tính TP/SL net phí'
-  },
-  {
     href: '/pattern-scanner',
     label: 'Pattern Scanner',
     description: 'Quét mô hình giá: 2 đáy, 2 đỉnh, vai đầu vai'

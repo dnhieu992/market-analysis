@@ -635,63 +635,6 @@ model MemeSignalHistory {
   @@map("meme_signal_history")
 }
 
-// ── Spot Flip watchlist ───────────────────────────────────────────────────────
-// The set of coins the user tracks on the /spot-flip page. A plain persisted
-// watchlist (no signals/history) — the page still computes all metrics live from
-// Binance on each view; this only remembers *which* coins to show.
-model SpotFlipWatch {
-  id         String    @id @default(cuid())
-  symbol     String    @unique @db.VarChar(30)
-  name       String    @default("") @db.VarChar(100)
-  addedAt    DateTime  @default(now())
-  // Soft-delete marker: non-null means the user removed the coin from the
-  // watchlist. We keep the row (history/settings) and just hide it. Re-adding
-  // the same symbol clears this back to null.
-  disabledAt DateTime?
-
-  @@map("spot_flip_watch")
-}
-
-// One daily spot-flip snapshot per coin, written by the worker cron at 00:15
-// UTC. Stores the up/down ratio (dual-bar shares), the raw range/ATR metrics,
-// and an auto-generated Vietnamese stance note, so the page can show a history
-// of how each coin's position evolved day to day. Unique per (symbol, date).
-model SpotFlipDaily {
-  id          String   @id @default(cuid())
-  symbol      String   @db.VarChar(30)
-  date        DateTime @db.Date
-  price       Float
-  upPct       Float // % "tăng giá" — headroom to the 30d high
-  downPct     Float // % "giảm giá" — downside to the 30d low
-  pullbackPct Float
-  reboundPct  Float
-  atrPct      Float
-  high30d     Float
-  low30d      Float
-  changeH24   Float?
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([symbol, date])
-  @@index([symbol])
-  @@map("spot_flip_daily")
-}
-
-// Free-form manual logs/notes a user adds to a /spot-flip coin. Append-only:
-// each save is a new timestamped entry (hh:mm:ss preserved via createdAt), so a
-// coin accumulates a running journal. Content is Markdown (edited with the
-// shared MarkdownEditor).
-model SpotFlipLog {
-  id        String   @id @default(cuid())
-  symbol    String   @db.VarChar(30)
-  content   String   @db.LongText
-  createdAt DateTime @default(now())
-
-  @@index([symbol])
-  @@map("spot_flip_log")
-}
-
 // Watchlist for the /pattern-scanner page. Stateless scanner (no persisted signals):
 // the user manages a coin list, then scans it on-demand for chart patterns.
 model PatternWatchCoin {

@@ -849,55 +849,6 @@ export type MemeRescanStatus = {
   error: string | null;
 };
 
-export type SpotFlipAnalysis = {
-  symbol: string;
-  price: number;
-  changes: {
-    h1: number | null;
-    h4: number | null;
-    h24: number | null;
-    d7: number | null;
-    d30: number | null;
-  };
-  pullbackPct: number;
-  reboundPct: number;
-  high30d: number;
-  low30d: number;
-  atrPct: number;
-  history: SpotFlipHistoryEntry[];
-  updatedAt: string;
-};
-
-export type SpotFlipHistoryEntry = {
-  date: string;
-  open: number;
-  close: number;
-  changePct: number | null;
-};
-
-export type SpotFlipWatchItem = {
-  symbol: string;
-  name: string;
-};
-
-export type SpotFlipDailyEntry = {
-  date: string;
-  price: number;
-  upPct: number;
-  downPct: number;
-  pullbackPct: number;
-  reboundPct: number;
-  atrPct: number;
-  changeH24: number | null;
-  notes: string | null;
-};
-
-export type SpotFlipLogEntry = {
-  id: string;
-  content: string;
-  createdAt: string;
-};
-
 /**
  * An image stored in Cloudflare R2 (returned by POST /uploads/images).
  * `key` is the R2 object key (used to delete), `url` is the public URL.
