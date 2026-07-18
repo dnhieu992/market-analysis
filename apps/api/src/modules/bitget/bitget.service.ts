@@ -33,6 +33,10 @@ export type BitgetPositionsResult = {
   positions: BitgetPosition[];
   totalUnrealizedPnlUsd: number;
   totalMarginUsd: number;
+  /** Total wallet equity (balance + unrealized PnL), USDT. Null if unavailable. */
+  accountEquityUsd: number | null;
+  /** Free/available balance not tied up as margin, USDT. Null if unavailable. */
+  availableBalanceUsd: number | null;
   fetchedAt: string;
 };
 
@@ -75,6 +79,8 @@ export class BitgetService {
         positions: [],
         totalUnrealizedPnlUsd: 0,
         totalMarginUsd: 0,
+        accountEquityUsd: null,
+        availableBalanceUsd: null,
         fetchedAt,
       };
     }
@@ -86,6 +92,12 @@ export class BitgetService {
       this.logger.warn(`Failed to fetch Bitget positions: ${(err as Error).message}`);
       throw err;
     }
+
+    // Wallet balance is non-fatal — a failure here shouldn't blank the positions table.
+    const balance = await this.client.getAccountBalance().catch((err) => {
+      this.logger.warn(`Failed to fetch Bitget account balance: ${(err as Error).message}`);
+      return null;
+    });
 
     const positions = raw
       .map((p) => this.mapPosition(p))
@@ -99,6 +111,8 @@ export class BitgetService {
       positions,
       totalUnrealizedPnlUsd,
       totalMarginUsd,
+      accountEquityUsd: balance?.accountEquity ?? null,
+      availableBalanceUsd: balance?.available ?? null,
       fetchedAt,
     };
   }

@@ -599,6 +599,8 @@ export type BitgetPositionsResponse = {
   positions: BitgetPosition[];
   totalUnrealizedPnlUsd: number;
   totalMarginUsd: number;
+  accountEquityUsd: number | null;
+  availableBalanceUsd: number | null;
   fetchedAt: string;
 };
 

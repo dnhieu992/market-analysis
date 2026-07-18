@@ -58,6 +58,36 @@ export class BitgetTradeClient {
     return open ? Number(open.total) : 0;
   }
 
+  /**
+   * Account balance for the USDT-futures wallet: total equity (incl. unrealized
+   * PnL), the USDT-denominated equity, and the free/available balance. Reads the
+   * USDT `marginCoin` account row; returns null if the wallet has no USDT row.
+   */
+  async getAccountBalance(): Promise<{
+    accountEquity: number;
+    usdtEquity: number;
+    available: number;
+    unrealizedPL: number;
+  } | null> {
+    const data = await this.request<
+      Array<{
+        marginCoin: string;
+        accountEquity: string;
+        usdtEquity: string;
+        available: string;
+        unrealizedPL: string;
+      }>
+    >('GET', '/api/v2/mix/account/accounts', { productType: this.productType });
+    const usdt = (data ?? []).find((a) => a.marginCoin === MARGIN_COIN) ?? data?.[0];
+    if (!usdt) return null;
+    return {
+      accountEquity: Number(usdt.accountEquity),
+      usdtEquity: Number(usdt.usdtEquity),
+      available: Number(usdt.available),
+      unrealizedPL: Number(usdt.unrealizedPL),
+    };
+  }
+
   /** Every open position across all symbols, or [] if the account is flat. */
   async getAllPositions(): Promise<BitgetRawPosition[]> {
     const data = await this.request<BitgetRawPosition[]>(

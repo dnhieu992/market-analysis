@@ -5,7 +5,9 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 
 **Force-close:** mỗi dòng có nút **Đóng** để đóng vị thế theo **giá market** ngay (reduce-only) qua `POST /bitget/positions/close` — dùng `BitgetTradeClient.closePosition()` (client Bitget dùng chung, đặt tại chính module `bitget`). Có xác nhận trước khi đóng; nếu sàn đã flat thì trả 409.
 
-**Ẩn/hiện value PnL:** cột PnL mặc định chỉ hiện **%** (ROE); số USD được ẩn cho riêng tư. Nút toggle **👁 Hiện value / 🙈 Ẩn value** ở góc phải trên bảng bật/tắt hiển thị số USD (cả tile "PnL chưa thực hiện"), lựa chọn lưu ở `localStorage` (`bitget:pnl-show-value`).
+**Số dư tài khoản:** tile **Số dư tài khoản** (equity = số dư ví + PnL chưa thực hiện) và **Khả dụng** (balance rảnh) lấy từ `GET /api/v2/mix/account/accounts` (marginCoin USDT). Fetch song song với positions, non-fatal (lỗi → `null` → hiển thị "—", không làm trắng bảng).
+
+**Ẩn/hiện value:** mặc định mọi **giá trị USD** (số dư, khả dụng, ký quỹ, PnL) bị ẩn (hiện `••••` / cột PnL chỉ hiện **%** ROE) cho riêng tư. Nút toggle **👁 Hiện value / 🙈 Ẩn value** ở góc phải trên bảng bật/tắt hiển thị số USD, lựa chọn lưu ở `localStorage` (`bitget:pnl-show-value`).
 
 ## Main Flow
 1. Server component gộp `BitgetPage` fetch song song `fetchBitgetPositions()` + `fetchBitgetHistory()` khi render (SSR), truyền vào `BitgetTabs`; tab này render `BitgetPositionsFeed` (chế độ `embedded`).
@@ -34,7 +36,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - **`showValue` khi SSR** → chỉ đọc `localStorage` trong `useEffect` (client), initial `false` nên không lệch hydrate.
 
 ## Related Files (FE / BE / Worker)
-- `apps/api/src/modules/bitget/bitget-trade.client.ts` — client Bitget dùng chung (ký v2): `getAllPositions()`, `getPositionSize()`, `closePosition()` + type `BitgetRawPosition`.
+- `apps/api/src/modules/bitget/bitget-trade.client.ts` — client Bitget dùng chung (ký v2): `getAllPositions()`, `getPositionSize()`, `closePosition()`, `getAccountBalance()` + type `BitgetRawPosition`.
 - `apps/api/src/modules/bitget/bitget.service.ts` — `BitgetService`: gọi client, map + tính notional/ROE + tổng hợp; `closePosition()` force-close market.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/positions`, `POST /bitget/positions/close`.
 - `apps/api/src/modules/bitget/dto/close-position.dto.ts` — validate `symbol` + `holdSide`.

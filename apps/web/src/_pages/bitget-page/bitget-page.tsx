@@ -7,6 +7,8 @@ const EMPTY_POSITIONS: BitgetPositionsResponse = {
   positions: [],
   totalUnrealizedPnlUsd: 0,
   totalMarginUsd: 0,
+  accountEquityUsd: null,
+  availableBalanceUsd: null,
   fetchedAt: new Date().toISOString(),
 };
 
