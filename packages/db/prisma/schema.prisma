@@ -700,6 +700,27 @@ model BitgetSyncState {
   @@map("bitget_sync_state")
 }
 
+// One manual log note attached to a single Bitget trade "session" — i.e. a
+// position for the whole time it stays open. The session is identified by
+// `tradeKey` = `symbol-holdSide-openedAt(ms)`, so closing and re-opening the
+// same symbol/side later starts a fresh timeline instead of mixing notes.
+// Append-only: the ordered sequence of notes IS the record of watching the
+// trade. Each note snapshots price/PnL at write time and can carry chart images.
+model BitgetTradeJournal {
+  id        String   @id @default(cuid())
+  tradeKey  String   @db.VarChar(90) // symbol-holdSide-openedAt(ms) — the trade session
+  symbol    String   @db.VarChar(30)
+  holdSide  String   @db.VarChar(8) // long | short
+  content   String   @db.LongText // Markdown note (Claude-formatted on save)
+  images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
+  snapshot  Json? // { markPrice, entryPrice, roePct, unrealizedPnlUsd } captured at write time
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tradeKey, createdAt])
+  @@map("bitget_trade_journals")
+}
+
 // Watchlist for the /ema-bounce page — the EMA-stack oversold StochRSI bounce
 // scanner. The worker auto-scans this list every 4h and persists matched signals.
 model EmaStochWatchCoin {

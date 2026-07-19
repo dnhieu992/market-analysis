@@ -591,6 +591,8 @@ export type BitgetPosition = {
   unrealizedPnlUsd: number;
   roePct: number;
   realizedPnlUsd: number;
+  /** When the position was opened (Bitget cTime). Anchors the trade-journal tradeKey. */
+  openedAt: string | null;
   updatedAt: string | null;
 };
 
@@ -636,6 +638,27 @@ export type BitgetHistoryResponse = {
   trades: BitgetClosedTrade[];
   summary: BitgetClosedSummary;
   fetchedAt: string;
+};
+
+/** Price/PnL snapshot captured when a trade note was written. */
+export type BitgetJournalSnapshot = {
+  markPrice?: number;
+  entryPrice?: number;
+  roePct?: number;
+  unrealizedPnlUsd?: number;
+};
+
+/** One manual note in a Bitget trade session's log timeline. */
+export type BitgetJournalNote = {
+  id: string;
+  tradeKey: string;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  content: string;
+  images: string[];
+  snapshot: BitgetJournalSnapshot | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type SmallCapCoinRow = {

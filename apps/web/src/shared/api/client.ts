@@ -53,6 +53,8 @@ import type {
   DcaPosition,
   BitgetPositionsResponse,
   BitgetHistoryResponse,
+  BitgetJournalNote,
+  BitgetJournalSnapshot,
   BinanceKline,
   ImageRef,
 } from './types';
@@ -1122,6 +1124,50 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (params.symbol) qs.set('symbol', params.symbol);
       const suffix = qs.toString() ? `?${qs.toString()}` : '';
       return fetchJson<BitgetHistoryResponse>(fetchImpl, `${baseUrl}/bitget/history${suffix}`, withDefaults({}));
+    },
+
+    // ── Bitget per-trade journal ────────────────────────────────
+    async fetchBitgetJournal(tradeKey: string): Promise<BitgetJournalNote[]> {
+      return fetchJson<BitgetJournalNote[]>(
+        fetchImpl,
+        `${baseUrl}/bitget/journal?tradeKey=${encodeURIComponent(tradeKey)}`,
+        withDefaults({}),
+      );
+    },
+
+    async addBitgetJournal(input: {
+      tradeKey: string;
+      symbol: string;
+      holdSide: 'long' | 'short';
+      content: string;
+      images: string[];
+      snapshot?: BitgetJournalSnapshot;
+    }): Promise<BitgetJournalNote> {
+      return fetchJson<BitgetJournalNote>(
+        fetchImpl,
+        `${baseUrl}/bitget/journal`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async updateBitgetJournal(id: string, input: { content: string; images: string[] }): Promise<BitgetJournalNote> {
+      return fetchJson<BitgetJournalNote>(
+        fetchImpl,
+        `${baseUrl}/bitget/journal/${encodeURIComponent(id)}`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async deleteBitgetJournal(id: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/bitget/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
   };
 }

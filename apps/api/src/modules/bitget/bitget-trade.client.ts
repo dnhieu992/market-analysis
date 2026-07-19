@@ -31,6 +31,7 @@ export type BitgetRawPosition = {
   marginSize: string;
   unrealizedPL: string;
   achievedProfits: string;
+  cTime: string;
   uTime: string;
 };
 

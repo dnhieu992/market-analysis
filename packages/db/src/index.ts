@@ -26,3 +26,8 @@ export type { TradingJournalUpsert } from './repositories/trading-journal.reposi
 export { createBitgetClosedPositionRepository } from './repositories/bitget-closed-position.repository';
 export type { BitgetClosedPositionInput } from './repositories/bitget-closed-position.repository';
 export { createBitgetSyncStateRepository } from './repositories/bitget-sync-state.repository';
+export { createBitgetTradeJournalRepository } from './repositories/bitget-trade-journal.repository';
+export type {
+  BitgetTradeJournalInput,
+  BitgetTradeJournalSnapshot,
+} from './repositories/bitget-trade-journal.repository';

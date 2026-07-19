@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/types';
 
+import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
 import { useBitgetLivePrices } from './use-bitget-live-prices';
 
 const REFRESH_MS = 15_000;
@@ -58,6 +59,9 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
   // persists in localStorage so the choice sticks across reloads.
   const [showValue, setShowValue] = useState(false);
   const [closingKey, setClosingKey] = useState<string | null>(null);
+  // Which trade's journal drawer is open — stored as identity so it tracks the
+  // live position object across the 15s refreshes (fresh price for new notes).
+  const [journalKey, setJournalKey] = useState<{ symbol: string; holdSide: 'long' | 'short' } | null>(null);
   const clientRef = useRef(createApiClient());
 
   useEffect(() => {
@@ -154,6 +158,18 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
       ? (totalUnrealizedPnlUsd / accountEquityUsd) * 100
       : null;
 
+  // The live position whose journal is open. Falls back to the last-known object
+  // if the trade just closed, so the drawer stays readable while it's open.
+  const lastJournalPos = useRef<BitgetPosition | null>(null);
+  const journalPosition = useMemo(() => {
+    if (!journalKey) return null;
+    const live = positions.find(
+      (p) => p.symbol === journalKey.symbol && p.holdSide === journalKey.holdSide,
+    );
+    if (live) lastJournalPos.current = live;
+    return live ?? lastJournalPos.current;
+  }, [journalKey, positions]);
+
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
       <div className="bg-head">
@@ -235,6 +251,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
                       <th className="bg-num">Ký quỹ</th>
                       <th className="bg-num">Giá trị</th>
                       <th className="bg-num">PnL {showValue ? '(uPnL)' : '(ROE)'}</th>
+                      <th className="bg-num">Nhật ký</th>
                       <th className="bg-num">Đóng</th>
                     </tr>
                   </thead>
@@ -247,6 +264,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
                         closing={closingKey === `${p.symbol}-${p.holdSide}`}
                         disabled={closingKey !== null}
                         onClose={closePosition}
+                        onJournal={() => setJournalKey({ symbol: p.symbol, holdSide: p.holdSide })}
                       />
                     ))}
                   </tbody>
@@ -255,6 +273,14 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
             </>
           )}
         </>
+      )}
+
+      {journalPosition && (
+        <BitgetJournalDrawer
+          key={tradeKeyOf(journalPosition)}
+          position={journalPosition}
+          onClose={() => setJournalKey(null)}
+        />
       )}
     </div>
   );
@@ -287,9 +313,10 @@ type PositionRowProps = {
   closing: boolean;
   disabled: boolean;
   onClose: (symbol: string, holdSide: 'long' | 'short') => void;
+  onJournal: () => void;
 };
 
-function PositionRow({ p, showValue, closing, disabled, onClose }: PositionRowProps) {
+function PositionRow({ p, showValue, closing, disabled, onClose, onJournal }: PositionRowProps) {
   const isLong = p.holdSide === 'long';
   // Flash the live-price cell green/red on each tick.
   const prevPrice = useRef(p.markPrice);
@@ -326,6 +353,11 @@ function PositionRow({ p, showValue, closing, disabled, onClose }: PositionRowPr
       <td className={`bg-num bg-pnl-cell ${pnlClass(p.unrealizedPnlUsd)}`}>
         {showValue && <span className="bg-pnl-usd">{fmtUsd(p.unrealizedPnlUsd)}</span>}
         <span className="bg-pnl-pct">{fmtPct(p.roePct)}</span>
+      </td>
+      <td className="bg-num">
+        <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký theo dõi lệnh">
+          📝
+        </button>
       </td>
       <td className="bg-num">
         <button

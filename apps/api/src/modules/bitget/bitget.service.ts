@@ -25,6 +25,8 @@ export type BitgetPosition = {
   /** Return on the margin actually committed (ROE %), the number the exchange shows. */
   roePct: number;
   realizedPnlUsd: number;
+  /** When the position was opened (Bitget cTime). Anchors the trade-journal tradeKey. */
+  openedAt: string | null;
   updatedAt: string | null;
 };
 
@@ -204,6 +206,7 @@ export class BitgetService {
       unrealizedPnlUsd,
       roePct: marginUsd > 0 ? (unrealizedPnlUsd / marginUsd) * 100 : 0,
       realizedPnlUsd: Number(p.achievedProfits),
+      openedAt: p.cTime ? new Date(Number(p.cTime)).toISOString() : null,
       updatedAt: p.uTime ? new Date(Number(p.uTime)).toISOString() : null,
     };
   }
