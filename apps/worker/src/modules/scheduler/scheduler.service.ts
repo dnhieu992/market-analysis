@@ -144,10 +144,10 @@ export class SchedulerService {
     }
   }
 
-  // Runs every 15 minutes — reconcile Bitget open positions + closed history into
+  // Runs every 5 minutes — reconcile Bitget open positions + closed history into
   // the bitget_trades lifecycle table (open→closed) so the /bitget history tab +
   // realized PnL survive Bitget's 90-day window, and open/close logs are written.
-  @Cron('*/15 * * * *', { timeZone: 'UTC' })
+  @Cron('*/5 * * * *', { timeZone: 'UTC' })
   async runBitgetHistorySync() {
     try {
       const res = await this.bitgetHistoryService.sync();
