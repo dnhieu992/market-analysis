@@ -159,6 +159,20 @@ export class SchedulerService {
     }
   }
 
+  // Runs every minute — record ROE% milestones (+50/+70/+100/+150/+200 and
+  // −50/−100/−200/−300/−400/−500) for open Bitget positions onto each trade's
+  // journal. Frequent so peaks between the 5-minute reconcile passes are caught;
+  // each step is a one-way ratchet so a milestone is logged once, never on
+  // re-crossing after a dip.
+  @Cron('* * * * *', { timeZone: 'UTC' })
+  async runBitgetMilestoneSync() {
+    try {
+      await this.bitgetHistoryService.syncMilestones();
+    } catch (err) {
+      this.logger.error(`Bitget milestone sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // @Cron('0 1 * * *', { timeZone: 'UTC' })
   async runDailySwingScan() {
     this.logger.log('Running daily swing signal scan');

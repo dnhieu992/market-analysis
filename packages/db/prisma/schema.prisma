@@ -686,6 +686,11 @@ model BitgetTrade {
   openFee       Float?
   closeFee      Float?
   closedAt      DateTime? // Bitget utime (position close time)
+  // ROE% milestone ratchets — the furthest +/- ROE step already logged to the
+  // trade journal. Monotonic (only ever moves away from 0) so a milestone is
+  // recorded once and never re-logged when ROE dips and recovers. Null = none yet.
+  peakRoePct    Int? // highest positive ROE milestone reached (+50/+70/+100/+150/+200)
+  troughRoePct  Int? // deepest negative ROE milestone reached (−50/−100/−200/−300/−400/−500)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

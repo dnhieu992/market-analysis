@@ -49,9 +49,16 @@ type OpenPositionRaw = {
   total?: string;
   openPriceAvg?: string;
   markPrice?: string;
+  marginSize?: string;
   unrealizedPL?: string;
   cTime?: string;
 };
+
+// ROE% milestones we record on a trade's journal, as a ratchet in each direction.
+// ROE = unrealizedPnl ÷ margin × 100 — the same number the /bitget table shows.
+// Only recorded once per step and never re-logged when ROE dips and recovers.
+const UP_MILESTONES = [50, 70, 100, 150, 200];
+const DOWN_MILESTONES = [-50, -100, -200, -300, -400, -500];
 
 type OpenPositionEnvelope = { code: string; msg: string; data: OpenPositionRaw[] | null };
 
@@ -206,6 +213,107 @@ export class BitgetHistoryService implements OnModuleInit {
     } finally {
       this.syncing = false;
     }
+  }
+
+  /**
+   * Record ROE% milestones for the currently-open positions. For each live
+   * position it computes ROE (uPnL ÷ margin) and, if ROE has moved past a
+   * milestone step it has not yet logged, appends a system journal item and
+   * advances the ratchet on the trade row. Independent up/down ratchets:
+   * crossing +70 does not affect the −50 ratchet and vice-versa. A step is
+   * logged once — dipping back and re-crossing the same step logs nothing.
+   *
+   * Runs on its own frequent cron (see SchedulerService) so peaks between the
+   * 5-minute reconcile passes are still caught. Only trades already known open
+   * in `bitget_trades` are tracked; the reconcile creates that row.
+   */
+  async syncMilestones(): Promise<{ logged: number }> {
+    if (!this.isConfigured()) return { logged: 0 };
+
+    const positions = await this.fetchOpenPositions();
+    let logged = 0;
+    for (const pos of positions) {
+      const openedAtMs = Number(pos.cTime);
+      if (!pos.symbol || !pos.holdSide || !Number.isFinite(openedAtMs) || openedAtMs <= 0) continue;
+
+      const margin = Number(pos.marginSize);
+      const upl = Number(pos.unrealizedPL);
+      if (!(margin > 0) || !Number.isFinite(upl)) continue;
+      const roe = (upl / margin) * 100;
+
+      const tradeKey = tradeKeyOf(pos.symbol, pos.holdSide, openedAtMs);
+      const trade = await this.repo.findByTradeKey(tradeKey);
+      if (!trade || trade.status !== 'open') continue;
+
+      logged += await this.recordMilestones(trade, roe, Number(pos.markPrice));
+    }
+    if (logged > 0) this.logger.log(`Bitget milestone sync — logged ${logged} PnL milestone(s)`);
+    return { logged };
+  }
+
+  /**
+   * Advance the up/down ROE ratchets for one open trade, writing a journal item
+   * for every newly-passed milestone step. Returns how many items were written.
+   */
+  private async recordMilestones(
+    trade: { id: string; tradeKey: string; symbol: string; holdSide: string; peakRoePct: number | null; troughRoePct: number | null },
+    roe: number,
+    markPrice: number,
+  ): Promise<number> {
+    let written = 0;
+    const patch: { peakRoePct?: number; troughRoePct?: number } = {};
+
+    // Upside: every step at/above the current ROE that sits beyond the last peak.
+    const prevPeak = trade.peakRoePct ?? -Infinity;
+    const newUp = UP_MILESTONES.filter((m) => m <= roe && m > prevPeak);
+    for (const m of newUp) {
+      await this.writeMilestoneLog(trade, m, roe, markPrice);
+      written++;
+    }
+    if (newUp.length > 0) patch.peakRoePct = newUp[newUp.length - 1];
+
+    // Downside: every step at/below the current ROE that sits beyond the last trough.
+    const prevTrough = trade.troughRoePct ?? Infinity;
+    const newDown = DOWN_MILESTONES.filter((m) => m >= roe && m < prevTrough);
+    for (const m of newDown) {
+      await this.writeMilestoneLog(trade, m, roe, markPrice);
+      written++;
+    }
+    if (newDown.length > 0) patch.troughRoePct = newDown[newDown.length - 1];
+
+    if (written > 0) {
+      await this.repo
+        .updateMilestones(trade.id, patch)
+        .catch((err) => this.logger.warn(`Failed to advance milestone ratchet for ${trade.tradeKey}: ${(err as Error).message}`));
+    }
+    return written;
+  }
+
+  private async writeMilestoneLog(
+    trade: { tradeKey: string; symbol: string; holdSide: string },
+    milestone: number,
+    roe: number,
+    markPrice: number,
+  ): Promise<void> {
+    const side = trade.holdSide === 'short' ? 'SHORT' : 'LONG';
+    const up = milestone >= 0;
+    const label = `${up ? '+' : '−'}${Math.abs(milestone)}%`;
+    const roeStr = `${roe >= 0 ? '+' : '−'}${Math.abs(roe).toFixed(2)}%`;
+    const content = [
+      `${up ? '🎯' : '⚠️'} **Đạt mốc PnL ${label}** ${side} ${trade.symbol}`,
+      `- ROE hiện tại: ${roeStr}`,
+      `- Giá: ${fmtNum(markPrice)}`,
+    ].join('\n');
+    await this.journalRepo
+      .create({
+        tradeKey: trade.tradeKey,
+        kind: 'system',
+        symbol: trade.symbol,
+        holdSide: trade.holdSide,
+        content,
+        snapshot: { markPrice: Number.isFinite(markPrice) ? markPrice : undefined, roePct: roe },
+      })
+      .catch((err) => this.logger.warn(`Failed to write milestone log for ${trade.tradeKey}: ${(err as Error).message}`));
   }
 
   private closeInput(c: BitgetClosedNormalized) {

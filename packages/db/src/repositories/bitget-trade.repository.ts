@@ -59,6 +59,14 @@ export function createBitgetTradeRepository(client = prisma) {
       return client.bitgetTrade.create({ data: { ...input, status: 'open' } });
     },
 
+    /**
+     * Advance the ROE% milestone ratchets on an open trade. Only the fields
+     * passed are written, so the up/down ratchets update independently.
+     */
+    updateMilestones(id: string, input: { peakRoePct?: number; troughRoePct?: number }) {
+      return client.bitgetTrade.update({ where: { id }, data: input });
+    },
+
     /** Flip an open trade to closed, filling the realized-PnL fields. */
     markClosed(id: string, input: BitgetTradeCloseInput) {
       return client.bitgetTrade.update({
