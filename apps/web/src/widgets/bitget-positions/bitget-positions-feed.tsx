@@ -44,15 +44,6 @@ function pnlClass(n: number): string {
   return '';
 }
 
-function relTime(iso: string): string {
-  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (secs < 5) return 'vừa xong';
-  if (secs < 60) return `${secs}s trước`;
-  const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins} phút trước`;
-  return new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-}
-
 type Props = {
   initial: BitgetPositionsResponse;
   /** When rendered inside the merged Bitget tabs, drop the outer page chrome + title. */
@@ -123,7 +114,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  const { configured, positions: rawPositions, fetchedAt, accountEquityUsd } = data;
+  const { configured, positions: rawPositions, accountEquityUsd } = data;
 
   // Live mark prices straight from Bitget's public WS; recompute uPnL/ROE/notional
   // client-side so the table tracks price between the 15s authoritative refreshes.
@@ -173,13 +164,24 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
               <span className="bg-live-dot" />
               {live ? 'LIVE' : 'offline'}
             </span>
-            {' · '}USDT futures · đồng bộ {relTime(fetchedAt)}
-            {loading ? ' · đang tải…' : ''}
           </p>
         </div>
-        <button className="bg-refresh" onClick={refresh} disabled={loading}>
-          ↻ Làm mới
-        </button>
+        <div className="bg-head-actions">
+          {configured && positions.length > 0 && (
+            <button
+              type="button"
+              className="bg-toggle-value"
+              onClick={toggleShowValue}
+              aria-pressed={showValue}
+            >
+              <EyeIcon off={showValue} />
+              {showValue ? 'Ẩn value' : 'Hiện value'}
+            </button>
+          )}
+          <button className="bg-refresh" onClick={refresh} disabled={loading}>
+            ↻ Làm mới
+          </button>
+        </div>
       </div>
 
       {error && <div className="bg-alert bg-alert--error">{error}</div>}
@@ -218,17 +220,6 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
             <div className="bg-alert">Không có vị thế nào đang mở.</div>
           ) : (
             <>
-              <div className="bg-table-toolbar">
-                <button
-                  type="button"
-                  className="bg-toggle-value"
-                  onClick={toggleShowValue}
-                  aria-pressed={showValue}
-                >
-                  <EyeIcon off={showValue} />
-                  {showValue ? 'Ẩn value' : 'Hiện value'}
-                </button>
-              </div>
               <div className="bg-table-wrap">
                 <table className="bg-table">
                   <thead>
