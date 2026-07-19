@@ -47,6 +47,7 @@ type Props = {
 export default async function BitgetPage({ searchParams }: Props) {
   const { positions, history } = await loadData();
   const tab = Array.isArray(searchParams?.tab) ? searchParams?.tab[0] : searchParams?.tab;
-  const initialTab: BitgetTab = tab === 'history' ? 'history' : 'positions';
+  const initialTab: BitgetTab =
+    tab === 'history' ? 'history' : tab === 'setup' ? 'setup' : 'positions';
   return <BitgetTabs positions={positions} history={history} initialTab={initialTab} />;
 }

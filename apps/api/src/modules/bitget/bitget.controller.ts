@@ -4,6 +4,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BitgetJournalService } from './bitget-journal.service';
 import { BitgetService } from './bitget.service';
 import { ClosePositionDto } from './dto/close-position.dto';
+import { OpenPositionDto } from './dto/open-position.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 
@@ -34,6 +35,12 @@ export class BitgetController {
   @ApiOperation({ summary: 'Force-close a live position at the current market price' })
   closePosition(@Body() dto: ClosePositionDto) {
     return this.service.closePosition(dto.symbol, dto.holdSide);
+  }
+
+  @Post('positions/open')
+  @ApiOperation({ summary: 'Open a new market position (cross margin) from the Setup tab' })
+  openPosition(@Body() dto: OpenPositionDto) {
+    return this.service.openPosition(dto);
   }
 
   @Get('journal')

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -189,6 +190,83 @@ export class BitgetService {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to force-close ${symbol} ${holdSide}: ${msg}`);
       throw new ServiceUnavailableException(`Không đóng được vị thế trên Bitget: ${msg}`);
+    }
+  }
+
+  /**
+   * Open a NEW market position in cross margin from the Setup tab. Sets leverage,
+   * derives the base-asset size from the requested margin × leverage ÷ live price
+   * (floored to the contract's precision), then places a market order with no
+   * preset TP/SL — a deliberate manual entry. Rejects (409) if a position for the
+   * same symbol+side is already open, so the button can't accidentally double up.
+   */
+  async openPosition(input: {
+    symbol: string;
+    holdSide: 'long' | 'short';
+    marginUsd: number;
+    leverage: number;
+  }): Promise<{
+    opened: true;
+    symbol: string;
+    holdSide: 'long' | 'short';
+    size: number;
+    entryPrice: number;
+    leverage: number;
+    marginUsd: number;
+  }> {
+    const { symbol, holdSide, marginUsd, leverage } = input;
+    if (!this.client.isConfigured()) {
+      throw new ServiceUnavailableException('Bitget credentials not configured — cannot open a position');
+    }
+    if (!(marginUsd > 0)) throw new BadRequestException('Ký quỹ phải lớn hơn 0.');
+    if (!(leverage >= 1)) throw new BadRequestException('Đòn bẩy phải ≥ 1.');
+
+    try {
+      const existing = await this.client.getPositionSize(symbol, holdSide);
+      if (existing > 0) {
+        throw new ConflictException('Đã có vị thế mở cho coin này — không mở thêm.');
+      }
+
+      const [price, spec] = await Promise.all([
+        this.client.getTickerPrice(symbol),
+        this.client.getContractSpec(symbol),
+      ]);
+
+      // notional = margin × leverage; size (base asset) = notional ÷ price, floored
+      // to the contract's volume precision so Bitget doesn't reject it.
+      const rawSize = (marginUsd * leverage) / price;
+      const factor = 10 ** spec.volumePlace;
+      const size = Math.floor(rawSize * factor) / factor;
+      if (size < spec.minTradeNum || size <= 0) {
+        throw new BadRequestException(
+          `Ký quỹ quá nhỏ: size ${size} < tối thiểu ${spec.minTradeNum} ${symbol}. Tăng ký quỹ hoặc đòn bẩy.`,
+        );
+      }
+
+      await this.client.setCrossLeverage(symbol, leverage);
+      const clientOid = `manual-${symbol}-${holdSide}-${Date.now()}`;
+      await this.client.openMarketPosition({
+        symbol,
+        holdSide,
+        size: size.toFixed(spec.volumePlace),
+        clientOid,
+      });
+      this.logger.log(
+        `Opened Bitget market position: ${holdSide} ${symbol} size ${size} @~${price} ` +
+          `(margin $${marginUsd}, ${leverage}x cross)`,
+      );
+      return { opened: true, symbol, holdSide, size, entryPrice: price, leverage, marginUsd };
+    } catch (err) {
+      if (
+        err instanceof ConflictException ||
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
+        throw err;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to open ${holdSide} ${symbol}: ${msg}`);
+      throw new ServiceUnavailableException(`Không mở được vị thế trên Bitget: ${msg}`);
     }
   }
 

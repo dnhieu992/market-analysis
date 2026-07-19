@@ -4,9 +4,10 @@ import { useState } from 'react';
 
 import { BitgetHistoryFeed } from '@web/widgets/bitget-history/bitget-history-feed';
 import { BitgetPositionsFeed } from '@web/widgets/bitget-positions/bitget-positions-feed';
+import { BitgetSetupFeed } from '@web/widgets/bitget/bitget-setup-feed';
 import type { BitgetHistoryResponse, BitgetPositionsResponse } from '@web/shared/api/types';
 
-export type BitgetTab = 'positions' | 'history';
+export type BitgetTab = 'positions' | 'history' | 'setup';
 
 type Props = {
   positions: BitgetPositionsResponse;
@@ -44,12 +45,23 @@ export function BitgetTabs({ positions, history, initialTab = 'positions' }: Pro
         >
           Lịch sử &amp; PnL
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'setup'}
+          className={`bg-tab ${tab === 'setup' ? 'bg-tab--active' : ''}`}
+          onClick={() => setTab('setup')}
+        >
+          Setup
+        </button>
       </div>
 
       {tab === 'positions' ? (
         <BitgetPositionsFeed initial={positions} embedded />
-      ) : (
+      ) : tab === 'history' ? (
         <BitgetHistoryFeed initial={history} embedded />
+      ) : (
+        <BitgetSetupFeed history={history} positions={positions} embedded />
       )}
     </div>
   );

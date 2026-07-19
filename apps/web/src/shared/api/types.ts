@@ -643,6 +643,23 @@ export type BitgetHistoryResponse = {
   fetchedAt: string;
 };
 
+/** Per-coin manual-open config edited in the Setup dialog (persisted in localStorage). */
+export type BitgetSetupConfig = {
+  holdSide: 'long' | 'short';
+  leverage: number;
+  marginUsd: number;
+};
+
+export type BitgetOpenResult = {
+  opened: true;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  size: number;
+  entryPrice: number;
+  leverage: number;
+  marginUsd: number;
+};
+
 /** Price/PnL snapshot captured when a trade note was written. */
 export type BitgetJournalSnapshot = {
   markPrice?: number;

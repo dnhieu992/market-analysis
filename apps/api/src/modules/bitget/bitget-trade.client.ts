@@ -35,15 +35,103 @@ export type BitgetRawPosition = {
   uTime: string;
 };
 
+/** Contract precision + minimums read from `/api/v2/mix/market/contracts`. */
+export type BitgetContractSpec = {
+  /** Decimal places allowed for order size (base asset). */
+  volumePlace: number;
+  /** Decimal places allowed for price. */
+  pricePlace: number;
+  /** Minimum order size in base asset. */
+  minTradeNum: number;
+  /** Size must be a whole multiple of this step. */
+  sizeMultiplier: number;
+};
+
 export class BitgetTradeClient {
   private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 8_000 });
   private readonly apiKey = process.env.BITGET_API_KEY ?? '';
   private readonly apiSecret = process.env.BITGET_API_SECRET ?? '';
   private readonly passphrase = process.env.BITGET_API_PASSPHRASE ?? '';
   private readonly productType = process.env.BITGET_PRODUCT_TYPE ?? 'usdt-futures';
+  // Bitget account position mode. In hedge_mode place-order REQUIRES `tradeSide`
+  // ('open'/'close') alongside `side`; one_way_mode must omit it. Defaults to
+  // hedge to match the LIVE account (kept in sync with the worker trade client).
+  private readonly hedgeMode = (process.env.BITGET_POSITION_MODE ?? 'hedge') !== 'one-way';
 
   isConfigured(): boolean {
     return Boolean(this.apiKey && this.apiSecret && this.passphrase);
+  }
+
+  /** Current last-traded price for a symbol (public market data). */
+  async getTickerPrice(symbol: string): Promise<number> {
+    const data = await this.request<Array<{ symbol: string; lastPr: string }>>(
+      'GET',
+      '/api/v2/mix/market/ticker',
+      { symbol, productType: this.productType },
+    );
+    const row = (data ?? []).find((t) => t.symbol === symbol) ?? data?.[0];
+    const price = row ? Number(row.lastPr) : NaN;
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error(`No live price for ${symbol}`);
+    }
+    return price;
+  }
+
+  /** Contract precision/minimums for a symbol (public market data). */
+  async getContractSpec(symbol: string): Promise<BitgetContractSpec> {
+    const data = await this.request<
+      Array<{
+        symbol: string;
+        volumePlace: string;
+        pricePlace: string;
+        minTradeNum: string;
+        sizeMultiplier: string;
+      }>
+    >('GET', '/api/v2/mix/market/contracts', { symbol, productType: this.productType });
+    const row = (data ?? []).find((c) => c.symbol === symbol) ?? data?.[0];
+    if (!row) throw new Error(`No contract spec for ${symbol}`);
+    return {
+      volumePlace: Number(row.volumePlace),
+      pricePlace: Number(row.pricePlace),
+      minTradeNum: Number(row.minTradeNum),
+      sizeMultiplier: Number(row.sizeMultiplier) || Number(row.minTradeNum),
+    };
+  }
+
+  /**
+   * Set leverage for a symbol in CROSS mode (leverage is shared across sides, so
+   * no `holdSide` is sent). Called before the first order so margin/liquidation
+   * are deterministic rather than inheriting the account default.
+   */
+  async setCrossLeverage(symbol: string, leverage: number): Promise<void> {
+    await this.request<unknown>('POST', '/api/v2/mix/account/set-leverage', undefined, {
+      symbol,
+      productType: this.productType,
+      marginCoin: MARGIN_COIN,
+      leverage: String(leverage),
+    });
+  }
+
+  /** Open a market position in CROSS mode (no preset TP/SL — a manual, naked entry). */
+  async openMarketPosition(params: {
+    symbol: string;
+    holdSide: 'long' | 'short';
+    size: string;
+    clientOid: string;
+  }): Promise<void> {
+    const body: Record<string, string> = {
+      symbol: params.symbol,
+      productType: this.productType,
+      marginMode: 'crossed',
+      marginCoin: MARGIN_COIN,
+      size: params.size,
+      side: params.holdSide === 'long' ? 'buy' : 'sell',
+      orderType: 'market',
+      clientOid: params.clientOid,
+    };
+    // Hedge mode requires the open/close intent explicitly; one-way mode forbids it.
+    if (this.hedgeMode) body.tradeSide = 'open';
+    await this.request<unknown>('POST', '/api/v2/mix/order/place-order', undefined, body);
   }
 
   /** Open size for a side, or 0 if the exchange is flat. */

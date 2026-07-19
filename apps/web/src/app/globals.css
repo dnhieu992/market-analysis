@@ -10589,6 +10589,132 @@ a.metric-card--link:hover {
 }
 .bg-journal-btn:hover { background: rgba(23, 18, 13, 0.08); }
 
+/* ── Bitget Setup tab (per-coin manual open) ─────────────────── */
+.bg-status-open { font-size: 11px; font-weight: 700; color: #1f8a5b; }
+.bg-status-flat { color: var(--muted); }
+
+.bg-setup-actions { display: inline-flex; gap: 8px; justify-content: flex-end; }
+.bg-setup-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-setup-btn:hover { background: rgba(23, 18, 13, 0.05); }
+.bg-open-btn {
+  padding: 5px 14px;
+  border: 1px solid rgba(31, 138, 91, 0.5);
+  border-radius: 7px;
+  background: rgba(31, 138, 91, 0.12);
+  color: #1f8a5b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-open-btn:hover:not(:disabled) { background: rgba(31, 138, 91, 0.2); }
+.bg-open-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Setup config dialog (portaled to body). */
+.bg-setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 12, 9, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.bg-setup-dialog {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+.bg-setup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.bg-setup-head h3 { margin: 0; font-size: 15px; color: var(--foreground); }
+.bg-setup-x {
+  border: none;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+.bg-setup-x:hover { color: var(--foreground); }
+.bg-setup-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.bg-setup-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.bg-setup-field > span { font-weight: 600; color: var(--foreground); }
+.bg-setup-field input {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+}
+.bg-setup-field input:disabled { opacity: 0.7; cursor: default; }
+.bg-setup-side-toggle { display: flex; gap: 8px; }
+.bg-setup-side {
+  flex: 1;
+  padding: 9px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bg-setup-side--long { border-color: #1f8a5b; background: #e3f5ec; color: #1f8a5b; }
+.bg-setup-side--short { border-color: #c2453a; background: #fdecea; color: #c2453a; }
+.bg-setup-note { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.bg-setup-note strong { color: var(--foreground); }
+.bg-setup-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+}
+.bg-setup-cancel {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bg-setup-cancel:hover { background: rgba(23, 18, 13, 0.05); }
+.bg-setup-save {
+  padding: 8px 18px;
+  border: 1px solid var(--accent, #4f46e5);
+  border-radius: 8px;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bg-setup-save:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* ── Per-trade journal drawer ─────────────────────────────── */
 .bgj-overlay {
   position: fixed;
@@ -10793,6 +10919,7 @@ a.metric-card--link:hover {
   color: var(--foreground);
 }
 .bg-alert--error { border-color: #c2453a; color: #c2453a; margin-bottom: 16px; }
+.bg-alert--ok { border-color: #1f8a5b; color: #1f8a5b; margin-bottom: 16px; }
 
 .bg-tiles {
   display: grid;

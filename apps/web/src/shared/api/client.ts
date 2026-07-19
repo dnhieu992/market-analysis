@@ -53,6 +53,7 @@ import type {
   DcaPosition,
   BitgetPositionsResponse,
   BitgetHistoryResponse,
+  BitgetOpenResult,
   BitgetJournalNote,
   BitgetJournalSnapshot,
   OrderJournalNote,
@@ -1118,6 +1119,28 @@ export function createApiClient(options: ApiClientOptions = {}) {
         const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
         throw new Error(msg || `Đóng lệnh thất bại (HTTP ${response.status})`);
       }
+    },
+
+    async openBitgetPosition(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      marginUsd: number;
+      leverage: number;
+    }): Promise<BitgetOpenResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/positions/open`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Mở lệnh thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetOpenResult;
     },
 
     async fetchBitgetHistory(params: { limit?: number; symbol?: string } = {}): Promise<BitgetHistoryResponse> {
