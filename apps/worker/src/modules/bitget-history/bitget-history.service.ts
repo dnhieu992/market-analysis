@@ -1,19 +1,28 @@
 import { createHmac } from 'node:crypto';
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import axios, { type AxiosInstance, type Method } from 'axios';
-import { normalizeBitgetClosed, type BitgetClosedRaw } from '@app/core';
-import { createBitgetClosedPositionRepository, createBitgetSyncStateRepository } from '@app/db';
+import { normalizeBitgetClosed, type BitgetClosedRaw, type BitgetClosedNormalized } from '@app/core';
+import {
+  createBitgetTradeRepository,
+  createBitgetTradeJournalRepository,
+  createBitgetSyncStateRepository,
+} from '@app/db';
 
 /**
- * Syncs CLOSED Bitget USDT-futures positions into `bitget_closed_positions`.
+ * Reconciles Bitget USDT-futures trades into the `bitget_trades` lifecycle table.
  *
- * Bitget only serves ~90 days of position history, so we mirror it into our DB
- * to keep a permanent trade log + realized PnL for the /bitget-history page.
- * Read-only against the exchange (position/history-position) — signs with the
- * same account key the trading bot uses. Deliberately self-contained (its own
- * signing) so it runs regardless of LIVE trading being enabled.
+ * On each run it:
+ *   1. Reads live open positions (`all-position`) → inserts any newly-seen one as
+ *      `status = open` and writes a system "opened" log item.
+ *   2. Reads closed position history (`history-position`) → flips the matching
+ *      open row to `status = closed` (filling realized-PnL) and writes a system
+ *      "closed" log item. A trade opened+closed between polls is inserted closed
+ *      directly, with both an "opened" and "closed" log.
  *
- * Driven by SchedulerService (periodic) + an initial catch-up sync on boot.
+ * Bitget only serves ~90 days of history, so mirroring it keeps a permanent trade
+ * log + realized PnL for the /bitget history tab. Read-only against the exchange
+ * and self-contained (its own signing) so it runs regardless of LIVE trading.
+ * Driven by SchedulerService (every 15m) + a catch-up sync on boot.
  */
 
 const BASE_URL = 'https://api.bitget.com';
@@ -32,19 +41,37 @@ type HistoryEnvelope = {
   data: { list: BitgetClosedRaw[] | null; endId?: string } | null;
 };
 
-/** One open-position row (only the fields we read to anchor the history window). */
-type OpenPositionRaw = { total?: string; cTime?: string };
-
-type OpenPositionEnvelope = {
-  code: string;
-  msg: string;
-  data: OpenPositionRaw[] | null;
+/** Open-position row (the fields we read to track the live trade). */
+type OpenPositionRaw = {
+  symbol?: string;
+  holdSide?: 'long' | 'short';
+  marginMode?: string;
+  total?: string;
+  openPriceAvg?: string;
+  markPrice?: string;
+  unrealizedPL?: string;
+  cTime?: string;
 };
+
+type OpenPositionEnvelope = { code: string; msg: string; data: OpenPositionRaw[] | null };
+
+/** Canonical trade-session key — MUST match the web/API (`symbol-holdSide-openedAt(ISO)`). */
+function tradeKeyOf(symbol: string, holdSide: string, openedAtMs: number): string {
+  return `${symbol}-${holdSide}-${new Date(openedAtMs).toISOString()}`;
+}
+
+function fmtNum(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  if (Math.abs(n) >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (Math.abs(n) >= 1) return n.toFixed(3);
+  return n.toPrecision(4);
+}
 
 @Injectable()
 export class BitgetHistoryService implements OnModuleInit {
   private readonly logger = new Logger(BitgetHistoryService.name);
-  private readonly repo = createBitgetClosedPositionRepository();
+  private readonly repo = createBitgetTradeRepository();
+  private readonly journalRepo = createBitgetTradeJournalRepository();
   private readonly stateRepo = createBitgetSyncStateRepository();
   private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 10_000 });
 
@@ -65,115 +92,251 @@ export class BitgetHistoryService implements OnModuleInit {
     if (!this.isConfigured()) return;
     setTimeout(() => {
       this.sync().catch((err) =>
-        this.logger.warn(`Initial Bitget history sync failed: ${(err as Error).message}`),
+        this.logger.warn(`Initial Bitget trade sync failed: ${(err as Error).message}`),
       );
     }, 10_000);
   }
 
   /**
-   * Pull closed positions from `latestClosedAt − 1d` (or 90d ago on first run)
-   * up to now, paging backwards by `idLessThan`, and upsert them. Returns how
-   * many rows were written. Guarded against overlapping runs.
+   * Reconcile open positions + closed history into `bitget_trades`. Returns how
+   * many trades were opened / closed this run. Guarded against overlapping runs.
    */
-  async sync(): Promise<{ synced: number; pages: number }> {
+  async sync(): Promise<{ opened: number; closed: number; pages: number }> {
     if (!this.isConfigured()) {
-      this.logger.debug('Bitget history sync skipped — credentials not configured');
-      return { synced: 0, pages: 0 };
+      this.logger.debug('Bitget trade sync skipped — credentials not configured');
+      return { opened: 0, closed: 0, pages: 0 };
     }
     if (this.syncing) {
-      this.logger.debug('Bitget history sync already in progress — skipping');
-      return { synced: 0, pages: 0 };
+      this.logger.debug('Bitget trade sync already in progress — skipping');
+      return { opened: 0, closed: 0, pages: 0 };
     }
     this.syncing = true;
     try {
       const now = Date.now();
+      const openPositions = await this.fetchOpenPositions();
+      const liveKeys = new Set<string>();
 
-      // Anchor the trade log to when the current live positions were opened, so
-      // the history tab records only from that point forward (not Bitget's full
-      // 90-day backfill). Done once, then persisted; older rows are purged.
-      const historyStart = await this.resolveHistoryStart(now);
-      const floor = historyStart ? historyStart.getTime() : now - NINETY_DAYS_MS;
+      // 1. Record newly-seen open positions + their "opened" log.
+      let opened = 0;
+      for (const pos of openPositions) {
+        const openedAtMs = Number(pos.cTime);
+        if (!pos.symbol || !pos.holdSide || !Number.isFinite(openedAtMs) || openedAtMs <= 0) continue;
+        const tradeKey = tradeKeyOf(pos.symbol, pos.holdSide, openedAtMs);
+        liveKeys.add(tradeKey);
 
-      const watermark = await this.repo.latestClosedAt();
-      const startTime = Math.max(
-        floor,
-        watermark ? watermark.getTime() - OVERLAP_MS : floor,
-      );
+        const existing = await this.repo.findByTradeKey(tradeKey);
+        if (existing) continue;
 
-      const collected: BitgetClosedRaw[] = [];
-      let cursor: string | undefined;
-      let pages = 0;
-
-      for (; pages < MAX_PAGES; pages++) {
-        const query: Record<string, string> = {
-          productType: this.productType,
-          startTime: String(startTime),
-          endTime: String(now),
-          limit: String(PAGE_LIMIT),
-        };
-        if (cursor) query.idLessThan = cursor;
-
-        const data = await this.request(query);
-        const list = data?.list ?? [];
-        collected.push(...list);
-
-        if (!data?.endId || list.length < PAGE_LIMIT) break;
-        cursor = data.endId;
+        const openAvgPrice = Number(pos.openPriceAvg);
+        const openTotalPos = Number(pos.total);
+        const openedAt = new Date(openedAtMs);
+        await this.repo.createOpen({
+          tradeKey,
+          symbol: pos.symbol,
+          holdSide: pos.holdSide,
+          marginMode: pos.marginMode ?? '',
+          openAvgPrice,
+          openTotalPos,
+          openedAt,
+        });
+        await this.writeOpenedLog(tradeKey, pos.symbol, pos.holdSide, {
+          openAvgPrice,
+          openTotalPos,
+          openedAt,
+          markPrice: Number(pos.markPrice),
+        });
+        opened++;
       }
 
-      const rows = collected
-        .map(normalizeBitgetClosed)
-        .filter((r): r is NonNullable<typeof r> => r !== null)
-        // Never store trades that closed before the anchored history start.
-        .filter((r) => r.closedAt.getTime() >= floor);
-      const synced = await this.repo.upsertMany(rows);
-      this.logger.log(`Bitget history sync — fetched ${collected.length}, upserted ${synced} (${pages + 1} page(s))`);
-      return { synced, pages: pages + 1 };
+      // 2. Pull closed history and reconcile closes.
+      const historyStart = await this.resolveHistoryStart(now, openPositions);
+      const floor = historyStart ? historyStart.getTime() : now - NINETY_DAYS_MS;
+      const { rows: closedRows, pages } = await this.fetchClosedHistory(now, floor);
+
+      let closed = 0;
+      for (const c of closedRows) {
+        // Idempotent: a trade already closed (positionId recorded) is skipped.
+        const byPid = await this.repo.findByPositionId(c.positionId);
+        if (byPid) continue;
+
+        const tradeKey = tradeKeyOf(c.symbol, c.holdSide, c.openedAt.getTime());
+        let match = await this.repo.findByTradeKey(tradeKey);
+
+        // Fallback for a cTime mismatch: an open row for the same symbol+side that
+        // is NOT currently live (so we never close a still-open position).
+        if (!match) {
+          const opens = await this.repo.findOpenBySymbolSide(c.symbol, c.holdSide);
+          match =
+            opens.find((o) => !liveKeys.has(o.tradeKey) && o.openedAt.getTime() <= c.closedAt.getTime()) ??
+            null;
+        }
+
+        if (match && match.status === 'open' && !liveKeys.has(match.tradeKey)) {
+          await this.repo.markClosed(match.id, this.closeInput(c));
+          await this.writeClosedLog(match.tradeKey, c);
+          closed++;
+        } else if (!match) {
+          // Opened and closed between polls — never saw it open. Record the full
+          // lifecycle plus both an "opened" and "closed" log.
+          await this.repo.createClosed({
+            tradeKey,
+            symbol: c.symbol,
+            holdSide: c.holdSide,
+            marginMode: c.marginMode,
+            openAvgPrice: c.openAvgPrice,
+            openTotalPos: c.openTotalPos,
+            openedAt: c.openedAt,
+            ...this.closeInput(c),
+          });
+          await this.writeOpenedLog(tradeKey, c.symbol, c.holdSide, {
+            openAvgPrice: c.openAvgPrice,
+            openTotalPos: c.openTotalPos,
+            openedAt: c.openedAt,
+            markPrice: c.openAvgPrice,
+          });
+          await this.writeClosedLog(tradeKey, c);
+          closed++;
+        }
+      }
+
+      if (opened || closed) {
+        this.logger.log(`Bitget trade sync — opened ${opened}, closed ${closed} (${pages} page(s))`);
+      }
+      return { opened, closed, pages };
     } finally {
       this.syncing = false;
     }
   }
 
-  private request(query: Record<string, string>): Promise<HistoryEnvelope['data']> {
-    return this.signedGet<HistoryEnvelope>(HISTORY_PATH, query).then((env) => env.data);
+  private closeInput(c: BitgetClosedNormalized) {
+    return {
+      positionId: c.positionId,
+      closeAvgPrice: c.closeAvgPrice,
+      netProfit: c.netProfit,
+      pnl: c.pnl,
+      totalFunding: c.totalFunding,
+      openFee: c.openFee,
+      closeFee: c.closeFee,
+      closedAt: c.closedAt,
+    };
+  }
+
+  private async writeOpenedLog(
+    tradeKey: string,
+    symbol: string,
+    holdSide: string,
+    info: { openAvgPrice: number; openTotalPos: number; openedAt: Date; markPrice: number },
+  ): Promise<void> {
+    const side = holdSide === 'short' ? 'SHORT' : 'LONG';
+    const content = [
+      `🟢 **Đã mở lệnh** ${side} ${symbol}`,
+      `- Giá vào: ${fmtNum(info.openAvgPrice)}`,
+      `- Size: ${fmtNum(info.openTotalPos)}`,
+    ].join('\n');
+    await this.journalRepo
+      .create({
+        tradeKey,
+        kind: 'system',
+        symbol,
+        holdSide,
+        content,
+        snapshot: {
+          entryPrice: info.openAvgPrice,
+          markPrice: Number.isFinite(info.markPrice) ? info.markPrice : info.openAvgPrice,
+        },
+      })
+      .catch((err) => this.logger.warn(`Failed to write opened log for ${tradeKey}: ${(err as Error).message}`));
+  }
+
+  private async writeClosedLog(tradeKey: string, c: BitgetClosedNormalized): Promise<void> {
+    const side = c.holdSide === 'short' ? 'SHORT' : 'LONG';
+    const sign = c.netProfit >= 0 ? '+' : '−';
+    const content = [
+      `🔴 **Đã đóng lệnh** ${side} ${c.symbol}`,
+      `- Giá đóng: ${fmtNum(c.closeAvgPrice)}`,
+      `- PnL thực: ${sign}${fmtNum(Math.abs(c.netProfit))} USDT`,
+      `- Phí: ${fmtNum(c.openFee + c.closeFee)} USDT`,
+    ].join('\n');
+    await this.journalRepo
+      .create({
+        tradeKey,
+        kind: 'system',
+        symbol: c.symbol,
+        holdSide: c.holdSide,
+        content,
+        snapshot: {
+          entryPrice: c.openAvgPrice,
+          markPrice: c.closeAvgPrice,
+          unrealizedPnlUsd: c.netProfit,
+        },
+      })
+      .catch((err) => this.logger.warn(`Failed to write closed log for ${tradeKey}: ${(err as Error).message}`));
+  }
+
+  /** Page backwards through closed history from the floor and normalize the rows. */
+  private async fetchClosedHistory(
+    now: number,
+    floor: number,
+  ): Promise<{ rows: BitgetClosedNormalized[]; pages: number }> {
+    const watermark = await this.repo.latestClosedAt();
+    const startTime = Math.max(floor, watermark ? watermark.getTime() - OVERLAP_MS : floor);
+
+    const collected: BitgetClosedRaw[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    for (; pages < MAX_PAGES; pages++) {
+      const query: Record<string, string> = {
+        productType: this.productType,
+        startTime: String(startTime),
+        endTime: String(now),
+        limit: String(PAGE_LIMIT),
+      };
+      if (cursor) query.idLessThan = cursor;
+
+      const env = await this.signedGet<HistoryEnvelope>(HISTORY_PATH, query);
+      const list = env.data?.list ?? [];
+      collected.push(...list);
+      if (!env.data?.endId || list.length < PAGE_LIMIT) break;
+      cursor = env.data.endId;
+    }
+
+    const rows = collected
+      .map(normalizeBitgetClosed)
+      .filter((r): r is BitgetClosedNormalized => r !== null)
+      .filter((r) => r.closedAt.getTime() >= floor);
+    return { rows, pages: pages + 1 };
+  }
+
+  private async fetchOpenPositions(): Promise<OpenPositionRaw[]> {
+    const env = await this.signedGet<OpenPositionEnvelope>(ALL_POSITION_PATH, {
+      productType: this.productType,
+      marginCoin: this.marginCoin,
+    });
+    return (env.data ?? []).filter((p) => Number(p.total) > 0);
   }
 
   /**
    * Anchor the history-start floor once, to the open time of the earliest
    * currently-live position. On first run (no persisted anchor yet) with open
-   * positions, persist it and purge any older backfilled rows. Returns the
-   * effective start floor, or null when it cannot be determined (account flat).
+   * positions, persist it and purge older closed rows. Returns the effective
+   * start floor, or null when it cannot be determined (account flat).
    */
-  private async resolveHistoryStart(now: number): Promise<Date | null> {
+  private async resolveHistoryStart(now: number, openPositions: OpenPositionRaw[]): Promise<Date | null> {
     const existing = await this.stateRepo.getHistoryStartAt();
     if (existing) return existing;
 
-    const earliestOpen = await this.fetchEarliestOpenPositionTime().catch((err) => {
-      this.logger.warn(`Could not read open positions to anchor history: ${(err as Error).message}`);
-      return null;
-    });
-    if (earliestOpen == null) return null;
+    const times = openPositions
+      .map((p) => Number(p.cTime))
+      .filter((t) => Number.isFinite(t) && t > 0);
+    if (times.length === 0) return null;
 
-    const start = new Date(Math.min(earliestOpen, now));
+    const start = new Date(Math.min(Math.min(...times), now));
     await this.stateRepo.setHistoryStartAt(start);
     const purged = await this.repo.deleteClosedBefore(start);
     this.logger.log(
       `Anchored Bitget history start to ${start.toISOString()} (earliest open position); purged ${purged} older row(s)`,
     );
     return start;
-  }
-
-  /** Earliest `cTime` across all currently-open positions (ms), or null if flat. */
-  private async fetchEarliestOpenPositionTime(): Promise<number | null> {
-    const env = await this.signedGet<OpenPositionEnvelope>(ALL_POSITION_PATH, {
-      productType: this.productType,
-      marginCoin: this.marginCoin,
-    });
-    const open = (env.data ?? []).filter((p) => Number(p.total) > 0);
-    const times = open
-      .map((p) => Number(p.cTime))
-      .filter((t) => Number.isFinite(t) && t > 0);
-    return times.length > 0 ? Math.min(...times) : null;
   }
 
   private async signedGet<E extends { code: string; msg: string }>(

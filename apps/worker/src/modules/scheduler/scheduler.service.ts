@@ -144,15 +144,18 @@ export class SchedulerService {
     }
   }
 
-  // Runs every 15 minutes — mirror newly-closed Bitget positions into the DB so
-  // the /bitget-history trade log + realized PnL survive Bitget's 90-day window.
+  // Runs every 15 minutes — reconcile Bitget open positions + closed history into
+  // the bitget_trades lifecycle table (open→closed) so the /bitget history tab +
+  // realized PnL survive Bitget's 90-day window, and open/close logs are written.
   @Cron('*/15 * * * *', { timeZone: 'UTC' })
   async runBitgetHistorySync() {
     try {
       const res = await this.bitgetHistoryService.sync();
-      if (res.synced > 0) this.logger.log(`Bitget history sync — upserted ${res.synced}`);
+      if (res.opened > 0 || res.closed > 0) {
+        this.logger.log(`Bitget trade sync — opened ${res.opened}, closed ${res.closed}`);
+      }
     } catch (err) {
-      this.logger.error(`Bitget history sync failed: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error(`Bitget trade sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

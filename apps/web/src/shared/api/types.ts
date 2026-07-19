@@ -607,6 +607,9 @@ export type BitgetPositionsResponse = {
 
 export type BitgetClosedTrade = {
   positionId: string;
+  /** Stable trade-session key — lets the history tab open the trade's journal. */
+  tradeKey: string;
+  status: 'closed';
   symbol: string;
   holdSide: 'long' | 'short';
   marginMode: string;
@@ -652,6 +655,8 @@ export type BitgetJournalSnapshot = {
 export type BitgetJournalNote = {
   id: string;
   tradeKey: string;
+  /** "manual" (trader note) or "system" (auto open/close event — read-only). */
+  kind: 'manual' | 'system';
   symbol: string;
   holdSide: 'long' | 'short';
   content: string;

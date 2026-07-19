@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { summarizeBitgetClosed, type BitgetClosedSummary } from '@app/core';
-import { createBitgetClosedPositionRepository } from '@app/db';
+import { createBitgetTradeRepository } from '@app/db';
 
 import { BitgetTradeClient, type BitgetRawPosition } from './bitget-trade.client';
 
@@ -42,6 +42,9 @@ export type BitgetPositionsResult = {
 
 export type BitgetClosedTrade = {
   positionId: string;
+  /** Stable trade-session key — lets the history tab open the trade's journal. */
+  tradeKey: string;
+  status: 'closed';
   symbol: string;
   holdSide: 'long' | 'short';
   marginMode: string;
@@ -68,7 +71,7 @@ export type BitgetHistoryResult = {
 export class BitgetService {
   private readonly logger = new Logger(BitgetService.name);
   private readonly client = new BitgetTradeClient();
-  private readonly closedRepo = createBitgetClosedPositionRepository();
+  private readonly tradeRepo = createBitgetTradeRepository();
 
   async getOpenPositions(): Promise<BitgetPositionsResult> {
     const fetchedAt = new Date().toISOString();
@@ -123,33 +126,41 @@ export class BitgetService {
    */
   async getClosedHistory(limit = 200, symbol?: string): Promise<BitgetHistoryResult> {
     const fetchedAt = new Date().toISOString();
-    const rows = await this.closedRepo.findRecent(limit, symbol);
+    const rows = await this.tradeRepo.findRecentClosed(limit, symbol);
 
     const trades: BitgetClosedTrade[] = rows.map((r) => {
       const notional = Math.abs(r.openAvgPrice * r.openTotalPos);
+      const netProfit = r.netProfit ?? 0;
       return {
-        positionId: r.positionId,
+        positionId: r.positionId ?? '',
+        tradeKey: r.tradeKey,
+        status: 'closed',
         symbol: r.symbol,
         holdSide: r.holdSide === 'short' ? 'short' : 'long',
         marginMode: r.marginMode,
         openAvgPrice: r.openAvgPrice,
-        closeAvgPrice: r.closeAvgPrice,
+        closeAvgPrice: r.closeAvgPrice ?? 0,
         size: r.openTotalPos,
-        netProfit: r.netProfit,
-        netProfitPct: notional > 0 ? (r.netProfit / notional) * 100 : 0,
-        totalFunding: r.totalFunding,
-        feesUsd: r.openFee + r.closeFee,
+        netProfit,
+        netProfitPct: notional > 0 ? (netProfit / notional) * 100 : 0,
+        totalFunding: r.totalFunding ?? 0,
+        feesUsd: (r.openFee ?? 0) + (r.closeFee ?? 0),
         openedAt: r.openedAt.toISOString(),
-        closedAt: r.closedAt.toISOString(),
+        closedAt: (r.closedAt ?? r.openedAt).toISOString(),
       };
     });
 
-    return {
-      configured: this.client.isConfigured(),
-      trades,
-      summary: summarizeBitgetClosed(rows),
-      fetchedAt,
-    };
+    // summarizeBitgetClosed needs non-null netProfit — closed rows always have it.
+    const summary = summarizeBitgetClosed(
+      rows.map((r) => ({
+        symbol: r.symbol,
+        netProfit: r.netProfit ?? 0,
+        openAvgPrice: r.openAvgPrice,
+        openTotalPos: r.openTotalPos,
+      })),
+    );
+
+    return { configured: this.client.isConfigured(), trades, summary, fetchedAt };
   }
 
   /**

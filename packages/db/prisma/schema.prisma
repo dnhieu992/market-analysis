@@ -660,31 +660,39 @@ model PatternReferenceImage {
   @@map("pattern_reference_images")
 }
 
-// One CLOSED Bitget USDT-futures position, synced from
-// `/api/v2/mix/position/history-position`. The worker backfills this table on a
-// schedule (dedupe by Bitget `positionId`) so the /bitget-history page has a
-// permanent trade log + realized PnL beyond Bitget's ~90-day history window.
-model BitgetClosedPosition {
-  id            String   @id @default(cuid())
-  positionId    String   @unique @db.VarChar(40) // Bitget positionId — dedupe key
-  symbol        String   @db.VarChar(30)
-  holdSide      String   @db.VarChar(8) // long | short
-  marginMode    String   @default("") @db.VarChar(12) // isolated | crossed
+// One Bitget USDT-futures trade across its whole lifecycle. The worker
+// reconciles this on a schedule: a newly-seen open position is inserted with
+// `status = "open"`; when it later shows up in position history it is flipped to
+// `status = "closed"` with the realized-PnL fields filled in. `tradeKey`
+// (`symbol-holdSide-openedAt(ISO)`) is the stable id shared with the journal and
+// carried across the open→closed transition; `positionId` is only known once the
+// trade closes (Bitget's open-position endpoint doesn't return one).
+model BitgetTrade {
+  id            String    @id @default(cuid())
+  tradeKey      String    @unique @db.VarChar(90) // symbol-holdSide-openedAt(ISO) — stable across lifecycle
+  positionId    String?   @unique @db.VarChar(40) // Bitget positionId — set on close (dedupe key)
+  status        String    @default("open") @db.VarChar(8) // open | closed
+  symbol        String    @db.VarChar(30)
+  holdSide      String    @db.VarChar(8) // long | short
+  marginMode    String    @default("") @db.VarChar(12) // isolated | crossed
   openAvgPrice  Float // average entry fill
-  closeAvgPrice Float // average exit fill
   openTotalPos  Float // position size in base asset
-  netProfit     Float // realized PnL after fees — the number that matters
-  pnl           Float    @default(0) // gross realized pnl (before fees)
-  totalFunding  Float    @default(0)
-  openFee       Float    @default(0)
-  closeFee      Float    @default(0)
-  openedAt      DateTime // Bitget ctime
-  closedAt      DateTime // Bitget utime
-  createdAt     DateTime @default(now())
+  openedAt      DateTime // Bitget ctime (position open time)
+  // Close-side fields — null while the trade is still open.
+  closeAvgPrice Float? // average exit fill
+  netProfit     Float? // realized PnL after fees — the number that matters
+  pnl           Float? // gross realized pnl (before fees)
+  totalFunding  Float?
+  openFee       Float?
+  closeFee      Float?
+  closedAt      DateTime? // Bitget utime (position close time)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([symbol])
+  @@index([status])
   @@index([closedAt])
-  @@map("bitget_closed_positions")
+  @@map("bitget_trades")
 }
 
 // Singleton anchor for the Bitget closed-trade log. `historyStartAt` is set once
@@ -700,15 +708,17 @@ model BitgetSyncState {
   @@map("bitget_sync_state")
 }
 
-// One manual log note attached to a single Bitget trade "session" — i.e. a
-// position for the whole time it stays open. The session is identified by
-// `tradeKey` = `symbol-holdSide-openedAt(ms)`, so closing and re-opening the
-// same symbol/side later starts a fresh timeline instead of mixing notes.
-// Append-only: the ordered sequence of notes IS the record of watching the
-// trade. Each note snapshots price/PnL at write time and can carry chart images.
+// One log item on a Bitget trade's timeline, tied to `BitgetTrade` by `tradeKey`
+// (`symbol-holdSide-openedAt(ISO)`), so closing and re-opening the same
+// symbol/side later starts a fresh timeline. Append-only: the ordered sequence
+// of items IS the record of watching the trade. `kind` distinguishes trader
+// notes (`manual`) from system-generated lifecycle events (`system`, e.g. the
+// auto "opened"/"closed" entries the worker writes). Each item snapshots
+// price/PnL at write time and can carry chart images.
 model BitgetTradeJournal {
   id        String   @id @default(cuid())
-  tradeKey  String   @db.VarChar(90) // symbol-holdSide-openedAt(ms) — the trade session
+  tradeKey  String   @db.VarChar(90) // symbol-holdSide-openedAt(ISO) — the trade session
+  kind      String   @default("manual") @db.VarChar(8) // manual | system
   symbol    String   @db.VarChar(30)
   holdSide  String   @db.VarChar(8) // long | short
   content   String   @db.LongText // Markdown note (Claude-formatted on save)

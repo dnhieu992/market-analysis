@@ -23,8 +23,12 @@ export { createEmaStochScannerRepository } from './repositories/ema-stoch-scanne
 export type { EmaStochSignalUpsert } from './repositories/ema-stoch-scanner.repository';
 export { createTradingJournalRepository } from './repositories/trading-journal.repository';
 export type { TradingJournalUpsert } from './repositories/trading-journal.repository';
-export { createBitgetClosedPositionRepository } from './repositories/bitget-closed-position.repository';
-export type { BitgetClosedPositionInput } from './repositories/bitget-closed-position.repository';
+export { createBitgetTradeRepository } from './repositories/bitget-trade.repository';
+export type {
+  BitgetTradeOpenInput,
+  BitgetTradeCloseInput,
+  BitgetTradeClosedInput,
+} from './repositories/bitget-trade.repository';
 export { createBitgetSyncStateRepository } from './repositories/bitget-sync-state.repository';
 export { createBitgetTradeJournalRepository } from './repositories/bitget-trade-journal.repository';
 export type {

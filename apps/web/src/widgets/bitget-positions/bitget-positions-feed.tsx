@@ -278,7 +278,17 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
       {journalPosition && (
         <BitgetJournalDrawer
           key={tradeKeyOf(journalPosition)}
-          position={journalPosition}
+          target={{
+            tradeKey: tradeKeyOf(journalPosition),
+            symbol: journalPosition.symbol,
+            holdSide: journalPosition.holdSide,
+            status: 'open',
+            entryPrice: journalPosition.entryPrice,
+            markPrice: journalPosition.markPrice,
+            roePct: journalPosition.roePct,
+            openedAt: journalPosition.openedAt,
+            live: journalPosition,
+          }}
           onClose={() => setJournalKey(null)}
         />
       )}

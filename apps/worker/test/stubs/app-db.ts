@@ -46,7 +46,8 @@ export const createEmaStochScannerRepository = noopRepository;
 export const createSmallCapRadarRepository = noopRepository;
 export const createMemeRadarRepository = noopRepository;
 export const createUserRepository = noopRepository;
-export const createBitgetClosedPositionRepository = noopRepository;
+export const createBitgetTradeRepository = noopRepository;
+export const createBitgetTradeJournalRepository = noopRepository;
 export const createBitgetSyncStateRepository = noopRepository;
 
 export function createDailyAnalysisRepository() {

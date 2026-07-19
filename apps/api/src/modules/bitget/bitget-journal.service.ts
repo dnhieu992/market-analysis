@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   createBitgetTradeJournalRepository,
   type BitgetTradeJournalSnapshot,
@@ -10,6 +10,8 @@ import type { UpdateJournalDto } from './dto/update-journal.dto';
 export type BitgetJournalNoteDto = {
   id: string;
   tradeKey: string;
+  /** "manual" (trader note) or "system" (auto open/close event — read-only). */
+  kind: 'manual' | 'system';
   symbol: string;
   holdSide: 'long' | 'short';
   content: string;
@@ -27,6 +29,7 @@ function toStringArray(value: unknown): string[] {
 type JournalRow = {
   id: string;
   tradeKey: string;
+  kind: string;
   symbol: string;
   holdSide: string;
   content: string;
@@ -50,6 +53,7 @@ export class BitgetJournalService {
     return {
       id: r.id,
       tradeKey: r.tradeKey,
+      kind: r.kind === 'system' ? 'system' : 'manual',
       symbol: r.symbol,
       holdSide: r.holdSide === 'short' ? 'short' : 'long',
       content: r.content,
@@ -81,6 +85,9 @@ export class BitgetJournalService {
   async update(id: string, input: UpdateJournalDto): Promise<BitgetJournalNoteDto> {
     const existing = await this.repo.findById(id);
     if (!existing) throw new NotFoundException(`Journal note ${id} not found`);
+    if (existing.kind === 'system') {
+      throw new BadRequestException('Log hệ thống (mở/đóng lệnh) không thể sửa.');
+    }
     const row = await this.repo.update(id, { content: input.content, images: input.images ?? [] });
     return this.map(row);
   }
@@ -88,6 +95,9 @@ export class BitgetJournalService {
   async remove(id: string): Promise<void> {
     const existing = await this.repo.findById(id);
     if (!existing) throw new NotFoundException(`Journal note ${id} not found`);
+    if (existing.kind === 'system') {
+      throw new BadRequestException('Log hệ thống (mở/đóng lệnh) không thể xoá.');
+    }
     await this.repo.deleteById(id);
   }
 }

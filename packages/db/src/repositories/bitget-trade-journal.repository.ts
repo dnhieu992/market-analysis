@@ -14,6 +14,8 @@ export type BitgetTradeJournalInput = {
   content: string;
   images?: string[];
   snapshot?: BitgetTradeJournalSnapshot | null;
+  /** "manual" (trader note, default) or "system" (auto open/close event). */
+  kind?: 'manual' | 'system';
 };
 
 /**
@@ -40,6 +42,7 @@ export function createBitgetTradeJournalRepository(client = prisma) {
       return client.bitgetTradeJournal.create({
         data: {
           tradeKey: input.tradeKey,
+          kind: input.kind ?? 'manual',
           symbol: input.symbol,
           holdSide: input.holdSide,
           content: input.content,

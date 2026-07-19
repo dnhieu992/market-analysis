@@ -15,15 +15,33 @@ const MarkdownEditor = dynamic(
 );
 
 /**
- * Trade session key: notes are grouped per (symbol, side, open time), so closing
- * and re-opening the same symbol/side later starts a fresh log timeline. Kept in
- * sync with the API's CreateJournalDto.tradeKey.
+ * Trade session key: notes group per (symbol, side, open time), so closing and
+ * re-opening the same symbol/side later starts a fresh timeline. Kept in sync
+ * with the worker/API (`symbol-holdSide-openedAt(ISO)`).
  */
 export function tradeKeyOf(p: Pick<BitgetPosition, 'symbol' | 'holdSide' | 'openedAt'>): string {
   return `${p.symbol}-${p.holdSide}-${p.openedAt ?? 'na'}`;
 }
 
-function fmtTime(iso: string): string {
+/** What the drawer logs against — a live open position or a closed trade. */
+export type JournalTarget = {
+  tradeKey: string;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  status: 'open' | 'closed';
+  entryPrice?: number;
+  /** Live mark price (open) or exit price (closed) — header + save snapshot. */
+  markPrice?: number;
+  roePct?: number;
+  netProfit?: number;
+  openedAt?: string | null;
+  closedAt?: string | null;
+  /** Live position, present while open — snapshots the fresh price on save. */
+  live?: BitgetPosition;
+};
+
+function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
   return new Date(iso).toLocaleString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
@@ -46,14 +64,20 @@ function fmtPrice(n: number | undefined): string {
   return n.toPrecision(3);
 }
 
+function fmtUsd(n: number | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const sign = n > 0 ? '+' : n < 0 ? '−' : '';
+  return `${sign}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 type Props = {
-  position: BitgetPosition;
+  target: JournalTarget;
   onClose: () => void;
 };
 
-export function BitgetJournalDrawer({ position, onClose }: Props) {
+export function BitgetJournalDrawer({ target, onClose }: Props) {
   const api = useMemo(() => createApiClient(), []);
-  const tradeKey = tradeKeyOf(position);
+  const { tradeKey, symbol, holdSide, status } = target;
 
   const [mounted, setMounted] = useState(false);
   const [notes, setNotes] = useState<BitgetJournalNote[]>([]);
@@ -66,9 +90,9 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  // Always the latest position, so a save snapshots the live price at click time.
-  const posRef = useRef(position);
-  posRef.current = position;
+  // Always the latest target, so a save snapshots the live price at click time.
+  const targetRef = useRef(target);
+  targetRef.current = target;
 
   useEffect(() => setMounted(true), []);
 
@@ -91,7 +115,6 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
     };
   }, [api, tradeKey]);
 
-  // Close on Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -130,12 +153,25 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
     setError(null);
   }
 
+  /** Price/PnL snapshot to stamp on a new manual note, from the freshest data. */
+  function snapshotNow() {
+    const t = targetRef.current;
+    if (t.live) {
+      return {
+        markPrice: t.live.markPrice,
+        entryPrice: t.live.entryPrice,
+        roePct: t.live.roePct,
+        unrealizedPnlUsd: t.live.unrealizedPnlUsd,
+      };
+    }
+    return { markPrice: t.markPrice, entryPrice: t.entryPrice, roePct: t.roePct, unrealizedPnlUsd: t.netProfit };
+  }
+
   async function save() {
     if (!content.trim() && pendingFiles.length === 0 && existingImages.length === 0) return;
     setError(null);
     setWarning(null);
 
-    // Format the raw markdown via Claude (shared /journal/reformat endpoint).
     let finalContent = content;
     if (content.trim()) {
       setPhase('formatting');
@@ -151,7 +187,7 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
     try {
       let images = existingImages;
       if (pendingFiles.length) {
-        const urls = await api.uploadImages(pendingFiles, position.symbol, position.holdSide);
+        const urls = await api.uploadImages(pendingFiles, symbol, holdSide);
         images = [...existingImages, ...urls];
       }
 
@@ -159,19 +195,13 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
         const updated = await api.updateBitgetJournal(editingId, { content: finalContent, images });
         setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
       } else {
-        const p = posRef.current;
         const created = await api.addBitgetJournal({
           tradeKey,
-          symbol: p.symbol,
-          holdSide: p.holdSide,
+          symbol,
+          holdSide,
           content: finalContent,
           images,
-          snapshot: {
-            markPrice: p.markPrice,
-            entryPrice: p.entryPrice,
-            roePct: p.roePct,
-            unrealizedPnlUsd: p.unrealizedPnlUsd,
-          },
+          snapshot: snapshotNow(),
         });
         setNotes((prev) => [...prev, created]);
       }
@@ -196,7 +226,8 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
 
   if (!mounted) return null;
 
-  const isLong = position.holdSide === 'long';
+  const isLong = holdSide === 'long';
+  const closed = status === 'closed';
 
   return createPortal(
     <div className="bgj-overlay" onClick={onClose} role="dialog" aria-modal>
@@ -204,15 +235,31 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
         <header className="bgj-head">
           <div>
             <h2 className="bgj-title">
-              Nhật ký lệnh · <span className="bgj-symbol">{position.symbol}</span>{' '}
+              Nhật ký lệnh · <span className="bgj-symbol">{symbol}</span>{' '}
               <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
                 {isLong ? 'LONG' : 'SHORT'}
               </span>
+              {closed && <span className="bgj-status-chip">đã đóng</span>}
             </h2>
             <p className="bgj-sub">
-              Giá vào {fmtPrice(position.entryPrice)} · Hiện tại {fmtPrice(position.markPrice)} ·{' '}
-              <span className={position.roePct >= 0 ? 'bg-pnl--up' : 'bg-pnl--down'}>{fmtPct(position.roePct)}</span>
-              {position.openedAt && ` · mở ${fmtTime(position.openedAt)}`}
+              Giá vào {fmtPrice(target.entryPrice)} ·{' '}
+              {closed ? (
+                <>
+                  Giá đóng {fmtPrice(target.markPrice)} · PnL{' '}
+                  <span className={(target.netProfit ?? 0) >= 0 ? 'bg-pnl--up' : 'bg-pnl--down'}>
+                    {fmtUsd(target.netProfit)}
+                  </span>
+                  {target.closedAt && ` · đóng ${fmtTime(target.closedAt)}`}
+                </>
+              ) : (
+                <>
+                  Hiện tại {fmtPrice(target.markPrice)} ·{' '}
+                  <span className={(target.roePct ?? 0) >= 0 ? 'bg-pnl--up' : 'bg-pnl--down'}>
+                    {fmtPct(target.roePct)}
+                  </span>
+                  {target.openedAt && ` · mở ${fmtTime(target.openedAt)}`}
+                </>
+              )}
             </p>
           </div>
           <button className="bgj-close" onClick={onClose} aria-label="Đóng">&#x2715;</button>
@@ -229,40 +276,45 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
             <p className="bgj-muted">Chưa có ghi chú nào. Viết ghi chú đầu tiên bên dưới để bắt đầu theo dõi lệnh này.</p>
           ) : (
             <ul className="bgj-notes">
-              {notes.map((n) => (
-                <li key={n.id} className={`bgj-note ${editingId === n.id ? 'bgj-note--editing' : ''}`}>
-                  <div className="bgj-note-head">
-                    <span className="bgj-note-time">{fmtTime(n.createdAt)}</span>
-                    {n.snapshot && (
-                      <span className="bgj-note-snap">
-                        {fmtPrice(n.snapshot.markPrice)} ·{' '}
-                        <span className={(n.snapshot.roePct ?? 0) >= 0 ? 'bg-pnl--up' : 'bg-pnl--down'}>
-                          {fmtPct(n.snapshot.roePct)}
+              {notes.map((n) => {
+                const system = n.kind === 'system';
+                return (
+                  <li
+                    key={n.id}
+                    className={`bgj-note ${system ? 'bgj-note--system' : ''} ${editingId === n.id ? 'bgj-note--editing' : ''}`}
+                  >
+                    <div className="bgj-note-head">
+                      <span className="bgj-note-time">{fmtTime(n.createdAt)}</span>
+                      {n.snapshot && !system && (
+                        <span className="bgj-note-snap">
+                          {fmtPrice(n.snapshot.markPrice)} ·{' '}
+                          <span className={(n.snapshot.roePct ?? 0) >= 0 ? 'bg-pnl--up' : 'bg-pnl--down'}>
+                            {fmtPct(n.snapshot.roePct)}
+                          </span>
                         </span>
-                      </span>
-                    )}
-                    <span className="bgj-note-actions">
-                      <button className="bgj-link" onClick={() => editNote(n)} disabled={busy}>Sửa</button>
-                      <button className="bgj-link bgj-link--danger" onClick={() => remove(n.id)} disabled={busy}>Xoá</button>
-                    </span>
-                  </div>
-                  {n.content.trim() && (
-                    <div
-                      className="bgj-note-body"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(n.content) }}
-                    />
-                  )}
-                  {n.images.length > 0 && (
-                    <div className="bgj-thumbs">
-                      {n.images.map((url) => (
-                        <a key={url} href={url} target="_blank" rel="noreferrer" className="bgj-thumb">
-                          <img src={url} alt="chart" />
-                        </a>
-                      ))}
+                      )}
+                      {!system && (
+                        <span className="bgj-note-actions">
+                          <button className="bgj-link" onClick={() => editNote(n)} disabled={busy}>Sửa</button>
+                          <button className="bgj-link bgj-link--danger" onClick={() => remove(n.id)} disabled={busy}>Xoá</button>
+                        </span>
+                      )}
                     </div>
-                  )}
-                </li>
-              ))}
+                    {n.content.trim() && (
+                      <div className="bgj-note-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(n.content) }} />
+                    )}
+                    {n.images.length > 0 && (
+                      <div className="bgj-thumbs">
+                        {n.images.map((url) => (
+                          <a key={url} href={url} target="_blank" rel="noreferrer" className="bgj-thumb">
+                            <img src={url} alt="chart" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -276,7 +328,11 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
           <MarkdownEditor
             value={content}
             onChange={setContent}
-            placeholder="Bạn đang nghĩ gì về lệnh này? Kế hoạch, mốc giá theo dõi, lý do vào/giữ, cảm xúc…"
+            placeholder={
+              closed
+                ? 'Nhìn lại lệnh này: rút ra được gì, lẽ ra nên làm khác chỗ nào…'
+                : 'Bạn đang nghĩ gì về lệnh này? Kế hoạch, mốc giá theo dõi, lý do vào/giữ, cảm xúc…'
+            }
             minHeight={120}
           />
 
@@ -284,25 +340,13 @@ export function BitgetJournalDrawer({ position, onClose }: Props) {
             {existingImages.map((url) => (
               <div key={url} className="bgj-thumb bgj-thumb--edit">
                 <img src={url} alt="chart" />
-                <button
-                  className="bgj-thumb-x"
-                  onClick={() => setExistingImages((prev) => prev.filter((u) => u !== url))}
-                  title="Xoá ảnh"
-                >
-                  ×
-                </button>
+                <button className="bgj-thumb-x" onClick={() => setExistingImages((prev) => prev.filter((u) => u !== url))} title="Xoá ảnh">×</button>
               </div>
             ))}
             {pendingPreviews.map((p, i) => (
               <div key={p.url} className="bgj-thumb bgj-thumb--edit">
                 <img src={p.url} alt={p.name} />
-                <button
-                  className="bgj-thumb-x"
-                  onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                  title="Bỏ"
-                >
-                  ×
-                </button>
+                <button className="bgj-thumb-x" onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))} title="Bỏ">×</button>
               </div>
             ))}
             <label className="bgj-upload">

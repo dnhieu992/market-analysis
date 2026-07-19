@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
+import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-positions/bitget-journal-drawer';
 import type { BitgetClosedTrade, BitgetHistoryResponse } from '@web/shared/api/types';
 
 const REFRESH_MS = 60_000;
@@ -69,6 +70,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
   const [data, setData] = useState<BitgetHistoryResponse>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [journalTarget, setJournalTarget] = useState<JournalTarget | null>(null);
   const clientRef = useRef(createApiClient());
 
   const refresh = useCallback(async () => {
@@ -173,11 +175,28 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                     <th className="bg-num">PnL ròng</th>
                     <th className="bg-num">Mở</th>
                     <th className="bg-num">Đóng</th>
+                    <th className="bg-num">Nhật ký</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedTrades.map((t) => (
-                    <TradeRow key={t.positionId} t={t} />
+                    <TradeRow
+                      key={t.positionId || t.tradeKey}
+                      t={t}
+                      onJournal={() =>
+                        setJournalTarget({
+                          tradeKey: t.tradeKey,
+                          symbol: t.symbol,
+                          holdSide: t.holdSide,
+                          status: 'closed',
+                          entryPrice: t.openAvgPrice,
+                          markPrice: t.closeAvgPrice,
+                          netProfit: t.netProfit,
+                          openedAt: t.openedAt,
+                          closedAt: t.closedAt,
+                        })
+                      }
+                    />
                   ))}
                 </tbody>
               </table>
@@ -185,11 +204,19 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
           )}
         </>
       )}
+
+      {journalTarget && (
+        <BitgetJournalDrawer
+          key={journalTarget.tradeKey}
+          target={journalTarget}
+          onClose={() => setJournalTarget(null)}
+        />
+      )}
     </div>
   );
 }
 
-function TradeRow({ t }: { t: BitgetClosedTrade }) {
+function TradeRow({ t, onJournal }: { t: BitgetClosedTrade; onJournal: () => void }) {
   const isLong = t.holdSide === 'long';
   return (
     <tr>
@@ -210,6 +237,11 @@ function TradeRow({ t }: { t: BitgetClosedTrade }) {
       </td>
       <td className="bg-num bg-time">{fmtDateTime(t.openedAt)}</td>
       <td className="bg-num bg-time">{fmtDateTime(t.closedAt)}</td>
+      <td className="bg-num">
+        <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký lệnh">
+          📝
+        </button>
+      </td>
     </tr>
   );
 }
