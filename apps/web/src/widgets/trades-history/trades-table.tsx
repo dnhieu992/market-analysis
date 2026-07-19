@@ -74,6 +74,7 @@ type TradesTableProps = Readonly<{
   onRemoveTrade: (orderId: string) => void;
   onViewNotes: (order: DashboardOrder) => void;
   onAnalyzeTrade: (order: DashboardOrder, livePrice?: number) => void;
+  onOpenJournal: (order: DashboardOrder, livePrice?: number) => void;
 }>;
 
 function formatPrice(value: number): string {
@@ -116,6 +117,15 @@ function IconNotes() {
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
       <polyline points="10 9 9 9 8 9" />
+    </svg>
+  );
+}
+
+function IconJournal() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
     </svg>
   );
 }
@@ -380,7 +390,7 @@ function Pagination({ page, pageSize, total, onPageChange }: {
 
 export function TradesTable({
   orders, total, page, pageSize, closedPnlSum, openOrders, availableBrokers,
-  onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes, onAnalyzeTrade,
+  onAddTrade, onAddMultiple, onCloseTrade, onEditTrade, onRemoveTrade, onViewNotes, onAnalyzeTrade, onOpenJournal,
 }: TradesTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams()!;
@@ -805,6 +815,14 @@ export function TradesTable({
                         )}
                         <button className="tt-btn tt-btn--notes" data-tooltip="View Notes" aria-label="View Notes" onClick={() => onViewNotes(order)}>
                           <IconNotes />
+                        </button>
+                        <button
+                          className="tt-btn tt-btn--journal"
+                          data-tooltip="Journal"
+                          aria-label="Trade Journal"
+                          onClick={() => onOpenJournal(order, livePrices[order.symbol.toUpperCase()])}
+                        >
+                          <IconJournal />
                         </button>
                         <button
                           className="tt-btn tt-btn--analyze"

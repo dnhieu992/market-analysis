@@ -80,6 +80,26 @@ model Order {
   @@index([symbol, status, openedAt])
 }
 
+// One log item on a manual /trades Order's timeline, tied by `orderId`.
+// Append-only: the ordered sequence of items IS the record of watching the
+// trade. `kind` separates trader notes (`manual`) from auto lifecycle events
+// (`system` — the "opened"/"closed" entries written when the order is created
+// and closed). No ROE% milestone logs here (unlike the Bitget journal). Each
+// item snapshots price/PnL at write time and can carry chart images.
+model OrderJournal {
+  id        String   @id @default(cuid())
+  orderId   String   @db.VarChar(30)
+  kind      String   @default("manual") @db.VarChar(8) // manual | system
+  content   String   @db.LongText // Markdown note (Claude-formatted on save)
+  images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
+  snapshot  Json? // { price, entryPrice, pnlUsd } captured at write time
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId, createdAt])
+  @@map("order_journals")
+}
+
 // A daily trading journal entry — freeform Markdown notes (analysis + emotions) plus
 // trade-model images and freeform tags. One entry per calendar day (upserted by `date`).
 // Kept as a corpus to later fine-tune an LLM "clone" of the trader and review discipline.

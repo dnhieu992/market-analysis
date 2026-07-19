@@ -666,6 +666,26 @@ export type BitgetJournalNote = {
   updatedAt: string;
 };
 
+/** Price/PnL snapshot captured when a /trades order note was written. */
+export type OrderJournalSnapshot = {
+  price?: number;
+  entryPrice?: number;
+  pnlUsd?: number;
+};
+
+/** One note in a /trades Order's log timeline. */
+export type OrderJournalNote = {
+  id: string;
+  orderId: string;
+  /** "manual" (trader note) or "system" (auto open/close event — read-only). */
+  kind: 'manual' | 'system';
+  content: string;
+  images: string[];
+  snapshot: OrderJournalSnapshot | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SmallCapCoinRow = {
   id: string;
   symbol: string;

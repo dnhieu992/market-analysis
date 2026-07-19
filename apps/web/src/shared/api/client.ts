@@ -55,6 +55,8 @@ import type {
   BitgetHistoryResponse,
   BitgetJournalNote,
   BitgetJournalSnapshot,
+  OrderJournalNote,
+  OrderJournalSnapshot,
   BinanceKline,
   ImageRef,
 } from './types';
@@ -1168,6 +1170,48 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async deleteBitgetJournal(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/bitget/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    // ── /trades per-order journal ───────────────────────────────
+    async fetchOrderJournal(orderId: string): Promise<OrderJournalNote[]> {
+      return fetchJson<OrderJournalNote[]>(
+        fetchImpl,
+        `${baseUrl}/orders/journal?orderId=${encodeURIComponent(orderId)}`,
+        withDefaults({}),
+      );
+    },
+
+    async addOrderJournal(input: {
+      orderId: string;
+      content: string;
+      images: string[];
+      snapshot?: OrderJournalSnapshot;
+    }): Promise<OrderJournalNote> {
+      return fetchJson<OrderJournalNote>(
+        fetchImpl,
+        `${baseUrl}/orders/journal`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async updateOrderJournal(id: string, input: { content: string; images: string[] }): Promise<OrderJournalNote> {
+      return fetchJson<OrderJournalNote>(
+        fetchImpl,
+        `${baseUrl}/orders/journal/${encodeURIComponent(id)}`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async deleteOrderJournal(id: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/orders/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
   };
 }

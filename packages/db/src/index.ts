@@ -35,3 +35,8 @@ export type {
   BitgetTradeJournalInput,
   BitgetTradeJournalSnapshot,
 } from './repositories/bitget-trade-journal.repository';
+export { createOrderJournalRepository } from './repositories/order-journal.repository';
+export type {
+  OrderJournalInput,
+  OrderJournalSnapshot,
+} from './repositories/order-journal.repository';

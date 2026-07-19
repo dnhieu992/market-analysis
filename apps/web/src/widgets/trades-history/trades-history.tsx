@@ -11,6 +11,7 @@ import type { DashboardOrder } from '@web/shared/api/types';
 import { TradeAnalyzeDrawer } from '@web/widgets/trade-analyze-drawer/trade-analyze-drawer';
 
 import { TradesTable, NotesDialog } from './trades-table';
+import { OrderJournalDrawer, type OrderJournalTarget } from './order-journal-drawer';
 
 type TradesHistoryProps = Readonly<{
   orders: DashboardOrder[];
@@ -32,7 +33,32 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
   const [notesOrder, setNotesOrder] = useState<DashboardOrder | null>(null);
   const [analyzeOrder, setAnalyzeOrder] = useState<DashboardOrder | null>(null);
   const [analyzeLivePrice, setAnalyzeLivePrice] = useState<number | undefined>(undefined);
+  const [journalTarget, setJournalTarget] = useState<OrderJournalTarget | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function openJournal(order: DashboardOrder, livePrice?: number) {
+    const closed = order.status === 'closed';
+    const side = order.side === 'short' ? 'short' : 'long';
+    const entryPrice = order.entryPrice;
+    const price = closed ? order.closePrice ?? undefined : livePrice;
+    const quantity = order.quantity ?? undefined;
+    const pnl = closed
+      ? order.pnl ?? undefined
+      : price != null && quantity != null
+        ? (side === 'short' ? (entryPrice - price) * quantity : (price - entryPrice) * quantity)
+        : undefined;
+    setJournalTarget({
+      orderId: order.id,
+      symbol: order.symbol,
+      side,
+      status: closed ? 'closed' : 'open',
+      entryPrice,
+      price,
+      pnl,
+      openedAt: order.openedAt ? new Date(order.openedAt).toISOString() : null,
+      closedAt: order.closedAt ? new Date(order.closedAt).toISOString() : null,
+    });
+  }
 
   useEffect(() => {
     if (!closeTradeOrder) {
@@ -79,6 +105,7 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
         onRemoveTrade={(orderId) => setDeleteOrderId(orderId)}
         onViewNotes={(order) => setNotesOrder(order)}
         onAnalyzeTrade={(order, livePrice) => { setAnalyzeOrder(order); setAnalyzeLivePrice(livePrice); }}
+        onOpenJournal={openJournal}
       />
 
       {/* Single trade dialog */}
@@ -166,6 +193,11 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
             )
           }
         />
+      )}
+
+      {/* Per-order journal drawer */}
+      {journalTarget && (
+        <OrderJournalDrawer target={journalTarget} onClose={() => setJournalTarget(null)} />
       )}
 
       {/* Trade analyze drawer */}
