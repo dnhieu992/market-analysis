@@ -36,11 +36,14 @@ server-side from live positions + closed history; the lookup is non-fatal.
    to the Bitget public WS `ticker` channel for every listed symbol to show live price + change
    since 00:00 UTC (green/red). A "Realtime / Đang kết nối…" pill reflects the WS state. It also
    fetches the **QQE** column data via `GET /bitget/qqe-signals?symbols=…` on mount and every 60s.
-2b. Each row's **QQE** column shows a 2×2 grid of colinmck "QQE Signals" badges — one per chart-view
-   timeframe (**M30 / H1 / H4 / D1**) — reading **L** (green, Long) or **S** (red, Short) from that
-   timeframe's **last closed candle** (no repaint). A badge with a coloured ring = the signal flipped
-   on the most recent closed candle; hover shows how many candles ago it flipped. Readings are
-   computed server-side from public Binance klines with `calculateQqe` and cached ~60s per (coin, tf).
+2b. Each row's **QQE** column shows only the chart-view timeframes (**M30 / H1 / H4 / D1**) that
+   currently carry a **live** colinmck "QQE Signals" signal — i.e. the QQE line flipped within the
+   **last 5 closed candles** (`QQE_SIGNAL_VALID_BARS`); older flips are treated as stale and hidden.
+   Each shown timeframe is rendered as its label coloured **green for Long / red for Short** (no L/S
+   mark); hover shows how many candles ago it fired. A coin with no live signal shows a muted "—".
+   Readings come from the last closed candle (no repaint), computed server-side from public Binance
+   klines with `calculateQqe` and cached ~60s per (coin, tf); the 5-candle validity filter is applied
+   client-side so the window is easy to tune.
 3. User clicks **⚙** in a side cell → a dialog (portaled to `document.body`) lets them set
    leverage (1–125×) and margin in USDT for that cell's fixed side. Margin mode / order type
    are fixed to **Market · Cross**. Saving optimistically updates the cell and persists via

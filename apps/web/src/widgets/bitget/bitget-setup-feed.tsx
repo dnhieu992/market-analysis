@@ -27,30 +27,32 @@ const CHART_TIMEFRAMES = [
 /** Per-coin QQE state keyed by timeframe, matching the chart-view timeframes. */
 type QqeMap = Record<string, Record<string, BitgetQqeTfSignal | null>>;
 
-/** Renders the M30/H1/H4/D1 QQE badges for one coin's Setup row cell. */
+// A QQE signal is only "live" for this many closed candles after it fires; older
+// flips are treated as stale and hidden.
+const QQE_SIGNAL_VALID_BARS = 5;
+
+const isLiveSignal = (sig: BitgetQqeTfSignal | null | undefined): sig is BitgetQqeTfSignal =>
+  sig != null && sig.barsSince != null && sig.barsSince < QQE_SIGNAL_VALID_BARS;
+
+/**
+ * Only the timeframes with a QQE signal still live (flipped within the last 5
+ * closed candles) are shown — the timeframe label itself is coloured green for
+ * Long, red for Short.
+ */
 function QqeCell({ signals }: { signals: Record<string, BitgetQqeTfSignal | null> | undefined }) {
+  const live = CHART_TIMEFRAMES.filter(({ tf }) => isLiveSignal(signals?.[tf]));
+  if (live.length === 0) return <span className="bg-qqe-none">—</span>;
   return (
     <div className="bg-qqe-grid">
-      {CHART_TIMEFRAMES.map(({ label, tf }) => {
-        const sig = signals?.[tf] ?? null;
-        const cls = sig ? (sig.state === 'long' ? 'bg-qqe--long' : 'bg-qqe--short') : 'bg-qqe--na';
-        const mark = sig ? (sig.state === 'long' ? 'L' : 'S') : '–';
-        const title = sig
-          ? `${label}: QQE ${sig.state === 'long' ? 'Long' : 'Short'}` +
-            (sig.freshCross
-              ? ' · vừa đảo chiều'
-              : sig.barsSince != null
-                ? ` · ${sig.barsSince} nến trước`
-                : '')
-          : `${label}: chưa có dữ liệu`;
+      {live.map(({ label, tf }) => {
+        const sig = signals![tf]!;
+        const cls = sig.state === 'long' ? 'bg-qqe--long' : 'bg-qqe--short';
+        const title =
+          `${label}: QQE ${sig.state === 'long' ? 'Long' : 'Short'}` +
+          (sig.barsSince === 0 ? ' · vừa xuất hiện' : ` · ${sig.barsSince} nến trước`);
         return (
-          <span
-            key={tf}
-            className={`bg-qqe-badge ${cls}${sig?.freshCross ? ' bg-qqe--fresh' : ''}`}
-            title={title}
-          >
-            <span className="bg-qqe-tf">{label}</span>
-            <span className="bg-qqe-sig">{mark}</span>
+          <span key={tf} className={`bg-qqe-tf-badge ${cls}`} title={title}>
+            {label}
           </span>
         );
       })}
