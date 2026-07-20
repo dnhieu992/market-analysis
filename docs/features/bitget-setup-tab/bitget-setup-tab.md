@@ -34,7 +34,13 @@ server-side from live positions + closed history; the lookup is non-fatal.
    button). It hydrates saved configs once via `GET /bitget/setup`,
    fetches live positions every 15s to know which coin+sides are currently open, and subscribes
    to the Bitget public WS `ticker` channel for every listed symbol to show live price + change
-   since 00:00 UTC (green/red). A "Realtime / Đang kết nối…" pill reflects the WS state.
+   since 00:00 UTC (green/red). A "Realtime / Đang kết nối…" pill reflects the WS state. It also
+   fetches the **QQE** column data via `GET /bitget/qqe-signals?symbols=…` on mount and every 60s.
+2b. Each row's **QQE** column shows a 2×2 grid of colinmck "QQE Signals" badges — one per chart-view
+   timeframe (**M30 / H1 / H4 / D1**) — reading **L** (green, Long) or **S** (red, Short) from that
+   timeframe's **last closed candle** (no repaint). A badge with a coloured ring = the signal flipped
+   on the most recent closed candle; hover shows how many candles ago it flipped. Readings are
+   computed server-side from public Binance klines with `calculateQqe` and cached ~60s per (coin, tf).
 3. User clicks **⚙** in a side cell → a dialog (portaled to `document.body`) lets them set
    leverage (1–125×) and margin in USDT for that cell's fixed side. Margin mode / order type
    are fixed to **Market · Cross**. Saving optimistically updates the cell and persists via
@@ -69,7 +75,8 @@ server-side from live positions + closed history; the lookup is non-fatal.
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog`.
-- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), and renders the chart PNG.
+- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, and computes the per-timeframe QQE column (`getQqeSignals`, 60s cache).
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column.
 - `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + position-marker lines + trade-span (Vào/Đóng) markers.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — History tab: per-row M30/H1/H4/D1 buttons + `TradeChartDialog` (review chart + 💾 Lưu to R2).
 - `packages/db/prisma/schema.prisma` / `bitget-trade-chart.repository.ts` — `BitgetTradeChart` model (saved trade-chart snapshots, unique on tradeKey+timeframe).

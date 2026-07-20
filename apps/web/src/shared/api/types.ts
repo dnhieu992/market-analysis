@@ -662,6 +662,19 @@ export type BitgetSetupConfig = {
   marginUsd: number;
 };
 
+/** colinmck QQE Signals state on one timeframe's last closed candle. */
+export type BitgetQqeTfSignal = {
+  state: 'long' | 'short';
+  barsSince: number | null;
+  freshCross: boolean;
+};
+
+/** Per-coin QQE state keyed by timeframe ('M30' | '1h' | '4h' | '1d'). */
+export type BitgetQqeSignals = {
+  symbol: string;
+  signals: Record<string, BitgetQqeTfSignal | null>;
+};
+
 export type BitgetOpenResult = {
   opened: true;
   symbol: string;

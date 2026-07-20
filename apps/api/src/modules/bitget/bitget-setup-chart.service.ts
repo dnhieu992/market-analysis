@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { calculateQqe } from '@app/core';
 import { createBitgetTradeChartRepository } from '@app/db';
 
 import { BitgetService } from './bitget.service';
@@ -7,6 +8,26 @@ import { StorageService } from '../storage/storage.service';
 import { renderSetupChart, type ChartMarker, type OhlcCandle } from './setup-chart-renderer';
 
 const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
+
+/** Timeframes the Setup-tab QQE column reports on — mirrors the chart-view buttons. */
+const QQE_TIMEFRAMES = ['M30', '1h', '4h', '1d'] as const;
+/** Candles pulled per timeframe for the QQE compute — enough to warm the bands. */
+const QQE_KLINE_LIMIT = 200;
+/** Min closed candles before a QQE reading is trustworthy. */
+const QQE_MIN_CANDLES = 60;
+/** How long a per-(symbol,tf) QQE reading is reused before recomputing. */
+const QQE_CACHE_TTL_MS = 60_000;
+
+/** Current colinmck QQE state on one timeframe's last CLOSED candle. */
+export type QqeTfSignal = {
+  state: 'long' | 'short';
+  /** Closed candles since the last Long/Short flip (null if none in window). */
+  barsSince: number | null;
+  /** The last closed candle IS the flip bar — a brand-new signal. */
+  freshCross: boolean;
+};
+
+export type QqeSymbolSignals = { symbol: string; signals: Record<string, QqeTfSignal | null> };
 
 const TF_CONFIG: Record<string, { limit: number; display: number }> = {
   'M30': { limit: 500, display: 200 },
@@ -44,6 +65,8 @@ const TRADE_AHEAD_BARS = 30;
 @Injectable()
 export class BitgetSetupChartService {
   private readonly chartRepo = createBitgetTradeChartRepository();
+  /** Short-lived cache of QQE readings keyed by `${bare}:${tf}` to spare Binance. */
+  private readonly qqeCache = new Map<string, { at: number; value: QqeTfSignal | null }>();
 
   constructor(
     private readonly binance: BinanceMarketDataService,
@@ -189,6 +212,49 @@ export class BitgetSetupChartService {
   }
 
   /**
+   * Current colinmck QQE Signals state for each coin across the M30/1h/4h/1d
+   * timeframes shown in the chart view — the data behind the Setup-tab "QQE"
+   * column. Readings come from the last CLOSED candle (no repaint) and are cached
+   * ~60s per (symbol, timeframe) so the 15s feed refresh doesn't hammer Binance.
+   */
+  async getQqeSignals(symbols: string[]): Promise<QqeSymbolSignals[]> {
+    const uniqueBare = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
+    const out: QqeSymbolSignals[] = [];
+    for (const bare of uniqueBare) {
+      const signals: Record<string, QqeTfSignal | null> = {};
+      for (const tf of QQE_TIMEFRAMES) {
+        signals[tf] = await this.qqeForTimeframe(bare, tf);
+      }
+      out.push({ symbol: bare, signals });
+    }
+    return out;
+  }
+
+  /** QQE reading for one (coin, timeframe), served from cache when still fresh. */
+  private async qqeForTimeframe(bare: string, tf: string): Promise<QqeTfSignal | null> {
+    const cacheKey = `${bare}:${tf}`;
+    const cached = this.qqeCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < QQE_CACHE_TTL_MS) return cached.value;
+
+    try {
+      const klines = await this.binance.fetchKlines({
+        symbol: `${bare}USDT`,
+        timeframe: tf as never,
+        limit: QQE_KLINE_LIMIT,
+      });
+      const now = Date.now();
+      // Only fully-closed candles — the forming candle would repaint the signal.
+      const closes = klines.filter((k) => Number(k[6]) <= now).map((k) => parseFloat(k[4]));
+      const value = closes.length >= QQE_MIN_CANDLES ? deriveQqeSignal(closes) : null;
+      this.qqeCache.set(cacheKey, { at: now, value });
+      return value;
+    } catch {
+      // Transient fetch failure: reuse last-known reading rather than blanking it.
+      return cached?.value ?? null;
+    }
+  }
+
+  /**
    * Entry/exit annotations for this coin: every live open position (entry line +
    * uPnL) plus the most recent closed trade that closed within the last 30
    * minutes (entry + close lines with realized PnL) — once a trade has been shut
@@ -234,4 +300,37 @@ export class BitgetSetupChartService {
 
     return markers;
   }
+}
+
+/**
+ * Collapses a colinmck QQE run over `closes` into the state of the last usable
+ * candle: which side the trailing line is on (long = below rsiMa), how many bars
+ * it's held, and whether that last bar is itself the flip.
+ */
+function deriveQqeSignal(closes: number[]): QqeTfSignal | null {
+  const { rsiMa, signal, cross } = calculateQqe(closes);
+
+  let last = -1;
+  for (let i = closes.length - 1; i >= 0; i--) {
+    if (Number.isFinite(rsiMa[i]!) && Number.isFinite(signal[i]!)) {
+      last = i;
+      break;
+    }
+  }
+  if (last < 0) return null;
+
+  const state: 'long' | 'short' = signal[last]! < rsiMa[last]! ? 'long' : 'short';
+
+  let flip = -1;
+  for (let i = last; i >= 0; i--) {
+    if (cross[i]) {
+      flip = i;
+      break;
+    }
+  }
+  return {
+    state,
+    barsSince: flip >= 0 ? last - flip : null,
+    freshCross: flip === last,
+  };
 }

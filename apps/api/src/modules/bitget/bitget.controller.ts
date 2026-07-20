@@ -89,6 +89,18 @@ export class BitgetController {
     return new StreamableFile(buffer);
   }
 
+  @Get('qqe-signals')
+  @ApiOperation({
+    summary: 'Current colinmck QQE Signals state (long/short) per timeframe (M30/1h/4h/1d) for the given coins. `symbols` is comma-separated.',
+  })
+  getQqeSignals(@Query('symbols') symbols?: string) {
+    const list = (symbols ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return this.setupChart.getQqeSignals(list);
+  }
+
   @Get('trade-chart')
   @Public() // uses only public Binance market data + trade prices passed in the query
   @Header('Content-Type', 'image/png')

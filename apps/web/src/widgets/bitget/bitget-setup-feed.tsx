@@ -8,11 +8,14 @@ import type {
   BitgetHistoryResponse,
   BitgetPositionsResponse,
   BitgetSetupConfig,
+  BitgetQqeTfSignal,
 } from '@web/shared/api/types';
 
 import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices';
 
 const REFRESH_MS = 15_000;
+// QQE readings only change on candle close — poll on a slower cadence than positions.
+const QQE_REFRESH_MS = 60_000;
 
 const CHART_TIMEFRAMES = [
   { label: 'M30', tf: 'M30' },
@@ -20,6 +23,40 @@ const CHART_TIMEFRAMES = [
   { label: 'H4',  tf: '4h'  },
   { label: 'D1',  tf: '1d'  },
 ] as const;
+
+/** Per-coin QQE state keyed by timeframe, matching the chart-view timeframes. */
+type QqeMap = Record<string, Record<string, BitgetQqeTfSignal | null>>;
+
+/** Renders the M30/H1/H4/D1 QQE badges for one coin's Setup row cell. */
+function QqeCell({ signals }: { signals: Record<string, BitgetQqeTfSignal | null> | undefined }) {
+  return (
+    <div className="bg-qqe-grid">
+      {CHART_TIMEFRAMES.map(({ label, tf }) => {
+        const sig = signals?.[tf] ?? null;
+        const cls = sig ? (sig.state === 'long' ? 'bg-qqe--long' : 'bg-qqe--short') : 'bg-qqe--na';
+        const mark = sig ? (sig.state === 'long' ? 'L' : 'S') : '–';
+        const title = sig
+          ? `${label}: QQE ${sig.state === 'long' ? 'Long' : 'Short'}` +
+            (sig.freshCross
+              ? ' · vừa đảo chiều'
+              : sig.barsSince != null
+                ? ` · ${sig.barsSince} nến trước`
+                : '')
+          : `${label}: chưa có dữ liệu`;
+        return (
+          <span
+            key={tf}
+            className={`bg-qqe-badge ${cls}${sig?.freshCross ? ' bg-qqe--fresh' : ''}`}
+            title={title}
+          >
+            <span className="bg-qqe-tf">{label}</span>
+            <span className="bg-qqe-sig">{mark}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 type ChartTarget = { symbol: string; tf: string };
 
@@ -74,6 +111,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [qqe, setQqe] = useState<QqeMap>({});
 
   // Hydrate saved configs from the DB (survives reloads, shared across devices).
   useEffect(() => {
@@ -127,6 +165,29 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     const id = setInterval(refreshPositions, REFRESH_MS);
     return () => clearInterval(id);
   }, [refreshPositions]);
+
+  const refreshQqe = useCallback(async (syms: string[]) => {
+    if (syms.length === 0) return;
+    try {
+      const rows = await clientRef.current.fetchBitgetQqeSignals(syms);
+      setQqe((prev) => {
+        const next = { ...prev };
+        for (const r of rows) next[r.symbol] = r.signals;
+        return next;
+      });
+    } catch {
+      /* non-fatal: the QQE column just keeps its last-known (or empty) badges */
+    }
+  }, []);
+
+  // Fetch QQE signals for the listed coins on mount / when the set changes, then
+  // refresh on a slower cadence (readings only move on candle close).
+  useEffect(() => {
+    if (symbols.length === 0) return;
+    void refreshQqe(symbols);
+    const id = setInterval(() => void refreshQqe(symbols), QQE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [symbols, refreshQqe]);
 
   const saveConfig = useCallback(
     async (symbol: string, holdSide: HoldSide, cfg: { leverage: number; marginUsd: number }) => {
@@ -227,6 +288,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                 <th className="bg-num" title="Thay đổi so với mốc 00:00 UTC">
                   Hôm nay
                 </th>
+                <th title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — L=Long (xanh) / S=Short (đỏ) theo từng khung M30/H1/H4/D1">
+                  QQE
+                </th>
                 <th>Long</th>
                 <th>Short</th>
               </tr>
@@ -265,6 +329,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                     </td>
                     <td className="bg-num bg-price">{fmtPrice(price)}</td>
                     <td className={`bg-num ${changeCls}`}>{fmtChange(change)}</td>
+                    <td className="bg-qqe-cell">
+                      <QqeCell signals={qqe[symbol]} />
+                    </td>
                     {sides.map((holdSide) => {
                       const key = cfgKey(symbol, holdSide);
                       const cfg = configs[key];

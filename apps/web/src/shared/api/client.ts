@@ -55,6 +55,7 @@ import type {
   BitgetHistoryResponse,
   BitgetOpenResult,
   BitgetSetupConfig,
+  BitgetQqeSignals,
   BitgetTradeChart,
   BitgetJournalNote,
   BitgetJournalSnapshot,
@@ -1148,6 +1149,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
     // ── Bitget Setup tab configs (per coin + side, persisted) ────
     async fetchBitgetSetupConfigs(): Promise<BitgetSetupConfig[]> {
       return fetchJson<BitgetSetupConfig[]>(fetchImpl, `${baseUrl}/bitget/setup`, withDefaults({}));
+    },
+
+    // Current QQE Signals state (long/short) per timeframe for the Setup tab column.
+    async fetchBitgetQqeSignals(symbols: string[]): Promise<BitgetQqeSignals[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      return fetchJson<BitgetQqeSignals[]>(fetchImpl, `${baseUrl}/bitget/qqe-signals?symbols=${q}`, withDefaults({}));
     },
 
     async saveBitgetSetupConfig(input: BitgetSetupConfig): Promise<BitgetSetupConfig> {
