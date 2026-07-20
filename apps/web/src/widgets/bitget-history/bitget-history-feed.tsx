@@ -93,8 +93,10 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
 
   const { configured, trades, summary, fetchedAt } = data;
 
-  // Sort closed trades by PnL % descending — biggest winners first.
-  const sortedTrades = [...trades].sort((a, b) => b.netProfitPct - a.netProfitPct);
+  // Sort closed trades by open time descending — newest orders first.
+  const sortedTrades = [...trades].sort(
+    (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
+  );
 
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
