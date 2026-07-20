@@ -1,9 +1,22 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  Param,
+  Post,
+  Put,
+  Query,
+  StreamableFile,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { Public } from '../auth/public.decorator';
 import { BitgetJournalService } from './bitget-journal.service';
 import { BitgetService } from './bitget.service';
 import { BitgetSetupService } from './bitget-setup.service';
+import { BitgetSetupChartService } from './bitget-setup-chart.service';
 import { ClosePositionDto } from './dto/close-position.dto';
 import { OpenPositionDto } from './dto/open-position.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
@@ -18,6 +31,7 @@ export class BitgetController {
     private readonly service: BitgetService,
     private readonly journal: BitgetJournalService,
     private readonly setup: BitgetSetupService,
+    private readonly setupChart: BitgetSetupChartService,
   ) {}
 
   @Get('positions')
@@ -56,6 +70,18 @@ export class BitgetController {
   @ApiOperation({ summary: 'Save (upsert) the open config for one coin + side' })
   upsertSetup(@Body() dto: UpsertSetupConfigDto) {
     return this.setup.upsert(dto);
+  }
+
+  @Get('setup-chart')
+  @Public() // chart shows only public Binance market data — no auth so <img> works without cookies
+  @Header('Content-Type', 'image/png')
+  @Header('Cache-Control', 'private, max-age=120')
+  @ApiOperation({
+    summary: 'Render an M30 PNG chart (SonicR system + S/R channels + RSI) for a Setup-tab coin',
+  })
+  async setupChartPng(@Query('symbol') symbol: string): Promise<StreamableFile> {
+    const buffer = await this.setupChart.generateChart(symbol);
+    return new StreamableFile(buffer);
   }
 
   @Get('journal')

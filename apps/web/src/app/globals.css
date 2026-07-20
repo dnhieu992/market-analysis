@@ -10642,6 +10642,21 @@ a.metric-card--link:hover {
 .bg-side-cfg--empty { font-style: italic; opacity: 0.8; }
 .bg-setup-btn { padding: 5px 10px; }
 
+/* Symbol cell: coin ticker over a small "view chart" button. */
+.bg-symbol-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.bg-chart-btn {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-chart-btn:hover { background: rgba(23, 18, 13, 0.05); }
+
 /* Setup config dialog (portaled to body). */
 .bg-setup-overlay {
   position: fixed;

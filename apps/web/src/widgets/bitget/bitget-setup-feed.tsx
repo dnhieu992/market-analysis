@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { createApiClient } from '@web/shared/api/client';
+import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import type {
   BitgetHistoryResponse,
   BitgetPositionsResponse,
@@ -61,6 +61,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [positions, setPositions] = useState<BitgetPositionsResponse>(initialPositions);
   const [configs, setConfigs] = useState<ConfigMap>({});
   const [editing, setEditing] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -235,7 +236,19 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                         : '';
                 return (
                   <tr key={symbol}>
-                    <td className="bg-symbol">{symbol}</td>
+                    <td className="bg-symbol">
+                      <div className="bg-symbol-cell">
+                        <span>{symbol}</span>
+                        <button
+                          type="button"
+                          className="bg-chart-btn"
+                          onClick={() => setChartSymbol(symbol)}
+                          title="Xem chart M30 (SonicR + S/R Channel + RSI)"
+                        >
+                          📈 Chart
+                        </button>
+                      </div>
+                    </td>
                     <td className="bg-num bg-price">{fmtPrice(price)}</td>
                     <td className={`bg-num ${changeCls}`}>{fmtChange(change)}</td>
                     {sides.map((holdSide) => {
@@ -308,7 +321,80 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
           onClose={() => setEditing(null)}
         />
       )}
+
+      {chartSymbol && (
+        <SetupChartDialog symbol={chartSymbol} onClose={() => setChartSymbol(null)} />
+      )}
     </div>
+  );
+}
+
+/**
+ * Fullscreen M30 chart dialog for a Setup-tab coin (SonicR system + S/R channels
+ * + RSI, all TradingView defaults). The PNG is rendered server-side; we fetch it
+ * through the app's authenticated path and show it as a blob URL. Read-only —
+ * nothing is persisted.
+ */
+function SetupChartDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setImgSrc(null);
+    setFailed(false);
+    // `_t` per open so a service worker can't hand back a stale/failed response.
+    const url = `${resolveApiBaseUrl()}/bitget/setup-chart?symbol=${encodeURIComponent(symbol)}&_t=${Date.now()}`;
+    fetch(url, { credentials: 'include', cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImgSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [symbol]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            {symbol} <span className="eb-tf">M30</span>
+            <span className="eb-chart-note"> · SonicR + S/R Channel + RSI</span>
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body eb-chart-body">
+          {failed ? (
+            <div className="eb-chart-status">Không tải được chart. Thử lại sau.</div>
+          ) : imgSrc ? (
+            <img className="eb-chart-img" src={imgSrc} alt={`${symbol} M30 chart`} />
+          ) : (
+            <div className="eb-chart-status">Đang tải chart…</div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

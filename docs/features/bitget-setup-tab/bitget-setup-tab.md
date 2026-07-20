@@ -11,6 +11,12 @@ persisted in the **database** (`bitget_setup_configs`, unique on `symbol + holdS
 survives reloads and is shared across devices. Each coin's **realtime price** and **change
 since 00:00 UTC** (streamed from Bitget's public WebSocket ticker) show once per row.
 
+Each coin row also has a **📈 Chart** button that opens a fullscreen dialog with a server-rendered
+**M30** PNG chart carrying three TradingView-default indicators: the **SonicR system** (EMA34
+of high/low/close as the green "Dragon" ribbon + EMA89 trend line), **Support/Resistance
+Channels** (LonesomeTheBlue-style pivot channels), and **RSI(14)**. The chart is read-only /
+non-persisted — it just fetches and displays the latest render.
+
 ## Main Flow
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
 2. The feed builds a unique symbol list from `history.trades` (newest-closed first) and renders
@@ -52,14 +58,17 @@ since 00:00 UTC** (streamed from Bitget's public WebSocket ticker) show once per
   open` in hedge mode), same as the worker trade client.
 
 ## Related Files (FE / BE / Worker)
-- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns.
+- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog`.
+- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines and renders the chart PNG.
+- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + S/R channels + RSI(14) pane.
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.
 - `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — supports `?tab=setup` deep-link.
 - `apps/web/src/shared/api/client.ts` — `openBitgetPosition()`, `fetchBitgetSetupConfigs()`, `saveBitgetSetupConfig()`.
 - `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`.
 - `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down`, `.bg-open-btn--short` (red short button), `.bg-side-cell`/`.bg-side-cell-inner`/`.bg-side-cfg` (per-side action cell + config summary), `.bg-symbol` sticky column.
-- `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`, `GET/PUT /bitget/setup`.
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`, `GET/PUT /bitget/setup`, `GET /bitget/setup-chart` (public PNG).
+- `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupChartService` + `BinanceMarketDataService`.
 - `apps/api/src/modules/bitget/bitget.service.ts` — `openPosition()` (size math + guards).
 - `apps/api/src/modules/bitget/bitget-setup.service.ts` — DB-backed per-side config list/upsert.
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupService` as a provider.
