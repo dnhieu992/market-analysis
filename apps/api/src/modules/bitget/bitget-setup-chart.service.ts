@@ -4,14 +4,16 @@ import { BitgetService } from './bitget.service';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { renderSetupChart, type ChartMarker, type OhlcCandle } from './setup-chart-renderer';
 
-// Fetch enough M30 history to warm up EMA89 + fill the S/R loopback, then plot
-// only the most recent window.
-const CANDLE_LIMIT = 500;
-const DISPLAY_CANDLES = 200;
-
 const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
 
-/** Renders the on-demand Setup-tab chart (SonicR + S/R channels + RSI, M30). */
+const TF_CONFIG: Record<string, { limit: number; display: number }> = {
+  'M30': { limit: 500, display: 200 },
+  '1h':  { limit: 400, display: 150 },
+  '4h':  { limit: 300, display: 120 },
+  '1d':  { limit: 200, display: 90  },
+};
+
+/** Renders the on-demand Setup-tab chart (SonicR + S/R channels + RSI). */
 @Injectable()
 export class BitgetSetupChartService {
   constructor(
@@ -19,17 +21,19 @@ export class BitgetSetupChartService {
     private readonly bitget: BitgetService,
   ) {}
 
-  async generateChart(symbol: string): Promise<Buffer> {
+  async generateChart(symbol: string, timeframe = 'M30'): Promise<Buffer> {
     const bare = bareSymbol(symbol);
     const pair = `${bare}USDT`;
+    const tf = TF_CONFIG[timeframe] ? timeframe : 'M30';
+    const { limit, display } = TF_CONFIG[tf]!;
 
     const klines = await this.binance.fetchKlines({
       symbol: pair,
-      timeframe: 'M30' as never,
-      limit: CANDLE_LIMIT,
+      timeframe: tf as never,
+      limit,
     });
     if (klines.length === 0) {
-      throw new NotFoundException(`No M30 candles for ${pair}`);
+      throw new NotFoundException(`No ${tf} candles for ${pair}`);
     }
 
     const candles: OhlcCandle[] = klines.map((k) => ({
@@ -45,10 +49,10 @@ export class BitgetSetupChartService {
 
     return renderSetupChart({
       symbol: pair,
-      timeframe: 'M30',
+      timeframe: tf,
       candles,
       currentPrice: candles[candles.length - 1]!.close,
-      display: DISPLAY_CANDLES,
+      display,
       markers,
     });
   }

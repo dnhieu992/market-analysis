@@ -77,10 +77,13 @@ export class BitgetController {
   @Header('Content-Type', 'image/png')
   @Header('Cache-Control', 'private, max-age=120')
   @ApiOperation({
-    summary: 'Render an M30 PNG chart (SonicR system + S/R channels + RSI) for a Setup-tab coin',
+    summary: 'Render a PNG chart (SonicR system + S/R channels + RSI) for a Setup-tab coin. timeframe: M30 | 1h | 4h | 1d',
   })
-  async setupChartPng(@Query('symbol') symbol: string): Promise<StreamableFile> {
-    const buffer = await this.setupChart.generateChart(symbol);
+  async setupChartPng(
+    @Query('symbol') symbol: string,
+    @Query('timeframe') timeframe?: string,
+  ): Promise<StreamableFile> {
+    const buffer = await this.setupChart.generateChart(symbol, timeframe ?? 'M30');
     return new StreamableFile(buffer);
   }
 

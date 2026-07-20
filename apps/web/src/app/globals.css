@@ -10656,6 +10656,7 @@ a.metric-card--link:hover {
   white-space: nowrap;
 }
 .bg-chart-btn:hover { background: rgba(23, 18, 13, 0.05); }
+.bg-chart-btns { display: flex; gap: 3px; flex-wrap: wrap; }
 
 /* Setup config dialog (portaled to body). */
 .bg-setup-overlay {
@@ -10858,6 +10859,9 @@ a.metric-card--link:hover {
   color: var(--muted, #6b625a);
 }
 .bgj-note--system .bgj-note-body p { margin: 0; }
+.bgj-note--system .bgj-note-body ul,
+.bgj-note--system .bgj-note-body ol { margin: 0; padding-left: 1.1em; }
+.bgj-note--system .bgj-note-body li { margin: 0; line-height: 1.4; }
 
 .bgj-status-chip {
   margin-left: 8px;

@@ -14,6 +14,15 @@ import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices'
 
 const REFRESH_MS = 15_000;
 
+const CHART_TIMEFRAMES = [
+  { label: 'M30', tf: 'M30' },
+  { label: 'H1',  tf: '1h'  },
+  { label: 'H4',  tf: '4h'  },
+  { label: 'D1',  tf: '1d'  },
+] as const;
+
+type ChartTarget = { symbol: string; tf: string };
+
 type HoldSide = 'long' | 'short';
 
 /** Per-coin, per-side config keyed by `${symbol}-${holdSide}`. */
@@ -61,7 +70,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [positions, setPositions] = useState<BitgetPositionsResponse>(initialPositions);
   const [configs, setConfigs] = useState<ConfigMap>({});
   const [editing, setEditing] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
-  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -239,14 +248,19 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                     <td className="bg-symbol">
                       <div className="bg-symbol-cell">
                         <span>{symbol}</span>
-                        <button
-                          type="button"
-                          className="bg-chart-btn"
-                          onClick={() => setChartSymbol(symbol)}
-                          title="Xem chart M30 (SonicR + S/R Channel + RSI)"
-                        >
-                          📈 Chart
-                        </button>
+                        <div className="bg-chart-btns">
+                          {CHART_TIMEFRAMES.map(({ label, tf }) => (
+                            <button
+                              key={tf}
+                              type="button"
+                              className="bg-chart-btn"
+                              onClick={() => setChartTarget({ symbol, tf })}
+                              title={`Xem chart ${label} (SonicR + S/R Channel + RSI)`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </td>
                     <td className="bg-num bg-price">{fmtPrice(price)}</td>
@@ -322,8 +336,8 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
         />
       )}
 
-      {chartSymbol && (
-        <SetupChartDialog symbol={chartSymbol} onClose={() => setChartSymbol(null)} />
+      {chartTarget && (
+        <SetupChartDialog symbol={chartTarget.symbol} tf={chartTarget.tf} onClose={() => setChartTarget(null)} />
       )}
     </div>
   );
@@ -335,17 +349,19 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
  * through the app's authenticated path and show it as a blob URL. Read-only —
  * nothing is persisted.
  */
-function SetupChartDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+function SetupChartDialog({ symbol, tf, onClose }: { symbol: string; tf: string; onClose: () => void }) {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+
+  // Friendly label for the dialog title (M30→M30, 1h→H1, 4h→H4, 1d→D1)
+  const tfLabel = tf === '1h' ? 'H1' : tf === '4h' ? 'H4' : tf === '1d' ? 'D1' : tf.toUpperCase();
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
     setImgSrc(null);
     setFailed(false);
-    // `_t` per open so a service worker can't hand back a stale/failed response.
-    const url = `${resolveApiBaseUrl()}/bitget/setup-chart?symbol=${encodeURIComponent(symbol)}&_t=${Date.now()}`;
+    const url = `${resolveApiBaseUrl()}/bitget/setup-chart?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_t=${Date.now()}`;
     fetch(url, { credentials: 'include', cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -363,7 +379,7 @@ function SetupChartDialog({ symbol, onClose }: { symbol: string; onClose: () => 
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [symbol]);
+  }, [symbol, tf]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -376,7 +392,7 @@ function SetupChartDialog({ symbol, onClose }: { symbol: string; onClose: () => 
       <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
           <span className="dialog-title">
-            {symbol} <span className="eb-tf">M30</span>
+            {symbol} <span className="eb-tf">{tfLabel}</span>
             <span className="eb-chart-note"> · SonicR + S/R Channel + RSI</span>
           </span>
           <button className="dialog-close" onClick={onClose} aria-label="Đóng">
@@ -387,7 +403,7 @@ function SetupChartDialog({ symbol, onClose }: { symbol: string; onClose: () => 
           {failed ? (
             <div className="eb-chart-status">Không tải được chart. Thử lại sau.</div>
           ) : imgSrc ? (
-            <img className="eb-chart-img" src={imgSrc} alt={`${symbol} M30 chart`} />
+            <img className="eb-chart-img" src={imgSrc} alt={`${symbol} ${tfLabel} chart`} />
           ) : (
             <div className="eb-chart-status">Đang tải chart…</div>
           )}
