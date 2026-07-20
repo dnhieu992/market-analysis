@@ -12,11 +12,13 @@ survives reloads and is shared across devices. Each coin's **realtime price** an
 since 00:00 UTC** (streamed from Bitget's public WebSocket ticker) show once per row.
 
 Each coin row also has a **📈 Chart** button that opens a fullscreen dialog with a server-rendered
-**M30** PNG chart carrying three TradingView-default indicators: the **SonicR system** (EMA34
+**M30** PNG chart carrying TradingView-default indicators: the **SonicR system** (EMA34
 of high/low/close as the green "Dragon" ribbon + EMA89 trend line), **Support/Resistance
-Channels** (LonesomeTheBlue-style pivot channels), **RSI(14)**, and a **FxCanli Volume (Hacim)**
-pane (per-bar volume histogram coloured by candle direction + MA20). The chart is read-only /
-non-persisted — it just fetches and displays the latest render.
+Channels** (LonesomeTheBlue-style pivot channels), **RSI(14)**, a **FxCanli Volume (Hacim)**
+pane (per-bar volume histogram coloured by candle direction + MA20), and **colinmck "QQE
+Signals" (14,5,4.238)** markers drawn on the price candles — a green ▲ **Long** below the candle
+where the QQE trailing line crosses under RSI-MA, a red ▼ **Short** above where it crosses over.
+The chart is read-only / non-persisted — it just fetches and displays the latest render.
 
 The chart also overlays **position markers**: every live open position for the coin draws a
 solid entry line (green LONG / red SHORT) tagged with entry price + live uPnL, and the most
@@ -68,7 +70,7 @@ server-side from live positions + closed history; the lookup is non-fatal.
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog`.
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), and renders the chart PNG.
-- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + position-marker lines + trade-span (Vào/Đóng) markers.
+- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + position-marker lines + trade-span (Vào/Đóng) markers.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — History tab: per-row M30/H1/H4/D1 buttons + `TradeChartDialog` (review chart + 💾 Lưu to R2).
 - `packages/db/prisma/schema.prisma` / `bitget-trade-chart.repository.ts` — `BitgetTradeChart` model (saved trade-chart snapshots, unique on tradeKey+timeframe).
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.

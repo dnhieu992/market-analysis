@@ -1,5 +1,6 @@
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { ChartConfiguration, Plugin } from 'chart.js';
+import { calculateQqe, type QqeCross } from '@app/core';
 
 export type OhlcCandle = {
   time: number; // unix timestamp ms
@@ -239,6 +240,60 @@ function candlestickPlugin(candles: OhlcCandle[]): Plugin {
         const bodyHeight = Math.max(1, Math.abs(closeY - openY));
         ctx.fillRect(x - barWidth / 2, bodyTop, barWidth, bodyHeight);
         ctx.restore();
+      });
+      ctx.restore();
+    },
+  };
+}
+
+/**
+ * colinmck "QQE Signals" markers on the price chart: a green ▲ "Long" label below
+ * the candle where the QQE trailing line crosses under RSI-MA, a red ▼ "Short"
+ * label above the candle where it crosses over. Clipped to the price area so the
+ * labels never bleed into the RSI/Volume panes.
+ */
+function qqeSignalPlugin(candles: OhlcCandle[], cross: QqeCross[]): Plugin {
+  return {
+    id: 'qqe-signals',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales } = chart;
+      const xScale = scales['x'];
+      const yScale = scales['y'];
+      if (!xScale || !yScale) return;
+
+      ctx.save();
+      clipToPriceArea(chart);
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+
+      cross.forEach((c, i) => {
+        const candle = candles[i];
+        if (!c || !candle) return;
+        const x = xScale.getPixelForValue(i);
+
+        if (c === 'long') {
+          const tipY = yScale.getPixelForValue(candle.low) + 8;
+          ctx.fillStyle = '#16a34a';
+          ctx.beginPath();
+          ctx.moveTo(x, tipY);
+          ctx.lineTo(x - 5, tipY + 8);
+          ctx.lineTo(x + 5, tipY + 8);
+          ctx.closePath();
+          ctx.fill();
+          ctx.textBaseline = 'top';
+          ctx.fillText('Long', x, tipY + 10);
+        } else {
+          const tipY = yScale.getPixelForValue(candle.high) - 8;
+          ctx.fillStyle = '#dc2626';
+          ctx.beginPath();
+          ctx.moveTo(x, tipY);
+          ctx.lineTo(x - 5, tipY - 8);
+          ctx.lineTo(x + 5, tipY - 8);
+          ctx.closePath();
+          ctx.fill();
+          ctx.textBaseline = 'bottom';
+          ctx.fillText('Short', x, tipY - 10);
+        }
       });
       ctx.restore();
     },
@@ -635,6 +690,9 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const ema89 = tail(emaSeries(fullCloses, 89));
   const rsi = tail(rsiSeries(fullCloses, 14));
   const volMa = tail(smaSeries(fullCandles.map((c) => c.volume ?? 0), 20));
+  // colinmck "QQE Signals" (14,5,4.238) — Long/Short crosses computed on full
+  // history (warm bands) then tailed to the display window.
+  const qqeCross = tail(calculateQqe(fullCloses).cross);
   const srChannels = computeSrChannels(candles);
 
   // Extra empty slots on the right so the most recent candle doesn't sit flush
@@ -708,7 +766,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
         },
         title: {
           display: true,
-          text: `${symbol} ${timeframe} · SonicR + S/R Channel + RSI`,
+          text: `${symbol} ${timeframe} · SonicR + S/R Channel + RSI + QQE`,
           color: '#0f172a',
           font: { size: 14, weight: 'bold' },
         },
@@ -718,6 +776,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       srChannelPlugin(srChannels, currentPrice),
       sonicDragonPlugin(ema34High, ema34Low),
       candlestickPlugin(candles),
+      qqeSignalPlugin(candles, qqeCross),
       rsiPlugin(rsi),
       volumePlugin(candles, volMa),
       ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),
