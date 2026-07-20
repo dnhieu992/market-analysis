@@ -149,6 +149,20 @@ function computeSrChannels(
 
 // ── Canvas plugins ──────────────────────────────────────────────────────────
 
+/** Clips subsequent drawing to the price plot area so nothing bleeds into the
+ *  RSI pane below (TradingView keeps price and oscillator panes fully separate). */
+function clipToPriceArea(chart: Parameters<NonNullable<Plugin['beforeDatasetsDraw']>>[0]) {
+  const { ctx, chartArea } = chart;
+  ctx.beginPath();
+  ctx.rect(
+    chartArea.left,
+    chartArea.top,
+    chartArea.right - chartArea.left,
+    chartArea.bottom - chartArea.top,
+  );
+  ctx.clip();
+}
+
 /** OHLC candlesticks drawn straight onto the canvas. */
 function candlestickPlugin(candles: OhlcCandle[]): Plugin {
   return {
@@ -159,6 +173,8 @@ function candlestickPlugin(candles: OhlcCandle[]): Plugin {
       const yScale = scales['y'];
       if (!xScale || !yScale) return;
 
+      ctx.save();
+      clipToPriceArea(chart);
       const barWidth = Math.max(2, (xScale.width / candles.length) * 0.6);
       candles.forEach((candle, i) => {
         const x = xScale.getPixelForValue(i);
@@ -181,6 +197,7 @@ function candlestickPlugin(candles: OhlcCandle[]): Plugin {
         ctx.fillRect(x - barWidth / 2, bodyTop, barWidth, bodyHeight);
         ctx.restore();
       });
+      ctx.restore();
     },
   };
 }
@@ -200,6 +217,7 @@ function sonicDragonPlugin(ema34High: number[], ema34Low: number[]): Plugin {
       if (!xScale || !yScale) return;
 
       ctx.save();
+      clipToPriceArea(chart);
       ctx.fillStyle = 'rgba(56, 142, 60, 0.14)';
       ctx.beginPath();
       let started = false;
@@ -244,6 +262,7 @@ function srChannelPlugin(channels: SrChannel[], currentPrice: number): Plugin {
       const left = xScale.left;
       const width = xScale.width;
       ctx.save();
+      clipToPriceArea(chart);
       for (const ch of channels) {
         const yHi = yScale.getPixelForValue(ch.hi);
         const yLo = yScale.getPixelForValue(ch.lo);
@@ -448,11 +467,13 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   ];
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
-  const rangeDataset = config.data.datasets[0];
-  if (rangeDataset) {
-    rangeDataset.data = labels.map((i) =>
-      i === 0 ? minPrice : i === labels.length - 1 ? maxPrice : (null as unknown as number),
-    );
+  // Pin the axis to the data range with a small margin (TradingView-style
+  // breathing room) so the extreme wicks never sit flush against the pane edge.
+  const pad = (maxPrice - minPrice) * 0.04 || maxPrice * 0.01;
+  const yScaleOpts = config.options?.scales?.['y'];
+  if (yScaleOpts) {
+    (yScaleOpts as { min?: number; max?: number }).min = minPrice - pad;
+    (yScaleOpts as { min?: number; max?: number }).max = maxPrice + pad;
   }
 
   const chartCanvas = new ChartJSNodeCanvas({
