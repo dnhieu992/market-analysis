@@ -22,6 +22,9 @@ export type EmaBounceChartInput = {
   /** StochRSI %K / %D series (0–100), aligned with candles[] — drawn in a pane below price. */
   stochK: number[];
   stochD: number[];
+  /** QQE fast (smoothed RSI) + signal (trailing) series (0–100), aligned with candles[] — drawn in a pane below StochRSI. */
+  qqeRsiMa: number[];
+  qqeSignal: number[];
   /** Optional planned entry price — drawn as a dashed yellow line. */
   entryPrice?: number | null;
   /** Optional take-profit price — drawn as a dashed green line. */
@@ -31,9 +34,13 @@ export type EmaBounceChartInput = {
 };
 
 const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 980;
-// Height reserved at the bottom for the StochRSI oscillator pane.
-const STOCH_PANE_HEIGHT = 180;
+// Height reserved at the bottom for each oscillator pane + the gap above it.
+const STOCH_PANE_HEIGHT = 160;
+const QQE_PANE_HEIGHT = 160;
+const PANE_GAP = 26;
+// Total bottom reserve: price↕gap, StochRSI pane, gap, QQE pane, + a small tail.
+const PANES_RESERVE = PANE_GAP + STOCH_PANE_HEIGHT + PANE_GAP + QQE_PANE_HEIGHT + 20;
+const CANVAS_HEIGHT = 820 + PANES_RESERVE;
 
 /**
  * Draws OHLC candlesticks and, when a focus candle is given, a faint vertical
@@ -95,13 +102,30 @@ function buildCandlestickPlugin(
   };
 }
 
+/** A single 0–100 oscillator line to plot inside a pane. */
+type PaneLine = { data: number[]; color: string; width?: number };
+/** A horizontal guide level with a right-edge label. */
+type PaneGuide = { value: number; color: string; dash: number[] };
+/** A shaded 0–100 band [from,to] filled across the pane width. */
+type PaneZone = { from: number; to: number; color: string };
+
 /**
- * Draws a StochRSI oscillator pane in the reserved band below the price chart:
- * %K (blue) / %D (orange) lines, 20/80 oversold-overbought guides + shaded zones.
+ * Draws one stacked oscillator pane below the price chart. Panes are placed by
+ * `topOffset` (pixels below chartArea.bottom) so several can be stacked, each on
+ * its own fixed-height 0–100 scale.
  */
-function buildStochRsiPlugin(stochK: number[], stochD: number[]): Plugin {
+function buildOscillatorPane(opts: {
+  id: string;
+  topOffset: number;
+  height: number;
+  title: string;
+  legend: Array<{ text: string; color: string }>;
+  guides: PaneGuide[];
+  zones: PaneZone[];
+  lines: PaneLine[];
+}): Plugin {
   return {
-    id: 'stochrsi',
+    id: opts.id,
     afterDatasetsDraw(chart) {
       const { ctx, chartArea, scales } = chart;
       const xScale = scales['x'];
@@ -109,52 +133,51 @@ function buildStochRsiPlugin(stochK: number[], stochD: number[]): Plugin {
 
       const left = xScale.left;
       const right = xScale.left + xScale.width;
-      const bandTop = chartArea.bottom + 26;
-      const bandBottom = chart.height - 28;
+      const bandTop = chartArea.bottom + opts.topOffset;
+      const bandBottom = bandTop + opts.height;
       const bandH = bandBottom - bandTop;
       const yFor = (v: number) => bandBottom - (Math.max(0, Math.min(100, v)) / 100) * bandH;
 
       ctx.save();
 
-      // Shaded oversold (<20) and overbought (>80) zones.
-      ctx.fillStyle = 'rgba(38,166,154,0.07)';
-      ctx.fillRect(left, yFor(20), right - left, bandBottom - yFor(20));
-      ctx.fillStyle = 'rgba(239,83,80,0.07)';
-      ctx.fillRect(left, bandTop, right - left, yFor(80) - bandTop);
+      // Shaded zones.
+      for (const z of opts.zones) {
+        const yTop = yFor(Math.max(z.from, z.to));
+        const yBot = yFor(Math.min(z.from, z.to));
+        ctx.fillStyle = z.color;
+        ctx.fillRect(left, yTop, right - left, yBot - yTop);
+      }
 
       // Panel border.
       ctx.strokeStyle = 'rgba(15,23,42,0.15)';
       ctx.lineWidth = 1;
       ctx.strokeRect(left, bandTop, right - left, bandH);
 
-      // Guide lines at 80 / 50 / 20 with right-edge labels.
-      const guide = (val: number, color: string, dash: number[]) => {
-        const y = yFor(val);
+      // Guide lines with right-edge labels.
+      for (const g of opts.guides) {
+        const y = yFor(g.value);
         ctx.beginPath();
-        ctx.setLineDash(dash);
-        ctx.strokeStyle = color;
+        ctx.setLineDash(g.dash);
+        ctx.strokeStyle = g.color;
         ctx.lineWidth = 1;
         ctx.moveTo(left, y);
         ctx.lineTo(right, y);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = color;
+        ctx.fillStyle = g.color;
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(String(val), right - 4, y - 3);
-      };
-      guide(80, 'rgba(239,83,80,0.65)', [4, 3]);
-      guide(50, 'rgba(100,116,139,0.4)', [2, 3]);
-      guide(20, 'rgba(38,166,154,0.65)', [4, 3]);
+        ctx.fillText(String(g.value), right - 4, y - 3);
+      }
 
-      // %D (slow) then %K (fast) on top.
-      const drawLine = (arr: number[], color: string) => {
+      // Oscillator lines (drawn in order; last on top).
+      for (const line of opts.lines) {
         ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = line.width ?? 1.6;
         let started = false;
-        for (let i = 0; i < arr.length; i++) {
-          const v = arr[i];
+        for (let i = 0; i < line.data.length; i++) {
+          const v = line.data[i];
           if (v == null || Number.isNaN(v)) {
             started = false;
             continue;
@@ -169,29 +192,85 @@ function buildStochRsiPlugin(stochK: number[], stochD: number[]): Plugin {
           }
         }
         ctx.stroke();
-      };
-      drawLine(stochD, '#f59e0b');
-      drawLine(stochK, '#2563eb');
+      }
 
       // Title + inline legend.
       ctx.textAlign = 'left';
       ctx.font = 'bold 11px sans-serif';
       ctx.fillStyle = '#334155';
-      ctx.fillText('StochRSI (14,14,3,3)', left + 6, bandTop + 14);
-      ctx.fillStyle = '#2563eb';
-      ctx.fillText('%K', left + 150, bandTop + 14);
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillText('%D', left + 180, bandTop + 14);
+      ctx.fillText(opts.title, left + 6, bandTop + 14);
+      let lx = left + 6 + ctx.measureText(opts.title).width + 14;
+      for (const item of opts.legend) {
+        ctx.fillStyle = item.color;
+        ctx.fillText(item.text, lx, bandTop + 14);
+        lx += ctx.measureText(item.text).width + 12;
+      }
 
       ctx.restore();
     },
   };
 }
 
+/**
+ * StochRSI oscillator pane: %K (blue) / %D (orange) lines, 20/80
+ * oversold-overbought guides + shaded zones.
+ */
+function buildStochRsiPlugin(stochK: number[], stochD: number[]): Plugin {
+  return buildOscillatorPane({
+    id: 'stochrsi',
+    topOffset: PANE_GAP,
+    height: STOCH_PANE_HEIGHT,
+    title: 'StochRSI (14,14,3,3)',
+    legend: [
+      { text: '%K', color: '#2563eb' },
+      { text: '%D', color: '#f59e0b' },
+    ],
+    zones: [
+      { from: 0, to: 20, color: 'rgba(38,166,154,0.07)' },
+      { from: 80, to: 100, color: 'rgba(239,83,80,0.07)' },
+    ],
+    guides: [
+      { value: 80, color: 'rgba(239,83,80,0.65)', dash: [4, 3] },
+      { value: 50, color: 'rgba(100,116,139,0.4)', dash: [2, 3] },
+      { value: 20, color: 'rgba(38,166,154,0.65)', dash: [4, 3] },
+    ],
+    // %D (slow) first, %K (fast) on top.
+    lines: [
+      { data: stochD, color: '#f59e0b' },
+      { data: stochK, color: '#2563eb' },
+    ],
+  });
+}
+
+/**
+ * QQE oscillator pane (below StochRSI): the smoothed-RSI fast line (purple) and
+ * the trailing "QQE signal" line (teal). rsiMa crossing above the signal is bullish,
+ * below is bearish. 50 mid-line guide.
+ */
+function buildQqePlugin(qqeRsiMa: number[], qqeSignal: number[]): Plugin {
+  return buildOscillatorPane({
+    id: 'qqe',
+    topOffset: PANE_GAP + STOCH_PANE_HEIGHT + PANE_GAP,
+    height: QQE_PANE_HEIGHT,
+    title: 'QQE (14,5,4.236)',
+    legend: [
+      { text: 'RSI-MA', color: '#7c3aed' },
+      { text: 'Signal', color: '#0d9488' },
+    ],
+    zones: [],
+    guides: [{ value: 50, color: 'rgba(100,116,139,0.45)', dash: [2, 3] }],
+    // Signal (trailing) first, fast RSI-MA on top.
+    lines: [
+      { data: qqeSignal, color: '#0d9488', width: 1.4 },
+      { data: qqeRsiMa, color: '#7c3aed', width: 1.8 },
+    ],
+  });
+}
+
 export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<Buffer> {
   const {
     candles, ema34, ema89, ema200, supportLevels, resistanceLevels,
-    currentPrice, stochK, stochD, entryPrice, tpPrice, symbol, timeframe, focusIndex = null,
+    currentPrice, stochK, stochD, qqeRsiMa, qqeSignal, entryPrice, tpPrice, symbol, timeframe, focusIndex = null,
   } = input;
 
   const labels = candles.map((_, i) => i);
@@ -303,8 +382,8 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
       responsive: false,
       animation: false,
       layout: {
-        // Reserve the bottom band for the StochRSI pane drawn by its plugin.
-        padding: { top: 40, right: 20, bottom: STOCH_PANE_HEIGHT + 30, left: 10 },
+        // Reserve the bottom band for the StochRSI + QQE panes drawn by their plugins.
+        padding: { top: 40, right: 20, bottom: PANES_RESERVE, left: 10 },
       },
       scales: {
         x: {
@@ -339,7 +418,11 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
         },
       },
     },
-    plugins: [buildCandlestickPlugin(candles, focusIndex), buildStochRsiPlugin(stochK, stochD)],
+    plugins: [
+      buildCandlestickPlugin(candles, focusIndex),
+      buildStochRsiPlugin(stochK, stochD),
+      buildQqePlugin(qqeRsiMa, qqeSignal),
+    ],
   };
 
   // Anchor the y-axis to the visible price range (candles + EMAs + plan lines).

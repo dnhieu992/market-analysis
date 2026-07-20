@@ -39,6 +39,8 @@ export { extractSupportAndResistanceLevels } from './indicators/support-resistan
 export { calculateVolumeRatio } from './indicators/volume';
 export { calculateStochRsi } from './indicators/stoch-rsi';
 export type { StochRsiSeries } from './indicators/stoch-rsi';
+export { calculateQqe } from './indicators/qqe';
+export type { QqeSeries } from './indicators/qqe';
 export {
   detectEmaStackOversoldEntry,
   detectEmaStackOversoldSignal,
