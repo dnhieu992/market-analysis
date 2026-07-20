@@ -10593,6 +10593,11 @@ a.metric-card--link:hover {
 .bg-status-open { font-size: 11px; font-weight: 700; color: #1f8a5b; }
 .bg-status-flat { color: var(--muted); }
 
+/* Realtime price + 24h change cells. */
+.bg-price { font-weight: 600; color: var(--foreground); }
+.bg-chg--up { color: #16a34a; font-weight: 700; }
+.bg-chg--down { color: #dc2626; font-weight: 700; }
+
 .bg-setup-actions { display: inline-flex; gap: 8px; justify-content: flex-end; }
 .bg-setup-btn {
   padding: 5px 12px;

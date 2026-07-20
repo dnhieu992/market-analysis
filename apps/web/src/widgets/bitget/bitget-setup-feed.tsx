@@ -10,6 +10,8 @@ import type {
   BitgetSetupConfig,
 } from '@web/shared/api/types';
 
+import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices';
+
 const REFRESH_MS = 15_000;
 const CONFIG_KEY = 'bitget:setup-config';
 
@@ -31,6 +33,22 @@ function loadConfigs(): ConfigMap {
 function fmtUsdPlain(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Adaptive precision so both $60,000 BTC and $0.0000123 coins read cleanly. */
+function fmtPrice(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  const digits = abs >= 1000 ? 2 : abs >= 1 ? 3 : abs >= 0.01 ? 5 : 8;
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+
+/** 24h change ratio (0.0123) → signed percent string. */
+function fmtChange(ratio: number | null | undefined): string {
+  if (ratio == null || !Number.isFinite(ratio)) return '—';
+  const pct = ratio * 100;
+  const sign = pct > 0 ? '+' : '';
+  return `${sign}${pct.toFixed(2)}%`;
 }
 
 type Props = {
@@ -75,6 +93,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     () => new Set(positions.positions.map((p) => p.symbol)),
     [positions.positions],
   );
+
+  // Realtime last price + 24h change per coin, straight from Bitget's public WS.
+  const { prices: livePrices, changes: liveChanges, live } = useBitgetLivePrices(symbols);
 
   const refreshPositions = useCallback(async () => {
     try {
@@ -151,9 +172,15 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
             Mở lệnh nhanh theo giá market (cross) cho các coin đã từng giao dịch.
           </p>
         </div>
-        <button className="bg-refresh" onClick={refreshPositions}>
-          ↻ Làm mới
-        </button>
+        <div className="bg-head-actions">
+          <span className={`bg-live ${live ? 'bg-live--on' : ''}`} title="Giá realtime từ Bitget WS">
+            <span className="bg-live-dot" />
+            {live ? 'Realtime' : 'Đang kết nối…'}
+          </span>
+          <button className="bg-refresh" onClick={refreshPositions}>
+            ↻ Làm mới
+          </button>
+        </div>
       </div>
 
       {error && <div className="bg-alert bg-alert--error">{error}</div>}
@@ -174,6 +201,8 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
             <thead>
               <tr>
                 <th>Symbol</th>
+                <th className="bg-num">Giá</th>
+                <th className="bg-num">24h</th>
                 <th>Hướng</th>
                 <th className="bg-num">Đòn bẩy</th>
                 <th>Ký quỹ</th>
@@ -189,9 +218,21 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                 const configuredCoin = Boolean(cfg && cfg.marginUsd > 0);
                 const opening = openingKey === symbol;
                 const isLong = (cfg?.holdSide ?? 'long') === 'long';
+                const price = livePrices[symbol];
+                const change = liveChanges[symbol];
+                const changeCls =
+                  change == null || !Number.isFinite(change)
+                    ? ''
+                    : change > 0
+                      ? 'bg-chg--up'
+                      : change < 0
+                        ? 'bg-chg--down'
+                        : '';
                 return (
                   <tr key={symbol}>
                     <td className="bg-symbol">{symbol}</td>
+                    <td className="bg-num bg-price">{fmtPrice(price)}</td>
+                    <td className={`bg-num ${changeCls}`}>{fmtChange(change)}</td>
                     <td>
                       <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
                         {isLong ? 'LONG' : 'SHORT'}

@@ -15,11 +15,27 @@ export type LivePriceMap = Record<string, number>;
 
 type TickerMessage = {
   arg?: { channel?: string };
-  data?: Array<{ instId?: string; markPrice?: string; lastPr?: string }>;
+  data?: Array<{
+    instId?: string;
+    markPrice?: string;
+    lastPr?: string;
+    open24h?: string;
+    change24h?: string;
+  }>;
 };
 
-export function useBitgetLivePrices(symbols: string[]): { prices: LivePriceMap; live: boolean } {
+/**
+ * @returns `prices` — latest mark/last price per symbol.
+ *          `changes` — 24h price change as a ratio (0.0123 = +1.23%) per symbol.
+ *          `live` — whether the WS is currently connected.
+ */
+export function useBitgetLivePrices(symbols: string[]): {
+  prices: LivePriceMap;
+  changes: LivePriceMap;
+  live: boolean;
+} {
   const [prices, setPrices] = useState<LivePriceMap>({});
+  const [changes, setChanges] = useState<LivePriceMap>({});
   const [live, setLive] = useState(false);
   // Stable dependency: reconnect only when the set of symbols actually changes.
   const key = Array.from(new Set(symbols)).sort().join(',');
@@ -80,6 +96,26 @@ export function useBitgetLivePrices(symbols: string[]): { prices: LivePriceMap; 
           }
           return changed ? next : prev;
         });
+        setChanges((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const d of msg.data ?? []) {
+            // Prefer Bitget's own 24h ratio; fall back to (last - open) / open.
+            let ratio = Number(d.change24h);
+            if (!Number.isFinite(ratio)) {
+              const last = Number(d.lastPr ?? d.markPrice);
+              const open = Number(d.open24h);
+              ratio = Number.isFinite(last) && Number.isFinite(open) && open > 0
+                ? (last - open) / open
+                : NaN;
+            }
+            if (d.instId && Number.isFinite(ratio) && next[d.instId] !== ratio) {
+              next[d.instId] = ratio;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
       };
 
       ws.onclose = () => {
@@ -102,5 +138,5 @@ export function useBitgetLivePrices(symbols: string[]): { prices: LivePriceMap; 
     };
   }, [key]);
 
-  return { prices, live };
+  return { prices, changes, live };
 }

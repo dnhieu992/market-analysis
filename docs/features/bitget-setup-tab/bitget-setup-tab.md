@@ -5,12 +5,15 @@ per-coin **Setup** dialog (direction, leverage, margin — margin mode is always
 order type is always **market**) and an **Open** button that places a live market order on
 Bitget using that config. The Open button is disabled while the coin already has an open
 position, or until its margin has been configured. Per-coin config is stored client-side in
-`localStorage`.
+`localStorage`. Each row also shows the coin's **realtime price** and **24h % change**,
+streamed from Bitget's public WebSocket ticker.
 
 ## Main Flow
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
-2. The feed builds a unique symbol list from `history.trades` (newest-closed first) and
-   fetches live positions every 15s to know which symbols are currently open.
+2. The feed builds a unique symbol list from `history.trades` (newest-closed first), fetches
+   live positions every 15s to know which symbols are currently open, and subscribes to the
+   Bitget public WS `ticker` channel for every listed symbol to show live price + 24h change
+   (green/red). A "Realtime / Đang kết nối…" pill in the header reflects the WS state.
 3. User clicks **⚙ Setup** on a row → a dialog (portaled to `document.body`) lets them set
    direction (LONG/SHORT), leverage (1–125×), and margin in USDT. Margin mode / order type
    are fixed to **Market · Cross**. Saving writes the config to `localStorage`
@@ -42,12 +45,13 @@ position, or until its margin has been configured. Per-coin config is stored cli
   open` in hedge mode), same as the worker trade client.
 
 ## Related Files (FE / BE / Worker)
-- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog.
+- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns.
+- `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (24h ratio), `live`.
 - `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — supports `?tab=setup` deep-link.
 - `apps/web/src/shared/api/client.ts` — `openBitgetPosition()` client method.
 - `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig`, `BitgetOpenResult`.
-- `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok` styles.
+- `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down` styles.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`.
 - `apps/api/src/modules/bitget/bitget.service.ts` — `openPosition()` (size math + guards).
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getTickerPrice`, `getContractSpec`,
