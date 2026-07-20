@@ -257,8 +257,8 @@ export class EmaStochScannerService {
     const ema200Full = computeEmaSeries(closes, 200);
     // Same StochRSI(14,14,3,3) the scanner uses, so the pane matches the signal.
     const { k: stochKFull, d: stochDFull } = calculateStochRsi(closes);
-    // QQE(14,5,4.236) — smoothed-RSI fast line + trailing signal line.
-    const { rsiMa: qqeRsiMaFull, signal: qqeSignalFull } = calculateQqe(closes);
+    // colinmck "QQE Signals" (14,5,4.238) — Long/Short crosses of the trailing line vs rsiMa.
+    const { cross: qqeCrossFull } = calculateQqe(closes);
 
     // Locate the candle whose window contains `focusTime` (falls back to nearest
     // open ≤ focusTime). null → no valid focus, show the latest candles.
@@ -291,8 +291,7 @@ export class EmaStochScannerService {
     const ema200 = ema200Full.slice(startIdx, endIdx);
     const stochK = stochKFull.slice(startIdx, endIdx);
     const stochD = stochDFull.slice(startIdx, endIdx);
-    const qqeRsiMa = qqeRsiMaFull.slice(startIdx, endIdx);
-    const qqeSignal = qqeSignalFull.slice(startIdx, endIdx);
+    const qqeCross = qqeCrossFull.slice(startIdx, endIdx);
     const focusIndex = fullFocusIdx != null ? fullFocusIdx - startIdx : null;
 
     const { supportLevels, resistanceLevels } = extractSupportAndResistanceLevels(displayCandles, 2);
@@ -310,8 +309,7 @@ export class EmaStochScannerService {
       currentPrice,
       stochK,
       stochD,
-      qqeRsiMa,
-      qqeSignal,
+      qqeCross,
       entryPrice: params.entry ?? null,
       tpPrice: params.tp ?? null,
       focusIndex,

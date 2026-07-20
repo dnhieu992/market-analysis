@@ -1,5 +1,6 @@
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { ChartConfiguration, Plugin } from 'chart.js';
+import type { QqeCross } from '@app/core';
 
 export type OhlcCandle = {
   time: number; // unix timestamp ms
@@ -22,9 +23,8 @@ export type EmaBounceChartInput = {
   /** StochRSI %K / %D series (0–100), aligned with candles[] — drawn in a pane below price. */
   stochK: number[];
   stochD: number[];
-  /** QQE fast (smoothed RSI) + signal (trailing) series (0–100), aligned with candles[] — drawn in a pane below StochRSI. */
-  qqeRsiMa: number[];
-  qqeSignal: number[];
+  /** colinmck "QQE Signals" cross per candle ('long' | 'short' | null) — drawn as Long/Short markers on the price chart. */
+  qqeCross: QqeCross[];
   /** Optional planned entry price — drawn as a dashed yellow line. */
   entryPrice?: number | null;
   /** Optional take-profit price — drawn as a dashed green line. */
@@ -34,13 +34,11 @@ export type EmaBounceChartInput = {
 };
 
 const CANVAS_WIDTH = 1200;
-// Height reserved at the bottom for each oscillator pane + the gap above it.
-const STOCH_PANE_HEIGHT = 160;
-const QQE_PANE_HEIGHT = 160;
+const CANVAS_HEIGHT = 980;
+// Height reserved at the bottom for the StochRSI oscillator pane + the gap above it.
+const STOCH_PANE_HEIGHT = 180;
 const PANE_GAP = 26;
-// Total bottom reserve: price↕gap, StochRSI pane, gap, QQE pane, + a small tail.
-const PANES_RESERVE = PANE_GAP + STOCH_PANE_HEIGHT + PANE_GAP + QQE_PANE_HEIGHT + 20;
-const CANVAS_HEIGHT = 820 + PANES_RESERVE;
+const PANES_RESERVE = PANE_GAP + STOCH_PANE_HEIGHT + 20;
 
 /**
  * Draws OHLC candlesticks and, when a focus candle is given, a faint vertical
@@ -243,34 +241,64 @@ function buildStochRsiPlugin(stochK: number[], stochD: number[]): Plugin {
 }
 
 /**
- * QQE oscillator pane (below StochRSI): the smoothed-RSI fast line (purple) and
- * the trailing "QQE signal" line (teal). rsiMa crossing above the signal is bullish,
- * below is bearish. 50 mid-line guide.
+ * colinmck "QQE Signals" markers on the price chart: a green ▲ "Long" label below
+ * the candle where the QQE trailing line crosses under rsiMa, a red ▼ "Short" label
+ * above the candle where it crosses over.
  */
-function buildQqePlugin(qqeRsiMa: number[], qqeSignal: number[]): Plugin {
-  return buildOscillatorPane({
-    id: 'qqe',
-    topOffset: PANE_GAP + STOCH_PANE_HEIGHT + PANE_GAP,
-    height: QQE_PANE_HEIGHT,
-    title: 'QQE (14,5,4.236)',
-    legend: [
-      { text: 'RSI-MA', color: '#7c3aed' },
-      { text: 'Signal', color: '#0d9488' },
-    ],
-    zones: [],
-    guides: [{ value: 50, color: 'rgba(100,116,139,0.45)', dash: [2, 3] }],
-    // Signal (trailing) first, fast RSI-MA on top.
-    lines: [
-      { data: qqeSignal, color: '#0d9488', width: 1.4 },
-      { data: qqeRsiMa, color: '#7c3aed', width: 1.8 },
-    ],
-  });
+function buildQqeSignalPlugin(candles: EmaBounceChartInput['candles'], cross: QqeCross[]): Plugin {
+  return {
+    id: 'qqe-signals',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales } = chart;
+      const xScale = scales['x'];
+      const yScale = scales['y'];
+      if (!xScale || !yScale) return;
+
+      ctx.save();
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+
+      cross.forEach((c, i) => {
+        const candle = candles[i];
+        if (!c || !candle) return;
+        const x = xScale.getPixelForValue(i);
+
+        if (c === 'long') {
+          const yLow = yScale.getPixelForValue(candle.low);
+          const tipY = yLow + 8;
+          ctx.fillStyle = '#16a34a';
+          ctx.beginPath();
+          ctx.moveTo(x, tipY);
+          ctx.lineTo(x - 5, tipY + 8);
+          ctx.lineTo(x + 5, tipY + 8);
+          ctx.closePath();
+          ctx.fill();
+          ctx.textBaseline = 'top';
+          ctx.fillText('Long', x, tipY + 10);
+        } else {
+          const yHigh = yScale.getPixelForValue(candle.high);
+          const tipY = yHigh - 8;
+          ctx.fillStyle = '#dc2626';
+          ctx.beginPath();
+          ctx.moveTo(x, tipY);
+          ctx.lineTo(x - 5, tipY - 8);
+          ctx.lineTo(x + 5, tipY - 8);
+          ctx.closePath();
+          ctx.fill();
+          ctx.textBaseline = 'bottom';
+          ctx.fillText('Short', x, tipY - 10);
+        }
+      });
+
+      ctx.restore();
+    },
+  };
 }
 
 export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<Buffer> {
   const {
     candles, ema34, ema89, ema200, supportLevels, resistanceLevels,
-    currentPrice, stochK, stochD, qqeRsiMa, qqeSignal, entryPrice, tpPrice, symbol, timeframe, focusIndex = null,
+    currentPrice, stochK, stochD, qqeCross, entryPrice, tpPrice, symbol, timeframe, focusIndex = null,
   } = input;
 
   const labels = candles.map((_, i) => i);
@@ -382,7 +410,7 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
       responsive: false,
       animation: false,
       layout: {
-        // Reserve the bottom band for the StochRSI + QQE panes drawn by their plugins.
+        // Reserve the bottom band for the StochRSI pane drawn by its plugin.
         padding: { top: 40, right: 20, bottom: PANES_RESERVE, left: 10 },
       },
       scales: {
@@ -420,8 +448,8 @@ export async function renderEmaBounceChart(input: EmaBounceChartInput): Promise<
     },
     plugins: [
       buildCandlestickPlugin(candles, focusIndex),
+      buildQqeSignalPlugin(candles, qqeCross),
       buildStochRsiPlugin(stochK, stochD),
-      buildQqePlugin(qqeRsiMa, qqeSignal),
     ],
   };
 

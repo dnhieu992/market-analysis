@@ -1,14 +1,16 @@
 /**
- * QQE — Quantitative Qualitative Estimation (Igor Livshin).
+ * QQE — Quantitative Qualitative Estimation ("QQE Signals" by colinmck).
  *
  * Smooths RSI with an EMA (`rsiMa`, the fast line) then builds a Wilder-ATR-based
- * trailing stop line (`signal`, aka FastAtrRsiTL — the "QQE signal" line). A cross
- * of `rsiMa` above the signal line is a long trigger, below is a short trigger.
- * Both series are on the RSI 0–100 scale.
+ * trailing stop line (`signal`, aka FastAtrRsiTL). The colinmck "QQE Signals"
+ * study fires a **Long** on the first bar `rsiMa` closes above the trailing line
+ * and a **Short** on the first bar it closes below — surfaced here as `cross`.
+ * `rsiMa`/`signal` are on the RSI 0–100 scale.
  *
- * Returns parallel arrays aligned 1:1 with `closes` (NaN during warm-up).
+ * Returns parallel arrays aligned 1:1 with `closes` (NaN/null during warm-up).
  */
-export type QqeSeries = { rsiMa: number[]; signal: number[] };
+export type QqeCross = 'long' | 'short' | null;
+export type QqeSeries = { rsiMa: number[]; signal: number[]; cross: QqeCross[] };
 
 /** Wilder-smoothed RSI as a full series aligned to `closes` (NaN before warm-up). */
 function wilderRsiSeries(closes: number[], period: number): number[] {
@@ -56,7 +58,7 @@ export function calculateQqe(
   closes: number[],
   rsiPeriod = 14,
   smoothingFactor = 5,
-  qqeFactor = 4.236,
+  qqeFactor = 4.238,
 ): QqeSeries {
   const n = closes.length;
   const rsiMa = emaFrom(wilderRsiSeries(closes, rsiPeriod), smoothingFactor);
@@ -76,8 +78,13 @@ export function calculateQqe(
   const longband: number[] = new Array(n).fill(NaN);
   const shortband: number[] = new Array(n).fill(NaN);
   const signal: number[] = new Array(n).fill(NaN);
+  const cross: QqeCross[] = new Array(n).fill(null);
   let trend = 1; // 1 = up (follow longband), -1 = down (follow shortband)
   let prev = -1; // index of the last bar with a computed band
+  // Consecutive-bar counters mirroring colinmck's QQExlong / QQExshort — a signal
+  // only prints on the first bar of a new side (counter == 1).
+  let longRun = 0;
+  let shortRun = 0;
 
   for (let i = 0; i < n; i++) {
     const rm = rsiMa[i]!;
@@ -108,9 +115,23 @@ export function calculateQqe(
     if (pRm <= pShort && rm > pShort) trend = 1;
     else if (pRm >= pLong && rm < pLong) trend = -1;
 
-    signal[i] = trend === 1 ? longband[i]! : shortband[i]!;
+    const tl = trend === 1 ? longband[i]! : shortband[i]!;
+    signal[i] = tl;
+
+    // colinmck: Long on the first bar the trailing line sits below rsiMa, Short on
+    // the first bar it sits above.
+    if (tl < rm) {
+      longRun += 1;
+      shortRun = 0;
+      if (longRun === 1) cross[i] = 'long';
+    } else if (tl > rm) {
+      shortRun += 1;
+      longRun = 0;
+      if (shortRun === 1) cross[i] = 'short';
+    }
+
     prev = i;
   }
 
-  return { rsiMa, signal };
+  return { rsiMa, signal, cross };
 }

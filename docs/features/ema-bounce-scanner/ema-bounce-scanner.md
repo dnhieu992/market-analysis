@@ -115,9 +115,10 @@ TP = +10%. **No stop-loss** (per the user's rule — the card just tracks until 
    pipeline (candlesticks + S/R + current-price line via `chartjs-node-canvas`) but is tuned to
    this strategy: **EMA34/89/200** (the stack the setup uses) plus dashed **Entry** and **TP +10%**
    lines, a **StochRSI(14,14,3,3) pane** below price (%K blue / %D orange, 20/80 zones) — the
-   same oscillator the scanner triggers on — and, stacked below it, a **QQE(14,5,4.236) pane**
-   (smoothed-RSI `RSI-MA` in purple + the trailing `Signal` line in teal; RSI-MA crossing above the
-   signal = bullish, below = bearish; 50 mid-line). The chart is rendered light-mode (white background).
+   same oscillator the scanner triggers on — plus **colinmck "QQE Signals" (14,5,4.238)** markers
+   drawn on the price chart itself: a green ▲ **Long** below the candle where the QQE trailing line
+   crosses under RSI-MA, a red ▼ **Short** above the candle where it crosses over. The chart is
+   rendered light-mode (white background).
    The visible window (~140 candles) is **centered on the setup candle** (`focusTime` =
    the card's `triggeredAt`) with a faint highlight band on that candle, so the "vùng giá thoả
    mãn" sits in the middle. Preview matches (which happen "now") have no `focusTime`, so they show
@@ -182,8 +183,8 @@ at the left edge. Served as a `StreamableFile` (no `express` type dependency nee
 - `apps/worker/src/modules/scheduler/scheduler.service.ts` — `runEmaStochScan` cron (`0 2 */4 * * *` UTC)
 - `apps/worker/src/modules/scheduler/scheduler.module.ts` — imports `EmaStochScanModule`
 - `apps/api/src/modules/ema-stoch-scanner/*` — controller/service/dto (coins CRUD, signals, preview, **chart PNG**)
-- `apps/api/src/modules/ema-stoch-scanner/chart-renderer.ts` — `chartjs-node-canvas` renderer (EMA34/89/200 + S/R + Entry/TP + focus band + StochRSI pane + QQE pane via a shared `buildOscillatorPane` drawer)
-- `packages/core/src/indicators/qqe.ts` — `calculateQqe` (smoothed-RSI fast line + Wilder-ATR trailing signal line), exported from `@app/core`
+- `apps/api/src/modules/ema-stoch-scanner/chart-renderer.ts` — `chartjs-node-canvas` renderer (EMA34/89/200 + S/R + Entry/TP + focus band + StochRSI pane + on-price colinmck QQE Long/Short markers)
+- `packages/core/src/indicators/qqe.ts` — `calculateQqe` (colinmck "QQE Signals": smoothed-RSI + Wilder-ATR trailing line → `cross` = 'long'/'short'/null per bar), exported from `@app/core`
 - `apps/api/package.json` — adds `chart.js` + `chartjs-node-canvas` deps for the chart endpoint
 - `apps/api/src/app.module.ts` — registers `EmaStochScannerModule`
 - `apps/web/src/app/ema-bounce/page.tsx` — App Router route (thin re-export)
