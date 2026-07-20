@@ -60,10 +60,11 @@ export function createBitgetTradeRepository(client = prisma) {
     },
 
     /**
-     * Advance the ROE% milestone ratchets on an open trade. Only the fields
-     * passed are written, so the up/down ratchets update independently.
+     * Advance (or reset) the ROE% milestone ratchets on an open trade. Only the
+     * fields passed are written, so the up/down ratchets update independently;
+     * pass `null` to clear a ratchet when ROE reverses across 0.
      */
-    updateMilestones(id: string, input: { peakRoePct?: number; troughRoePct?: number }) {
+    updateMilestones(id: string, input: { peakRoePct?: number | null; troughRoePct?: number | null }) {
       return client.bitgetTrade.update({ where: { id }, data: input });
     },
 

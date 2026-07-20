@@ -220,8 +220,10 @@ export class BitgetHistoryService implements OnModuleInit {
    * position it computes ROE (uPnL ÷ margin) and, if ROE has moved past a
    * milestone step it has not yet logged, appends a system journal item and
    * advances the ratchet on the trade row. Independent up/down ratchets:
-   * crossing +70 does not affect the −50 ratchet and vice-versa. A step is
-   * logged once — dipping back and re-crossing the same step logs nothing.
+   * crossing +70 does not affect the −50 ratchet and vice-versa. Each step logs
+   * once per profit/loss excursion — a same-side dip and re-cross logs nothing,
+   * but a reversal across 0 (profit→loss or loss→profit) resets the opposite
+   * ratchet so its steps can be logged again on the next run.
    *
    * Runs on its own frequent cron (see SchedulerService) so peaks between the
    * 5-minute reconcile passes are still caught. Only trades already known open
@@ -261,10 +263,19 @@ export class BitgetHistoryService implements OnModuleInit {
     markPrice: number,
   ): Promise<number> {
     let written = 0;
-    const patch: { peakRoePct?: number; troughRoePct?: number } = {};
+    const patch: { peakRoePct?: number | null; troughRoePct?: number | null } = {};
 
-    // Upside: every step at/above the current ROE that sits beyond the last peak.
-    const prevPeak = trade.peakRoePct ?? -Infinity;
+    // A profit⇄loss reversal — ROE crossing 0 — resets the OPPOSITE ratchet so its
+    // milestones log fresh on the next run in that direction. Example: +50% logged,
+    // ROE dips negative (a loss), then climbs back to +50% → +50% logs again.
+    // A same-side dip is NOT a reversal: +50%→+10%→+50% (never went negative) logs
+    // nothing extra, because the up ratchet is only cleared when ROE turns negative.
+    if (roe <= 0 && trade.peakRoePct != null) patch.peakRoePct = null;
+    if (roe >= 0 && trade.troughRoePct != null) patch.troughRoePct = null;
+
+    // Upside: every step at/above the current ROE that sits beyond the last peak
+    // (a just-cleared peak falls back to the -Infinity baseline).
+    const prevPeak = patch.peakRoePct === null ? -Infinity : trade.peakRoePct ?? -Infinity;
     const newUp = UP_MILESTONES.filter((m) => m <= roe && m > prevPeak);
     for (const m of newUp) {
       await this.writeMilestoneLog(trade, m, roe, markPrice);
@@ -272,8 +283,9 @@ export class BitgetHistoryService implements OnModuleInit {
     }
     if (newUp.length > 0) patch.peakRoePct = newUp[newUp.length - 1];
 
-    // Downside: every step at/below the current ROE that sits beyond the last trough.
-    const prevTrough = trade.troughRoePct ?? Infinity;
+    // Downside: every step at/below the current ROE that sits beyond the last trough
+    // (a just-cleared trough falls back to the +Infinity baseline).
+    const prevTrough = patch.troughRoePct === null ? Infinity : trade.troughRoePct ?? Infinity;
     const newDown = DOWN_MILESTONES.filter((m) => m >= roe && m < prevTrough);
     for (const m of newDown) {
       await this.writeMilestoneLog(trade, m, roe, markPrice);
@@ -281,7 +293,8 @@ export class BitgetHistoryService implements OnModuleInit {
     }
     if (newDown.length > 0) patch.troughRoePct = newDown[newDown.length - 1];
 
-    if (written > 0) {
+    // Persist whenever a ratchet advanced OR was reset by a reversal.
+    if (Object.keys(patch).length > 0) {
       await this.repo
         .updateMilestones(trade.id, patch)
         .catch((err) => this.logger.warn(`Failed to advance milestone ratchet for ${trade.tradeKey}: ${(err as Error).message}`));

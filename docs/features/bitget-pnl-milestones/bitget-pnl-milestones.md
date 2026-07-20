@@ -1,20 +1,23 @@
 ## Description
 
 Records ROE% milestones for open Bitget positions onto each trade's journal, with
-the time each milestone was reached. Milestones are two independent one-way
-ratchets so a step is logged **once** and never re-logged when ROE dips and
-recovers:
+the time each milestone was reached. Milestones are two independent ratchets, each
+logged **once per profit/loss excursion**:
 
 - **Up:** +50%, +70%, +100%, +150%, +200%
 - **Down:** −50%, −80%, −100%, −200%, −300%, −400%, −500%
 
-"Only record forward, never backward": after +50% is logged the next up-log can
-only be +70%; if ROE hits +50%, falls to +40%, then returns to +50% nothing is
-written. The downside ratchet works the same way and is independent of the upside
-one (a trade can log +70% on the way up and later −100% on the way down).
+"Only record forward within the same excursion": after +50% is logged the next
+up-log can only be +70%; if ROE hits +50%, falls back to +40% (or +10%, anything
+still positive), then returns to +50%, nothing is written. The downside ratchet
+works the same way and is independent of the upside one.
 
-ROE here is `unrealizedPnl ÷ margin × 100` — the same number the /bitget positions
-table shows.
+**Reversal resets the opposite ratchet.** ROE crossing 0 (profit→loss or
+loss→profit) clears the ratchet for the direction being left, so its steps can be
+logged fresh next time. Example: ROE reaches +50% (logged), dips into the negative
+(a real loss), then climbs back to +50% → +50% is logged **again**. A same-side dip
+that never crosses 0 is not a reversal and does not re-log. ROE here is
+`unrealizedPnl ÷ margin × 100` — the same number the /bitget positions table shows.
 
 ## Main Flow
 
@@ -41,6 +44,10 @@ table shows.
 - **Jumped several steps at once** — if ROE leaps past multiple steps between
   checks (e.g. 0 → +105%), each passed step (+50, +70, +100) is logged as a
   separate item, all stamped at detection time.
+- **Reversal reset** — when ROE crosses 0 the opposite ratchet column is cleared
+  (`peakRoePct`/`troughRoePct` set to `null`), even if no milestone is logged that
+  tick, so the next excursion in that direction re-logs from its first step. The
+  reset write is idempotent (only fires when the column isn't already null).
 - **Trade not yet reconciled** — if the open row does not exist yet, the position
   is skipped; when the row appears the ratchet starts from null and backfills
   every step already passed at that moment (no milestone lost, timestamp is the
