@@ -643,8 +643,9 @@ export type BitgetHistoryResponse = {
   fetchedAt: string;
 };
 
-/** Per-coin manual-open config edited in the Setup dialog (persisted in localStorage). */
+/** Per-coin, per-side manual-open config edited in the Setup dialog (persisted in the DB). */
 export type BitgetSetupConfig = {
+  symbol: string;
   holdSide: 'long' | 'short';
   leverage: number;
   marginUsd: number;

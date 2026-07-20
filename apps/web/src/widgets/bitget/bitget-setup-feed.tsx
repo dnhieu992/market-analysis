@@ -13,22 +13,13 @@ import type {
 import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices';
 
 const REFRESH_MS = 15_000;
-const CONFIG_KEY = 'bitget:setup-config';
 
-const DEFAULT_CONFIG: BitgetSetupConfig = { holdSide: 'long', leverage: 10, marginUsd: 0 };
+type HoldSide = 'long' | 'short';
 
+/** Per-coin, per-side config keyed by `${symbol}-${holdSide}`. */
 type ConfigMap = Record<string, BitgetSetupConfig>;
 
-function loadConfigs(): ConfigMap {
-  try {
-    const raw = localStorage.getItem(CONFIG_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as ConfigMap;
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
+const cfgKey = (symbol: string, holdSide: HoldSide) => `${symbol}-${holdSide}`;
 
 function fmtUsdPlain(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -58,23 +49,39 @@ type Props = {
 };
 
 /**
- * Setup tab: one row per coin ever traded (unique symbols from the history feed).
- * Each row carries a per-coin manual-open config (direction / leverage / margin,
- * always cross) stored in localStorage. "Open" places a live market order via the
- * API; it's disabled while that coin already has an open position, or until the
- * coin's margin has been configured.
+ * Setup tab: one row per coin ever traded, with a separate LONG and SHORT
+ * action cell. Each side carries its own manual-open config (leverage / margin,
+ * always cross) persisted in the DB, its own ⚙ Setup dialog, and its own
+ * open button. The Long/Short button is disabled independently while that exact
+ * coin+side already has an open position, or until the side's margin has been
+ * configured — so an open long disables only Long, leaving Short live.
  */
 export function BitgetSetupFeed({ history, positions: initialPositions, embedded = false }: Props) {
   const clientRef = useRef(createApiClient());
   const [positions, setPositions] = useState<BitgetPositionsResponse>(initialPositions);
   const [configs, setConfigs] = useState<ConfigMap>({});
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Hydrate saved configs from the DB (survives reloads, shared across devices).
   useEffect(() => {
-    setConfigs(loadConfigs());
+    let alive = true;
+    clientRef.current
+      .fetchBitgetSetupConfigs()
+      .then((list) => {
+        if (!alive) return;
+        const map: ConfigMap = {};
+        for (const c of list) map[cfgKey(c.symbol, c.holdSide)] = c;
+        setConfigs(map);
+      })
+      .catch(() => {
+        /* non-fatal: rows just show as unconfigured until saved */
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Unique symbols across every trade in history, newest-first by most recent close.
@@ -88,9 +95,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     return [...lastClose.keys()].sort((a, b) => (lastClose.get(b) ?? 0) - (lastClose.get(a) ?? 0));
   }, [history.trades]);
 
-  // Symbols with a live open position on the exchange (either side) → Open disabled.
-  const openSymbols = useMemo(
-    () => new Set(positions.positions.map((p) => p.symbol)),
+  // (symbol, side) pairs with a live open position on the exchange → Open disabled.
+  const openSides = useMemo(
+    () => new Set(positions.positions.map((p) => cfgKey(p.symbol, p.holdSide))),
     [positions.positions],
   );
 
@@ -111,40 +118,44 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     return () => clearInterval(id);
   }, [refreshPositions]);
 
-  const saveConfig = useCallback((symbol: string, cfg: BitgetSetupConfig) => {
-    setConfigs((prev) => {
-      const next = { ...prev, [symbol]: cfg };
+  const saveConfig = useCallback(
+    async (symbol: string, holdSide: HoldSide, cfg: { leverage: number; marginUsd: number }) => {
+      const next: BitgetSetupConfig = { symbol, holdSide, ...cfg };
+      // Optimistic update so the row reflects the new config immediately.
+      setConfigs((prev) => ({ ...prev, [cfgKey(symbol, holdSide)]: next }));
+      setError(null);
       try {
-        localStorage.setItem(CONFIG_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore quota / private-mode errors */
+        await clientRef.current.saveBitgetSetupConfig(next);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Lưu cấu hình thất bại. Thử lại sau.');
       }
-      return next;
-    });
-  }, []);
+    },
+    [],
+  );
 
   const openPosition = useCallback(
-    async (symbol: string) => {
-      const cfg = configs[symbol];
+    async (symbol: string, holdSide: HoldSide) => {
+      const cfg = configs[cfgKey(symbol, holdSide)];
       if (!cfg || !(cfg.marginUsd > 0)) {
-        setError(`Cấu hình ký quỹ cho ${symbol} trước khi mở lệnh.`);
+        setError(`Cấu hình ký quỹ cho ${symbol} (${holdSide.toUpperCase()}) trước khi mở lệnh.`);
         return;
       }
       if (
         !window.confirm(
-          `Mở lệnh ${cfg.holdSide.toUpperCase()} ${symbol} theo giá market ngay bây giờ?\n` +
+          `Mở lệnh ${holdSide.toUpperCase()} ${symbol} theo giá market ngay bây giờ?\n` +
             `Ký quỹ $${cfg.marginUsd} · đòn bẩy ${cfg.leverage}× · cross`,
         )
       ) {
         return;
       }
-      setOpeningKey(symbol);
+      const key = cfgKey(symbol, holdSide);
+      setOpeningKey(key);
       setError(null);
       setNotice(null);
       try {
         const res = await clientRef.current.openBitgetPosition({
           symbol,
-          holdSide: cfg.holdSide,
+          holdSide,
           marginUsd: cfg.marginUsd,
           leverage: cfg.leverage,
         });
@@ -162,6 +173,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   );
 
   const configured = history.configured || positions.configured;
+  const sides: HoldSide[] = ['long', 'short'];
 
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
@@ -169,7 +181,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
         <div>
           {!embedded && <h1>Bitget · Setup mở lệnh</h1>}
           <p className="bg-sub">
-            Mở lệnh nhanh theo giá market (cross) cho các coin đã từng giao dịch.
+            Mở lệnh nhanh theo giá market (cross) — mỗi coin có nút Long/Short riêng, cấu hình từng hướng được lưu lại.
           </p>
         </div>
         <div className="bg-head-actions">
@@ -205,21 +217,12 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                 <th className="bg-num" title="Thay đổi so với mốc 00:00 UTC">
                   Hôm nay
                 </th>
-                <th>Hướng</th>
-                <th className="bg-num">Đòn bẩy</th>
-                <th>Ký quỹ</th>
-                <th className="bg-num">Ký quỹ (USDT)</th>
-                <th className="bg-num">Trạng thái</th>
-                <th className="bg-num">Thao tác</th>
+                <th>Long</th>
+                <th>Short</th>
               </tr>
             </thead>
             <tbody>
               {symbols.map((symbol) => {
-                const cfg = configs[symbol];
-                const isOpen = openSymbols.has(symbol);
-                const configuredCoin = Boolean(cfg && cfg.marginUsd > 0);
-                const opening = openingKey === symbol;
-                const isLong = (cfg?.holdSide ?? 'long') === 'long';
                 const price = livePrices[symbol];
                 const change = liveChanges[symbol];
                 const changeCls =
@@ -235,50 +238,56 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                     <td className="bg-symbol">{symbol}</td>
                     <td className="bg-num bg-price">{fmtPrice(price)}</td>
                     <td className={`bg-num ${changeCls}`}>{fmtChange(change)}</td>
-                    <td>
-                      <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
-                        {isLong ? 'LONG' : 'SHORT'}
-                      </span>
-                    </td>
-                    <td className="bg-num">{cfg ? `${cfg.leverage}×` : '—'}</td>
-                    <td>
-                      <span className="bg-margin-mode">cross</span>
-                    </td>
-                    <td className="bg-num">{configuredCoin ? fmtUsdPlain(cfg!.marginUsd) : '—'}</td>
-                    <td className="bg-num">
-                      {isOpen ? (
-                        <span className="bg-status-open">Đang mở</span>
-                      ) : (
-                        <span className="bg-status-flat">—</span>
-                      )}
-                    </td>
-                    <td className="bg-num">
-                      <div className="bg-setup-actions">
-                        <button
-                          type="button"
-                          className="bg-setup-btn"
-                          onClick={() => setEditing(symbol)}
-                          title="Cấu hình đòn bẩy / ký quỹ"
-                        >
-                          ⚙ Setup
-                        </button>
-                        <button
-                          type="button"
-                          className="bg-open-btn"
-                          onClick={() => openPosition(symbol)}
-                          disabled={isOpen || !configuredCoin || opening || openingKey !== null}
-                          title={
-                            isOpen
-                              ? 'Coin đang có vị thế mở'
-                              : !configuredCoin
-                                ? 'Cấu hình ký quỹ trước'
-                                : 'Mở lệnh market'
-                          }
-                        >
-                          {opening ? '…' : 'Open'}
-                        </button>
-                      </div>
-                    </td>
+                    {sides.map((holdSide) => {
+                      const key = cfgKey(symbol, holdSide);
+                      const cfg = configs[key];
+                      const isOpen = openSides.has(key);
+                      const configuredSide = Boolean(cfg && cfg.marginUsd > 0);
+                      const opening = openingKey === key;
+                      const isLong = holdSide === 'long';
+                      return (
+                        <td key={holdSide} className="bg-side-cell">
+                          <div className="bg-side-cell-inner">
+                            <div className="bg-side-cfg-row">
+                              {isOpen ? (
+                                <span className="bg-status-open">● Đang mở</span>
+                              ) : configuredSide ? (
+                                <span className="bg-side-cfg">
+                                  {cfg!.leverage}× · {fmtUsdPlain(cfg!.marginUsd)} · cross
+                                </span>
+                              ) : (
+                                <span className="bg-side-cfg bg-side-cfg--empty">chưa cấu hình</span>
+                              )}
+                            </div>
+                            <div className="bg-setup-actions">
+                              <button
+                                type="button"
+                                className="bg-setup-btn"
+                                onClick={() => setEditing({ symbol, holdSide })}
+                                title={`Cấu hình ${isLong ? 'LONG' : 'SHORT'} — đòn bẩy / ký quỹ`}
+                              >
+                                ⚙
+                              </button>
+                              <button
+                                type="button"
+                                className={`bg-open-btn ${isLong ? 'bg-open-btn--long' : 'bg-open-btn--short'}`}
+                                onClick={() => openPosition(symbol, holdSide)}
+                                disabled={isOpen || !configuredSide || opening || openingKey !== null}
+                                title={
+                                  isOpen
+                                    ? 'Hướng này đang có vị thế mở'
+                                    : !configuredSide
+                                      ? 'Cấu hình ký quỹ trước'
+                                      : `Mở lệnh ${isLong ? 'LONG' : 'SHORT'} market`
+                                }
+                              >
+                                {opening ? '…' : isLong ? 'Long' : 'Short'}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
@@ -289,10 +298,11 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
 
       {editing && (
         <SetupDialog
-          symbol={editing}
-          initial={configs[editing] ?? DEFAULT_CONFIG}
+          symbol={editing.symbol}
+          holdSide={editing.holdSide}
+          initial={configs[cfgKey(editing.symbol, editing.holdSide)]}
           onSave={(cfg) => {
-            saveConfig(editing, cfg);
+            void saveConfig(editing.symbol, editing.holdSide, cfg);
             setEditing(null);
           }}
           onClose={() => setEditing(null)}
@@ -302,21 +312,26 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   );
 }
 
+const DEFAULT_LEVERAGE = 10;
+
 function SetupDialog({
   symbol,
+  holdSide,
   initial,
   onSave,
   onClose,
 }: {
   symbol: string;
-  initial: BitgetSetupConfig;
-  onSave: (cfg: BitgetSetupConfig) => void;
+  holdSide: HoldSide;
+  initial: BitgetSetupConfig | undefined;
+  onSave: (cfg: { leverage: number; marginUsd: number }) => void;
   onClose: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
-  const [holdSide, setHoldSide] = useState<'long' | 'short'>(initial.holdSide);
-  const [leverage, setLeverage] = useState(String(initial.leverage));
-  const [marginUsd, setMarginUsd] = useState(initial.marginUsd > 0 ? String(initial.marginUsd) : '');
+  const [leverage, setLeverage] = useState(String(initial?.leverage ?? DEFAULT_LEVERAGE));
+  const [marginUsd, setMarginUsd] = useState(
+    initial && initial.marginUsd > 0 ? String(initial.marginUsd) : '',
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -329,6 +344,7 @@ function SetupDialog({
   const margin = Number(marginUsd);
   const valid = Number.isFinite(lev) && lev >= 1 && lev <= 125 && Number.isFinite(margin) && margin > 0;
   const notional = valid ? margin * lev : 0;
+  const isLong = holdSide === 'long';
 
   if (!mounted) return null;
 
@@ -338,37 +354,22 @@ function SetupDialog({
         className="bg-setup-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={`Cấu hình ${symbol}`}
+        aria-label={`Cấu hình ${symbol} ${holdSide}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-setup-head">
-          <h3>Cấu hình {symbol}</h3>
+          <h3>
+            Cấu hình {symbol}{' '}
+            <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
+              {isLong ? 'LONG' : 'SHORT'}
+            </span>
+          </h3>
           <button type="button" className="bg-setup-x" onClick={onClose} aria-label="Đóng">
             ×
           </button>
         </div>
 
         <div className="bg-setup-body">
-          <label className="bg-setup-field">
-            <span>Hướng lệnh</span>
-            <div className="bg-setup-side-toggle">
-              <button
-                type="button"
-                className={`bg-setup-side ${holdSide === 'long' ? 'bg-setup-side--long' : ''}`}
-                onClick={() => setHoldSide('long')}
-              >
-                LONG
-              </button>
-              <button
-                type="button"
-                className={`bg-setup-side ${holdSide === 'short' ? 'bg-setup-side--short' : ''}`}
-                onClick={() => setHoldSide('short')}
-              >
-                SHORT
-              </button>
-            </div>
-          </label>
-
           <label className="bg-setup-field">
             <span>Đòn bẩy (×)</span>
             <input
@@ -413,7 +414,7 @@ function SetupDialog({
             type="button"
             className="bg-setup-save"
             disabled={!valid}
-            onClick={() => onSave({ holdSide, leverage: lev, marginUsd: margin })}
+            onClick={() => onSave({ leverage: lev, marginUsd: margin })}
           >
             Lưu
           </button>

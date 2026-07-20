@@ -3,10 +3,12 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { BitgetJournalService } from './bitget-journal.service';
 import { BitgetService } from './bitget.service';
+import { BitgetSetupService } from './bitget-setup.service';
 import { ClosePositionDto } from './dto/close-position.dto';
 import { OpenPositionDto } from './dto/open-position.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
+import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
 
 @ApiTags('bitget')
 @ApiCookieAuth('market_analysis_session')
@@ -15,6 +17,7 @@ export class BitgetController {
   constructor(
     private readonly service: BitgetService,
     private readonly journal: BitgetJournalService,
+    private readonly setup: BitgetSetupService,
   ) {}
 
   @Get('positions')
@@ -41,6 +44,18 @@ export class BitgetController {
   @ApiOperation({ summary: 'Open a new market position (cross margin) from the Setup tab' })
   openPosition(@Body() dto: OpenPositionDto) {
     return this.service.openPosition(dto);
+  }
+
+  @Get('setup')
+  @ApiOperation({ summary: 'List saved per-coin, per-side open configs for the Setup tab' })
+  listSetup() {
+    return this.setup.list();
+  }
+
+  @Put('setup')
+  @ApiOperation({ summary: 'Save (upsert) the open config for one coin + side' })
+  upsertSetup(@Body() dto: UpsertSetupConfigDto) {
+    return this.setup.upsert(dto);
   }
 
   @Get('journal')

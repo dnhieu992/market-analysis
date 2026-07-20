@@ -756,6 +756,22 @@ model BitgetTradeJournal {
   @@map("bitget_trade_journals")
 }
 
+// Per-coin, per-side manual-open config for the /bitget Setup tab. Each coin has
+// two rows on the tab (long + short); each is one persisted config here so the
+// leverage/margin the trader picked survives reloads and isn't re-entered.
+model BitgetSetupConfig {
+  id        String   @id @default(cuid())
+  symbol    String   @db.VarChar(30)
+  holdSide  String   @db.VarChar(8) // long | short
+  leverage  Int      @default(10)
+  marginUsd Float    @default(0) // 0 = not yet configured; Open stays disabled
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([symbol, holdSide])
+  @@map("bitget_setup_configs")
+}
+
 // Watchlist for the /ema-bounce page — the EMA-stack oversold StochRSI bounce
 // scanner. The worker auto-scans this list every 4h and persists matched signals.
 model EmaStochWatchCoin {

@@ -54,6 +54,7 @@ import type {
   BitgetPositionsResponse,
   BitgetHistoryResponse,
   BitgetOpenResult,
+  BitgetSetupConfig,
   BitgetJournalNote,
   BitgetJournalSnapshot,
   OrderJournalNote,
@@ -1141,6 +1142,28 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Mở lệnh thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetOpenResult;
+    },
+
+    // ── Bitget Setup tab configs (per coin + side, persisted) ────
+    async fetchBitgetSetupConfigs(): Promise<BitgetSetupConfig[]> {
+      return fetchJson<BitgetSetupConfig[]>(fetchImpl, `${baseUrl}/bitget/setup`, withDefaults({}));
+    },
+
+    async saveBitgetSetupConfig(input: BitgetSetupConfig): Promise<BitgetSetupConfig> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/setup`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu cấu hình thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetSetupConfig;
     },
 
     async fetchBitgetHistory(params: { limit?: number; symbol?: string } = {}): Promise<BitgetHistoryResponse> {

@@ -10624,6 +10624,23 @@ a.metric-card--link:hover {
 }
 .bg-open-btn:hover:not(:disabled) { background: rgba(31, 138, 91, 0.2); }
 .bg-open-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Long stays green (default); Short is red so the two open buttons read apart. */
+.bg-open-btn--short {
+  border-color: rgba(194, 69, 58, 0.5);
+  background: rgba(194, 69, 58, 0.12);
+  color: #c2453a;
+}
+.bg-open-btn--short:hover:not(:disabled) { background: rgba(194, 69, 58, 0.2); }
+
+/* Setup tab: one LONG + one SHORT action cell per coin row. Each stacks a config
+   summary over its ⚙ Setup + open buttons, left-aligned within the cell. */
+.bg-side-cell { vertical-align: middle; }
+.bg-side-cell-inner { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.bg-side-cell .bg-setup-actions { justify-content: flex-start; }
+.bg-side-cfg-row { display: flex; align-items: center; gap: 8px; min-height: 18px; }
+.bg-side-cfg { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bg-side-cfg--empty { font-style: italic; opacity: 0.8; }
+.bg-setup-btn { padding: 5px 10px; }
 
 /* Setup config dialog (portaled to body). */
 .bg-setup-overlay {
@@ -11014,9 +11031,11 @@ a.metric-card--link:hover {
 .bg-num { text-align: right; font-variant-numeric: tabular-nums; }
 .bg-symbol { font-weight: 700; color: var(--foreground); }
 
-/* Keep the Symbol column pinned while scrolling the table horizontally. */
+/* Keep the Symbol column pinned while scrolling the table horizontally. Target
+   the symbol cell explicitly rather than :first-child so any table whose first
+   column isn't a symbol still scrolls normally. */
 .bg-table th:first-child,
-.bg-table td:first-child {
+.bg-table td.bg-symbol {
   position: sticky;
   left: 0;
   z-index: 1;
@@ -11026,9 +11045,10 @@ a.metric-card--link:hover {
 }
 .bg-table thead th:first-child { z-index: 2; }
 /* Preserve the row-hover tint on the pinned cell (which has its own opaque bg). */
-.bg-table tbody tr:hover td:first-child {
+.bg-table tbody tr:hover td.bg-symbol {
   background: linear-gradient(rgba(23, 18, 13, 0.03), rgba(23, 18, 13, 0.03)), var(--surface);
 }
+
 .bg-liq { color: #c2453a; }
 
 .bg-side {

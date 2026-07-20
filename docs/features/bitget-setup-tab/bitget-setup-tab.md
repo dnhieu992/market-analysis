@@ -1,24 +1,29 @@
 ## Description
 Adds a **Setup** tab to the Bitget dashboard (`/bitget`). It lists every coin that has
-ever been traded (unique symbols pulled from the History tab) as one row each, with a
-per-coin **Setup** dialog (direction, leverage, margin — margin mode is always **cross**,
-order type is always **market**) and an **Open** button that places a live market order on
-Bitget using that config. The Open button is disabled while the coin already has an open
-position, or until its margin has been configured. Per-coin config is stored client-side in
-`localStorage`. Each row also shows the coin's **realtime price** and **change since 00:00 UTC**,
-streamed from Bitget's public WebSocket ticker.
+ever been traded (unique symbols pulled from the History tab) as **one row each**, with a
+separate **Long** and **Short** action cell. Each side has its own **⚙ Setup** dialog
+(leverage, margin — direction is fixed by the cell, margin mode is always **cross**, order
+type is always **market**) and its own **Long / Short** open button that places a live market
+order on Bitget using that side's config. Each button is disabled **independently** while that
+exact coin **+ side** already has an open position, or until that side's margin has been
+configured — so an open long disables only **Long**, leaving **Short** live. Per-side config is
+persisted in the **database** (`bitget_setup_configs`, unique on `symbol + holdSide`) so it
+survives reloads and is shared across devices. Each coin's **realtime price** and **change
+since 00:00 UTC** (streamed from Bitget's public WebSocket ticker) show once per row.
 
 ## Main Flow
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
-2. The feed builds a unique symbol list from `history.trades` (newest-closed first), fetches
-   live positions every 15s to know which symbols are currently open, and subscribes to the
-   Bitget public WS `ticker` channel for every listed symbol to show live price + change since
-   00:00 UTC (green/red). A "Realtime / Đang kết nối…" pill in the header reflects the WS state.
-3. User clicks **⚙ Setup** on a row → a dialog (portaled to `document.body`) lets them set
-   direction (LONG/SHORT), leverage (1–125×), and margin in USDT. Margin mode / order type
-   are fixed to **Market · Cross**. Saving writes the config to `localStorage`
-   (`bitget:setup-config`, keyed by symbol).
-4. User clicks **Open** → confirm dialog → `POST /bitget/positions/open` via
+2. The feed builds a unique symbol list from `history.trades` (newest-closed first) and renders
+   one row per coin, each with a **Long** and a **Short** action cell (config summary + ⚙ + open
+   button). It hydrates saved configs once via `GET /bitget/setup`,
+   fetches live positions every 15s to know which coin+sides are currently open, and subscribes
+   to the Bitget public WS `ticker` channel for every listed symbol to show live price + change
+   since 00:00 UTC (green/red). A "Realtime / Đang kết nối…" pill reflects the WS state.
+3. User clicks **⚙** in a side cell → a dialog (portaled to `document.body`) lets them set
+   leverage (1–125×) and margin in USDT for that cell's fixed side. Margin mode / order type
+   are fixed to **Market · Cross**. Saving optimistically updates the cell and persists via
+   `PUT /bitget/setup` (upsert on `symbol + holdSide`).
+4. User clicks **Long** or **Short** → confirm dialog → `POST /bitget/positions/open` via
    `openBitgetPosition()`. The API:
    - rejects (409) if a position for that symbol+side is already open;
    - reads the live ticker price + contract precision;
@@ -30,15 +35,17 @@ streamed from Bitget's public WebSocket ticker.
    coin to "Đang mở" and disabling its Open button.
 
 ## Edge Cases
-- **Already open:** Open is disabled in the UI when the symbol is in the live positions set;
-  the API also guards with a 409 so a stale UI can't double up.
-- **Not configured:** Open is disabled until the coin's margin > 0; a hint tooltip explains.
+- **Already open (per side):** the side's open button is disabled in the UI when that
+  `symbol+holdSide` is in the live positions set — the **Long** button can be disabled while
+  **Short** stays enabled, and vice versa. The API also guards with a 409 so a stale UI can't
+  double up.
+- **Not configured:** Open is disabled until that side's margin > 0; a hint tooltip explains.
 - **Margin too small:** size floors below the contract minimum → API returns 400 with a
   Vietnamese message asking to raise margin/leverage.
 - **Bitget not configured:** if credentials are missing the tab shows the same setup notice
   as the other tabs.
-- **localStorage unavailable** (private mode/quota): reads/writes fail silently; config just
-  isn't persisted.
+- **Config fetch/save fails:** hydration failure is non-fatal (rows show unconfigured);
+  a save failure surfaces a red alert and the optimistic row state is kept.
 - **Concurrent opens:** the Open buttons are disabled globally while any open is in flight
   (`openingKey !== null`).
 - **Hedge vs one-way account mode:** honoured via `BITGET_POSITION_MODE` (adds `tradeSide:
@@ -49,11 +56,17 @@ streamed from Bitget's public WebSocket ticker.
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.
 - `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — supports `?tab=setup` deep-link.
-- `apps/web/src/shared/api/client.ts` — `openBitgetPosition()` client method.
-- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig`, `BitgetOpenResult`.
-- `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down` styles.
-- `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`.
+- `apps/web/src/shared/api/client.ts` — `openBitgetPosition()`, `fetchBitgetSetupConfigs()`, `saveBitgetSetupConfig()`.
+- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`.
+- `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down`, `.bg-open-btn--short` (red short button), `.bg-side-cell`/`.bg-side-cell-inner`/`.bg-side-cfg` (per-side action cell + config summary), `.bg-symbol` sticky column.
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`, `GET/PUT /bitget/setup`.
 - `apps/api/src/modules/bitget/bitget.service.ts` — `openPosition()` (size math + guards).
+- `apps/api/src/modules/bitget/bitget-setup.service.ts` — DB-backed per-side config list/upsert.
+- `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupService` as a provider.
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getTickerPrice`, `getContractSpec`,
   `setCrossLeverage`, `openMarketPosition`.
-- `apps/api/src/modules/bitget/dto/open-position.dto.ts` — request validation.
+- `apps/api/src/modules/bitget/dto/open-position.dto.ts` — open-order validation.
+- `apps/api/src/modules/bitget/dto/upsert-setup-config.dto.ts` — setup-config validation.
+- `packages/db/prisma/schema.prisma` — `BitgetSetupConfig` model (`bitget_setup_configs`).
+- `packages/db/src/repositories/bitget-setup-config.repository.ts` — `findAll()`, `upsert()`.
+- `packages/db/prisma/migrations/20260720120000_add_bitget_setup_config/migration.sql` — table DDL.
