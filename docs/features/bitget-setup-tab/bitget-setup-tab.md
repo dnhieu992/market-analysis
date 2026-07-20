@@ -17,6 +17,12 @@ of high/low/close as the green "Dragon" ribbon + EMA89 trend line), **Support/Re
 Channels** (LonesomeTheBlue-style pivot channels), and **RSI(14)**. The chart is read-only /
 non-persisted — it just fetches and displays the latest render.
 
+The chart also overlays **position markers**: every live open position for the coin draws a
+solid entry line (green LONG / red SHORT) tagged with entry price + live uPnL, and the most
+recent **closed** trade whose exit falls inside the visible window draws a grey dashed entry
+line plus a win/loss-coloured dashed close line tagged with realized PnL ("lãi"/"lỗ"). Markers
+are looked up server-side from live positions + closed history; the lookup is non-fatal.
+
 ## Main Flow
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
 2. The feed builds a unique symbol list from `history.trades` (newest-closed first) and renders
@@ -59,8 +65,8 @@ non-persisted — it just fetches and displays the latest render.
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog`.
-- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines and renders the chart PNG.
-- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + S/R channels + RSI(14) pane.
+- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), and renders the chart PNG.
+- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + S/R channels + RSI(14) pane + position-marker lines.
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.
 - `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — supports `?tab=setup` deep-link.

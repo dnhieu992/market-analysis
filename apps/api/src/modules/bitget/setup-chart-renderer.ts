@@ -9,6 +9,24 @@ export type OhlcCandle = {
   close: number;
 };
 
+/** A position annotation drawn as horizontal price line(s) on the chart. */
+export type ChartMarker =
+  | {
+      kind: 'open';
+      holdSide: 'long' | 'short';
+      entryPrice: number;
+      /** Live unrealized PnL (USDT) for the label, if known. */
+      pnlUsd?: number;
+    }
+  | {
+      kind: 'closed';
+      holdSide: 'long' | 'short';
+      entryPrice: number;
+      closePrice: number;
+      /** Realized net PnL (USDT) — sign drives the win/loss colour + label. */
+      pnlUsd: number;
+    };
+
 export type SetupChartInput = {
   symbol: string;
   timeframe: string; // e.g. "M30"
@@ -17,6 +35,8 @@ export type SetupChartInput = {
   currentPrice: number;
   /** How many of the most recent candles to actually plot (default: all). */
   display?: number;
+  /** Open / closed position markers to overlay as price lines. */
+  markers?: ChartMarker[];
 };
 
 const CANVAS_WIDTH = 1200;
@@ -356,10 +376,96 @@ function rsiPlugin(rsi: number[]): Plugin {
   };
 }
 
+/** Adaptive price precision so both $64,000 and $0.0123 read cleanly in labels. */
+function fmtPrice(n: number): string {
+  const abs = Math.abs(n);
+  const d = abs >= 1000 ? 1 : abs >= 1 ? 3 : abs >= 0.01 ? 5 : 8;
+  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+const fmtPnl = (v: number) => `${v >= 0 ? '+' : '−'}$${Math.abs(v).toFixed(2)}`;
+
+/**
+ * Draws position markers as horizontal price lines:
+ *  • open   → one solid line at the entry (green LONG / red SHORT) + live uPnL;
+ *  • closed → a grey dashed entry line + a win/loss-coloured dashed close line
+ *             tagged "lãi"/"lỗ".
+ */
+function positionMarkerPlugin(markers: ChartMarker[]): Plugin {
+  return {
+    id: 'position-markers',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales, chartArea } = chart;
+      const yScale = scales['y'];
+      if (!yScale || markers.length === 0) return;
+
+      const left = chartArea.left;
+      const right = chartArea.right;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+      ctx.clip();
+
+      const drawLine = (price: number, color: string, dash: number[], label: string, above: boolean) => {
+        const y = yScale.getPixelForValue(price);
+        ctx.beginPath();
+        ctx.setLineDash(dash);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.font = 'bold 11px sans-serif';
+        const padX = 5;
+        const tw = ctx.measureText(label).width;
+        const boxH = 15;
+        const bx = left + 6;
+        const by = above ? y - boxH - 2 : y + 2;
+        ctx.fillStyle = color;
+        ctx.fillRect(bx, by, tw + padX * 2, boxH);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, bx + padX, by + boxH / 2);
+      };
+
+      for (const m of markers) {
+        const sideColor = m.holdSide === 'long' ? '#26a69a' : '#ef5350';
+        const side = m.holdSide.toUpperCase();
+        if (m.kind === 'open') {
+          const pnl = m.pnlUsd != null ? ` · ${fmtPnl(m.pnlUsd)}` : '';
+          drawLine(m.entryPrice, sideColor, [], `${side} vào ${fmtPrice(m.entryPrice)}${pnl}`, true);
+        } else {
+          drawLine(
+            m.entryPrice,
+            'rgba(100,116,139,0.95)',
+            [5, 4],
+            `${side} vào ${fmtPrice(m.entryPrice)}`,
+            m.closePrice >= m.entryPrice,
+          );
+          const win = m.pnlUsd >= 0;
+          drawLine(
+            m.closePrice,
+            win ? '#26a69a' : '#ef5350',
+            [5, 4],
+            `Đóng ${fmtPrice(m.closePrice)} · ${fmtPnl(m.pnlUsd)} (${win ? 'lãi' : 'lỗ'})`,
+            m.closePrice < m.entryPrice,
+          );
+        }
+      }
+      ctx.restore();
+    },
+  };
+}
+
 // ── Public entry ────────────────────────────────────────────────────────────
 
 export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> {
   const { candles: fullCandles, currentPrice, symbol, timeframe } = input;
+  const markers = input.markers ?? [];
 
   // Compute indicators over the full history so the slow EMAs are warm, then
   // keep only the most recent `display` bars for plotting (like a TradingView
@@ -462,6 +568,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       sonicDragonPlugin(ema34High, ema34Low),
       candlestickPlugin(candles),
       rsiPlugin(rsi),
+      positionMarkerPlugin(markers),
     ],
   };
 
@@ -471,6 +578,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
     ...candles.flatMap((c) => [c.high, c.low]),
     ...emaVals,
     ...srChannels.flatMap((c) => [c.hi, c.lo]),
+    ...markers.flatMap((m) => (m.kind === 'closed' ? [m.entryPrice, m.closePrice] : [m.entryPrice])),
     currentPrice,
   ];
   const minPrice = Math.min(...prices);
