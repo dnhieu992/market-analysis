@@ -10769,21 +10769,64 @@ a.metric-card--link:hover {
   overflow-y: auto;
   padding: 14px 18px;
 }
-.bgj-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.bgj-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .bgj-note {
   border: 1px solid rgba(23, 18, 13, 0.1);
   border-left: 3px solid rgba(31, 138, 91, 0.6);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 7px 10px;
   background: rgba(23, 18, 13, 0.015);
 }
 .bgj-note--editing { border-left-color: #d99125; background: rgba(217, 145, 37, 0.06); }
+
+/* System notes: compact one-line timeline row */
 .bgj-note--system {
-  border-left-color: rgba(23, 18, 13, 0.25);
-  border-left-style: dashed;
-  background: rgba(23, 18, 13, 0.04);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 0 2px 20px;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
 }
-.bgj-note--system .bgj-note-body { font-size: 12.5px; color: var(--muted, #6b625a); }
+/* Timeline circle dot */
+.bgj-note--system::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(23, 18, 13, 0.3);
+  background: var(--card-bg, #fbfaf8);
+  flex-shrink: 0;
+}
+/* Vertical connector line */
+.bgj-note--system::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 15px;
+  bottom: -6px;
+  width: 1px;
+  background: rgba(23, 18, 13, 0.12);
+}
+.bgj-note--system:last-child::after { display: none; }
+.bgj-note--system .bgj-note-head {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.bgj-note--system .bgj-note-body {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted, #6b625a);
+}
+.bgj-note--system .bgj-note-body p { margin: 0; }
+
 .bgj-status-chip {
   margin-left: 8px;
   padding: 1px 7px;
@@ -10797,12 +10840,12 @@ a.metric-card--link:hover {
 .bgj-note-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   font-size: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
-.bgj-note-time { font-weight: 700; }
+.bgj-note-time { font-weight: 700; white-space: nowrap; }
 .bgj-note-snap { color: var(--muted, #6b625a); }
 .bgj-note-actions { margin-left: auto; display: flex; gap: 8px; }
 .bgj-link {
