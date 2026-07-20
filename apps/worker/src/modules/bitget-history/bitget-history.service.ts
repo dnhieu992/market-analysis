@@ -58,7 +58,7 @@ type OpenPositionRaw = {
 // ROE = unrealizedPnl ÷ margin × 100 — the same number the /bitget table shows.
 // Only recorded once per step and never re-logged when ROE dips and recovers.
 const UP_MILESTONES = [50, 70, 100, 150, 200];
-const DOWN_MILESTONES = [-50, -100, -200, -300, -400, -500];
+const DOWN_MILESTONES = [-50, -80, -100, -200, -300, -400, -500];
 
 type OpenPositionEnvelope = { code: string; msg: string; data: OpenPositionRaw[] | null };
 

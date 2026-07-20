@@ -6,7 +6,7 @@ ratchets so a step is logged **once** and never re-logged when ROE dips and
 recovers:
 
 - **Up:** +50%, +70%, +100%, +150%, +200%
-- **Down:** −50%, −100%, −200%, −300%, −400%, −500%
+- **Down:** −50%, −80%, −100%, −200%, −300%, −400%, −500%
 
 "Only record forward, never backward": after +50% is logged the next up-log can
 only be +70%; if ROE hits +50%, falls to +40%, then returns to +50% nothing is
