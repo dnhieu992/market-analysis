@@ -10858,10 +10858,15 @@ a.metric-card--link:hover {
   font-size: 12.5px;
   color: var(--muted, #6b625a);
 }
-.bgj-note--system .bgj-note-body p { margin: 0; }
+/* renderMarkdown emits inline margins on <p>/<ul>/<li>, which beat plain class
+   rules — use !important so system-note rows stay tightly stacked. */
+.bgj-note--system .bgj-note-body p { margin: 0 !important; }
 .bgj-note--system .bgj-note-body ul,
-.bgj-note--system .bgj-note-body ol { margin: 0; padding-left: 1.1em; }
-.bgj-note--system .bgj-note-body li { margin: 0; line-height: 1.4; }
+.bgj-note--system .bgj-note-body ol { margin: 0 !important; padding-left: 1.1em; }
+.bgj-note--system .bgj-note-body li { margin: 0 !important; line-height: 1.3; }
+/* Single \n between the title and the bullet list renders as <br/>; collapse it
+   so the "Giá vào / Size" lines sit right under the heading. */
+.bgj-note--system .bgj-note-body br { display: none; }
 
 .bgj-status-chip {
   margin-left: 8px;
