@@ -11045,6 +11045,8 @@ a.metric-card--link:hover {
 .bg-table tbody tr:hover { background: rgba(23, 18, 13, 0.03); }
 .bg-num { text-align: right; font-variant-numeric: tabular-nums; }
 .bg-symbol { font-weight: 700; color: var(--foreground); }
+/* Symbol with its direction badge inline (LONG/SHORT next to the ticker). */
+.bg-symbol-side { display: inline-flex; align-items: center; gap: 8px; }
 
 /* Keep the Symbol column pinned while scrolling the table horizontally. Target
    the symbol cell explicitly rather than :first-child so any table whose first

@@ -380,7 +380,15 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const rsi = tail(rsiSeries(fullCloses, 14));
   const srChannels = computeSrChannels(candles);
 
-  const labels = candles.map((_, i) => i);
+  // Extra empty slots on the right so the most recent candle doesn't sit flush
+  // against the price axis (TradingView-style breathing room). Candle/EMA/RSI
+  // plugins only iterate real candle indices, so the pad stays blank; the
+  // current-price line (built from `labels`) still reaches the axis.
+  const RIGHT_PAD = 4;
+  const labels = [
+    ...candles.map((_, i) => i),
+    ...Array.from({ length: RIGHT_PAD }, (_, k) => candles.length + k),
+  ];
   const flatLine = (level: number) => labels.map(() => level);
 
   const config: ChartConfiguration = {

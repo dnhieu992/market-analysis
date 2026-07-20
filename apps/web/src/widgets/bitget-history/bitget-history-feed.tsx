@@ -166,7 +166,6 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                 <thead>
                   <tr>
                     <th>Symbol</th>
-                    <th>Hướng</th>
                     <th className="bg-num">Size</th>
                     <th className="bg-num">Giá vào</th>
                     <th className="bg-num">Giá đóng</th>
@@ -220,10 +219,12 @@ function TradeRow({ t, onJournal }: { t: BitgetClosedTrade; onJournal: () => voi
   const isLong = t.holdSide === 'long';
   return (
     <tr>
-      <td className="bg-symbol">{t.symbol}</td>
-      <td>
-        <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
-          {isLong ? 'LONG' : 'SHORT'}
+      <td className="bg-symbol">
+        <span className="bg-symbol-side">
+          {t.symbol}
+          <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
+            {isLong ? 'LONG' : 'SHORT'}
+          </span>
         </span>
       </td>
       <td className="bg-num">{fmtQty(t.size)}</td>

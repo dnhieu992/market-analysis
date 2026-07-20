@@ -241,7 +241,6 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
                   <thead>
                     <tr>
                       <th>Symbol</th>
-                      <th>Hướng</th>
                       <th className="bg-num">Đòn bẩy</th>
                       <th className="bg-num">Size</th>
                       <th className="bg-num">Giá vào</th>
@@ -343,10 +342,12 @@ function PositionRow({ p, showValue, closing, disabled, onClose, onJournal }: Po
 
   return (
     <tr>
-      <td className="bg-symbol">{p.symbol}</td>
-      <td>
-        <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
-          {isLong ? 'LONG' : 'SHORT'}
+      <td className="bg-symbol">
+        <span className="bg-symbol-side">
+          {p.symbol}
+          <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
+            {isLong ? 'LONG' : 'SHORT'}
+          </span>
         </span>
       </td>
       <td className="bg-num">
