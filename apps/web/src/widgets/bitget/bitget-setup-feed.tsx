@@ -69,6 +69,9 @@ type ConfigMap = Record<string, BitgetSetupConfig>;
 
 const cfgKey = (symbol: string, holdSide: HoldSide) => `${symbol}-${holdSide}`;
 
+/** Strip the USDT suffix — the QQE API keys its response by the bare coin symbol. */
+const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
+
 function fmtUsdPlain(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -332,7 +335,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                     <td className="bg-num bg-price">{fmtPrice(price)}</td>
                     <td className={`bg-num ${changeCls}`}>{fmtChange(change)}</td>
                     <td className="bg-qqe-cell">
-                      <QqeCell signals={qqe[symbol]} />
+                      <QqeCell signals={qqe[bareSymbol(symbol)]} />
                     </td>
                     {sides.map((holdSide) => {
                       const key = cfgKey(symbol, holdSide);
