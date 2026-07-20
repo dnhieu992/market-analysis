@@ -19,14 +19,15 @@ type TickerMessage = {
     instId?: string;
     markPrice?: string;
     lastPr?: string;
-    open24h?: string;
+    openUtc?: string;
+    changeUtc24h?: string;
     change24h?: string;
   }>;
 };
 
 /**
  * @returns `prices` — latest mark/last price per symbol.
- *          `changes` — 24h price change as a ratio (0.0123 = +1.23%) per symbol.
+ *          `changes` — price change since 00:00 UTC as a ratio (0.0123 = +1.23%) per symbol.
  *          `live` — whether the WS is currently connected.
  */
 export function useBitgetLivePrices(symbols: string[]): {
@@ -100,11 +101,12 @@ export function useBitgetLivePrices(symbols: string[]): {
           let changed = false;
           const next = { ...prev };
           for (const d of msg.data ?? []) {
-            // Prefer Bitget's own 24h ratio; fall back to (last - open) / open.
-            let ratio = Number(d.change24h);
+            // Change since 00:00 UTC. Prefer Bitget's own UTC ratio; fall back to
+            // (last - openUtc) / openUtc computed from the UTC-0 open price.
+            let ratio = Number(d.changeUtc24h);
             if (!Number.isFinite(ratio)) {
               const last = Number(d.lastPr ?? d.markPrice);
-              const open = Number(d.open24h);
+              const open = Number(d.openUtc);
               ratio = Number.isFinite(last) && Number.isFinite(open) && open > 0
                 ? (last - open) / open
                 : NaN;

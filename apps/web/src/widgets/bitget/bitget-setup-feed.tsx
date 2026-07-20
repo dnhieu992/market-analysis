@@ -202,7 +202,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
               <tr>
                 <th>Symbol</th>
                 <th className="bg-num">Giá</th>
-                <th className="bg-num">24h</th>
+                <th className="bg-num" title="Thay đổi so với mốc 00:00 UTC">
+                  Hôm nay
+                </th>
                 <th>Hướng</th>
                 <th className="bg-num">Đòn bẩy</th>
                 <th>Ký quỹ</th>
