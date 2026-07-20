@@ -38,10 +38,10 @@ export class BitgetSetupChartService {
       high: parseFloat(k[2]),
       low: parseFloat(k[3]),
       close: parseFloat(k[4]),
+      volume: parseFloat(k[5]),
     }));
 
-    const display = candles.slice(Math.max(0, candles.length - DISPLAY_CANDLES));
-    const markers = await this.buildMarkers(bare, display[0]!.time);
+    const markers = await this.buildMarkers(bare);
 
     return renderSetupChart({
       symbol: pair,
@@ -55,11 +55,12 @@ export class BitgetSetupChartService {
 
   /**
    * Entry/exit annotations for this coin: every live open position (entry line +
-   * uPnL) plus the most recent closed trade whose exit falls inside the visible
-   * window (entry + close lines with realized PnL). All lookups are non-fatal —
-   * the chart still renders if Bitget/DB are unavailable.
+   * uPnL) plus the most recent closed trade that closed within the last 30
+   * minutes (entry + close lines with realized PnL) — once a trade has been shut
+   * longer than that the markers drop off. All lookups are non-fatal — the chart
+   * still renders if Bitget/DB are unavailable.
    */
-  private async buildMarkers(bare: string, windowStart: number): Promise<ChartMarker[]> {
+  private async buildMarkers(bare: string): Promise<ChartMarker[]> {
     const markers: ChartMarker[] = [];
 
     const positions = await this.bitget.getOpenPositions().catch(() => null);
@@ -74,12 +75,13 @@ export class BitgetSetupChartService {
     }
     const openSides = new Set(markers.map((m) => m.holdSide));
 
+    const recentlyClosedAfter = Date.now() - 30 * 60 * 1000;
     const history = await this.bitget.getClosedHistory(50, `${bare}USDT`).catch(() => null);
     const recentClosed = (history?.trades ?? [])
       .filter(
         (t) =>
           bareSymbol(t.symbol) === bare &&
-          new Date(t.closedAt).getTime() >= windowStart &&
+          new Date(t.closedAt).getTime() >= recentlyClosedAfter &&
           // Skip if that side is already shown as an open position.
           !openSides.has(t.holdSide),
       )

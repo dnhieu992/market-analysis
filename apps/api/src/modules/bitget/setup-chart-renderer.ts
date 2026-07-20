@@ -7,6 +7,7 @@ export type OhlcCandle = {
   high: number;
   low: number;
   close: number;
+  volume?: number;
 };
 
 /** A position annotation drawn as horizontal price line(s) on the chart. */
@@ -40,9 +41,15 @@ export type SetupChartInput = {
 };
 
 const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 980;
-// Height reserved at the bottom for the RSI oscillator pane.
-const RSI_PANE_HEIGHT = 180;
+// Two stacked bottom panes: RSI over Volume, each with a gap above it.
+const RSI_PANE_HEIGHT = 150;
+const VOL_PANE_HEIGHT = 120;
+const PANE_GAP_TOP = 26; // price → RSI
+const PANE_GAP_MID = 24; // RSI → Volume
+const PANE_MARGIN_BOTTOM = 24;
+const BOTTOM_RESERVED =
+  PANE_GAP_TOP + RSI_PANE_HEIGHT + PANE_GAP_MID + VOL_PANE_HEIGHT + PANE_MARGIN_BOTTOM;
+const CANVAS_HEIGHT = 800 + BOTTOM_RESERVED;
 
 // ── Indicator math (all TradingView defaults) ───────────────────────────────
 
@@ -62,6 +69,18 @@ function emaSeries(values: number[], period: number): number[] {
       ema = values[i]! * k + ema * (1 - k);
     }
     out.push(ema);
+  }
+  return out;
+}
+
+/** Simple moving average aligned with the input (NaN until the period warms up). */
+function smaSeries(values: number[], period: number): number[] {
+  const out: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i]!;
+    if (i >= period) sum -= values[i - period]!;
+    out.push(i >= period - 1 ? sum / period : NaN);
   }
   return out;
 }
@@ -312,8 +331,8 @@ function rsiPlugin(rsi: number[]): Plugin {
 
       const left = xScale.left;
       const right = xScale.left + xScale.width;
-      const bandTop = chartArea.bottom + 26;
-      const bandBottom = chart.height - 28;
+      const bandTop = chartArea.bottom + PANE_GAP_TOP;
+      const bandBottom = bandTop + RSI_PANE_HEIGHT;
       const bandH = bandBottom - bandTop;
       const yFor = (v: number) => bandBottom - (Math.max(0, Math.min(100, v)) / 100) * bandH;
 
@@ -371,6 +390,81 @@ function rsiPlugin(rsi: number[]): Plugin {
       ctx.font = 'bold 11px sans-serif';
       ctx.fillStyle = '#7e57c2';
       ctx.fillText('RSI (14)', left + 6, bandTop + 14);
+      ctx.restore();
+    },
+  };
+}
+
+/**
+ * FxCanli Volume (Hacim) pane below the RSI: per-bar volume histogram coloured
+ * by candle direction (green up / red down) plus a 20-period volume MA line.
+ */
+function volumePlugin(candles: OhlcCandle[], volMa: number[]): Plugin {
+  return {
+    id: 'volume',
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      const xScale = scales['x'];
+      if (!xScale) return;
+
+      const left = xScale.left;
+      const right = xScale.left + xScale.width;
+      const paneTop = chartArea.bottom + PANE_GAP_TOP + RSI_PANE_HEIGHT + PANE_GAP_MID;
+      const paneBottom = paneTop + VOL_PANE_HEIGHT;
+      const paneH = paneBottom - paneTop;
+
+      const vols = candles.map((c) => c.volume ?? 0);
+      const maxVol = Math.max(1, ...vols);
+      const yFor = (v: number) => paneBottom - (Math.max(0, v) / maxVol) * paneH;
+      const barWidth = Math.max(2, (xScale.width / candles.length) * 0.6);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, paneTop, right - left, paneH);
+      ctx.clip();
+
+      ctx.strokeStyle = 'rgba(15,23,42,0.15)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left, paneTop, right - left, paneH);
+
+      // Volume bars.
+      candles.forEach((c, i) => {
+        const up = c.close >= c.open;
+        ctx.fillStyle = up ? 'rgba(38,166,154,0.55)' : 'rgba(239,83,80,0.55)';
+        const x = xScale.getPixelForValue(i);
+        const y = yFor(vols[i]!);
+        ctx.fillRect(x - barWidth / 2, y, barWidth, paneBottom - y);
+      });
+
+      // Volume MA(20) line.
+      ctx.beginPath();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.6;
+      let started = false;
+      for (let i = 0; i < volMa.length; i++) {
+        const v = volMa[i];
+        if (v == null || Number.isNaN(v)) {
+          started = false;
+          continue;
+        }
+        const x = xScale.getPixelForValue(i);
+        const y = yFor(v);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Title (outside the clip).
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = '#334155';
+      ctx.fillText('FxCanli Volume (Hacim)', left + 6, paneTop + 14);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('MA20', left + 160, paneTop + 14);
       ctx.restore();
     },
   };
@@ -484,6 +578,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const ema34Low = tail(emaSeries(fullLows, 34));
   const ema89 = tail(emaSeries(fullCloses, 89));
   const rsi = tail(rsiSeries(fullCloses, 14));
+  const volMa = tail(smaSeries(fullCandles.map((c) => c.volume ?? 0), 20));
   const srChannels = computeSrChannels(candles);
 
   // Extra empty slots on the right so the most recent candle doesn't sit flush
@@ -536,7 +631,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
     options: {
       responsive: false,
       animation: false,
-      layout: { padding: { top: 40, right: 20, bottom: RSI_PANE_HEIGHT + 30, left: 10 } },
+      layout: { padding: { top: 40, right: 20, bottom: BOTTOM_RESERVED, left: 10 } },
       scales: {
         x: { display: false },
         y: {
@@ -568,6 +663,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       sonicDragonPlugin(ema34High, ema34Low),
       candlestickPlugin(candles),
       rsiPlugin(rsi),
+      volumePlugin(candles, volMa),
       positionMarkerPlugin(markers),
     ],
   };
