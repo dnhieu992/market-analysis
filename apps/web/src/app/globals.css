@@ -11057,6 +11057,24 @@ a.metric-card--link:hover {
 /* Symbol with its direction badge inline (LONG/SHORT next to the ticker). */
 .bg-symbol-side { display: inline-flex; align-items: center; gap: 8px; }
 
+/* Per-row timeframe buttons (history Chart column) → open the trade review chart. */
+.bg-tf-btns { display: inline-flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+.bg-tf-btn {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-tf-btn:hover { background: rgba(23, 18, 13, 0.05); }
+.bg-tf-btn--active { background: var(--accent, #1f8a5b); color: #fff; border-color: transparent; }
+.bg-tf-btns--dialog { margin-left: auto; }
+.bg-chart-save-btn { margin-left: 8px; }
+
 /* Keep the Symbol column pinned while scrolling the table horizontally. Target
    the symbol cell explicitly rather than :first-child so any table whose first
    column isn't a symbol still scrolls normally. */

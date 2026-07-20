@@ -772,6 +772,24 @@ model BitgetSetupConfig {
   @@map("bitget_setup_configs")
 }
 
+// Saved chart snapshots for closed trades — the trader hits "Save" on the trade
+// chart (from the History tab) to archive the annotated PNG (entry/close markers
+// + indicators) on R2 for later study. One row per (tradeKey, timeframe).
+model BitgetTradeChart {
+  id        String   @id @default(cuid())
+  tradeKey  String   @db.VarChar(90) // links to BitgetTrade.tradeKey
+  symbol    String   @db.VarChar(30)
+  timeframe String   @db.VarChar(8) // M30 | 1h | 4h | 1d
+  url       String   @db.Text // public R2 URL of the PNG
+  objectKey String   @db.VarChar(255) // R2 object key (for replace/delete)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tradeKey, timeframe])
+  @@index([symbol])
+  @@map("bitget_trade_charts")
+}
+
 // Watchlist for the /ema-bounce page — the EMA-stack oversold StochRSI bounce
 // scanner. The worker auto-scans this list every 4h and persists matched signals.
 model EmaStochWatchCoin {

@@ -1,12 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
-import { createApiClient } from '@web/shared/api/client';
+import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-positions/bitget-journal-drawer';
 import type { BitgetClosedTrade, BitgetHistoryResponse } from '@web/shared/api/types';
 
 const REFRESH_MS = 60_000;
+
+const CHART_TIMEFRAMES = [
+  { label: 'M30', tf: 'M30' },
+  { label: 'H1', tf: '1h' },
+  { label: 'H4', tf: '4h' },
+  { label: 'D1', tf: '1d' },
+] as const;
+
+type ChartTarget = { trade: BitgetClosedTrade; tf: string };
 
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -71,6 +81,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [journalTarget, setJournalTarget] = useState<JournalTarget | null>(null);
+  const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const clientRef = useRef(createApiClient());
 
   const refresh = useCallback(async () => {
@@ -176,6 +187,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                     <th className="bg-num">PnL ròng</th>
                     <th className="bg-num">Mở</th>
                     <th className="bg-num">Đóng</th>
+                    <th className="bg-num">Chart</th>
                     <th className="bg-num">Nhật ký</th>
                   </tr>
                 </thead>
@@ -184,6 +196,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                     <TradeRow
                       key={t.positionId || t.tradeKey}
                       t={t}
+                      onChart={(tf) => setChartTarget({ trade: t, tf })}
                       onJournal={() =>
                         setJournalTarget({
                           tradeKey: t.tradeKey,
@@ -213,11 +226,27 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
           onClose={() => setJournalTarget(null)}
         />
       )}
+
+      {chartTarget && (
+        <TradeChartDialog
+          target={chartTarget}
+          onChangeTf={(tf) => setChartTarget((prev) => (prev ? { ...prev, tf } : prev))}
+          onClose={() => setChartTarget(null)}
+        />
+      )}
     </div>
   );
 }
 
-function TradeRow({ t, onJournal }: { t: BitgetClosedTrade; onJournal: () => void }) {
+function TradeRow({
+  t,
+  onChart,
+  onJournal,
+}: {
+  t: BitgetClosedTrade;
+  onChart: (tf: string) => void;
+  onJournal: () => void;
+}) {
   const isLong = t.holdSide === 'long';
   return (
     <tr>
@@ -241,10 +270,181 @@ function TradeRow({ t, onJournal }: { t: BitgetClosedTrade; onJournal: () => voi
       <td className="bg-num bg-time">{fmtDateTime(t.openedAt)}</td>
       <td className="bg-num bg-time">{fmtDateTime(t.closedAt)}</td>
       <td className="bg-num">
+        <div className="bg-tf-btns">
+          {CHART_TIMEFRAMES.map(({ label, tf }) => (
+            <button
+              key={tf}
+              type="button"
+              className="bg-tf-btn"
+              onClick={() => onChart(tf)}
+              title={`Xem chart ${label} quanh lúc vào/đóng lệnh`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </td>
+      <td className="bg-num">
         <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký lệnh">
           📝
         </button>
       </td>
     </tr>
+  );
+}
+
+/** Trade-label for the chart URL: timeframe pretty name. */
+function tfLabel(tf: string): string {
+  return CHART_TIMEFRAMES.find((c) => c.tf === tf)?.label ?? tf;
+}
+
+/** Build the review-chart PNG URL from the trade + timeframe. */
+function tradeChartUrl(t: BitgetClosedTrade, tf: string): string {
+  const params = new URLSearchParams({
+    tradeKey: t.tradeKey,
+    symbol: t.symbol,
+    timeframe: tf,
+    holdSide: t.holdSide,
+    entryPrice: String(t.openAvgPrice),
+    closePrice: String(t.closeAvgPrice),
+    pnlUsd: String(t.netProfit),
+    openedAt: String(new Date(t.openedAt).getTime()),
+    closedAt: String(new Date(t.closedAt).getTime()),
+  });
+  return `${resolveApiBaseUrl()}/bitget/trade-chart?${params.toString()}`;
+}
+
+/**
+ * Fullscreen review chart for a closed trade (windowed on its open/close window,
+ * with entry/close markers). A "Lưu" button uploads the PNG to R2 and stores the
+ * DB link so the trade can be referenced as study data later.
+ */
+function TradeChartDialog({
+  target,
+  onChangeTf,
+  onClose,
+}: {
+  target: ChartTarget;
+  onChangeTf: (tf: string) => void;
+  onClose: () => void;
+}) {
+  const { trade, tf } = target;
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedUrl, setSavedUrl] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const clientRef = useRef(createApiClient());
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setImgSrc(null);
+    setFailed(false);
+    setSavedUrl(null);
+    setSaveErr(null);
+    const url = `${tradeChartUrl(trade, tf)}&_t=${Date.now()}`;
+    fetch(url, { credentials: 'include', cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImgSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [trade, tf]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  async function save() {
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      const rec = await clientRef.current.saveBitgetTradeChart({
+        tradeKey: trade.tradeKey,
+        symbol: trade.symbol,
+        timeframe: tf,
+        holdSide: trade.holdSide,
+        entryPrice: trade.openAvgPrice,
+        closePrice: trade.closeAvgPrice,
+        pnlUsd: trade.netProfit,
+        openedAt: new Date(trade.openedAt).getTime(),
+        closedAt: new Date(trade.closedAt).getTime(),
+      });
+      setSavedUrl(rec.url);
+    } catch (err) {
+      setSaveErr(err instanceof Error ? err.message : 'Lưu chart thất bại.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            {trade.symbol} <span className="eb-tf">{tfLabel(tf)}</span>
+            <span className="eb-chart-note"> · review lệnh đã đóng</span>
+          </span>
+          <div className="bg-tf-btns bg-tf-btns--dialog">
+            {CHART_TIMEFRAMES.map(({ label, tf: t }) => (
+              <button
+                key={t}
+                type="button"
+                className={`bg-tf-btn ${t === tf ? 'bg-tf-btn--active' : ''}`}
+                onClick={() => onChangeTf(t)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="bg-open-btn bg-chart-save-btn"
+            onClick={save}
+            disabled={saving || !imgSrc}
+            title="Upload chart lên R2 và lưu link vào DB để tham chiếu sau"
+          >
+            {saving ? 'Đang lưu…' : savedUrl ? '✓ Đã lưu' : '💾 Lưu'}
+          </button>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        {saveErr && <div className="bg-alert bg-alert--error">{saveErr}</div>}
+        {savedUrl && (
+          <div className="bg-alert bg-alert--ok">
+            Đã lưu chart ·{' '}
+            <a href={savedUrl} target="_blank" rel="noreferrer">
+              mở link R2
+            </a>
+          </div>
+        )}
+        <div className="dialog-body eb-chart-body">
+          {failed ? (
+            <div className="eb-chart-status">Không tải được chart. Thử lại sau.</div>
+          ) : imgSrc ? (
+            <img className="eb-chart-img" src={imgSrc} alt={`${trade.symbol} ${tfLabel(tf)} chart`} />
+          ) : (
+            <div className="eb-chart-status">Đang tải chart…</div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

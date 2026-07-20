@@ -624,6 +624,17 @@ export type BitgetClosedTrade = {
   closedAt: string;
 };
 
+export type BitgetTradeChart = {
+  id: string;
+  tradeKey: string;
+  symbol: string;
+  timeframe: string;
+  url: string;
+  objectKey: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type BitgetClosedSummary = {
   trades: number;
   wins: number;

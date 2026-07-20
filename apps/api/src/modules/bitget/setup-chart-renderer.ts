@@ -38,6 +38,10 @@ export type SetupChartInput = {
   display?: number;
   /** Open / closed position markers to overlay as price lines. */
   markers?: ChartMarker[];
+  /** For a reviewed closed trade: the candle indices (into the displayed slice)
+   *  where the position opened and closed — draws vertical Vào/Đóng lines and a
+   *  shaded holding band. */
+  tradeSpan?: { openIndex: number; closeIndex: number; win: boolean };
 };
 
 const CANVAS_WIDTH = 1200;
@@ -555,6 +559,58 @@ function positionMarkerPlugin(markers: ChartMarker[]): Plugin {
   };
 }
 
+/**
+ * For a reviewed closed trade: a faint shaded band over the holding period plus
+ * vertical "Vào"/"Đóng" lines at the open and close candles.
+ */
+function tradeSpanPlugin(span: NonNullable<SetupChartInput['tradeSpan']>): Plugin {
+  return {
+    id: 'trade-span',
+    beforeDatasetsDraw(chart) {
+      const { ctx, scales, chartArea } = chart;
+      const xScale = scales['x'];
+      if (!xScale) return;
+      const top = chartArea.top;
+      const bottom = chartArea.bottom;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(chartArea.left, top, chartArea.right - chartArea.left, bottom - top);
+      ctx.clip();
+
+      const xOpen = xScale.getPixelForValue(span.openIndex);
+      const xClose = xScale.getPixelForValue(span.closeIndex);
+      const closeColor = span.win ? '#26a69a' : '#ef5350';
+
+      // Holding-period band.
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.06)';
+      ctx.fillRect(xOpen, top, Math.max(1, xClose - xOpen), bottom - top);
+
+      const vline = (x: number, color: string, label: string) => {
+        ctx.beginPath();
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.25;
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = 'bold 10px sans-serif';
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = color;
+        ctx.fillRect(x - tw / 2 - 4, top + 2, tw + 8, 14);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, x, top + 9);
+      };
+      vline(xOpen, '#2563eb', 'Vào');
+      vline(xClose, closeColor, 'Đóng');
+      ctx.restore();
+    },
+  };
+}
+
 // ── Public entry ────────────────────────────────────────────────────────────
 
 export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> {
@@ -664,6 +720,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       candlestickPlugin(candles),
       rsiPlugin(rsi),
       volumePlugin(candles, volMa),
+      ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),
       positionMarkerPlugin(markers),
     ],
   };

@@ -22,6 +22,8 @@ import { OpenPositionDto } from './dto/open-position.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
+import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
+import type { TradeChartParams } from './bitget-setup-chart.service';
 
 @ApiTags('bitget')
 @ApiCookieAuth('market_analysis_session')
@@ -85,6 +87,46 @@ export class BitgetController {
   ): Promise<StreamableFile> {
     const buffer = await this.setupChart.generateChart(symbol, timeframe ?? 'M30');
     return new StreamableFile(buffer);
+  }
+
+  @Get('trade-chart')
+  @Public() // uses only public Binance market data + trade prices passed in the query
+  @Header('Content-Type', 'image/png')
+  @Header('Cache-Control', 'private, max-age=120')
+  @ApiOperation({
+    summary: 'Render a review PNG chart for one closed trade, windowed on its open/close window',
+  })
+  async tradeChartPng(@Query() q: Record<string, string>): Promise<StreamableFile> {
+    const buffer = await this.setupChart.generateTradeChart(this.parseTradeChartQuery(q));
+    return new StreamableFile(buffer);
+  }
+
+  @Post('trade-chart/save')
+  @ApiOperation({ summary: 'Render the trade chart, upload it to R2, and store the DB link' })
+  saveTradeChart(@Body() dto: SaveTradeChartDto) {
+    return this.setupChart.saveTradeChart({ ...dto, holdSide: dto.holdSide });
+  }
+
+  @Get('trade-chart/saved')
+  @ApiOperation({ summary: 'List saved chart snapshots for a trade (by tradeKey)' })
+  listSavedTradeCharts(@Query('tradeKey') tradeKey: string) {
+    return this.setupChart.listSavedCharts(tradeKey?.trim() ?? '');
+  }
+
+  /** Coerce the trade-chart image query string into typed params. */
+  private parseTradeChartQuery(q: Record<string, string>): TradeChartParams {
+    const num = (v: string | undefined) => Number(v);
+    return {
+      tradeKey: q.tradeKey ?? '',
+      symbol: q.symbol ?? '',
+      timeframe: q.timeframe ?? 'M30',
+      holdSide: q.holdSide === 'short' ? 'short' : 'long',
+      entryPrice: num(q.entryPrice),
+      closePrice: num(q.closePrice),
+      pnlUsd: num(q.pnlUsd),
+      openedAt: num(q.openedAt),
+      closedAt: num(q.closedAt),
+    };
   }
 
   @Get('journal')
