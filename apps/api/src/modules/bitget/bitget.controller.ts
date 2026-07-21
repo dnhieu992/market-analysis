@@ -125,6 +125,12 @@ export class BitgetController {
     return this.setupChart.listSavedCharts(tradeKey?.trim() ?? '');
   }
 
+  @Get('trade-chart/by-symbol')
+  @ApiOperation({ summary: 'List all saved chart snapshots for one coin (by symbol)' })
+  listSavedChartsBySymbol(@Query('symbol') symbol: string) {
+    return this.setupChart.listSavedChartsBySymbol(symbol?.trim() ?? '');
+  }
+
   /** Coerce the trade-chart image query string into typed params. */
   private parseTradeChartQuery(q: Record<string, string>): TradeChartParams {
     const num = (v: string | undefined) => Number(v);

@@ -23,6 +23,14 @@ export function createBitgetTradeChartRepository(client = prisma) {
       });
     },
 
+    /** All saved charts for one coin (any trade / timeframe), newest first. */
+    findBySymbol(symbol: string) {
+      return client.bitgetTradeChart.findMany({
+        where: { symbol },
+        orderBy: { createdAt: 'desc' },
+      });
+    },
+
     /** Insert or replace the saved chart for one (tradeKey, timeframe). */
     upsert(input: BitgetTradeChartInput) {
       const { tradeKey, timeframe, symbol, url, objectKey } = input;

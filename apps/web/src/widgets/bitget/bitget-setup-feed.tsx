@@ -9,6 +9,7 @@ import type {
   BitgetPositionsResponse,
   BitgetSetupConfig,
   BitgetQqeTfSignal,
+  BitgetTradeChart,
 } from '@web/shared/api/types';
 
 import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices';
@@ -113,6 +114,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [configs, setConfigs] = useState<ConfigMap>({});
   const [editing, setEditing] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
+  const [refSymbol, setRefSymbol] = useState<string | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -298,6 +300,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                 </th>
                 <th>Long</th>
                 <th>Short</th>
+                <th className="bg-num" title="Xem lại các chart đã lưu cho coin này">
+                  Tham chiếu
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -387,6 +392,16 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                         </td>
                       );
                     })}
+                    <td className="bg-num">
+                      <button
+                        type="button"
+                        className="bg-ref-btn"
+                        onClick={() => setRefSymbol(symbol)}
+                        title="Xem lại các chart đã lưu cho coin này"
+                      >
+                        🖼 Reference
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -410,6 +425,10 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
 
       {chartTarget && (
         <SetupChartDialog symbol={chartTarget.symbol} tf={chartTarget.tf} onClose={() => setChartTarget(null)} />
+      )}
+
+      {refSymbol && (
+        <ChartGalleryDialog symbol={refSymbol} onClose={() => setRefSymbol(null)} />
       )}
     </div>
   );
@@ -478,6 +497,130 @@ function SetupChartDialog({ symbol, tf, onClose }: { symbol: string; tf: string;
             <img className="eb-chart-img" src={imgSrc} alt={`${symbol} ${tfLabel} chart`} />
           ) : (
             <div className="eb-chart-status">Đang tải chart…</div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Friendly timeframe label (M30 / H1 / H4 / D1) for a stored chart. */
+const tfLabelOf = (tf: string) =>
+  tf === '1h' ? 'H1' : tf === '4h' ? 'H4' : tf === '1d' ? 'D1' : tf.toUpperCase();
+
+/** Saved-at timestamp formatted for the gallery caption. */
+function fmtSavedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Reference gallery for a coin's saved charts — laid out like a product image
+ * viewer: a big main image on the right with a rail of clickable thumbnails on
+ * the left. The stored PNGs live on public R2, so they load straight from `url`.
+ */
+function ChartGalleryDialog({ symbol, onClose }: { symbol: string; onClose: () => void }) {
+  const clientRef = useRef(createApiClient());
+  const [charts, setCharts] = useState<BitgetTradeChart[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setCharts(null);
+    setFailed(false);
+    clientRef.current
+      .fetchBitgetSavedChartsBySymbol(symbol)
+      .then((list) => {
+        if (!alive) return;
+        setCharts(list);
+        setActiveId(list[0]?.id ?? null);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [symbol]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const active = charts?.find((c) => c.id === activeId) ?? charts?.[0] ?? null;
+  const count = charts?.length ?? 0;
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            {symbol} <span className="eb-chart-note">· Chart tham chiếu đã lưu</span>
+            {count > 0 && <span className="bg-gallery-count">{count} ảnh</span>}
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body bg-gallery-body">
+          {failed ? (
+            <div className="eb-chart-status">Không tải được danh sách chart. Thử lại sau.</div>
+          ) : charts == null ? (
+            <div className="eb-chart-status">Đang tải…</div>
+          ) : charts.length === 0 ? (
+            <div className="eb-chart-status">
+              Chưa có chart nào được lưu cho {symbol}. Vào tab “Lịch sử &amp; PnL”, mở chart một
+              lệnh rồi bấm “Lưu chart” để lưu tham chiếu.
+            </div>
+          ) : (
+            <div className="bg-gallery">
+              <div className="bg-gallery-rail" role="tablist" aria-label="Danh sách chart">
+                {charts.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={c.id === active?.id}
+                    className={`bg-gallery-thumb ${c.id === active?.id ? 'bg-gallery-thumb--active' : ''}`}
+                    onClick={() => setActiveId(c.id)}
+                    title={`${tfLabelOf(c.timeframe)} · ${fmtSavedAt(c.createdAt)}`}
+                  >
+                    <img src={c.url} alt={`${symbol} ${tfLabelOf(c.timeframe)}`} loading="lazy" />
+                    <span className="bg-gallery-thumb-tf">{tfLabelOf(c.timeframe)}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="bg-gallery-main">
+                {active && (
+                  <>
+                    <a
+                      className="bg-gallery-main-img"
+                      href={active.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Mở ảnh gốc trong tab mới"
+                    >
+                      <img src={active.url} alt={`${symbol} ${tfLabelOf(active.timeframe)} chart`} />
+                    </a>
+                    <div className="bg-gallery-caption">
+                      <span className="bg-gallery-caption-tf">{tfLabelOf(active.timeframe)}</span>
+                      <span className="bg-gallery-caption-date">Lưu lúc {fmtSavedAt(active.createdAt)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -688,6 +688,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const ema34High = tail(emaSeries(fullHighs, 34));
   const ema34Low = tail(emaSeries(fullLows, 34));
   const ema89 = tail(emaSeries(fullCloses, 89));
+  const ema200 = tail(emaSeries(fullCloses, 200));
   const rsi = tail(rsiSeries(fullCloses, 14));
   const volMa = tail(smaSeries(fullCandles.map((c) => c.volume ?? 0), 20));
   // colinmck "QQE Signals" (14,5,4.238) — Long/Short crosses computed on full
@@ -732,6 +733,15 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
           tension: 0.1,
         },
         {
+          label: 'EMA200',
+          data: ema200,
+          borderColor: '#ff6d00',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.1,
+        },
+        {
           label: 'Giá hiện tại',
           data: flatLine(currentPrice),
           borderColor: 'rgba(30, 41, 59, 0.55)',
@@ -766,7 +776,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
         },
         title: {
           display: true,
-          text: `${symbol} ${timeframe} · SonicR + S/R Channel + RSI + QQE`,
+          text: `${symbol} ${timeframe} · SonicR + EMA200 + S/R Channel + RSI + QQE`,
           color: '#0f172a',
           font: { size: 14, weight: 'bold' },
         },
@@ -785,7 +795,9 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   };
 
   // Anchor the y-axis to the visible price range (candles + EMAs + S/R zones).
-  const emaVals = [...ema34High, ...ema34Low, ...ema89].filter((v) => Number.isFinite(v));
+  const emaVals = [...ema34High, ...ema34Low, ...ema89, ...ema200].filter((v) =>
+    Number.isFinite(v),
+  );
   const prices = [
     ...candles.flatMap((c) => [c.high, c.low]),
     ...emaVals,

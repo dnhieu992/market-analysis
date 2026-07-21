@@ -1211,6 +1211,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
+    async fetchBitgetSavedChartsBySymbol(symbol: string): Promise<BitgetTradeChart[]> {
+      return fetchJson<BitgetTradeChart[]>(
+        fetchImpl,
+        `${baseUrl}/bitget/trade-chart/by-symbol?symbol=${encodeURIComponent(symbol)}`,
+        withDefaults({}),
+      );
+    },
+
     async fetchBitgetHistory(params: { limit?: number; symbol?: string } = {}): Promise<BitgetHistoryResponse> {
       const qs = new URLSearchParams();
       if (params.limit) qs.set('limit', String(params.limit));

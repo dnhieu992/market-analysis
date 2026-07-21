@@ -29,11 +29,13 @@ export type QqeTfSignal = {
 
 export type QqeSymbolSignals = { symbol: string; signals: Record<string, QqeTfSignal | null> };
 
+// `limit` must cover `display` + 200 bars so the EMA200 line is warm across the
+// whole displayed window (EMA200 needs 200 prior candles before its first value).
 const TF_CONFIG: Record<string, { limit: number; display: number }> = {
   'M30': { limit: 500, display: 200 },
   '1h':  { limit: 400, display: 150 },
-  '4h':  { limit: 300, display: 120 },
-  '1d':  { limit: 200, display: 90  },
+  '4h':  { limit: 340, display: 120 },
+  '1d':  { limit: 300, display: 90  },
 };
 
 /** Candle interval (ms) per supported timeframe — used to window a closed trade. */
@@ -57,8 +59,8 @@ export type TradeChartParams = {
   closedAt: number; // ms
 };
 
-// Context bars shown before the entry (also warms up EMA89) and after the exit.
-const TRADE_LOOKBACK_BARS = 140;
+// Context bars shown before the entry (also warms up EMA200) and after the exit.
+const TRADE_LOOKBACK_BARS = 210;
 const TRADE_AHEAD_BARS = 30;
 
 /** Renders the on-demand Setup-tab chart (SonicR + S/R channels + RSI). */
@@ -209,6 +211,13 @@ export class BitgetSetupChartService {
   /** All saved chart snapshots for a trade (any timeframe). */
   listSavedCharts(tradeKey: string) {
     return this.chartRepo.findByTradeKey(tradeKey);
+  }
+
+  /** All saved chart snapshots for one coin (any trade / timeframe). */
+  listSavedChartsBySymbol(symbol: string) {
+    const bare = bareSymbol(symbol);
+    if (!bare) return [];
+    return this.chartRepo.findBySymbol(`${bare}USDT`);
   }
 
   /**

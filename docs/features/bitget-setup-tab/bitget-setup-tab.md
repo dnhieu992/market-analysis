@@ -25,7 +25,18 @@ solid entry line (green LONG / red SHORT) tagged with entry price + live uPnL, a
 recent **closed** trade that closed **within the last 30 minutes** draws a grey dashed entry
 line plus a win/loss-coloured dashed close line tagged with realized PnL ("lãi"/"lỗ") — once a
 trade has been shut longer than 30 minutes its markers drop off. Markers are looked up
-server-side from live positions + closed history; the lookup is non-fatal.
+server-side from live positions + closed history; the lookup is non-fatal. An **EMA200** (orange)
+trend line is drawn alongside the SonicR EMAs on every chart (all tabs); the candle-fetch counts
+are sized to keep it warm across the displayed window (`limit ≥ display + 200`, and the trade
+review chart's lookback is 210 bars).
+
+Each coin row also carries a **🖼 Reference** button at the end of the row. Clicking it opens a
+fullscreen **chart gallery** for that coin, laid out like an e-commerce product-image viewer: a
+rail of clickable thumbnails on the left (one per saved snapshot, tagged with its timeframe) and
+a large main image on the right with a caption (timeframe + saved-at time). The images are the
+**saved** trade-chart PNGs on public R2 (saved from the History tab's 💾 Lưu action), listed by
+coin via `GET /bitget/trade-chart/by-symbol?symbol=…`. Clicking the main image opens the original
+PNG in a new tab.
 
 ## Main Flow
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
@@ -75,12 +86,20 @@ server-side from live positions + closed history; the lookup is non-fatal.
   (`openingKey !== null`).
 - **Hedge vs one-way account mode:** honoured via `BITGET_POSITION_MODE` (adds `tradeSide:
   open` in hedge mode), same as the worker trade client.
+- **No saved charts (Reference gallery):** if the coin has no saved snapshots the gallery shows
+  a hint pointing to the History tab's 💾 Lưu action; a list-fetch failure shows a retry notice.
+  Both are non-fatal — the rest of the tab keeps working.
 
 ## Related Files (FE / BE / Worker)
-- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog`.
+- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog` + 🖼 Reference button and `ChartGalleryDialog` (thumbnail rail + enlarged main image).
+- `packages/db/src/repositories/bitget-trade-chart.repository.ts` — `findBySymbol(symbol)` (all saved snapshots for one coin, newest first) alongside `findByTradeKey`.
+- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — `listSavedChartsBySymbol()` (normalises to `${bare}USDT`); TF_CONFIG limits + `TRADE_LOOKBACK_BARS` bumped so EMA200 warms.
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin.
+- `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`.
+- `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack).
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, and computes the per-timeframe QQE column (`getQqeSignals`, 60s cache).
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column.
-- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + position-marker lines + trade-span (Vào/Đóng) markers.
+- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + position-marker lines + trade-span (Vào/Đóng) markers.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — History tab: per-row M30/H1/H4/D1 buttons + `TradeChartDialog` (review chart + 💾 Lưu to R2).
 - `packages/db/prisma/schema.prisma` / `bitget-trade-chart.repository.ts` — `BitgetTradeChart` model (saved trade-chart snapshots, unique on tradeKey+timeframe).
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.
