@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { createServerApiClient } from '@web/shared/auth/api-auth';
-import type { Holding, Portfolio } from '@web/shared/api/types';
+import type { CoinTransaction, Holding, Portfolio } from '@web/shared/api/types';
 import { PortfolioHoldingsList } from '@web/widgets/portfolio-holdings-list/portfolio-holdings-list';
 
 type PortfolioDetailPageProps = Readonly<{
@@ -11,21 +11,24 @@ type PortfolioDetailPageProps = Readonly<{
 async function loadPortfolioData(portfolioId: string): Promise<{
   portfolio: Portfolio | null;
   holdings: Holding[];
+  transactions: CoinTransaction[];
 }> {
   const client = createServerApiClient();
-  const [portfolio, holdings] = await Promise.allSettled([
+  const [portfolio, holdings, transactions] = await Promise.allSettled([
     client.fetchPortfolio(portfolioId),
-    client.fetchHoldings(portfolioId)
+    client.fetchHoldings(portfolioId),
+    client.fetchTransactions(portfolioId)
   ]);
 
   return {
     portfolio: portfolio.status === 'fulfilled' ? portfolio.value : null,
-    holdings: holdings.status === 'fulfilled' ? holdings.value : []
+    holdings: holdings.status === 'fulfilled' ? holdings.value : [],
+    transactions: transactions.status === 'fulfilled' ? transactions.value : []
   };
 }
 
 export default async function PortfolioDetailPage({ portfolioId }: PortfolioDetailPageProps) {
-  const { portfolio, holdings } = await loadPortfolioData(portfolioId);
+  const { portfolio, holdings, transactions } = await loadPortfolioData(portfolioId);
 
   if (!portfolio) {
     return (
@@ -53,7 +56,7 @@ export default async function PortfolioDetailPage({ portfolioId }: PortfolioDeta
         {portfolio.description && <p className="tt-muted" style={{ margin: '0.25rem 0 0' }}>{portfolio.description}</p>}
       </div>
 
-      <PortfolioHoldingsList portfolioId={portfolioId} holdings={holdings} />
+      <PortfolioHoldingsList portfolioId={portfolioId} holdings={holdings} transactions={transactions} />
     </main>
   );
 }

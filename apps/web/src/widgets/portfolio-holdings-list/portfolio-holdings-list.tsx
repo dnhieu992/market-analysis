@@ -1,18 +1,52 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { formatCryptoPrice } from '@web/shared/lib/format';
 
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import { createApiClient } from '@web/shared/api/client';
-import type { Holding } from '@web/shared/api/types';
+import type { CoinTransaction, Holding } from '@web/shared/api/types';
 
 type PortfolioHoldingsListProps = Readonly<{
   portfolioId: string;
   holdings: Holding[];
+  transactions: CoinTransaction[];
 }>;
+
+/** Sold vs remaining, out of every unit ever bought — same calc as the coin detail page. */
+type SoldRatio = { totalBought: number; totalSold: number; soldPct: number; remainingPct: number };
+
+function buildSoldRatioByCoin(transactions: CoinTransaction[]): Record<string, SoldRatio> {
+  const totals: Record<string, { totalBought: number; totalSold: number }> = {};
+  for (const tx of transactions) {
+    const entry = totals[tx.coinId] ?? (totals[tx.coinId] = { totalBought: 0, totalSold: 0 });
+    if (tx.type === 'buy') entry.totalBought += tx.amount;
+    else entry.totalSold += tx.amount;
+  }
+  const result: Record<string, SoldRatio> = {};
+  for (const [coinId, { totalBought, totalSold }] of Object.entries(totals)) {
+    const soldPct = totalBought > 0 ? Math.min(100, Math.max(0, (totalSold / totalBought) * 100)) : 0;
+    result[coinId] = { totalBought, totalSold, soldPct, remainingPct: 100 - soldPct };
+  }
+  return result;
+}
+
+function SoldRatioBar({ ratio }: { ratio: SoldRatio }) {
+  if (ratio.totalBought <= 0) return null;
+  return (
+    <div
+      style={{ display: 'flex', height: 4, borderRadius: 999, overflow: 'hidden', background: 'var(--border)', marginTop: '0.35rem', minWidth: 56 }}
+      role="img"
+      aria-label={`${ratio.soldPct.toFixed(0)}% sold, ${ratio.remainingPct.toFixed(0)}% remaining`}
+      title={`Đã bán ${ratio.soldPct.toFixed(1)}% · Còn lại ${ratio.remainingPct.toFixed(1)}%`}
+    >
+      {ratio.soldPct > 0 && <div style={{ width: `${ratio.soldPct}%`, background: '#ef4444' }} />}
+      {ratio.remainingPct > 0 && <div style={{ width: `${ratio.remainingPct}%`, background: '#22c55e' }} />}
+    </div>
+  );
+}
 
 type SortKey = 'pnl' | 'holding';
 
@@ -272,7 +306,7 @@ function EditNoteModal({ portfolioId, coinId, current, onClose, onSaved }: {
   );
 }
 
-export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldingsListProps) {
+export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: PortfolioHoldingsListProps) {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [changes, setChanges] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
@@ -284,6 +318,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
     Object.fromEntries(holdings.map((h) => [h.coinId, h.note]))
   );
   const [editNote, setEditNote] = useState<EditNoteState | null>(null);
+  const soldRatioByCoin = useMemo(() => buildSoldRatioByCoin(transactions), [transactions]);
 
   useEffect(() => {
     if (holdings.length === 0) { setPricesLoaded(true); return; }
@@ -376,6 +411,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                 const currentValue = currentPrice != null ? currentPrice * h.totalAmount : null;
                 const unrealizedPnl = currentPrice != null ? (currentPrice - h.avgCost) * h.totalAmount : 0;
                 const totalPnl = unrealizedPnl + h.realizedPnl;
+                const soldRatio = soldRatioByCoin[h.coinId];
 
                 const note = notes[h.coinId] ?? null;
                 const isEmpty = h.totalAmount <= 0;
@@ -440,6 +476,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings }: PortfolioHoldin
                       {currentValue != null && (
                         <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{formatUsd(currentValue)}</div>
                       )}
+                      {soldRatio && <SoldRatioBar ratio={soldRatio} />}
                     </td>
                     <td data-label="P/L">
                       {pricesLoaded ? (
