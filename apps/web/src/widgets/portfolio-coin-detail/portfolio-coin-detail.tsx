@@ -319,6 +319,12 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
   const avgPricePct = avgCost > 0 && currentPrice != null ? ((currentPrice - avgCost) / avgCost) * 100 : null;
   const isAvgPricePctPositive = avgPricePct != null && avgPricePct >= 0;
 
+  // Sold vs remaining, out of every unit ever bought since the coin was first added.
+  const totalSoldAmount = transactions.filter((tx) => tx.type === 'sell').reduce((sum, tx) => sum + tx.amount, 0);
+  const totalBoughtAmount = transactions.filter((tx) => tx.type === 'buy').reduce((sum, tx) => sum + tx.amount, 0);
+  const soldPct = totalBoughtAmount > 0 ? Math.min(100, Math.max(0, (totalSoldAmount / totalBoughtAmount) * 100)) : 0;
+  const remainingPct = 100 - soldPct;
+
   return (
     <main className="dashboard-shell">
       {/* Back button */}
@@ -370,6 +376,42 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           </span>
         </StatCard>
       </div>
+
+      {/* Sold vs remaining */}
+      {totalBoughtAmount > 0 && (
+        <article className="panel" style={{ marginBottom: '1rem' }}>
+          <div className="table-header">
+            <h2 style={{ margin: 0 }}>Sold vs Remaining</h2>
+          </div>
+          <div style={{ padding: '0.25rem 0 0' }}>
+            <div
+              style={{ display: 'flex', height: 10, borderRadius: 999, overflow: 'hidden', background: 'var(--border)' }}
+              role="img"
+              aria-label={`${soldPct.toFixed(1)}% sold, ${remainingPct.toFixed(1)}% remaining`}
+            >
+              {soldPct > 0 && (
+                <div style={{ width: `${soldPct}%`, background: '#ef4444' }} title={`Sold: ${soldPct.toFixed(1)}%`} />
+              )}
+              {remainingPct > 0 && (
+                <div style={{ width: `${remainingPct}%`, background: '#22c55e' }} title={`Remaining: ${remainingPct.toFixed(1)}%`} />
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', gap: '1rem' }}>
+              <div>
+                <div style={{ fontWeight: 600, color: '#ef4444' }}>{soldPct.toFixed(1)}% sold</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{formatCrypto(totalSoldAmount, coinId)}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 600, color: '#22c55e' }}>{remainingPct.toFixed(1)}% remaining</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{formatCrypto(totalAmount, coinId)}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--muted)' }}>
+              Total bought since inception: {formatCrypto(totalBoughtAmount, coinId)}
+            </div>
+          </div>
+        </article>
+      )}
 
       {/* Transactions */}
       <article className="panel">
