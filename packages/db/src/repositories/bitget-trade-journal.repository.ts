@@ -5,6 +5,10 @@ export type BitgetTradeJournalSnapshot = {
   entryPrice?: number;
   roePct?: number;
   unrealizedPnlUsd?: number;
+  /** Day-open (00:00 UTC) reference price used to compute `dayOpenChangePct`. */
+  dayOpenPrice?: number;
+  /** % change of the log's reference price vs the day-open price (same calc as the Setup tab's "Hôm nay" column). */
+  dayOpenChangePct?: number;
 };
 
 export type BitgetTradeJournalInput = {

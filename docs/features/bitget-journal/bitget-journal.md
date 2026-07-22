@@ -13,7 +13,11 @@ a fresh timeline.
 
 1. **Worker reconcile (every 15m + on boot)** — `BitgetHistoryService.sync()`:
    - Reads live open positions (`all-position`). A newly-seen one is inserted as
-     `status=open` and gets a system "🟢 Đã mở lệnh" log.
+     `status=open` and gets a system "🟢 Đã mở lệnh" log with entry price, size, and
+     — best-effort — a "So với giá mở cửa hôm nay (00:00 UTC): ±X.XX%" line, the
+     entry price compared against Bitget's public ticker `openUtc` (the day's 00:00
+     UTC open, same reference the Setup tab's "Hôm nay" column uses). The line is
+     omitted if the ticker lookup fails; it never blocks the trade from being recorded.
    - Reads closed history (`history-position`). The matching open row is flipped to
      `status=closed` (realized PnL filled) and gets a system "🔴 Đã đóng lệnh" log.
      A trade opened+closed within one interval is inserted closed directly, with
@@ -42,6 +46,9 @@ a fresh timeline.
   the "closed" log is written exactly once.
 - **Fast trades** (opened+closed between polls) still get both an opened and a
   closed log.
+- **Day-open ticker lookup fails** — `fetchDayOpenPrice()` is best-effort; on
+  failure the opened log is still written, just without the "So với giá mở cửa
+  hôm nay" line (and `snapshot.dayOpenPrice`/`dayOpenChangePct` are omitted).
 - **System items are read-only** — the API rejects edit/delete of `kind=system`.
 - **Claude reformat fails** — the raw manual note is saved verbatim with a warning.
 - **Legacy closed trades** (migrated from the old table) get a `legacy-<positionId>`
@@ -58,7 +65,7 @@ a fresh timeline.
 - `apps/api/src/modules/bitget/bitget.service.ts` — closed history from `bitget_trades`; `openedAt` from `cTime`
 - `apps/api/src/modules/bitget/bitget-journal.service.ts` — journal CRUD; blocks edit/delete of system items
 - `apps/api/src/modules/bitget/bitget.controller.ts` / `dto/*` — journal routes + validation
-- `apps/worker/src/modules/bitget-history/bitget-history.service.ts` — lifecycle reconciliation + auto open/close logs
+- `apps/worker/src/modules/bitget-history/bitget-history.service.ts` — lifecycle reconciliation + auto open/close logs; `fetchDayOpenPrice()` (public ticker `openUtc`) feeds the opened log's day-open % line
 - `apps/worker/src/modules/scheduler/scheduler.service.ts` — 15-minute cron
 - `packages/db/prisma/schema.prisma` — `BitgetTrade`, `BitgetTradeJournal` (+ `kind`)
 - `packages/db/prisma/migrations/20260719140000_bitget_trades_lifecycle/migration.sql` — new table + data copy + drop old + `kind` column

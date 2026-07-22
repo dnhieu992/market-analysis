@@ -151,6 +151,7 @@ export class BitgetHistoryService implements OnModuleInit {
           openTotalPos,
           openedAt,
           markPrice: Number(pos.markPrice),
+          dayOpenPrice: await this.fetchDayOpenPrice(pos.symbol),
         });
         opened++;
       }
@@ -200,6 +201,7 @@ export class BitgetHistoryService implements OnModuleInit {
             openTotalPos: c.openTotalPos,
             openedAt: c.openedAt,
             markPrice: c.openAvgPrice,
+            dayOpenPrice: await this.fetchDayOpenPrice(c.symbol),
           });
           await this.writeClosedLog(tradeKey, c);
           closed++;
@@ -346,27 +348,66 @@ export class BitgetHistoryService implements OnModuleInit {
     tradeKey: string,
     symbol: string,
     holdSide: string,
-    info: { openAvgPrice: number; openTotalPos: number; openedAt: Date; markPrice: number },
+    info: {
+      openAvgPrice: number;
+      openTotalPos: number;
+      openedAt: Date;
+      markPrice: number;
+      /** Day-open (00:00 UTC) price, or null if the public ticker lookup failed. */
+      dayOpenPrice: number | null;
+    },
   ): Promise<void> {
     const side = holdSide === 'short' ? 'SHORT' : 'LONG';
-    const content = [
+    const dayOpenChangePct =
+      info.dayOpenPrice != null
+        ? ((info.openAvgPrice - info.dayOpenPrice) / info.dayOpenPrice) * 100
+        : null;
+    const lines = [
       `🟢 **Đã mở lệnh** ${side} ${symbol}`,
       `- Giá vào: ${fmtNum(info.openAvgPrice)}`,
       `- Size: ${fmtNum(info.openTotalPos)}`,
-    ].join('\n');
+    ];
+    if (dayOpenChangePct != null) {
+      const sign = dayOpenChangePct >= 0 ? '+' : '−';
+      lines.push(`- So với giá mở cửa hôm nay (00:00 UTC): ${sign}${Math.abs(dayOpenChangePct).toFixed(2)}%`);
+    }
     await this.journalRepo
       .create({
         tradeKey,
         kind: 'system',
         symbol,
         holdSide,
-        content,
+        content: lines.join('\n'),
         snapshot: {
           entryPrice: info.openAvgPrice,
           markPrice: Number.isFinite(info.markPrice) ? info.markPrice : info.openAvgPrice,
+          ...(info.dayOpenPrice != null ? { dayOpenPrice: info.dayOpenPrice } : {}),
+          ...(dayOpenChangePct != null ? { dayOpenChangePct } : {}),
         },
       })
       .catch((err) => this.logger.warn(`Failed to write opened log for ${tradeKey}: ${(err as Error).message}`));
+  }
+
+  /**
+   * Day-open (00:00 UTC) price for a symbol from Bitget's public ticker
+   * (`openUtc` field — the same reference the Setup tab's "Hôm nay" column uses).
+   * Best-effort: a failed/unavailable lookup just omits the day-open line from
+   * the opened-log rather than blocking the trade from being recorded.
+   */
+  private async fetchDayOpenPrice(symbol: string): Promise<number | null> {
+    try {
+      const res = await this.client.get<{ code: string; data: Array<{ symbol: string; openUtc?: string }> | null }>(
+        '/api/v2/mix/market/ticker',
+        { params: { symbol, productType: this.productType } },
+      );
+      const rows = res.data.data ?? [];
+      const row = rows.find((t) => t.symbol === symbol) ?? rows[0];
+      const openUtc = row ? Number(row.openUtc) : NaN;
+      return Number.isFinite(openUtc) && openUtc > 0 ? openUtc : null;
+    } catch (err) {
+      this.logger.debug(`Failed to fetch day-open price for ${symbol}: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   private async writeClosedLog(tradeKey: string, c: BitgetClosedNormalized): Promise<void> {
