@@ -1,7 +1,9 @@
 ## Description
-Adds a **Setup** tab to the Bitget dashboard (`/bitget`). It lists every coin that has
-ever been traded (unique symbols pulled from the History tab) as **one row each**, with a
-separate **Long** and **Short** action cell. Each side has its own **⚙ Setup** dialog
+Adds a **Setup** tab to the Bitget dashboard (`/bitget`). It lists **BTC and ETH pinned first**,
+then a fixed **watchlist** (SOL, XRP, SHIB, PEPE, WLD, BCH, AVAX, AAVE, FIL, ONDO, TIA), then
+every other coin that has ever been traded (unique symbols pulled from the History tab, newest
+closed first) — deduplicated so a coin only ever appears once, in that priority order. Each row
+gets a separate **Long** and **Short** action cell. Each side has its own **⚙ Setup** dialog
 (leverage, margin — direction is fixed by the cell, margin mode is always **cross**, order
 type is always **market**) and its own **Long / Short** open button that places a live market
 order on Bitget using that side's config. Each button is disabled **independently** while that
@@ -40,8 +42,9 @@ PNG in a new tab.
 
 ## Main Flow
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
-2. The feed builds a unique symbol list from `history.trades` (newest-closed first) and renders
-   one row per coin, each with a **Long** and a **Short** action cell (config summary + ⚙ + open
+2. The feed builds the symbol list as `PINNED_SYMBOLS` (BTC, ETH) + `WATCHLIST_SYMBOLS` (fixed
+   list, see Description) + every unique symbol from `history.trades` (newest-closed first),
+   deduped, and renders one row per coin, each with a **Long** and a **Short** action cell (config summary + ⚙ + open
    button). It hydrates saved configs once via `GET /bitget/setup`,
    fetches live positions every 15s to know which coin+sides are currently open, and subscribes
    to the Bitget public WS `ticker` channel for every listed symbol to show live price + change

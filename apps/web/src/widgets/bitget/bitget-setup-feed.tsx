@@ -18,6 +18,24 @@ const REFRESH_MS = 15_000;
 // QQE readings only change on candle close — poll on a slower cadence than positions.
 const QQE_REFRESH_MS = 60_000;
 
+// Always shown first, regardless of trade history.
+const PINNED_SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
+
+// Coins to watch even before any trade has closed on them.
+const WATCHLIST_SYMBOLS = [
+  'SOLUSDT',
+  'XRPUSDT',
+  'SHIBUSDT',
+  'PEPEUSDT',
+  'WLDUSDT',
+  'BCHUSDT',
+  'AVAXUSDT',
+  'AAVEUSDT',
+  'FILUSDT',
+  'ONDOUSDT',
+  'TIAUSDT',
+];
+
 const CHART_TIMEFRAMES = [
   { label: 'M30', tf: 'M30' },
   { label: 'H1',  tf: '1h'  },
@@ -139,7 +157,8 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     };
   }, []);
 
-  // Unique symbols across every trade in history, newest-first by most recent close.
+  // BTC/ETH pinned first, then the watchlist, then every other coin ever traded
+  // (newest-first by most recent close).
   const symbols = useMemo(() => {
     const lastClose = new Map<string, number>();
     for (const t of history.trades) {
@@ -147,7 +166,15 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
       const prev = lastClose.get(t.symbol) ?? 0;
       if (ts > prev) lastClose.set(t.symbol, ts);
     }
-    return [...lastClose.keys()].sort((a, b) => (lastClose.get(b) ?? 0) - (lastClose.get(a) ?? 0));
+    const traded = [...lastClose.keys()].sort((a, b) => (lastClose.get(b) ?? 0) - (lastClose.get(a) ?? 0));
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    for (const s of [...PINNED_SYMBOLS, ...WATCHLIST_SYMBOLS, ...traded]) {
+      if (seen.has(s)) continue;
+      seen.add(s);
+      ordered.push(s);
+    }
+    return ordered;
   }, [history.trades]);
 
   // (symbol, side) pairs with a live open position on the exchange → Open disabled.
