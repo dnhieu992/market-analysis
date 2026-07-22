@@ -355,7 +355,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem', padding: '1rem 0' }}>
+      <div className="pc-stat-grid">
         <StatCard label="Quantity">
           {formatCrypto(totalAmount, coinId)}
         </StatCard>
@@ -375,15 +375,20 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
             {isPnlPositive ? '+' : ''}{formatUsd(totalPnl)}
           </span>
         </StatCard>
-      </div>
 
-      {/* Sold vs remaining */}
-      {totalBoughtAmount > 0 && (
-        <article className="panel" style={{ marginBottom: '1rem' }}>
-          <div className="table-header">
-            <h2 style={{ margin: 0 }}>Sold vs Remaining</h2>
-          </div>
-          <div style={{ padding: '0.25rem 0 0' }}>
+        {/* Sold vs remaining — 2x the width of a normal stat card */}
+        {totalBoughtAmount > 0 && (
+          <div
+            className="pc-stat-grid__span2"
+            style={{
+              background: 'var(--panel-bg, rgba(255,255,255,0.04))',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '1.25rem 1.5rem',
+              minWidth: 0,
+            }}
+          >
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>Sold vs Remaining</div>
             <div
               style={{ display: 'flex', height: 10, borderRadius: 999, overflow: 'hidden', background: 'var(--border)' }}
               role="img"
@@ -396,22 +401,19 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                 <div style={{ width: `${remainingPct}%`, background: '#22c55e' }} title={`Remaining: ${remainingPct.toFixed(1)}%`} />
               )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', gap: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.6rem', gap: '1rem' }}>
               <div>
-                <div style={{ fontWeight: 600, color: '#ef4444' }}>{soldPct.toFixed(1)}% sold</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{formatCrypto(totalSoldAmount, coinId)}</div>
+                <div style={{ fontWeight: 600, color: '#ef4444', fontSize: '0.9rem' }}>{soldPct.toFixed(1)}% sold</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{formatCrypto(totalSoldAmount, coinId)}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 600, color: '#22c55e' }}>{remainingPct.toFixed(1)}% remaining</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{formatCrypto(totalAmount, coinId)}</div>
+                <div style={{ fontWeight: 600, color: '#22c55e', fontSize: '0.9rem' }}>{remainingPct.toFixed(1)}% remaining</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{formatCrypto(totalAmount, coinId)}</div>
               </div>
             </div>
-            <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--muted)' }}>
-              Total bought since inception: {formatCrypto(totalBoughtAmount, coinId)}
-            </div>
           </div>
-        </article>
-      )}
+        )}
+      </div>
 
       {/* Transactions */}
       <article className="panel">

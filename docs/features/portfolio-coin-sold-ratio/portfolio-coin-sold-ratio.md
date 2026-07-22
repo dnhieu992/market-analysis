@@ -15,9 +15,13 @@ position).
    `remainingPct = 100 − soldPct`.
 4. The card renders a single flex-row bar with two segments sized by `width: {pct}%` (no
    external chart/slider library), plus a legend line under each segment (percentage +
-   quantity via the existing `formatCrypto` helper) and a "Total bought since inception" line.
-5. The card sits between the existing stat-card grid (Quantity / Avg. buy price / Basic Cost /
-   Total P&L) and the Transactions panel.
+   quantity via the existing `formatCrypto` helper).
+5. The card is a 5th item inside the same `pc-stat-grid` as the 4 existing stat cards
+   (Quantity / Avg. buy price / Basic Cost / Total P&L), given `className="pc-stat-grid__span2"`
+   so it renders **2x the width** of a normal stat card. At `≥860px` viewport width
+   `.pc-stat-grid` switches from `auto-fit` wrapping to a fixed `repeat(6, 1fr)` layout — 4
+   single-span cards + 1 double-span card = 6 columns — so all 5 cards sit on **one row on
+   desktop**; below that breakpoint it wraps like the other stat cards.
 
 ## Edge Cases
 - **No buy transactions yet** (`totalBoughtAmount === 0`) — the whole card is hidden; there is
@@ -31,6 +35,9 @@ position).
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/portfolio-coin-detail/portfolio-coin-detail.tsx` — `totalSoldAmount`,
-  `totalBoughtAmount`, `soldPct`/`remainingPct`, and the "Sold vs Remaining" `<article className="panel">` card.
+  `totalBoughtAmount`, `soldPct`/`remainingPct`, and the "Sold vs Remaining" grid item
+  (`className="pc-stat-grid__span2"`) inside the `pc-stat-grid` stat-card row.
+- `apps/web/src/app/globals.css` — `.pc-stat-grid` / `.pc-stat-grid__span2` (6-column desktop
+  layout at `≥860px`, `auto-fit` wrap below that).
 - No API/worker changes — reuses the `transactions` prop already fetched by
   `apps/web/src/_pages/portfolio-coin-page/portfolio-coin-page.tsx` via `fetchTransactions()`.

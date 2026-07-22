@@ -4180,6 +4180,23 @@ a {
   color: var(--muted);
 }
 
+/* ── portfolio coin detail: stat card grid ── */
+.pc-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  padding: 1rem 0;
+}
+.pc-stat-grid__span2 {
+  grid-column: span 2;
+}
+@media (min-width: 860px) {
+  /* 4 stat cards + 1 double-width card = 6 columns, all on one row. */
+  .pc-stat-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 /* ── metric-card link variant ── */
 a.metric-card--link {
   display: block;
