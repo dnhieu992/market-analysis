@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 
 import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-positions/bitget-journal-drawer';
-import type { BitgetClosedTrade, BitgetHistoryResponse } from '@web/shared/api/types';
+import type { BitgetClosedTrade, BitgetHistoryResponse, BitgetTradeChart } from '@web/shared/api/types';
 
 // Refresh cadence — paired with the worker's ~15s reconcile cron so a just-closed
 // trade surfaces here within ~30s worst-case (15s worker sync + 15s UI poll).
@@ -87,6 +87,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [journalTarget, setJournalTarget] = useState<JournalTarget | null>(null);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
+  const [refTrade, setRefTrade] = useState<BitgetClosedTrade | null>(null);
   const clientRef = useRef(createApiClient());
 
   const refresh = useCallback(async () => {
@@ -193,6 +194,9 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                     <th className="bg-num">Mở</th>
                     <th className="bg-num">Đóng</th>
                     <th className="bg-num">Chart</th>
+                    <th className="bg-num" title="Xem lại các chart đã lưu từ đúng lệnh này">
+                      Tham chiếu
+                    </th>
                     <th className="bg-num">Nhật ký</th>
                   </tr>
                 </thead>
@@ -202,6 +206,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                       key={t.positionId || t.tradeKey}
                       t={t}
                       onChart={() => setChartTarget({ trade: t, tf: DEFAULT_CHART_TF })}
+                      onReference={() => setRefTrade(t)}
                       onJournal={() =>
                         setJournalTarget({
                           tradeKey: t.tradeKey,
@@ -239,6 +244,10 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
           onClose={() => setChartTarget(null)}
         />
       )}
+
+      {refTrade && (
+        <TradeChartGalleryDialog trade={refTrade} onClose={() => setRefTrade(null)} />
+      )}
     </div>
   );
 }
@@ -246,10 +255,12 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
 function TradeRow({
   t,
   onChart,
+  onReference,
   onJournal,
 }: {
   t: BitgetClosedTrade;
   onChart: () => void;
+  onReference: () => void;
   onJournal: () => void;
 }) {
   const isLong = t.holdSide === 'long';
@@ -282,6 +293,16 @@ function TradeRow({
           title="Xem chart quanh lúc vào/đóng lệnh"
         >
           📈 Xem chart
+        </button>
+      </td>
+      <td className="bg-num">
+        <button
+          type="button"
+          className="bg-ref-btn"
+          onClick={onReference}
+          title="Xem lại các chart đã lưu từ đúng lệnh này"
+        >
+          🖼 Reference
         </button>
       </td>
       <td className="bg-num">
@@ -441,6 +462,133 @@ function TradeChartDialog({
             <img className="eb-chart-img" src={imgSrc} alt={`${trade.symbol} ${tfLabel(tf)} chart`} />
           ) : (
             <div className="eb-chart-status">Đang tải chart…</div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Saved-at timestamp formatted for the gallery caption. */
+function fmtSavedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Reference gallery for the charts saved from ONE specific closed trade. Unlike
+ * the Setup-tab gallery (which shows every chart ever saved for a coin), this is
+ * scoped by `tradeKey` so it only surfaces the images saved from this exact
+ * position. Same product-viewer layout: a thumbnail rail on the left, big main
+ * image on the right. The PNGs live on public R2 and load straight from `url`.
+ */
+function TradeChartGalleryDialog({ trade, onClose }: { trade: BitgetClosedTrade; onClose: () => void }) {
+  const clientRef = useRef(createApiClient());
+  const [charts, setCharts] = useState<BitgetTradeChart[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setCharts(null);
+    setFailed(false);
+    clientRef.current
+      .fetchBitgetSavedTradeCharts(trade.tradeKey)
+      .then((list) => {
+        if (!alive) return;
+        setCharts(list);
+        setActiveId(list[0]?.id ?? null);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [trade.tradeKey]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const active = charts?.find((c) => c.id === activeId) ?? charts?.[0] ?? null;
+  const count = charts?.length ?? 0;
+  const isLong = trade.holdSide === 'long';
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            {trade.symbol}{' '}
+            <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
+              {isLong ? 'LONG' : 'SHORT'}
+            </span>
+            <span className="eb-chart-note"> · chart đã lưu từ lệnh này</span>
+            {count > 0 && <span className="bg-gallery-count">{count} ảnh</span>}
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+        <div className="dialog-body bg-gallery-body">
+          {failed ? (
+            <div className="eb-chart-status">Không tải được danh sách chart. Thử lại sau.</div>
+          ) : charts == null ? (
+            <div className="eb-chart-status">Đang tải…</div>
+          ) : charts.length === 0 ? (
+            <div className="eb-chart-status">
+              Chưa có chart nào được lưu từ lệnh này. Bấm “📈 Xem chart”, chọn khung rồi bấm
+              “💾 Lưu” để lưu tham chiếu cho đúng lệnh này.
+            </div>
+          ) : (
+            <div className="bg-gallery">
+              <div className="bg-gallery-rail" role="tablist" aria-label="Danh sách chart">
+                {charts.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={c.id === active?.id}
+                    className={`bg-gallery-thumb ${c.id === active?.id ? 'bg-gallery-thumb--active' : ''}`}
+                    onClick={() => setActiveId(c.id)}
+                    title={`${tfLabel(c.timeframe)} · ${fmtSavedAt(c.createdAt)}`}
+                  >
+                    <img src={c.url} alt={`${trade.symbol} ${tfLabel(c.timeframe)}`} loading="lazy" />
+                    <span className="bg-gallery-thumb-tf">{tfLabel(c.timeframe)}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="bg-gallery-main">
+                {active && (
+                  <>
+                    <a
+                      className="bg-gallery-main-img"
+                      href={active.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Mở ảnh gốc trong tab mới"
+                    >
+                      <img src={active.url} alt={`${trade.symbol} ${tfLabel(active.timeframe)} chart`} />
+                    </a>
+                    <div className="bg-gallery-caption">
+                      <span className="bg-gallery-caption-tf">{tfLabel(active.timeframe)}</span>
+                      <span className="bg-gallery-caption-date">Lưu lúc {fmtSavedAt(active.createdAt)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
