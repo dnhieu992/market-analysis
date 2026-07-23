@@ -11,7 +11,10 @@ exact coin **+ side** already has an open position, or until that side's margin 
 configured — so an open long disables only **Long**, leaving **Short** live. Per-side config is
 persisted in the **database** (`bitget_setup_configs`, unique on `symbol + holdSide`) so it
 survives reloads and is shared across devices. Each coin's **realtime price** and **change
-since 00:00 UTC** (streamed from Bitget's public WebSocket ticker) show once per row.
+since 00:00 UTC** (the **"Hôm nay"** column, streamed from Bitget's public WebSocket ticker)
+show once per row. The **"Hôm nay"** header is a **sort toggle**: rows keep the default
+pinned/watchlist order until it is clicked, then clicking cycles **descending → ascending →
+back to default** (coins with no live change reading always sink to the bottom).
 
 Each coin row also has a **📈 Chart** button that opens a fullscreen dialog with a server-rendered
 **M30** PNG chart carrying TradingView-default indicators: the **SonicR system** (EMA34

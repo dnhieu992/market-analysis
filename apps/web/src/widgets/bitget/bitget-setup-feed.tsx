@@ -137,6 +137,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [qqe, setQqe] = useState<QqeMap>({});
+  // "Hôm nay" (24h change) sort: null keeps the default pinned/watchlist order;
+  // clicking the header cycles desc → asc → back to the default order.
+  const [changeSort, setChangeSort] = useState<'desc' | 'asc' | null>(null);
 
   // Hydrate saved configs from the DB (survives reloads, shared across devices).
   useEffect(() => {
@@ -185,6 +188,20 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
 
   // Realtime last price + 24h change per coin, straight from Bitget's public WS.
   const { prices: livePrices, changes: liveChanges, live } = useBitgetLivePrices(symbols);
+
+  // Rows follow the pinned/watchlist order by default; when the "Hôm nay" header
+  // is clicked they re-order by 24h change (coins without a reading sink last).
+  const displaySymbols = useMemo(() => {
+    if (!changeSort) return symbols;
+    const miss = changeSort === 'desc' ? -Infinity : Infinity;
+    return [...symbols].sort((a, b) => {
+      const ca = liveChanges[a];
+      const cb = liveChanges[b];
+      const va = ca == null || !Number.isFinite(ca) ? miss : ca;
+      const vb = cb == null || !Number.isFinite(cb) ? miss : cb;
+      return changeSort === 'desc' ? vb - va : va - vb;
+    });
+  }, [symbols, changeSort, liveChanges]);
 
   const refreshPositions = useCallback(async () => {
     try {
@@ -319,8 +336,20 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
               <tr>
                 <th>Symbol</th>
                 <th className="bg-num">Giá</th>
-                <th className="bg-num" title="Thay đổi so với mốc 00:00 UTC">
-                  Hôm nay
+                <th className="bg-num bg-th-sort" aria-sort={changeSort === 'desc' ? 'descending' : changeSort === 'asc' ? 'ascending' : 'none'}>
+                  <button
+                    type="button"
+                    className="bg-th-sort-btn"
+                    onClick={() =>
+                      setChangeSort((s) => (s === null ? 'desc' : s === 'desc' ? 'asc' : null))
+                    }
+                    title="Sắp xếp theo thay đổi so với mốc 00:00 UTC — bấm để đổi chiều"
+                  >
+                    Hôm nay
+                    <span className="bg-th-sort-ind">
+                      {changeSort === 'desc' ? '▼' : changeSort === 'asc' ? '▲' : '↕'}
+                    </span>
+                  </button>
                 </th>
                 <th title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — L=Long (xanh) / S=Short (đỏ) theo từng khung M30/H1/H4/D1">
                   QQE
@@ -333,7 +362,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
               </tr>
             </thead>
             <tbody>
-              {symbols.map((symbol) => {
+              {displaySymbols.map((symbol) => {
                 const price = livePrices[symbol];
                 const change = liveChanges[symbol];
                 const changeCls =

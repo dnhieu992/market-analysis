@@ -144,10 +144,13 @@ export class SchedulerService {
     }
   }
 
-  // Runs every 5 minutes — reconcile Bitget open positions + closed history into
+  // Runs every 15 seconds — reconcile Bitget open positions + closed history into
   // the bitget_trades lifecycle table (open→closed) so the /bitget history tab +
   // realized PnL survive Bitget's 90-day window, and open/close logs are written.
-  @Cron('*/5 * * * *', { timeZone: 'UTC' })
+  // Kept sub-30s (paired with the ~15s web refresh) so a just-closed trade lands
+  // in the history tab within ~30s instead of waiting minutes. Each run is cheap
+  // (~2 signed calls, watermark-scoped) and guarded against overlap by `syncing`.
+  @Cron('*/15 * * * * *', { timeZone: 'UTC' })
   async runBitgetHistorySync() {
     try {
       const res = await this.bitgetHistoryService.sync();
@@ -161,7 +164,7 @@ export class SchedulerService {
 
   // Runs every minute — record ROE% milestones (+50/+70/+100/+150/+200 and
   // −50/−100/−200/−300/−400/−500) for open Bitget positions onto each trade's
-  // journal. Frequent so peaks between the 5-minute reconcile passes are caught;
+  // journal. Frequent so peaks between the reconcile passes are caught;
   // each step is a one-way ratchet so a milestone is logged once, never on
   // re-crossing after a dip.
   @Cron('* * * * *', { timeZone: 'UTC' })

@@ -22,7 +22,8 @@ import {
  * Bitget only serves ~90 days of history, so mirroring it keeps a permanent trade
  * log + realized PnL for the /bitget history tab. Read-only against the exchange
  * and self-contained (its own signing) so it runs regardless of LIVE trading.
- * Driven by SchedulerService (every 15m) + a catch-up sync on boot.
+ * Driven by SchedulerService (every 15s, so a just-closed trade shows within
+ * ~30s) + a catch-up sync on boot.
  */
 
 const BASE_URL = 'https://api.bitget.com';

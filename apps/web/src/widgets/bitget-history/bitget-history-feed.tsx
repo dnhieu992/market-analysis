@@ -7,7 +7,9 @@ import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-positions/bitget-journal-drawer';
 import type { BitgetClosedTrade, BitgetHistoryResponse } from '@web/shared/api/types';
 
-const REFRESH_MS = 60_000;
+// Refresh cadence — paired with the worker's ~15s reconcile cron so a just-closed
+// trade surfaces here within ~30s worst-case (15s worker sync + 15s UI poll).
+const REFRESH_MS = 15_000;
 
 const CHART_TIMEFRAMES = [
   { label: 'M30', tf: 'M30' },
@@ -15,6 +17,9 @@ const CHART_TIMEFRAMES = [
   { label: 'H4', tf: '4h' },
   { label: 'D1', tf: '1d' },
 ] as const;
+
+// Timeframe the "Xem chart" button opens on; users switch inside the dialog.
+const DEFAULT_CHART_TF = '4h';
 
 type ChartTarget = { trade: BitgetClosedTrade; tf: string };
 
@@ -196,7 +201,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                     <TradeRow
                       key={t.positionId || t.tradeKey}
                       t={t}
-                      onChart={(tf) => setChartTarget({ trade: t, tf })}
+                      onChart={() => setChartTarget({ trade: t, tf: DEFAULT_CHART_TF })}
                       onJournal={() =>
                         setJournalTarget({
                           tradeKey: t.tradeKey,
@@ -244,7 +249,7 @@ function TradeRow({
   onJournal,
 }: {
   t: BitgetClosedTrade;
-  onChart: (tf: string) => void;
+  onChart: () => void;
   onJournal: () => void;
 }) {
   const isLong = t.holdSide === 'long';
@@ -270,19 +275,14 @@ function TradeRow({
       <td className="bg-num bg-time">{fmtDateTime(t.openedAt)}</td>
       <td className="bg-num bg-time">{fmtDateTime(t.closedAt)}</td>
       <td className="bg-num">
-        <div className="bg-tf-btns">
-          {CHART_TIMEFRAMES.map(({ label, tf }) => (
-            <button
-              key={tf}
-              type="button"
-              className="bg-tf-btn"
-              onClick={() => onChart(tf)}
-              title={`Xem chart ${label} quanh lúc vào/đóng lệnh`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          className="bg-tf-btn bg-view-chart-btn"
+          onClick={onChart}
+          title="Xem chart quanh lúc vào/đóng lệnh"
+        >
+          📈 Xem chart
+        </button>
       </td>
       <td className="bg-num">
         <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký lệnh">
