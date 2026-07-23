@@ -104,9 +104,9 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
 
   const { configured, trades, summary, fetchedAt } = data;
 
-  // Sort closed trades by open time descending — newest orders first.
+  // Sort closed trades by close time descending — most recently closed first.
   const sortedTrades = [...trades].sort(
-    (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
+    (a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime(),
   );
 
   return (
