@@ -78,6 +78,13 @@ type ApiClientOptions = {
 
 const DEFAULT_API_BASE_URL = 'http://localhost:3000';
 
+/** System prompt for LLM-reformatting a raw chart note into clean Markdown. */
+const CHART_NOTE_REFORMAT_PROMPT =
+  'Bạn là trợ lý biên tập ghi chú nhật ký giao dịch. Định dạng lại ghi chú thô của người ' +
+  'dùng thành Markdown gọn gàng, dễ đọc: dùng tiêu đề ngắn / gạch đầu dòng / in đậm ở chỗ hợp ' +
+  'lý. Giữ NGUYÊN ngôn ngữ của bản gốc. KHÔNG thêm thông tin hay số liệu không có trong ghi chú, ' +
+  'không bịa dữ liệu giao dịch. Chỉ trả về đúng nội dung Markdown đã định dạng, không thêm lời dẫn.';
+
 function readConfiguredBaseUrl(): string {
   // Server-side (SSR/RSC): talk to API directly on localhost — no browser involved
   if (typeof window === 'undefined') {
@@ -1223,6 +1230,34 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Lưu chart thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetTradeChart;
+    },
+
+    /**
+     * Reformat a free-text chart note into clean Markdown via the stateless LLM
+     * endpoint. Same language as the input; no invented data. Returns the
+     * reformatted markdown string.
+     */
+    async reformatChartNote(note: string): Promise<string> {
+      const response = await fetchImpl(
+        `${baseUrl}/chat`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: CHART_NOTE_REFORMAT_PROMPT },
+              { role: 'user', content: note },
+            ],
+          }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Định dạng lại thất bại (HTTP ${response.status})`);
+      }
+      const data = (await response.json()) as { reply: string };
+      return (data.reply ?? '').trim();
     },
 
     async fetchBitgetSavedTradeCharts(tradeKey: string): Promise<BitgetTradeChart[]> {

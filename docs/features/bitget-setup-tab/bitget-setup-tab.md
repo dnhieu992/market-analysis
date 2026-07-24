@@ -31,13 +31,16 @@ the candle's normal style** — no box or text label, the colour alone flags the
 candles are drawn **monochrome** (white body up / black body down, black borders + wicks) so the
 coloured engulfing candles + indicators stand out.
 The dialog has a **💾 Lưu** button (same action as the History tab). Clicking it opens a small
-**note dialog** (`ChartNoteDialog`) where the trader can attach an optional free-text note (may
-be blank); on confirm it snapshots the current Setup chart to R2 via `POST /bitget/setup-chart/save`
-(body `{ symbol, timeframe, note? }`) and stores a DB link so it appears in the coin's **🖼 Reference**
-gallery. Each save is a fresh reference image (timestamped synthetic `tradeKey`
-`setup-<coin>-<tf>-<ms>`), unlike a trade chart which upserts on a stable `tradeKey`. The note is
-stored in `bitget_trade_charts.note` (nullable) and shown in the gallery: a 📝 badge on thumbnails
-that have one, and the full text under the enlarged image's caption.
+**note dialog** (`ChartNoteDialog`) where the trader can attach an optional note (may be blank),
+written in the **shared `MarkdownEditor`** (TipTap, lazy-loaded) with an **✨ Định dạng bằng AI**
+button that reformats the draft into clean Markdown via the stateless LLM endpoint
+(`POST /chat`, `reformatChartNote`). On confirm it snapshots the current Setup chart to R2 via
+`POST /bitget/setup-chart/save` (body `{ symbol, timeframe, note? }`) and stores a DB link so it
+appears in the coin's **🖼 Reference** gallery. Each save is a fresh reference image (timestamped
+synthetic `tradeKey` `setup-<coin>-<tf>-<ms>`), unlike a trade chart which upserts on a stable
+`tradeKey`. The note is stored in `bitget_trade_charts.note` (nullable) and shown in the gallery
+via the shared `ChartNoteView` (`renderMarkdown` → HTML): a 📝 badge on thumbnails that have one,
+and the rendered Markdown under the enlarged image's caption.
 
 The chart also overlays **position markers**: every live open position for the coin draws a
 solid entry line (green LONG / red SHORT) tagged with entry price + live uPnL, and the most

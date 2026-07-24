@@ -8,7 +8,7 @@ import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-pos
 import type { BitgetClosedTrade, BitgetHistoryResponse, BitgetTradeChart } from '@web/shared/api/types';
 
 import { SymbolMultiSelect } from '@web/widgets/bitget/symbol-multi-select';
-import { ChartNoteDialog } from '@web/widgets/bitget/chart-note-dialog';
+import { ChartNoteDialog, ChartNoteView } from '@web/widgets/bitget/chart-note-dialog';
 
 // Refresh cadence — paired with the worker's ~15s reconcile cron so a just-closed
 // trade surfaces here within ~30s worst-case (15s worker sync + 15s UI poll).
@@ -711,11 +711,7 @@ function TradeChartGalleryDialog({ trade, onClose }: { trade: BitgetClosedTrade;
                       <span className="bg-gallery-caption-tf">{tfLabel(active.timeframe)}</span>
                       <span className="bg-gallery-caption-date">Lưu lúc {fmtSavedAt(active.createdAt)}</span>
                     </div>
-                    {active.note ? (
-                      <p className="bg-gallery-note">{active.note}</p>
-                    ) : (
-                      <p className="bg-gallery-note bg-gallery-note--empty">Không có ghi chú</p>
-                    )}
+                    <ChartNoteView note={active.note} />
                   </>
                 )}
               </div>

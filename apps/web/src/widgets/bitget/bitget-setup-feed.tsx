@@ -20,6 +20,7 @@ import {
   tfLabelOf,
 } from './setup-chart-dialog';
 import { SymbolMultiSelect } from './symbol-multi-select';
+import { ChartNoteView } from './chart-note-dialog';
 
 const REFRESH_MS = 15_000;
 // QQE readings only change on candle close — poll on a slower cadence than positions.
@@ -640,11 +641,7 @@ function ChartGalleryDialog({ symbol, onClose }: { symbol: string; onClose: () =
                       <span className="bg-gallery-caption-tf">{tfLabelOf(active.timeframe)}</span>
                       <span className="bg-gallery-caption-date">Lưu lúc {fmtSavedAt(active.createdAt)}</span>
                     </div>
-                    {active.note ? (
-                      <p className="bg-gallery-note">{active.note}</p>
-                    ) : (
-                      <p className="bg-gallery-note bg-gallery-note--empty">Không có ghi chú</p>
-                    )}
+                    <ChartNoteView note={active.note} />
                   </>
                 )}
               </div>
