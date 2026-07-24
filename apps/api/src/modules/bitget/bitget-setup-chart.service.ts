@@ -9,6 +9,12 @@ import { renderSetupChart, QQE_PARAMS, type ChartMarker, type OhlcCandle } from 
 
 const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
 
+/** Trim a note to a stored value; blank/whitespace-only becomes null. */
+const normalizeNote = (note?: string | null): string | null => {
+  const trimmed = note?.trim();
+  return trimmed ? trimmed : null;
+};
+
 /** Timeframes the Setup-tab QQE column reports on — mirrors the chart-view buttons. */
 const QQE_TIMEFRAMES = ['M30', '1h', '4h', '1d'] as const;
 /** Candles pulled per timeframe for the QQE compute — enough to warm the bands. */
@@ -59,6 +65,8 @@ export type TradeChartParams = {
   pnlUsd: number;
   openedAt: number; // ms
   closedAt: number; // ms
+  /** Optional free-text note, saved with the snapshot (ignored when just rendering). */
+  note?: string | null;
 };
 
 // Context bars shown before the entry (also warms up EMA200) and after the exit.
@@ -207,6 +215,7 @@ export class BitgetSetupChartService {
       timeframe: params.timeframe,
       url: stored.url,
       objectKey: stored.key,
+      note: normalizeNote(params.note),
     });
   }
 
@@ -216,7 +225,7 @@ export class BitgetSetupChartService {
    * chart (keyed by a stable tradeKey), each Setup snapshot gets a timestamped
    * synthetic tradeKey so every save is preserved as its own reference image.
    */
-  async saveSetupChart(symbol: string, timeframe: string) {
+  async saveSetupChart(symbol: string, timeframe: string, note?: string | null) {
     const bare = bareSymbol(symbol);
     const tf = TF_CONFIG[timeframe] ? timeframe : 'M30';
     const buffer = await this.generateChart(symbol, tf);
@@ -240,6 +249,7 @@ export class BitgetSetupChartService {
       timeframe: tf,
       url: stored.url,
       objectKey: stored.key,
+      note: normalizeNote(note),
     });
   }
 

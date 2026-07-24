@@ -631,6 +631,7 @@ export type BitgetTradeChart = {
   timeframe: string;
   url: string;
   objectKey: string;
+  note: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -6,6 +6,8 @@ export type BitgetTradeChartInput = {
   timeframe: string;
   url: string;
   objectKey: string;
+  /** Optional free-text note stored alongside the snapshot. */
+  note?: string | null;
 };
 
 /**
@@ -33,11 +35,11 @@ export function createBitgetTradeChartRepository(client = prisma) {
 
     /** Insert or replace the saved chart for one (tradeKey, timeframe). */
     upsert(input: BitgetTradeChartInput) {
-      const { tradeKey, timeframe, symbol, url, objectKey } = input;
+      const { tradeKey, timeframe, symbol, url, objectKey, note = null } = input;
       return client.bitgetTradeChart.upsert({
         where: { tradeKey_timeframe: { tradeKey, timeframe } },
-        create: { tradeKey, timeframe, symbol, url, objectKey },
-        update: { symbol, url, objectKey },
+        create: { tradeKey, timeframe, symbol, url, objectKey, note },
+        update: { symbol, url, objectKey, note },
       });
     },
   };

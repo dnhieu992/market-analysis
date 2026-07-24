@@ -782,6 +782,7 @@ model BitgetTradeChart {
   timeframe String   @db.VarChar(8) // M30 | 1h | 4h | 1d
   url       String   @db.Text // public R2 URL of the PNG
   objectKey String   @db.VarChar(255) // R2 object key (for replace/delete)
+  note      String?  @db.Text // optional free-text note added when saving
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

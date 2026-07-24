@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNumber, IsString, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsNumber, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class SaveTradeChartDto {
   @ApiProperty({ example: 'BTCUSDT-long-2026-07-20T10:00:00.000Z', description: 'Trade session key' })
@@ -38,4 +38,10 @@ export class SaveTradeChartDto {
   @ApiProperty({ example: 1775620800000, description: 'Close time (ms epoch)' })
   @IsNumber()
   closedAt!: number;
+
+  @ApiPropertyOptional({ example: 'Chốt lời sớm, sợ đảo chiều', description: 'Optional note' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
 }

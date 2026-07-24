@@ -8,6 +8,7 @@ import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-pos
 import type { BitgetClosedTrade, BitgetHistoryResponse, BitgetTradeChart } from '@web/shared/api/types';
 
 import { SymbolMultiSelect } from '@web/widgets/bitget/symbol-multi-select';
+import { ChartNoteDialog } from '@web/widgets/bitget/chart-note-dialog';
 
 // Refresh cadence — paired with the worker's ~15s reconcile cron so a just-closed
 // trade surfaces here within ~30s worst-case (15s worker sync + 15s UI poll).
@@ -460,6 +461,7 @@ function TradeChartDialog({
   const [saving, setSaving] = useState(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [notePrompt, setNotePrompt] = useState(false);
   const clientRef = useRef(createApiClient());
 
   useEffect(() => {
@@ -469,6 +471,7 @@ function TradeChartDialog({
     setFailed(false);
     setSavedUrl(null);
     setSaveErr(null);
+    setNotePrompt(false);
     const url = `${tradeChartUrl(trade, tf)}&_t=${Date.now()}`;
     fetch(url, { credentials: 'include', cache: 'no-store' })
       .then((res) => {
@@ -495,7 +498,7 @@ function TradeChartDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  async function save() {
+  async function save(note: string) {
     setSaving(true);
     setSaveErr(null);
     try {
@@ -509,8 +512,10 @@ function TradeChartDialog({
         pnlUsd: trade.netProfit,
         openedAt: new Date(trade.openedAt).getTime(),
         closedAt: new Date(trade.closedAt).getTime(),
+        note,
       });
       setSavedUrl(rec.url);
+      setNotePrompt(false);
     } catch (err) {
       setSaveErr(err instanceof Error ? err.message : 'Lưu chart thất bại.');
     } finally {
@@ -541,9 +546,12 @@ function TradeChartDialog({
           <button
             type="button"
             className="bg-open-btn bg-chart-save-btn"
-            onClick={save}
+            onClick={() => {
+              setSaveErr(null);
+              setNotePrompt(true);
+            }}
             disabled={saving || !imgSrc}
-            title="Upload chart lên R2 và lưu link vào DB để tham chiếu sau"
+            title="Thêm ghi chú rồi lưu chart lên R2 để tham chiếu sau"
           >
             {saving ? 'Đang lưu…' : savedUrl ? '✓ Đã lưu' : '💾 Lưu'}
           </button>
@@ -570,6 +578,14 @@ function TradeChartDialog({
           )}
         </div>
       </div>
+      {notePrompt && (
+        <ChartNoteDialog
+          saving={saving}
+          error={saveErr}
+          onSubmit={(note) => void save(note)}
+          onCancel={() => setNotePrompt(false)}
+        />
+      )}
     </div>,
     document.body,
   );
@@ -671,6 +687,11 @@ function TradeChartGalleryDialog({ trade, onClose }: { trade: BitgetClosedTrade;
                   >
                     <img src={c.url} alt={`${trade.symbol} ${tfLabel(c.timeframe)}`} loading="lazy" />
                     <span className="bg-gallery-thumb-tf">{tfLabel(c.timeframe)}</span>
+                    {c.note && (
+                      <span className="bg-gallery-thumb-note" title="Có ghi chú">
+                        📝
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -690,6 +711,11 @@ function TradeChartGalleryDialog({ trade, onClose }: { trade: BitgetClosedTrade;
                       <span className="bg-gallery-caption-tf">{tfLabel(active.timeframe)}</span>
                       <span className="bg-gallery-caption-date">Lưu lúc {fmtSavedAt(active.createdAt)}</span>
                     </div>
+                    {active.note ? (
+                      <p className="bg-gallery-note">{active.note}</p>
+                    ) : (
+                      <p className="bg-gallery-note bg-gallery-note--empty">Không có ghi chú</p>
+                    )}
                   </>
                 )}
               </div>

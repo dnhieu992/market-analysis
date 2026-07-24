@@ -616,6 +616,11 @@ function ChartGalleryDialog({ symbol, onClose }: { symbol: string; onClose: () =
                   >
                     <img src={c.url} alt={`${symbol} ${tfLabelOf(c.timeframe)}`} loading="lazy" />
                     <span className="bg-gallery-thumb-tf">{tfLabelOf(c.timeframe)}</span>
+                    {c.note && (
+                      <span className="bg-gallery-thumb-note" title="Có ghi chú">
+                        📝
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -635,6 +640,11 @@ function ChartGalleryDialog({ symbol, onClose }: { symbol: string; onClose: () =
                       <span className="bg-gallery-caption-tf">{tfLabelOf(active.timeframe)}</span>
                       <span className="bg-gallery-caption-date">Lưu lúc {fmtSavedAt(active.createdAt)}</span>
                     </div>
+                    {active.note ? (
+                      <p className="bg-gallery-note">{active.note}</p>
+                    ) : (
+                      <p className="bg-gallery-note bg-gallery-note--empty">Không có ghi chú</p>
+                    )}
                   </>
                 )}
               </div>

@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 
 import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 
+import { ChartNoteDialog } from './chart-note-dialog';
+
 /** Timeframes offered by the Setup chart dialog switcher. */
 export const CHART_TIMEFRAMES = [
   { label: 'M15', tf: '15m' },
@@ -46,6 +48,7 @@ export function SetupChartDialog({
   const [saving, setSaving] = useState(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [notePrompt, setNotePrompt] = useState(false);
   const clientRef = useRef(createApiClient());
 
   const tfLabel = tfLabelOf(tf);
@@ -83,12 +86,13 @@ export function SetupChartDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  async function save() {
+  async function save(note: string) {
     setSaving(true);
     setSaveErr(null);
     try {
-      const rec = await clientRef.current.saveBitgetSetupChart({ symbol, timeframe: tf });
+      const rec = await clientRef.current.saveBitgetSetupChart({ symbol, timeframe: tf, note });
       setSavedUrl(rec.url);
+      setNotePrompt(false);
     } catch (err) {
       setSaveErr(err instanceof Error ? err.message : 'Lưu chart thất bại.');
     } finally {
@@ -123,9 +127,12 @@ export function SetupChartDialog({
             <button
               type="button"
               className="bg-open-btn bg-chart-save-btn"
-              onClick={save}
+              onClick={() => {
+                setSaveErr(null);
+                setNotePrompt(true);
+              }}
               disabled={saving || !imgSrc}
-              title="Upload chart lên R2 và lưu link để tham chiếu sau"
+              title="Thêm ghi chú rồi lưu chart lên R2 để tham chiếu sau"
             >
               {saving ? 'Đang lưu…' : savedUrl ? '✓ Đã lưu' : '💾 Lưu'}
             </button>
@@ -153,6 +160,14 @@ export function SetupChartDialog({
           )}
         </div>
       </div>
+      {notePrompt && (
+        <ChartNoteDialog
+          saving={saving}
+          error={saveErr}
+          onSubmit={(note) => void save(note)}
+          onCancel={() => setNotePrompt(false)}
+        />
+      )}
     </div>,
     document.body,
   );

@@ -10660,6 +10660,52 @@ a.metric-card--link:hover {
   font-weight: 700;
 }
 
+/* Saved-chart note: shown under the caption, and a badge on thumbnails. */
+.bg-gallery-note {
+  flex-shrink: 0;
+  max-width: 680px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.bg-gallery-note--empty { color: #94a3b8; font-style: italic; background: transparent; border-style: dashed; }
+.bg-gallery-thumb-note {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  font-size: 12px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.35));
+}
+
+/* Small note-input dialog shown before saving a chart. */
+.bg-note-dialog {
+  width: min(460px, 92vw);
+  max-width: 460px;
+}
+.bg-note-body { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
+.bg-note-textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+.bg-note-textarea:focus { outline: none; border-color: var(--accent); }
+.bg-note-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
 @media (max-width: 720px) {
   .bg-gallery { flex-direction: column-reverse; }
   .bg-gallery-rail {

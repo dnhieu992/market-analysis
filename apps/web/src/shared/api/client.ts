@@ -1186,6 +1186,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       pnlUsd: number;
       openedAt: number;
       closedAt: number;
+      note?: string | null;
     }): Promise<BitgetTradeChart> {
       const response = await fetchImpl(
         `${baseUrl}/bitget/trade-chart/save`,
@@ -1206,6 +1207,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     async saveBitgetSetupChart(input: {
       symbol: string;
       timeframe: string;
+      note?: string | null;
     }): Promise<BitgetTradeChart> {
       const response = await fetchImpl(
         `${baseUrl}/bitget/setup-chart/save`,

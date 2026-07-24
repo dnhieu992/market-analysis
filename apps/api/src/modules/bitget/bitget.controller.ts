@@ -123,7 +123,7 @@ export class BitgetController {
   @Post('setup-chart/save')
   @ApiOperation({ summary: 'Snapshot the live Setup-tab chart to R2 and store the DB link' })
   saveSetupChart(@Body() dto: SaveSetupChartDto) {
-    return this.setupChart.saveSetupChart(dto.symbol, dto.timeframe);
+    return this.setupChart.saveSetupChart(dto.symbol, dto.timeframe, dto.note);
   }
 
   @Get('trade-chart/saved')
