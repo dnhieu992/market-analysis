@@ -19,6 +19,7 @@ import {
   SetupChartDialog,
   tfLabelOf,
 } from './setup-chart-dialog';
+import { SymbolMultiSelect } from './symbol-multi-select';
 
 const REFRESH_MS = 15_000;
 // QQE readings only change on candle close — poll on a slower cadence than positions.
@@ -139,6 +140,8 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   // "Hôm nay" (24h change) sort: null keeps the default pinned/watchlist order;
   // clicking the header cycles desc → asc → back to the default order.
   const [changeSort, setChangeSort] = useState<'desc' | 'asc' | null>(null);
+  // Coin-name filter (empty = all coins), same UX as the History tab.
+  const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
 
   // Hydrate saved configs from the DB (survives reloads, shared across devices).
   useEffect(() => {
@@ -191,16 +194,18 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   // Rows follow the pinned/watchlist order by default; when the "Hôm nay" header
   // is clicked they re-order by 24h change (coins without a reading sink last).
   const displaySymbols = useMemo(() => {
-    if (!changeSort) return symbols;
+    const set = selectedSymbols.length > 0 ? new Set(selectedSymbols) : null;
+    const base = set ? symbols.filter((s) => set.has(s)) : symbols;
+    if (!changeSort) return base;
     const miss = changeSort === 'desc' ? -Infinity : Infinity;
-    return [...symbols].sort((a, b) => {
+    return [...base].sort((a, b) => {
       const ca = liveChanges[a];
       const cb = liveChanges[b];
       const va = ca == null || !Number.isFinite(ca) ? miss : ca;
       const vb = cb == null || !Number.isFinite(cb) ? miss : cb;
       return changeSort === 'desc' ? vb - va : va - vb;
     });
-  }, [symbols, changeSort, liveChanges]);
+  }, [symbols, selectedSymbols, changeSort, liveChanges]);
 
   const refreshPositions = useCallback(async () => {
     try {
@@ -329,6 +334,34 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
           Chưa có coin nào trong lịch sử. Khi có lệnh đã đóng, chúng sẽ hiện ở đây để mở lại nhanh.
         </div>
       ) : (
+        <>
+        <div className="bg-table-toolbar">
+          <div className="bg-toolbar-filter">
+            <span className="bg-toolbar-label">Lọc coin:</span>
+            <SymbolMultiSelect
+              symbols={symbols}
+              selected={selectedSymbols}
+              onChange={setSelectedSymbols}
+            />
+            {selectedSymbols.length > 0 && (
+              <button
+                type="button"
+                className="bg-toolbar-clear"
+                onClick={() => setSelectedSymbols([])}
+                title="Xoá bộ lọc"
+              >
+                ✕ Xoá lọc
+              </button>
+            )}
+          </div>
+          <span className="bg-toolbar-count">
+            {displaySymbols.length} coin
+            {selectedSymbols.length > 0 ? ` (đã lọc từ ${symbols.length})` : ''}
+          </span>
+        </div>
+        {displaySymbols.length === 0 ? (
+          <div className="bg-alert">Không có coin nào khớp bộ lọc.</div>
+        ) : (
         <div className="bg-table-wrap">
           <table className="bg-table">
             <thead>
@@ -460,6 +493,8 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
             </tbody>
           </table>
         </div>
+        )}
+        </>
       )}
 
       {editing && (

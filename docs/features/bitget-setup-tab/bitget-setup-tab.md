@@ -118,6 +118,7 @@ PNG in a new tab.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin; `POST /bitget/setup-chart/save` snapshots the live Setup chart.
 - `apps/api/src/modules/bitget/dto/save-setup-chart.dto.ts` — validates `{ symbol, timeframe }` for the Setup-chart save.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — shared chart dialog; `allowSave` prop shows the 💾 Lưu button (Setup tab passes it, positions table does not).
+- `apps/web/src/widgets/bitget/symbol-multi-select.tsx` — shared coin-name multi-select filter (used by the Setup toolbar + the History tab); filters `displaySymbols` (empty = all coins).
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`, `saveBitgetSetupChart({ symbol, timeframe })`.
 - `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack).
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, and computes the per-timeframe QQE column (`getQqeSignals`, 60s cache).

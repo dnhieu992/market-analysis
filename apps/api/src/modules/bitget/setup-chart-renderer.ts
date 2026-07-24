@@ -45,7 +45,10 @@ export type SetupChartInput = {
   tradeSpan?: { openIndex: number; closeIndex: number; win: boolean };
 };
 
-const CANVAS_WIDTH = 1200;
+// Widened 1.5× (1200 → 1800): the panes are ~square, so in the fullscreen dialog
+// the image was height-constrained and left big side gaps on desktop. A more
+// landscape canvas fills the horizontal space and de-crowds the candles.
+const CANVAS_WIDTH = 1800;
 // Two stacked bottom panes: RSI over Volume, each with a gap above it.
 const RSI_PANE_HEIGHT = 150;
 const VOL_PANE_HEIGHT = 120;
