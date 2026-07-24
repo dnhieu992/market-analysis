@@ -10495,6 +10495,28 @@ a.metric-card--link:hover {
 .eb-chart-dialog .dialog-close { color: #64748b; }
 .eb-chart-dialog .dialog-close:hover { background: rgba(15,23,42,0.06); color: #0f172a; }
 .eb-chart-note { font-size: 12px; font-weight: 500; color: #64748b; }
+
+/* Timeframe switcher inside the Setup chart dialog */
+.eb-tf-tabs { display: inline-flex; gap: 4px; margin-left: auto; margin-right: 12px; }
+.eb-tf-tab {
+  padding: 4px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.eb-tf-tab:hover { background: #eef2f7; color: #0f172a; }
+.eb-tf-tab--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+.eb-tf-tab--active:hover { background: var(--accent); color: #ffffff; }
+
 .eb-chart-body {
   display: flex;
   align-items: center;
@@ -11216,6 +11238,130 @@ a.metric-card--link:hover {
   border-radius: 12px;
   background: var(--surface);
 }
+
+/* ── History table: coin filter toolbar + pagination ───────────────── */
+.bg-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.bg-toolbar-filter { display: flex; align-items: center; gap: 8px; }
+.bg-toolbar-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.bg-toolbar-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bg-toolbar-clear {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.bg-toolbar-clear:hover { color: var(--foreground); text-decoration: underline; }
+
+/* Multi-select dropdown */
+.bg-msel { position: relative; }
+.bg-msel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bg-msel-btn:hover { border-color: var(--accent); }
+.bg-msel-label { flex: 1; text-align: left; white-space: nowrap; }
+.bg-msel-caret { color: var(--muted); font-size: 10px; }
+.bg-msel-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 220px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+.bg-msel-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.bg-msel-actions button {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bg-msel-actions button:hover { border-color: var(--accent); color: var(--accent); }
+.bg-msel-list { overflow-y: auto; padding: 4px; }
+.bg-msel-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.bg-msel-item:hover { background: rgba(59, 130, 246, 0.08); }
+.bg-msel-item input { cursor: pointer; accent-color: var(--accent); }
+
+/* Pagination bar */
+.bg-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.bg-page-size,
+.bg-page-nav { display: flex; align-items: center; gap: 8px; }
+.bg-page-size { font-size: 12px; color: var(--muted); }
+.bg-page-size select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  cursor: pointer;
+}
+.bg-page-range,
+.bg-page-info { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bg-page-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bg-page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.bg-page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .bg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .bg-table th, .bg-table td {
   padding: 11px 14px;
@@ -11307,6 +11453,23 @@ a.metric-card--link:hover {
 }
 .bg-side--long { background: #e3f5ec; color: #1f8a5b; }
 .bg-side--short { background: #fdecea; color: #c2453a; }
+
+/* Icon-only "view chart" button next to a position's symbol/side. */
+.bg-chart-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.bg-chart-icon-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(59,130,246,0.08); }
 
 .bg-margin-mode {
   display: block;

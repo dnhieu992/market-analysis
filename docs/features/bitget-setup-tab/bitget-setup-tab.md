@@ -16,13 +16,18 @@ show once per row. The **"Hôm nay"** header is a **sort toggle**: rows keep the
 pinned/watchlist order until it is clicked, then clicking cycles **descending → ascending →
 back to default** (coins with no live change reading always sink to the bottom).
 
-Each coin row also has a **📈 Chart** button that opens a fullscreen dialog with a server-rendered
-**M30** PNG chart carrying TradingView-default indicators: the **SonicR system** (EMA34
+Each coin row also has a single **📈 Chart** button that opens a fullscreen dialog with a
+server-rendered PNG chart. The dialog has an **M15 / M30 / H1 / H4 / D1** timeframe switcher in
+its header (defaults to **H4**) that re-fetches the render in place — one button per row instead
+of five. The chart carries TradingView-default indicators: the **SonicR system** (EMA34
 of high/low/close as the green "Dragon" ribbon + EMA89 trend line), **Support/Resistance
 Channels** (LonesomeTheBlue-style pivot channels), **RSI(14)**, a **FxCanli Volume (Hacim)**
-pane (per-bar volume histogram coloured by candle direction + MA20), and **colinmck "QQE
+pane (per-bar volume histogram coloured by candle direction + MA20), **colinmck "QQE
 Signals" (14,5,4.238)** markers drawn on the price candles — a green ▲ **Long** below the candle
-where the QQE trailing line crosses under RSI-MA, a red ▼ **Short** above where it crosses over.
+where the QQE trailing line crosses under RSI-MA, a red ▼ **Short** above where it crosses over —
+and an **Engulfing Candles Detector** (TradingView default: 1 engulfed candle, body-based): every
+bullish/bearish engulfing candle is boxed with a coloured outline (green/red) and tagged **EC**
+with a ▲ below a bullish engulf / ▼ above a bearish one.
 The chart is read-only / non-persisted — it just fetches and displays the latest render.
 
 The chart also overlays **position markers**: every live open position for the coin draws a
@@ -110,7 +115,7 @@ PNG in a new tab.
 - `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack).
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, and computes the per-timeframe QQE column (`getQqeSignals`, 60s cache).
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column.
-- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + position-marker lines + trade-span (Vào/Đóng) markers.
+- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + Engulfing Candles Detector boxes/EC tags (`detectEngulfing`) + position-marker lines + trade-span (Vào/Đóng) markers.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — History tab: per-row M30/H1/H4/D1 buttons + `TradeChartDialog` (review chart + 💾 Lưu to R2).
 - `packages/db/prisma/schema.prisma` / `bitget-trade-chart.repository.ts` — `BitgetTradeChart` model (saved trade-chart snapshots, unique on tradeKey+timeframe).
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.

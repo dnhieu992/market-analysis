@@ -18,6 +18,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 3. Widget client `BitgetPositionsFeed` render 3 tile tổng hợp + bảng vị thế, và **tự làm mới mỗi 15 giây** qua `createApiClient().fetchBitgetPositions()` (dữ liệu authoritative: margin, realized PnL, vị thế mới/đã đóng); có nút "Làm mới" thủ công và mốc thời gian "đồng bộ … trước".
 4. **Force-close (nút Đóng):** widget gọi `closeBitgetPosition(symbol, holdSide)` sau khi `window.confirm`. API `BitgetService.closePosition()` đọc size hiện tại (409 nếu đã đóng), rồi `POST /api/v2/mix/order/close-positions` (market, reduce-only). Thành công → auto-refresh bảng; lỗi → banner đỏ (đọc message từ body). Trong lúc đóng, mọi nút Đóng bị disable, nút của dòng đang xử lý hiện "…".
 5. **Toggle value PnL:** state `showValue` (khởi tạo từ `localStorage` trong `useEffect` để tránh lệch SSR); khi tắt, cột PnL + tile chỉ hiện %/ROE, khi bật hiện thêm số USD.
+7. **Xem chart (icon cạnh symbol):** mỗi dòng có một nút icon (candlestick, không chữ) ngay sau badge LONG/SHORT. Bấm mở `SetupChartDialog` dùng chung (`apps/web/src/widgets/bitget/setup-chart-dialog.tsx`) — chart SonicR + S/R Channel + RSI render server-side qua `GET /bitget/setup-chart`, có switcher khung M30/H1/H4/D1 (mặc định H4), giống các tab khác. Read-only.
 6. **Giá realtime (WebSocket public Bitget):** hook `useBitgetLivePrices` mở kết nối `wss://ws.bitget.com/v2/ws/public` ngay từ browser (không cần auth, WS không vướng CORS), subscribe channel `ticker` cho từng symbol đang mở. Mỗi tick, widget tính lại **markPrice → uPnL/ROE/notional** ngay trên client giữa hai lần REST refresh, cập nhật cả 3 tile tổng hợp. Ô "Giá hiện tại" nhấp nháy xanh/đỏ theo chiều giá; badge **LIVE** ở header báo trạng thái kết nối WS. uPnL client-side = `(markPrice − entryPrice) × size × (long ? 1 : −1)`, được sàn reconcile lại mỗi 15s.
 
 ## Edge Cases
@@ -41,6 +42,8 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/positions`, `POST /bitget/positions/close`.
 - `apps/api/src/modules/bitget/dto/close-position.dto.ts` — validate `symbol` + `holdSide`.
 - `apps/api/src/modules/bitget/bitget.module.ts` — module, đăng ký trong `apps/api/src/app.module.ts`.
+- `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — bảng vị thế + nút icon xem chart cạnh symbol (`ChartIcon`, mở `SetupChartDialog`).
+- `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — dialog chart dùng chung (Setup tab + Vị thế đang mở): switcher khung M30/H1/H4/D1, fetch PNG từ `GET /bitget/setup-chart`.
 - `apps/web/src/shared/api/types.ts` — type `BitgetPosition`, `BitgetPositionsResponse`.
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetPositions()`, `closeBitgetPosition()`.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — server component gộp: fetch positions + history, chọn tab từ `?tab=`.

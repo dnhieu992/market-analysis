@@ -117,6 +117,32 @@ function rsiSeries(closes: number[], period = 14): number[] {
   return out;
 }
 
+type EngulfKind = 'bull' | 'bear' | null;
+
+/**
+ * "Engulfing Candles Detector" (TradingView default config: 1 engulfed candle,
+ * body-based). Bullish = a green candle whose real body fully engulfs the prior
+ * red candle's body; bearish = a red candle whose body engulfs the prior green
+ * body. Computed over the full history and later tailed to the display window.
+ */
+function detectEngulfing(candles: OhlcCandle[]): EngulfKind[] {
+  const out: EngulfKind[] = new Array(candles.length).fill(null);
+  for (let i = 1; i < candles.length; i++) {
+    const c = candles[i]!;
+    const p = candles[i - 1]!;
+    const curBull = c.close > c.open;
+    const curBear = c.close < c.open;
+    const prevBull = p.close > p.open;
+    const prevBear = p.close < p.open;
+    if (curBull && prevBear && c.close >= p.open && c.open <= p.close) {
+      out[i] = 'bull';
+    } else if (curBear && prevBull && c.close <= p.open && c.open >= p.close) {
+      out[i] = 'bear';
+    }
+  }
+  return out;
+}
+
 type SrChannel = { hi: number; lo: number; strength: number };
 
 /**
@@ -293,6 +319,75 @@ function qqeSignalPlugin(candles: OhlcCandle[], cross: QqeCross[]): Plugin {
           ctx.fill();
           ctx.textBaseline = 'bottom';
           ctx.fillText('Short', x, tipY - 10);
+        }
+      });
+      ctx.restore();
+    },
+  };
+}
+
+/**
+ * "Engulfing Candles Detector" markers: each detected engulfing candle is boxed
+ * with a coloured outline over its full high→low range (green for bullish, red
+ * for bearish) plus a small ▲/▼ tag at the far end of the candle. Clipped to the
+ * price area so tags never bleed into the RSI/Volume panes.
+ */
+function engulfingPlugin(candles: OhlcCandle[], engulf: EngulfKind[]): Plugin {
+  return {
+    id: 'engulfing',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales } = chart;
+      const xScale = scales['x'];
+      const yScale = scales['y'];
+      if (!xScale || !yScale) return;
+
+      ctx.save();
+      clipToPriceArea(chart);
+      const boxWidth = Math.max(6, (xScale.width / candles.length) * 0.9);
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+
+      engulf.forEach((kind, i) => {
+        const candle = candles[i];
+        if (!kind || !candle) return;
+        const x = xScale.getPixelForValue(i);
+        const highY = yScale.getPixelForValue(candle.high);
+        const lowY = yScale.getPixelForValue(candle.low);
+        const isBull = kind === 'bull';
+        const color = isBull ? '#16a34a' : '#dc2626';
+        const rgb = isBull ? '22,163,74' : '220,38,38';
+
+        // Highlight box around the whole candle.
+        ctx.save();
+        ctx.fillStyle = `rgba(${rgb},0.10)`;
+        ctx.fillRect(x - boxWidth / 2, highY, boxWidth, Math.max(2, lowY - highY));
+        ctx.strokeStyle = `rgba(${rgb},0.85)`;
+        ctx.lineWidth = 1.25;
+        ctx.strokeRect(x - boxWidth / 2, highY, boxWidth, Math.max(2, lowY - highY));
+        ctx.restore();
+
+        // ▲ below a bullish engulf, ▼ above a bearish one.
+        ctx.fillStyle = color;
+        if (isBull) {
+          const tipY = lowY + 20;
+          ctx.beginPath();
+          ctx.moveTo(x, tipY);
+          ctx.lineTo(x - 4, tipY + 6);
+          ctx.lineTo(x + 4, tipY + 6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.textBaseline = 'top';
+          ctx.fillText('EC', x, tipY + 8);
+        } else {
+          const tipY = highY - 20;
+          ctx.beginPath();
+          ctx.moveTo(x, tipY);
+          ctx.lineTo(x - 4, tipY - 6);
+          ctx.lineTo(x + 4, tipY - 6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.textBaseline = 'bottom';
+          ctx.fillText('EC', x, tipY - 8);
         }
       });
       ctx.restore();
@@ -694,6 +789,8 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   // colinmck "QQE Signals" (14,5,4.238) — Long/Short crosses computed on full
   // history (warm bands) then tailed to the display window.
   const qqeCross = tail(calculateQqe(fullCloses).cross);
+  // Engulfing Candles Detector — detected on full history, tailed to the window.
+  const engulf = tail(detectEngulfing(fullCandles));
   const srChannels = computeSrChannels(candles);
 
   // Extra empty slots on the right so the most recent candle doesn't sit flush
@@ -776,7 +873,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
         },
         title: {
           display: true,
-          text: `${symbol} ${timeframe} · SonicR + EMA200 + S/R Channel + RSI + QQE`,
+          text: `${symbol} ${timeframe} · SonicR + EMA200 + S/R Channel + RSI + QQE + Engulfing`,
           color: '#0f172a',
           font: { size: 14, weight: 'bold' },
         },
@@ -787,6 +884,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       sonicDragonPlugin(ema34High, ema34Low),
       candlestickPlugin(candles),
       qqeSignalPlugin(candles, qqeCross),
+      engulfingPlugin(candles, engulf),
       rsiPlugin(rsi),
       volumePlugin(candles, volMa),
       ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),

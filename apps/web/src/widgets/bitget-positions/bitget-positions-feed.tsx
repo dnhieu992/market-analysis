@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/types';
 
+import { SetupChartDialog } from '../bitget/setup-chart-dialog';
+
 import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
 import { useBitgetLivePrices } from './use-bitget-live-prices';
 
@@ -62,6 +64,8 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
   // Which trade's journal drawer is open — stored as identity so it tracks the
   // live position object across the 15s refreshes (fresh price for new notes).
   const [journalKey, setJournalKey] = useState<{ symbol: string; holdSide: 'long' | 'short' } | null>(null);
+  // Which coin's live chart dialog is open (icon button next to the symbol).
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   const clientRef = useRef(createApiClient());
 
   useEffect(() => {
@@ -264,6 +268,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
                         disabled={closingKey !== null}
                         onClose={closePosition}
                         onJournal={() => setJournalKey({ symbol: p.symbol, holdSide: p.holdSide })}
+                        onChart={() => setChartSymbol(p.symbol)}
                       />
                     ))}
                   </tbody>
@@ -291,6 +296,10 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
           onClose={() => setJournalKey(null)}
         />
       )}
+
+      {chartSymbol && (
+        <SetupChartDialog symbol={chartSymbol} onClose={() => setChartSymbol(null)} />
+      )}
     </div>
   );
 }
@@ -316,6 +325,29 @@ function EyeIcon({ off }: { off: boolean }) {
   );
 }
 
+// Monochrome candlestick-chart icon — inherits text color via currentColor.
+function ChartIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 3v18h18" />
+      <rect x="7" y="10" width="3" height="6" rx="0.5" />
+      <path d="M8.5 7v3M8.5 16v2" />
+      <rect x="14" y="7" width="3" height="8" rx="0.5" />
+      <path d="M15.5 4v3M15.5 15v2" />
+    </svg>
+  );
+}
+
 type PositionRowProps = {
   p: BitgetPosition;
   showValue: boolean;
@@ -323,9 +355,10 @@ type PositionRowProps = {
   disabled: boolean;
   onClose: (symbol: string, holdSide: 'long' | 'short') => void;
   onJournal: () => void;
+  onChart: () => void;
 };
 
-function PositionRow({ p, showValue, closing, disabled, onClose, onJournal }: PositionRowProps) {
+function PositionRow({ p, showValue, closing, disabled, onClose, onJournal, onChart }: PositionRowProps) {
   const isLong = p.holdSide === 'long';
   // Flash the live-price cell green/red on each tick.
   const prevPrice = useRef(p.markPrice);
@@ -348,6 +381,15 @@ function PositionRow({ p, showValue, closing, disabled, onClose, onJournal }: Po
           <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
             {isLong ? 'LONG' : 'SHORT'}
           </span>
+          <button
+            type="button"
+            className="bg-chart-icon-btn"
+            onClick={onChart}
+            title="Xem chart (SonicR + S/R Channel + RSI)"
+            aria-label={`Xem chart ${p.symbol}`}
+          >
+            <ChartIcon />
+          </button>
         </span>
       </td>
       <td className="bg-num">

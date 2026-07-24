@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
+import { createApiClient } from '@web/shared/api/client';
 import type {
   BitgetHistoryResponse,
   BitgetPositionsResponse,
@@ -13,6 +13,12 @@ import type {
 } from '@web/shared/api/types';
 
 import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices';
+import {
+  CHART_TIMEFRAMES,
+  DEFAULT_CHART_TF,
+  SetupChartDialog,
+  tfLabelOf,
+} from './setup-chart-dialog';
 
 const REFRESH_MS = 15_000;
 // QQE readings only change on candle close — poll on a slower cadence than positions.
@@ -35,13 +41,6 @@ const WATCHLIST_SYMBOLS = [
   'ONDOUSDT',
   'TIAUSDT',
 ];
-
-const CHART_TIMEFRAMES = [
-  { label: 'M30', tf: 'M30' },
-  { label: 'H1',  tf: '1h'  },
-  { label: 'H4',  tf: '4h'  },
-  { label: 'D1',  tf: '1d'  },
-] as const;
 
 /** Per-coin QQE state keyed by timeframe, matching the chart-view timeframes. */
 type QqeMap = Record<string, Record<string, BitgetQqeTfSignal | null>>;
@@ -379,17 +378,14 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                       <div className="bg-symbol-cell">
                         <span>{symbol}</span>
                         <div className="bg-chart-btns">
-                          {CHART_TIMEFRAMES.map(({ label, tf }) => (
-                            <button
-                              key={tf}
-                              type="button"
-                              className="bg-chart-btn"
-                              onClick={() => setChartTarget({ symbol, tf })}
-                              title={`Xem chart ${label} (SonicR + S/R Channel + RSI)`}
-                            >
-                              {label}
-                            </button>
-                          ))}
+                          <button
+                            type="button"
+                            className="bg-chart-btn"
+                            onClick={() => setChartTarget({ symbol, tf: DEFAULT_CHART_TF })}
+                            title="Xem chart (SonicR + S/R Channel + RSI) — chọn khung M30/H1/H4/D1 trong dialog"
+                          >
+                            📈 Chart
+                          </button>
                         </div>
                       </div>
                     </td>
@@ -490,80 +486,6 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   );
 }
 
-/**
- * Fullscreen M30 chart dialog for a Setup-tab coin (SonicR system + S/R channels
- * + RSI, all TradingView defaults). The PNG is rendered server-side; we fetch it
- * through the app's authenticated path and show it as a blob URL. Read-only —
- * nothing is persisted.
- */
-function SetupChartDialog({ symbol, tf, onClose }: { symbol: string; tf: string; onClose: () => void }) {
-  const [imgSrc, setImgSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  // Friendly label for the dialog title (M30→M30, 1h→H1, 4h→H4, 1d→D1)
-  const tfLabel = tf === '1h' ? 'H1' : tf === '4h' ? 'H4' : tf === '1d' ? 'D1' : tf.toUpperCase();
-
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    setImgSrc(null);
-    setFailed(false);
-    const url = `${resolveApiBaseUrl()}/bitget/setup-chart?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_t=${Date.now()}`;
-    fetch(url, { credentials: 'include', cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.blob();
-      })
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setImgSrc(objectUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [symbol, tf]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return createPortal(
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <span className="dialog-title">
-            {symbol} <span className="eb-tf">{tfLabel}</span>
-            <span className="eb-chart-note"> · SonicR + S/R Channel + RSI</span>
-          </span>
-          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
-            ✕
-          </button>
-        </div>
-        <div className="dialog-body eb-chart-body">
-          {failed ? (
-            <div className="eb-chart-status">Không tải được chart. Thử lại sau.</div>
-          ) : imgSrc ? (
-            <img className="eb-chart-img" src={imgSrc} alt={`${symbol} ${tfLabel} chart`} />
-          ) : (
-            <div className="eb-chart-status">Đang tải chart…</div>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-/** Friendly timeframe label (M30 / H1 / H4 / D1) for a stored chart. */
-const tfLabelOf = (tf: string) =>
-  tf === '1h' ? 'H1' : tf === '4h' ? 'H4' : tf === '1d' ? 'D1' : tf.toUpperCase();
 
 /** Saved-at timestamp formatted for the gallery caption. */
 function fmtSavedAt(iso: string): string {

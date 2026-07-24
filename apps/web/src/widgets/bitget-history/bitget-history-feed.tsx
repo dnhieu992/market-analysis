@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
@@ -20,6 +20,10 @@ const CHART_TIMEFRAMES = [
 
 // Timeframe the "Xem chart" button opens on; users switch inside the dialog.
 const DEFAULT_CHART_TF = '4h';
+
+// History table pagination: default rows per page + the selectable page sizes.
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 type ChartTarget = { trade: BitgetClosedTrade; tf: string };
 
@@ -88,6 +92,10 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
   const [journalTarget, setJournalTarget] = useState<JournalTarget | null>(null);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const [refTrade, setRefTrade] = useState<BitgetClosedTrade | null>(null);
+  // Coin-name filter (empty = all coins) + pagination state.
+  const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [page, setPage] = useState(1);
   const clientRef = useRef(createApiClient());
 
   const refresh = useCallback(async () => {
@@ -110,10 +118,33 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
 
   const { configured, trades, summary, fetchedAt } = data;
 
-  // Sort closed trades by close time descending — most recently closed first.
-  const sortedTrades = [...trades].sort(
-    (a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime(),
+  // Distinct coin names present in history, for the filter select-box.
+  const availableSymbols = useMemo(
+    () => Array.from(new Set(trades.map((t) => t.symbol))).sort(),
+    [trades],
   );
+
+  // Sort by close time descending (most recent first), then apply the coin filter.
+  const filteredTrades = useMemo(() => {
+    const sorted = [...trades].sort(
+      (a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime(),
+    );
+    if (selectedSymbols.length === 0) return sorted;
+    const set = new Set(selectedSymbols);
+    return sorted.filter((t) => set.has(t.symbol));
+  }, [trades, selectedSymbols]);
+
+  // Reset to page 1 whenever the filter or page size changes.
+  useEffect(() => {
+    setPage(1);
+  }, [selectedSymbols, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTrades.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageTrades = filteredTrades.slice(pageStart, pageStart + pageSize);
+  const rangeFrom = filteredTrades.length === 0 ? 0 : pageStart + 1;
+  const rangeTo = Math.min(pageStart + pageSize, filteredTrades.length);
 
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
@@ -180,6 +211,31 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
               Chưa có lệnh nào được đồng bộ. Worker sẽ tự kéo lịch sử ~90 ngày trong vài phút tới.
             </div>
           ) : (
+            <>
+            <div className="bg-table-toolbar">
+              <div className="bg-toolbar-filter">
+                <span className="bg-toolbar-label">Lọc coin:</span>
+                <SymbolMultiSelect
+                  symbols={availableSymbols}
+                  selected={selectedSymbols}
+                  onChange={setSelectedSymbols}
+                />
+                {selectedSymbols.length > 0 && (
+                  <button
+                    type="button"
+                    className="bg-toolbar-clear"
+                    onClick={() => setSelectedSymbols([])}
+                    title="Xoá bộ lọc"
+                  >
+                    ✕ Xoá lọc
+                  </button>
+                )}
+              </div>
+              <span className="bg-toolbar-count">
+                {filteredTrades.length} lệnh
+                {selectedSymbols.length > 0 ? ` (đã lọc từ ${trades.length})` : ''}
+              </span>
+            </div>
             <div className="bg-table-wrap">
               <table className="bg-table">
                 <thead>
@@ -201,7 +257,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedTrades.map((t) => (
+                  {pageTrades.map((t) => (
                     <TradeRow
                       key={t.positionId || t.tradeKey}
                       t={t}
@@ -225,6 +281,53 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                 </tbody>
               </table>
             </div>
+
+            {filteredTrades.length === 0 ? (
+              <div className="bg-alert">Không có lệnh nào khớp bộ lọc.</div>
+            ) : (
+              <div className="bg-pagination">
+                <div className="bg-page-size">
+                  <span>Hiển thị</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    aria-label="Số dòng mỗi trang"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <span>/ trang</span>
+                </div>
+                <div className="bg-page-nav">
+                  <span className="bg-page-range">
+                    {rangeFrom}–{rangeTo} / {filteredTrades.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="bg-page-btn"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹ Trước
+                  </button>
+                  <span className="bg-page-info">
+                    Trang {currentPage}/{totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="bg-page-btn"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Sau ›
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </>
       )}
@@ -247,6 +350,86 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
 
       {refTrade && (
         <TradeChartGalleryDialog trade={refTrade} onClose={() => setRefTrade(null)} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Coin-name filter: a button that opens a checkbox dropdown of every coin present
+ * in history. Empty selection means "all coins". Closes on outside click / Escape.
+ */
+function SymbolMultiSelect({
+  symbols,
+  selected,
+  onChange,
+}: {
+  symbols: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const toggle = (s: string) =>
+    onChange(selected.includes(s) ? selected.filter((x) => x !== s) : [...selected, s]);
+
+  const label =
+    selected.length === 0
+      ? 'Tất cả coin'
+      : selected.length === 1
+        ? selected[0]!
+        : `${selected.length} coin đã chọn`;
+
+  return (
+    <div className="bg-msel" ref={ref}>
+      <button
+        type="button"
+        className="bg-msel-btn"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="bg-msel-label">{label}</span>
+        <span className="bg-msel-caret">▾</span>
+      </button>
+      {open && (
+        <div className="bg-msel-menu" role="listbox" aria-multiselectable="true">
+          <div className="bg-msel-actions">
+            <button type="button" onClick={() => onChange(symbols.slice())}>
+              Chọn tất cả
+            </button>
+            <button type="button" onClick={() => onChange([])}>
+              Bỏ chọn
+            </button>
+          </div>
+          <div className="bg-msel-list">
+            {symbols.map((s) => (
+              <label key={s} className="bg-msel-item">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(s)}
+                  onChange={() => toggle(s)}
+                />
+                <span>{s}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

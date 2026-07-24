@@ -32,6 +32,7 @@ export type QqeSymbolSignals = { symbol: string; signals: Record<string, QqeTfSi
 // `limit` must cover `display` + 200 bars so the EMA200 line is warm across the
 // whole displayed window (EMA200 needs 200 prior candles before its first value).
 const TF_CONFIG: Record<string, { limit: number; display: number }> = {
+  '15m': { limit: 500, display: 200 },
   'M30': { limit: 500, display: 200 },
   '1h':  { limit: 400, display: 150 },
   '4h':  { limit: 340, display: 120 },
@@ -40,6 +41,7 @@ const TF_CONFIG: Record<string, { limit: number; display: number }> = {
 
 /** Candle interval (ms) per supported timeframe — used to window a closed trade. */
 const TF_MS: Record<string, number> = {
+  '15m': 15 * 60_000,
   'M30': 30 * 60_000,
   '1h': 60 * 60_000,
   '4h': 4 * 60 * 60_000,
