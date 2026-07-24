@@ -5,7 +5,7 @@ import { createBitgetTradeChartRepository } from '@app/db';
 import { BitgetService } from './bitget.service';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { StorageService } from '../storage/storage.service';
-import { renderSetupChart, type ChartMarker, type OhlcCandle } from './setup-chart-renderer';
+import { renderSetupChart, QQE_PARAMS, type ChartMarker, type OhlcCandle } from './setup-chart-renderer';
 
 const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
 
@@ -352,7 +352,12 @@ export class BitgetSetupChartService {
  * it's held, and whether that last bar is itself the flip.
  */
 function deriveQqeSignal(closes: number[]): QqeTfSignal | null {
-  const { rsiMa, signal, cross } = calculateQqe(closes);
+  const { rsiMa, signal, cross } = calculateQqe(
+    closes,
+    QQE_PARAMS.rsiPeriod,
+    QQE_PARAMS.smoothing,
+    QQE_PARAMS.qqeFactor,
+  );
 
   let last = -1;
   for (let i = closes.length - 1; i >= 0; i--) {

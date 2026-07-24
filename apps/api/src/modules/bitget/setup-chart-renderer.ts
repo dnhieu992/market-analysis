@@ -2,6 +2,21 @@ import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { ChartConfiguration, Plugin } from 'chart.js';
 import { calculateQqe, type QqeCross } from '@app/core';
 
+/**
+ * colinmck "QQE Signals" params for the Bitget charts (RSI length, RSI smoothing,
+ * fast QQE factor, threshold). The Long/Short arrows use the first three; in
+ * colinmck the `threshold` only positions a visual 50±band on the QQE oscillator,
+ * which we don't render — so it's kept for reference/config parity but does not
+ * change the arrows here. Shared by the chart renderer AND the Setup-tab QQE
+ * column so both always agree.
+ */
+export const QQE_PARAMS = {
+  rsiPeriod: 10,
+  smoothing: 4,
+  qqeFactor: 3.2,
+  threshold: 10,
+} as const;
+
 export type OhlcCandle = {
   time: number; // unix timestamp ms
   open: number;
@@ -89,6 +104,30 @@ function smaSeries(values: number[], period: number): number[] {
     sum += values[i]!;
     if (i >= period) sum -= values[i - period]!;
     out.push(i >= period - 1 ? sum / period : NaN);
+  }
+  return out;
+}
+
+/**
+ * SMA over a series that may hold leading NaNs (e.g. RSI before it warms up):
+ * a window only produces a value when every bar in it is finite. Used for the
+ * TradingView "RSI-based MA" (default SMA 14) — a plain `smaSeries` would poison
+ * the running sum with the RSI warm-up NaNs and never recover.
+ */
+function smaOverValid(values: number[], period: number): number[] {
+  const out: number[] = new Array(values.length).fill(NaN);
+  for (let i = period - 1; i < values.length; i++) {
+    let sum = 0;
+    let ok = true;
+    for (let j = i - period + 1; j <= i; j++) {
+      const v = values[j];
+      if (v == null || Number.isNaN(v)) {
+        ok = false;
+        break;
+      }
+      sum += v;
+    }
+    if (ok) out[i] = sum / period;
   }
   return out;
 }
@@ -431,8 +470,9 @@ function srChannelPlugin(channels: SrChannel[], currentPrice: number): Plugin {
   };
 }
 
-/** RSI(14) oscillator pane below the price chart with 70/50/30 guides. */
-function rsiPlugin(rsi: number[]): Plugin {
+/** RSI(14) oscillator pane below the price chart with 70/50/30 guides + the
+ *  TradingView "RSI-based MA" (SMA 14, yellow) overlaid on the RSI line. */
+function rsiPlugin(rsi: number[], rsiMa: number[]): Plugin {
   return {
     id: 'rsi',
     afterDatasetsDraw(chart) {
@@ -477,30 +517,52 @@ function rsiPlugin(rsi: number[]): Plugin {
       guide(50, 'rgba(100,116,139,0.4)', [2, 3]);
       guide(30, 'rgba(38,166,154,0.65)', [4, 3]);
 
-      // RSI line (TradingView default purple).
-      ctx.beginPath();
-      ctx.strokeStyle = '#7e57c2';
-      ctx.lineWidth = 1.6;
-      let started = false;
-      for (let i = 0; i < rsi.length; i++) {
-        const v = rsi[i];
-        if (v == null || Number.isNaN(v)) {
-          started = false;
-          continue;
+      const drawSeries = (series: number[], color: string, width: number) => {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        let started = false;
+        for (let i = 0; i < series.length; i++) {
+          const v = series[i];
+          if (v == null || Number.isNaN(v)) {
+            started = false;
+            continue;
+          }
+          const x = xScale.getPixelForValue(i);
+          const y = yFor(v);
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else ctx.lineTo(x, y);
         }
-        const x = xScale.getPixelForValue(i);
-        const y = yFor(v);
-        if (!started) {
-          ctx.moveTo(x, y);
-          started = true;
-        } else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
+        ctx.stroke();
+      };
+
+      // RSI-based MA (SMA 14, yellow) under the RSI line, then RSI (purple) on top.
+      drawSeries(rsiMa, '#eab308', 1.4);
+      drawSeries(rsi, '#7e57c2', 1.6);
+
+      // Titles carry the latest value (TradingView-style live readout).
+      const lastVal = (s: number[]) => {
+        for (let i = s.length - 1; i >= 0; i--) {
+          const v = s[i];
+          if (v != null && !Number.isNaN(v)) return v;
+        }
+        return null;
+      };
+      const rsiNow = lastVal(rsi);
+      const rsiMaNow = lastVal(rsiMa);
+      const fmt = (v: number | null) => (v != null ? v.toFixed(2) : '—');
 
       ctx.textAlign = 'left';
       ctx.font = 'bold 11px sans-serif';
+      let labelX = left + 6;
+      const rsiLabel = `RSI (14)  ${fmt(rsiNow)}`;
       ctx.fillStyle = '#7e57c2';
-      ctx.fillText('RSI (14)', left + 6, bandTop + 14);
+      ctx.fillText(rsiLabel, labelX, bandTop + 14);
+      labelX += ctx.measureText(rsiLabel).width + 16;
+      ctx.fillStyle = '#eab308';
+      ctx.fillText(`RSI MA (14)  ${fmt(rsiMaNow)}`, labelX, bandTop + 14);
       ctx.restore();
     },
   };
@@ -741,11 +803,16 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const ema34Low = tail(emaSeries(fullLows, 34));
   const ema89 = tail(emaSeries(fullCloses, 89));
   const ema200 = tail(emaSeries(fullCloses, 200));
-  const rsi = tail(rsiSeries(fullCloses, 14));
+  const fullRsi = rsiSeries(fullCloses, 14);
+  const rsi = tail(fullRsi);
+  // TradingView "RSI-based MA": SMA 14 of RSI, warmed over full history.
+  const rsiMa = tail(smaOverValid(fullRsi, 14));
   const volMa = tail(smaSeries(fullCandles.map((c) => c.volume ?? 0), 20));
   // colinmck "QQE Signals" (14,5,4.238) — Long/Short crosses computed on full
   // history (warm bands) then tailed to the display window.
-  const qqeCross = tail(calculateQqe(fullCloses).cross);
+  const qqeCross = tail(
+    calculateQqe(fullCloses, QQE_PARAMS.rsiPeriod, QQE_PARAMS.smoothing, QQE_PARAMS.qqeFactor).cross,
+  );
   // Engulfing Candles Detector — detected on full history, tailed to the window.
   const engulf = tail(detectEngulfing(fullCandles));
   const srChannels = computeSrChannels(candles);
@@ -841,7 +908,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       sonicDragonPlugin(ema34High, ema34Low),
       candlestickPlugin(candles, engulf),
       qqeSignalPlugin(candles, qqeCross),
-      rsiPlugin(rsi),
+      rsiPlugin(rsi, rsiMa),
       volumePlugin(candles, volMa),
       ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),
       positionMarkerPlugin(markers),
