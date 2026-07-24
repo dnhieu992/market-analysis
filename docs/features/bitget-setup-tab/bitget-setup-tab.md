@@ -27,8 +27,12 @@ Signals" (14,5,4.238)** markers drawn on the price candles — a green ▲ **Lon
 where the QQE trailing line crosses under RSI-MA, a red ▼ **Short** above where it crosses over —
 and an **Engulfing Candles Detector** (TradingView default: 1 engulfed candle, body-based): every
 bullish/bearish engulfing candle is boxed with a coloured outline (green/red) and tagged **EC**
-with a ▲ below a bullish engulf / ▼ above a bearish one.
-The chart is read-only / non-persisted — it just fetches and displays the latest render.
+with a ▲ below a bullish engulf / ▼ above a bearish one. Candles are drawn **monochrome**
+(white body up / black body down, black borders + wicks) so the coloured indicators stand out.
+The dialog has a **💾 Lưu** button (same action as the History tab): it snapshots the current
+Setup chart to R2 via `POST /bitget/setup-chart/save` and stores a DB link so it appears in the
+coin's **🖼 Reference** gallery. Each save is a fresh reference image (timestamped synthetic
+`tradeKey` `setup-<coin>-<tf>-<ms>`), unlike a trade chart which upserts on a stable `tradeKey`.
 
 The chart also overlays **position markers**: every live open position for the coin draws a
 solid entry line (green LONG / red SHORT) tagged with entry price + live uPnL, and the most
@@ -109,9 +113,11 @@ PNG in a new tab.
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog` + 🖼 Reference button and `ChartGalleryDialog` (thumbnail rail + enlarged main image).
 - `packages/db/src/repositories/bitget-trade-chart.repository.ts` — `findBySymbol(symbol)` (all saved snapshots for one coin, newest first) alongside `findByTradeKey`.
-- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — `listSavedChartsBySymbol()` (normalises to `${bare}USDT`); TF_CONFIG limits + `TRADE_LOOKBACK_BARS` bumped so EMA200 warms.
-- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin.
-- `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`.
+- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — `listSavedChartsBySymbol()` (normalises to `${bare}USDT`); `saveSetupChart(symbol, tf)` snapshots the live chart to R2; TF_CONFIG limits + `TRADE_LOOKBACK_BARS` bumped so EMA200 warms.
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin; `POST /bitget/setup-chart/save` snapshots the live Setup chart.
+- `apps/api/src/modules/bitget/dto/save-setup-chart.dto.ts` — validates `{ symbol, timeframe }` for the Setup-chart save.
+- `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — shared chart dialog; `allowSave` prop shows the 💾 Lưu button (Setup tab passes it, positions table does not).
+- `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`, `saveBitgetSetupChart({ symbol, timeframe })`.
 - `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack).
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, and computes the per-timeframe QQE column (`getQqeSignals`, 60s cache).
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column.

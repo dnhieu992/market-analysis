@@ -1203,6 +1203,26 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return (await response.json()) as BitgetTradeChart;
     },
 
+    async saveBitgetSetupChart(input: {
+      symbol: string;
+      timeframe: string;
+    }): Promise<BitgetTradeChart> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/setup-chart/save`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu chart thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetTradeChart;
+    },
+
     async fetchBitgetSavedTradeCharts(tradeKey: string): Promise<BitgetTradeChart[]> {
       return fetchJson<BitgetTradeChart[]>(
         fetchImpl,

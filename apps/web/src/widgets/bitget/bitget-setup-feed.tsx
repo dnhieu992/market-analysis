@@ -476,7 +476,12 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
       )}
 
       {chartTarget && (
-        <SetupChartDialog symbol={chartTarget.symbol} tf={chartTarget.tf} onClose={() => setChartTarget(null)} />
+        <SetupChartDialog
+          symbol={chartTarget.symbol}
+          tf={chartTarget.tf}
+          allowSave
+          onClose={() => setChartTarget(null)}
+        />
       )}
 
       {refSymbol && (

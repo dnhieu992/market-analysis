@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { resolveApiBaseUrl } from '@web/shared/api/client';
+import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 
 /** Timeframes offered by the Setup chart dialog switcher. */
 export const CHART_TIMEFRAMES = [
@@ -25,21 +25,28 @@ export const tfLabelOf = (tf: string) =>
  * Fullscreen chart dialog for a Bitget coin (SonicR system + S/R channels + RSI,
  * all TradingView defaults). The PNG is rendered server-side; we fetch it through
  * the app's authenticated path and show it as a blob URL. A header switcher flips
- * the timeframe in place. Read-only — nothing is persisted. Shared by the Setup
- * tab and the open-positions table.
+ * the timeframe in place. Shared by the Setup tab and the open-positions table.
+ * When `allowSave` is set, a "💾 Lưu" button snapshots the current chart to R2 (same
+ * action as the History tab) so it shows up in the coin's Reference gallery.
  */
 export function SetupChartDialog({
   symbol,
   tf: initialTf = DEFAULT_CHART_TF,
+  allowSave = false,
   onClose,
 }: {
   symbol: string;
   tf?: string;
+  allowSave?: boolean;
   onClose: () => void;
 }) {
   const [tf, setTf] = useState(initialTf);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedUrl, setSavedUrl] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const clientRef = useRef(createApiClient());
 
   const tfLabel = tfLabelOf(tf);
 
@@ -48,6 +55,8 @@ export function SetupChartDialog({
     let objectUrl: string | null = null;
     setImgSrc(null);
     setFailed(false);
+    setSavedUrl(null);
+    setSaveErr(null);
     const url = `${resolveApiBaseUrl()}/bitget/setup-chart?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_t=${Date.now()}`;
     fetch(url, { credentials: 'include', cache: 'no-store' })
       .then((res) => {
@@ -74,6 +83,19 @@ export function SetupChartDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  async function save() {
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      const rec = await clientRef.current.saveBitgetSetupChart({ symbol, timeframe: tf });
+      setSavedUrl(rec.url);
+    } catch (err) {
+      setSaveErr(err instanceof Error ? err.message : 'Lưu chart thất bại.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return createPortal(
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog dialog--fullscreen eb-chart-dialog" onClick={(e) => e.stopPropagation()}>
@@ -97,10 +119,30 @@ export function SetupChartDialog({
               </button>
             ))}
           </div>
+          {allowSave && (
+            <button
+              type="button"
+              className="bg-open-btn bg-chart-save-btn"
+              onClick={save}
+              disabled={saving || !imgSrc}
+              title="Upload chart lên R2 và lưu link để tham chiếu sau"
+            >
+              {saving ? 'Đang lưu…' : savedUrl ? '✓ Đã lưu' : '💾 Lưu'}
+            </button>
+          )}
           <button className="dialog-close" onClick={onClose} aria-label="Đóng">
             ✕
           </button>
         </div>
+        {saveErr && <div className="bg-alert bg-alert--error">{saveErr}</div>}
+        {savedUrl && (
+          <div className="bg-alert bg-alert--ok">
+            Đã lưu chart ·{' '}
+            <a href={savedUrl} target="_blank" rel="noreferrer">
+              mở link R2
+            </a>
+          </div>
+        )}
         <div className="dialog-body eb-chart-body">
           {failed ? (
             <div className="eb-chart-status">Không tải được chart. Thử lại sau.</div>

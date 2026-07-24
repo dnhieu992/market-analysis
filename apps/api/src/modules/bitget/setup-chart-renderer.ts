@@ -253,18 +253,28 @@ function candlestickPlugin(candles: OhlcCandle[]): Plugin {
         const highY = yScale.getPixelForValue(candle.high);
         const lowY = yScale.getPixelForValue(candle.low);
 
-        const color = candle.close >= candle.open ? '#26a69a' : '#ef5350';
+        // Monochrome candles so the coloured indicators (QQE/Engulfing/EMAs) stand
+        // out: up = white body, down = black body; borders + wicks always black.
+        const up = candle.close >= candle.open;
+        const bodyFill = up ? '#ffffff' : '#000000';
+        const outline = '#000000';
         ctx.save();
-        ctx.strokeStyle = color;
-        ctx.fillStyle = color;
+        // Wick / shadow (black).
+        ctx.strokeStyle = outline;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(x, highY);
         ctx.lineTo(x, lowY);
         ctx.stroke();
+        // Body: filled white/black with a black border.
         const bodyTop = Math.min(openY, closeY);
         const bodyHeight = Math.max(1, Math.abs(closeY - openY));
-        ctx.fillRect(x - barWidth / 2, bodyTop, barWidth, bodyHeight);
+        const bodyX = x - barWidth / 2;
+        ctx.fillStyle = bodyFill;
+        ctx.fillRect(bodyX, bodyTop, barWidth, bodyHeight);
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bodyX, bodyTop, barWidth, bodyHeight);
         ctx.restore();
       });
       ctx.restore();

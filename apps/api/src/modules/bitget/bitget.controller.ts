@@ -23,6 +23,7 @@ import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
+import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './bitget-setup-chart.service';
 
 @ApiTags('bitget')
@@ -117,6 +118,12 @@ export class BitgetController {
   @ApiOperation({ summary: 'Render the trade chart, upload it to R2, and store the DB link' })
   saveTradeChart(@Body() dto: SaveTradeChartDto) {
     return this.setupChart.saveTradeChart({ ...dto, holdSide: dto.holdSide });
+  }
+
+  @Post('setup-chart/save')
+  @ApiOperation({ summary: 'Snapshot the live Setup-tab chart to R2 and store the DB link' })
+  saveSetupChart(@Body() dto: SaveSetupChartDto) {
+    return this.setupChart.saveSetupChart(dto.symbol, dto.timeframe);
   }
 
   @Get('trade-chart/saved')

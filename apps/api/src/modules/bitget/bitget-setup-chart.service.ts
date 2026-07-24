@@ -210,6 +210,39 @@ export class BitgetSetupChartService {
     });
   }
 
+  /**
+   * Snapshot the live Setup-tab chart: render the current PNG, upload to R2, and
+   * store a DB link so it shows in the coin's Reference gallery. Unlike a trade
+   * chart (keyed by a stable tradeKey), each Setup snapshot gets a timestamped
+   * synthetic tradeKey so every save is preserved as its own reference image.
+   */
+  async saveSetupChart(symbol: string, timeframe: string) {
+    const bare = bareSymbol(symbol);
+    const tf = TF_CONFIG[timeframe] ? timeframe : 'M30';
+    const buffer = await this.generateChart(symbol, tf);
+    const ts = Date.now();
+    const tradeKey = `setup-${bare}-${tf}-${ts}`;
+    const objectKey = `setup-charts/${bare}/${tf}-${ts}.png`;
+
+    const stored = await this.storage.uploadFile(
+      {
+        buffer,
+        mimetype: 'image/png',
+        originalname: `${bare}-${tf}.png`,
+        size: buffer.length,
+      },
+      objectKey,
+    );
+
+    return this.chartRepo.upsert({
+      tradeKey,
+      symbol: `${bare}USDT`,
+      timeframe: tf,
+      url: stored.url,
+      objectKey: stored.key,
+    });
+  }
+
   /** All saved chart snapshots for a trade (any timeframe). */
   listSavedCharts(tradeKey: string) {
     return this.chartRepo.findByTradeKey(tradeKey);
