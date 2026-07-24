@@ -99,17 +99,25 @@ export class BitgetTradeClient {
   }
 
   /**
-   * Set leverage for a symbol in CROSS mode (leverage is shared across sides, so
-   * no `holdSide` is sent). Called before the first order so margin/liquidation
-   * are deterministic rather than inheriting the account default.
+   * Set leverage for a symbol before the first order so margin/liquidation are
+   * deterministic rather than inheriting the account default. In hedge mode the
+   * account keeps a SEPARATE leverage per side (long/short) even in cross margin,
+   * so `holdSide` MUST be sent — omitting it leaves the traded side on whatever
+   * the Bitget app had set. Kept in sync with the worker trade client.
    */
-  async setCrossLeverage(symbol: string, leverage: number): Promise<void> {
-    await this.request<unknown>('POST', '/api/v2/mix/account/set-leverage', undefined, {
+  async setCrossLeverage(
+    symbol: string,
+    holdSide: 'long' | 'short',
+    leverage: number,
+  ): Promise<void> {
+    const body: Record<string, string> = {
       symbol,
       productType: this.productType,
       marginCoin: MARGIN_COIN,
       leverage: String(leverage),
-    });
+    };
+    if (this.hedgeMode) body.holdSide = holdSide;
+    await this.request<unknown>('POST', '/api/v2/mix/account/set-leverage', undefined, body);
   }
 
   /** Open a market position in CROSS mode (no preset TP/SL — a manual, naked entry). */

@@ -243,7 +243,7 @@ export class BitgetService {
         );
       }
 
-      await this.client.setCrossLeverage(symbol, leverage);
+      await this.client.setCrossLeverage(symbol, holdSide, leverage);
       const clientOid = `manual-${symbol}-${holdSide}-${Date.now()}`;
       await this.client.openMarketPosition({
         symbol,

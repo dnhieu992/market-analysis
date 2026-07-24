@@ -71,8 +71,9 @@ PNG in a new tab.
    - reads the live ticker price + contract precision;
    - computes size = `margin × leverage ÷ price`, floored to the contract's `volumePlace`
      (rejected 400 if below `minTradeNum`);
-   - sets cross leverage, then places a **market** order (`marginMode: crossed`, no preset
-     TP/SL — a deliberate manual entry).
+   - sets cross leverage for the cell's side (passing `holdSide` in hedge mode — see edge
+     cases), then places a **market** order (`marginMode: crossed`, no preset TP/SL — a
+     deliberate manual entry).
 5. On success a green notice shows the filled size/price and positions refresh, flipping the
    coin to "Đang mở" and disabling its Open button.
 
@@ -92,6 +93,10 @@ PNG in a new tab.
   (`openingKey !== null`).
 - **Hedge vs one-way account mode:** honoured via `BITGET_POSITION_MODE` (adds `tradeSide:
   open` in hedge mode), same as the worker trade client.
+- **Per-side leverage in hedge mode:** in hedge mode Bitget keeps a separate leverage per
+  side even in cross margin, so `set-leverage` MUST include `holdSide` — otherwise the traded
+  side keeps whatever the Bitget app had set and the requested leverage is silently ignored.
+  The call passes `holdSide` in hedge mode, matching the worker trade client.
 - **No saved charts (Reference gallery):** if the coin has no saved snapshots the gallery shows
   a hint pointing to the History tab's 💾 Lưu action; a list-fetch failure shows a retry notice.
   Both are non-fatal — the rest of the tab keeps working.
