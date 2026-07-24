@@ -216,9 +216,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
           <div className="bg-tiles">
             <div className="bg-tile">
               <span className="bg-tile-label">Số dư tài khoản</span>
-              <span className="bg-tile-value">
-                {showValue ? fmtUsdPlain(accountEquityUsd) : '••••'}
-              </span>
+              <span className="bg-tile-value">{fmtUsdPlain(accountEquityUsd)}</span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">Vị thế đang mở</span>
@@ -226,7 +224,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">Tổng ký quỹ</span>
-              <span className="bg-tile-value">{showValue ? fmtUsdPlain(totalMarginUsd) : '••••'}</span>
+              <span className="bg-tile-value">{fmtUsdPlain(totalMarginUsd)}</span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">PnL chưa thực hiện</span>

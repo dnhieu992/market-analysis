@@ -10490,14 +10490,36 @@ a.metric-card--link:hover {
 .eb-chart-btn:hover { border-color: var(--accent); background: rgba(59,130,246,0.08); }
 
 .eb-chart-dialog { background: #ffffff; color: #0f172a; }
-.eb-chart-dialog .dialog-header { border-bottom-color: #e2e8f0; }
-.eb-chart-dialog .dialog-title { color: #0f172a; }
-.eb-chart-dialog .dialog-close { color: #64748b; }
+.eb-chart-dialog .dialog-header {
+  border-bottom-color: #e2e8f0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* Title shrinks (and ellipsises) so the tf tabs / save / close never overflow the header */
+.eb-chart-dialog .dialog-title {
+  color: #0f172a;
+  order: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eb-chart-dialog .bg-chart-save-btn { order: 2; flex: 0 0 auto; }
+.eb-chart-dialog .dialog-close { color: #64748b; order: 3; flex: 0 0 auto; }
 .eb-chart-dialog .dialog-close:hover { background: rgba(15,23,42,0.06); color: #0f172a; }
 .eb-chart-note { font-size: 12px; font-weight: 500; color: #64748b; }
 
 /* Timeframe switcher inside the Setup chart dialog */
-.eb-tf-tabs { display: inline-flex; gap: 4px; margin-left: auto; margin-right: 12px; }
+.eb-tf-tabs { display: inline-flex; gap: 4px; margin-left: auto; margin-right: 12px; order: 1; flex: 0 0 auto; }
+
+/* Narrow screens: drop the subtitle and give the tf tabs their own row so the
+   close button always stays visible on the first row. */
+@media (max-width: 640px) {
+  .eb-chart-dialog .dialog-header { padding: 12px 14px; }
+  .eb-chart-note { display: none; }
+  .eb-tf-tabs { order: 4; flex: 1 0 100%; margin-left: 0; margin-right: 0; }
+}
 .eb-tf-tab {
   padding: 4px 12px;
   border: 1px solid #cbd5e1;

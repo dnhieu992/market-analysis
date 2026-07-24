@@ -108,6 +108,11 @@ PNG in a new tab.
   a save failure surfaces a red alert and the optimistic row state is kept.
 - **Concurrent opens:** the Open buttons are disabled globally while any open is in flight
   (`openingKey !== null`).
+- **Narrow / mobile chart dialog header:** the header row wraps instead of overflowing —
+  the title truncates with an ellipsis and the ✕ close button is `flex: 0 0 auto` with an
+  explicit `order`, so it can never be pushed out of the (`overflow: hidden`) dialog. Under
+  640px the `· SonicR + S/R Channel + RSI` subtitle is hidden and the timeframe tabs drop to
+  their own row, keeping 💾 Lưu + ✕ on the first row.
 - **Hedge vs one-way account mode:** honoured via `BITGET_POSITION_MODE` (adds `tradeSide:
   open` in hedge mode), same as the worker trade client.
 - **Per-side leverage in hedge mode:** in hedge mode Bitget keeps a separate leverage per
