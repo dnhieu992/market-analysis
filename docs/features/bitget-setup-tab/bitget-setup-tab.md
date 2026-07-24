@@ -25,10 +25,11 @@ Channels** (LonesomeTheBlue-style pivot channels), **RSI(14)**, a **FxCanli Volu
 pane (per-bar volume histogram coloured by candle direction + MA20), **colinmck "QQE
 Signals" (14,5,4.238)** markers drawn on the price candles — a green ▲ **Long** below the candle
 where the QQE trailing line crosses under RSI-MA, a red ▼ **Short** above where it crosses over —
-and an **Engulfing Candles Detector** (TradingView default: 1 engulfed candle, body-based): every
-bullish/bearish engulfing candle is boxed with a coloured outline (green/red) and tagged **EC**
-with a ▲ below a bullish engulf / ▼ above a bearish one. Candles are drawn **monochrome**
-(white body up / black body down, black borders + wicks) so the coloured indicators stand out.
+and an **Engulfing Candles Detector** (TradingView default: 1 engulfed candle, body-based):
+every bullish/bearish engulfing candle is **coloured solid (green bull / red bear), overriding
+the candle's normal style** — no box or text label, the colour alone flags the pattern. Normal
+candles are drawn **monochrome** (white body up / black body down, black borders + wicks) so the
+coloured engulfing candles + indicators stand out.
 The dialog has a **💾 Lưu** button (same action as the History tab): it snapshots the current
 Setup chart to R2 via `POST /bitget/setup-chart/save` and stores a DB link so it appears in the
 coin's **🖼 Reference** gallery. Each save is a fresh reference image (timestamped synthetic
@@ -121,7 +122,7 @@ PNG in a new tab.
 - `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack).
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, and computes the per-timeframe QQE column (`getQqeSignals`, 60s cache).
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column.
-- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + Engulfing Candles Detector boxes/EC tags (`detectEngulfing`) + position-marker lines + trade-span (Vào/Đóng) markers.
+- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + Engulfing Candles Detector (`detectEngulfing`, colours the candle solid green/red — no box/label) + position-marker lines + trade-span (Vào/Đóng) markers.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — History tab: per-row M30/H1/H4/D1 buttons + `TradeChartDialog` (review chart + 💾 Lưu to R2).
 - `packages/db/prisma/schema.prisma` / `bitget-trade-chart.repository.ts` — `BitgetTradeChart` model (saved trade-chart snapshots, unique on tradeKey+timeframe).
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.

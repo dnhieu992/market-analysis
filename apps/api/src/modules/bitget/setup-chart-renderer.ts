@@ -233,8 +233,10 @@ function clipToPriceArea(chart: Parameters<NonNullable<Plugin['beforeDatasetsDra
   ctx.clip();
 }
 
-/** OHLC candlesticks drawn straight onto the canvas. */
-function candlestickPlugin(candles: OhlcCandle[]): Plugin {
+/** OHLC candlesticks drawn straight onto the canvas. Engulfing candles override
+ *  the normal monochrome style with a solid colour (green bull / red bear) so the
+ *  pattern reads straight off the candle — no separate marker needed. */
+function candlestickPlugin(candles: OhlcCandle[], engulf: EngulfKind[]): Plugin {
   return {
     id: 'candlestick',
     beforeDatasetsDraw(chart) {
@@ -253,20 +255,31 @@ function candlestickPlugin(candles: OhlcCandle[]): Plugin {
         const highY = yScale.getPixelForValue(candle.high);
         const lowY = yScale.getPixelForValue(candle.low);
 
-        // Monochrome candles so the coloured indicators (QQE/Engulfing/EMAs) stand
-        // out: up = white body, down = black body; borders + wicks always black.
-        const up = candle.close >= candle.open;
-        const bodyFill = up ? '#ffffff' : '#000000';
-        const outline = '#000000';
+        // Normal candles are monochrome (white body up / black body down, black
+        // border + wick) so the coloured indicators (QQE/EMAs) stand out. An
+        // Engulfing candle overrides that with a solid green (bull) / red (bear).
+        const kind = engulf[i];
+        let bodyFill: string;
+        let outline: string;
+        if (kind === 'bull') {
+          bodyFill = '#26a69a';
+          outline = '#0f766e';
+        } else if (kind === 'bear') {
+          bodyFill = '#ef5350';
+          outline = '#b71c1c';
+        } else {
+          bodyFill = candle.close >= candle.open ? '#ffffff' : '#000000';
+          outline = '#000000';
+        }
         ctx.save();
-        // Wick / shadow (black).
+        // Wick / shadow.
         ctx.strokeStyle = outline;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(x, highY);
         ctx.lineTo(x, lowY);
         ctx.stroke();
-        // Body: filled white/black with a black border.
+        // Body: filled with a matching border.
         const bodyTop = Math.min(openY, closeY);
         const bodyHeight = Math.max(1, Math.abs(closeY - openY));
         const bodyX = x - barWidth / 2;
@@ -329,75 +342,6 @@ function qqeSignalPlugin(candles: OhlcCandle[], cross: QqeCross[]): Plugin {
           ctx.fill();
           ctx.textBaseline = 'bottom';
           ctx.fillText('Short', x, tipY - 10);
-        }
-      });
-      ctx.restore();
-    },
-  };
-}
-
-/**
- * "Engulfing Candles Detector" markers: each detected engulfing candle is boxed
- * with a coloured outline over its full high→low range (green for bullish, red
- * for bearish) plus a small ▲/▼ tag at the far end of the candle. Clipped to the
- * price area so tags never bleed into the RSI/Volume panes.
- */
-function engulfingPlugin(candles: OhlcCandle[], engulf: EngulfKind[]): Plugin {
-  return {
-    id: 'engulfing',
-    afterDatasetsDraw(chart) {
-      const { ctx, scales } = chart;
-      const xScale = scales['x'];
-      const yScale = scales['y'];
-      if (!xScale || !yScale) return;
-
-      ctx.save();
-      clipToPriceArea(chart);
-      const boxWidth = Math.max(6, (xScale.width / candles.length) * 0.9);
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'center';
-
-      engulf.forEach((kind, i) => {
-        const candle = candles[i];
-        if (!kind || !candle) return;
-        const x = xScale.getPixelForValue(i);
-        const highY = yScale.getPixelForValue(candle.high);
-        const lowY = yScale.getPixelForValue(candle.low);
-        const isBull = kind === 'bull';
-        const color = isBull ? '#16a34a' : '#dc2626';
-        const rgb = isBull ? '22,163,74' : '220,38,38';
-
-        // Highlight box around the whole candle.
-        ctx.save();
-        ctx.fillStyle = `rgba(${rgb},0.10)`;
-        ctx.fillRect(x - boxWidth / 2, highY, boxWidth, Math.max(2, lowY - highY));
-        ctx.strokeStyle = `rgba(${rgb},0.85)`;
-        ctx.lineWidth = 1.25;
-        ctx.strokeRect(x - boxWidth / 2, highY, boxWidth, Math.max(2, lowY - highY));
-        ctx.restore();
-
-        // ▲ below a bullish engulf, ▼ above a bearish one.
-        ctx.fillStyle = color;
-        if (isBull) {
-          const tipY = lowY + 20;
-          ctx.beginPath();
-          ctx.moveTo(x, tipY);
-          ctx.lineTo(x - 4, tipY + 6);
-          ctx.lineTo(x + 4, tipY + 6);
-          ctx.closePath();
-          ctx.fill();
-          ctx.textBaseline = 'top';
-          ctx.fillText('EC', x, tipY + 8);
-        } else {
-          const tipY = highY - 20;
-          ctx.beginPath();
-          ctx.moveTo(x, tipY);
-          ctx.lineTo(x - 4, tipY - 6);
-          ctx.lineTo(x + 4, tipY - 6);
-          ctx.closePath();
-          ctx.fill();
-          ctx.textBaseline = 'bottom';
-          ctx.fillText('EC', x, tipY - 8);
         }
       });
       ctx.restore();
@@ -892,9 +836,8 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
     plugins: [
       srChannelPlugin(srChannels, currentPrice),
       sonicDragonPlugin(ema34High, ema34Low),
-      candlestickPlugin(candles),
+      candlestickPlugin(candles, engulf),
       qqeSignalPlugin(candles, qqeCross),
-      engulfingPlugin(candles, engulf),
       rsiPlugin(rsi),
       volumePlugin(candles, volMa),
       ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),
