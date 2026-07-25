@@ -8,6 +8,9 @@ const EMPTY_POSITIONS: BitgetPositionsResponse = {
   totalUnrealizedPnlUsd: 0,
   totalMarginUsd: 0,
   accountEquityUsd: null,
+  // No equity to compare against in the SSR fallback — the tile renders "—".
+  initialCapitalUsd: 0,
+  equityChangePct: null,
   fetchedAt: new Date().toISOString(),
 };
 

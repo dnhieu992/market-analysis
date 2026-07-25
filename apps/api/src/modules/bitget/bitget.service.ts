@@ -10,6 +10,14 @@ import { createBitgetTradeJournalRepository, createBitgetTradeRepository } from 
 
 import { BitgetTradeClient, type BitgetRawPosition } from './bitget-trade.client';
 
+/**
+ * Capital originally put into the Bitget futures wallet, in USDT. The dashboard
+ * shows account equity as a % of this, so it is the trader's "vốn gốc" — bump it
+ * (or set `BITGET_INITIAL_CAPITAL_USD`) whenever more capital is deposited, or
+ * the percentage silently becomes meaningless.
+ */
+const INITIAL_CAPITAL_USD = Number(process.env.BITGET_INITIAL_CAPITAL_USD ?? 100);
+
 /** Canonical trade-session key — MUST match the worker/web (`symbol-holdSide-openedAt(ISO)`). */
 function tradeKeyOf(symbol: string, holdSide: string, openedAtMs: number): string {
   return `${symbol}-${holdSide}-${new Date(openedAtMs).toISOString()}`;
@@ -61,6 +69,10 @@ export type BitgetPositionsResult = {
   totalMarginUsd: number;
   /** Total wallet equity (balance + unrealized PnL), USDT. Null if unavailable. */
   accountEquityUsd: number | null;
+  /** Capital the account started from, USDT — the baseline for `equityChangePct`. */
+  initialCapitalUsd: number;
+  /** Equity vs initial capital, in % (+/-). Null when equity is unavailable. */
+  equityChangePct: number | null;
   fetchedAt: string;
 };
 
@@ -108,6 +120,8 @@ export class BitgetService {
         totalUnrealizedPnlUsd: 0,
         totalMarginUsd: 0,
         accountEquityUsd: null,
+        initialCapitalUsd: INITIAL_CAPITAL_USD,
+        equityChangePct: null,
         fetchedAt,
       };
     }
@@ -139,6 +153,8 @@ export class BitgetService {
       totalUnrealizedPnlUsd,
       totalMarginUsd,
       accountEquityUsd: balance?.accountEquity ?? null,
+      initialCapitalUsd: INITIAL_CAPITAL_USD,
+      equityChangePct: this.equityChangePct(balance?.accountEquity),
       fetchedAt,
     };
   }
@@ -525,6 +541,13 @@ export class BitgetService {
         },
       })
       .catch((err) => this.logger.warn(`Failed to write system journal log: ${(err as Error).message}`));
+  }
+
+  /** Equity vs the initial capital, in % — null when either number is unusable. */
+  private equityChangePct(equity: number | undefined): number | null {
+    if (equity == null || !Number.isFinite(equity)) return null;
+    if (!Number.isFinite(INITIAL_CAPITAL_USD) || INITIAL_CAPITAL_USD <= 0) return null;
+    return ((equity - INITIAL_CAPITAL_USD) / INITIAL_CAPITAL_USD) * 100;
   }
 
   private mapPosition(p: BitgetRawPosition): BitgetPosition {

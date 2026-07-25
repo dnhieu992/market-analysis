@@ -606,6 +606,10 @@ export type BitgetPositionsResponse = {
   totalUnrealizedPnlUsd: number;
   totalMarginUsd: number;
   accountEquityUsd: number | null;
+  /** Capital the account started from, USDT — the baseline for `equityChangePct`. */
+  initialCapitalUsd: number;
+  /** Equity vs initial capital, in % (+/-). Null when equity is unavailable. */
+  equityChangePct: number | null;
   fetchedAt: string;
 };
 

@@ -147,7 +147,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  const { configured, positions: rawPositions, accountEquityUsd } = data;
+  const { configured, positions: rawPositions, accountEquityUsd, initialCapitalUsd, equityChangePct } = data;
 
   // Live mark prices straight from Bitget's public WS; recompute uPnL/ROE/notional
   // client-side so the table tracks price between the 15s authoritative refreshes.
@@ -252,9 +252,23 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
           <div className="bg-tiles">
             <div className="bg-tile">
               <span className="bg-tile-label">Số dư tài khoản</span>
-              {/* Hidden by default (privacy) — revealed by the same "Hiện value" toggle as PnL. */}
+              {/* Hidden by default (privacy) — revealed by the same "Hiện value" toggle
+                  as PnL. The % is masked too: against a known starting capital it
+                  would give the balance away. */}
               <span className="bg-tile-value">
                 {showValue ? fmtUsdPlain(accountEquityUsd) : <span className="bg-tile-hidden">••••••</span>}
+              </span>
+              <span className={`bg-tile-change ${showValue ? pnlClass(equityChangePct ?? 0) : ''}`}>
+                {showValue ? (
+                  <>
+                    {fmtPct(equityChangePct)}{' '}
+                    <span className="bg-tile-change-note">
+                      so với vốn {fmtUsdPlain(initialCapitalUsd)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="bg-tile-hidden">••••</span>
+                )}
               </span>
             </div>
             <div className="bg-tile">
