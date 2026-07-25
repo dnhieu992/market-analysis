@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
       "Bash(pnpm:*)",
       "Bash(npx jest:*)",
@@ -151,7 +150,36 @@
       "Bash(pm2 save *)",
       "Bash(echo \"--- exit $? ---\")",
       "Skill(fewer-permission-prompts)",
-      "Bash(echo \"--- ignored? exit=$? \\(0=ignored, 1=tracked/not-ignored\\) ---\")"
-    ]
+      "Bash(echo \"--- ignored? exit=$? \\(0=ignored, 1=tracked/not-ignored\\) ---\")",
+      "Bash(echo \"=== API EXIT: $? ===\")",
+      "Bash(echo \"=== WEB EXIT: $? ===\")",
+      "Bash(set -e)",
+      "Bash(sed -i '697,769d' apps/web/src/shared/api/types.ts)",
+      "Bash(sed -i '579,635d' apps/web/src/shared/api/types.ts)",
+      "Bash(sed -i '1260,1318d' apps/web/src/shared/api/client.ts)",
+      "Bash(sed -i '1173,1231d' apps/web/src/shared/api/client.ts)",
+      "Bash(pm2 -v)",
+      "Bash(echo \"pm2: present \\($\\(pm2 -v\\)\\)\")",
+      "Bash(command -v pnpm)",
+      "Bash(echo \"=== API TS EXIT: $? ===\")",
+      "Bash(echo \"=== WEB TS EXIT: $? ===\")",
+      "Bash(echo \"=== BUILD EXIT: $? ===\")",
+      "Bash(echo \"=== TS EXIT: $? ===\")",
+      "Bash(echo \"=== API TS: $? ===\")",
+      "Bash(echo \"=== WEB TS: $? ===\")",
+      "Bash(echo \"=== API BUILD: $? ===\")",
+      "Bash(echo \"DB: $?\")",
+      "Bash(echo \"API TS: $?\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Skill(claude-in-chrome)",
+      "Bash(pkill -f \"next dev -p 3002\")",
+      "Bash(node_modules/.bin/ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\"}' /tmp/claude-0/-root-market-analysis/16c4a193-5b87-4553-9dd2-8e2c08cce0c0/scratchpad/render-test.ts)",
+      "Bash(/root/market-analysis/node_modules/.bin/ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\",\"esModuleInterop\":true}' /tmp/claude-0/-root-market-analysis/16c4a193-5b87-4553-9dd2-8e2c08cce0c0/scratchpad/render-test.ts)",
+      "WebFetch(domain:www.bitget.com)",
+      "WebFetch(domain:python-bitget.readthedocs.io)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(sort -t: -k2)"
+    ],
+    "defaultMode": "acceptEdits"
   }
 }
