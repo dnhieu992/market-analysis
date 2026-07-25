@@ -252,23 +252,18 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
           <div className="bg-tiles">
             <div className="bg-tile">
               <span className="bg-tile-label">Số dư tài khoản</span>
-              {/* Hidden by default (privacy) — revealed by the same "Hiện value" toggle
-                  as PnL. The % is masked too: against a known starting capital it
-                  would give the balance away. */}
+              {/* The USD amount is hidden by default (privacy) and revealed by the
+                  same "Hiện value" toggle as PnL. The % vs capital stays visible
+                  either way — it is the number worth glancing at, and the balance
+                  it hides behind is the trader's own call. */}
               <span className="bg-tile-value">
                 {showValue ? fmtUsdPlain(accountEquityUsd) : <span className="bg-tile-hidden">••••••</span>}
               </span>
-              <span className={`bg-tile-change ${showValue ? pnlClass(equityChangePct ?? 0) : ''}`}>
-                {showValue ? (
-                  <>
-                    {fmtPct(equityChangePct)}{' '}
-                    <span className="bg-tile-change-note">
-                      so với vốn {fmtUsdPlain(initialCapitalUsd)}
-                    </span>
-                  </>
-                ) : (
-                  <span className="bg-tile-hidden">••••</span>
-                )}
+              <span className={`bg-tile-change ${pnlClass(equityChangePct ?? 0)}`}>
+                {fmtPct(equityChangePct)}{' '}
+                <span className="bg-tile-change-note">
+                  so với vốn {fmtUsdPlain(initialCapitalUsd)}
+                </span>
               </span>
             </div>
             <div className="bg-tile">
