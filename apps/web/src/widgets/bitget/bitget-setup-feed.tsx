@@ -20,6 +20,7 @@ import {
   tfLabelOf,
 } from './setup-chart-dialog';
 import { SymbolMultiSelect } from './symbol-multi-select';
+import { BulkSetupDialog } from './bulk-setup-dialog';
 import { ChartNoteView } from './chart-note-dialog';
 
 const REFRESH_MS = 15_000;
@@ -132,6 +133,8 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [positions, setPositions] = useState<BitgetPositionsResponse>(initialPositions);
   const [configs, setConfigs] = useState<ConfigMap>({});
   const [editing, setEditing] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const [refSymbol, setRefSymbol] = useState<string | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
@@ -260,6 +263,43 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     [],
   );
 
+  /**
+   * Bulk save: one leverage/margin written to every selected coin × side. The
+   * server returns the saved rows, so the tab is refreshed from those rather
+   * than from an optimistic guess about what got written.
+   */
+  const saveBulkConfig = useCallback(
+    async (input: {
+      symbols: string[];
+      holdSides: HoldSide[];
+      leverage: number;
+      marginUsd: number;
+    }) => {
+      setBulkSaving(true);
+      setError(null);
+      setNotice(null);
+      try {
+        const saved = await clientRef.current.saveBitgetSetupConfigsBulk(input);
+        setConfigs((prev) => {
+          const next = { ...prev };
+          for (const c of saved) next[cfgKey(c.symbol, c.holdSide)] = c;
+          return next;
+        });
+        setBulkOpen(false);
+        setNotice(
+          `Đã lưu ${saved.length} cấu hình: ${input.symbols.length} coin × ` +
+            `${input.holdSides.map((s) => s.toUpperCase()).join('/')} — ` +
+            `${input.leverage}× · $${input.marginUsd} · cross.`,
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Lưu cấu hình hàng loạt thất bại. Thử lại sau.');
+      } finally {
+        setBulkSaving(false);
+      }
+    },
+    [],
+  );
+
   const openPosition = useCallback(
     async (symbol: string, holdSide: HoldSide) => {
       const key = cfgKey(symbol, holdSide);
@@ -361,10 +401,20 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
               </button>
             )}
           </div>
-          <span className="bg-toolbar-count">
-            {displaySymbols.length} coin
-            {selectedSymbols.length > 0 ? ` (đã lọc từ ${symbols.length})` : ''}
-          </span>
+          <div className="bg-toolbar-right">
+            <button
+              type="button"
+              className="bg-bulk-btn"
+              onClick={() => setBulkOpen(true)}
+              title="Đặt đòn bẩy + ký quỹ cho nhiều coin cùng lúc (ghi đè cấu hình hiện tại)"
+            >
+              ⚙ Setup nhiều coin
+            </button>
+            <span className="bg-toolbar-count">
+              {displaySymbols.length} coin
+              {selectedSymbols.length > 0 ? ` (đã lọc từ ${symbols.length})` : ''}
+            </span>
+          </div>
         </div>
         {displaySymbols.length === 0 ? (
           <div className="bg-alert">Không có coin nào khớp bộ lọc.</div>
@@ -518,6 +568,17 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
             setEditing(null);
           }}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkSetupDialog
+          symbols={symbols}
+          initialSymbols={selectedSymbols}
+          configs={configs}
+          saving={bulkSaving}
+          onSave={(input) => void saveBulkConfig(input)}
+          onClose={() => setBulkOpen(false)}
         />
       )}
 

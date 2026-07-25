@@ -1209,6 +1209,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return (await response.json()) as BitgetSetupConfig;
     },
 
+    /**
+     * Overwrite the config of many coins at once — every `symbols × holdSides`
+     * pair gets the same leverage/margin. Returns the saved rows.
+     */
+    async saveBitgetSetupConfigsBulk(input: {
+      symbols: string[];
+      holdSides: Array<'long' | 'short'>;
+      leverage: number;
+      marginUsd: number;
+    }): Promise<BitgetSetupConfig[]> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/setup/bulk`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu cấu hình hàng loạt thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetSetupConfig[];
+    },
+
     // ── Bitget trade-review charts (save annotated PNG to R2 + DB) ────
     async saveBitgetTradeChart(input: {
       tradeKey: string;

@@ -23,6 +23,7 @@ import { SetTpslDto } from './dto/set-tpsl.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
+import { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
 import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './bitget-setup-chart.service';
@@ -89,6 +90,14 @@ export class BitgetController {
   @ApiOperation({ summary: 'Save (upsert) the open config for one coin + side' })
   upsertSetup(@Body() dto: UpsertSetupConfigDto) {
     return this.setup.upsert(dto);
+  }
+
+  @Put('setup/bulk')
+  @ApiOperation({
+    summary: 'Overwrite the open config of many coins at once (symbols × sides get the same leverage/margin)',
+  })
+  bulkUpsertSetup(@Body() dto: BulkUpsertSetupConfigDto) {
+    return this.setup.upsertMany(dto);
   }
 
   @Get('setup-chart')

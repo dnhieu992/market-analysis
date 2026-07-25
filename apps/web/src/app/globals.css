@@ -11369,6 +11369,75 @@ a.metric-card--link:hover {
 .bg-toolbar-filter { display: flex; align-items: center; gap: 8px; }
 .bg-toolbar-label { font-size: 12px; font-weight: 600; color: var(--muted); }
 .bg-toolbar-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bg-toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ── Bulk Setup dialog (one leverage/margin → many coins) ────── */
+.bg-bulk-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-bulk-btn:hover { background: rgba(23, 18, 13, 0.05); }
+/* Wider than the single-coin dialog — it carries the coin picker grid. */
+.bg-setup-dialog--wide { max-width: 620px; }
+.bg-bulk-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bg-bulk-count { font-weight: 700; color: var(--accent, #4f46e5); font-variant-numeric: tabular-nums; }
+.bg-bulk-picker-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bg-bulk-search {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.bg-bulk-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent, #4f46e5);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-bulk-link:hover { text-decoration: underline; }
+.bg-bulk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 4px 10px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+}
+.bg-bulk-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.bg-bulk-item:hover { background: rgba(23, 18, 13, 0.05); }
+.bg-bulk-item--on { background: rgba(79, 70, 229, 0.08); font-weight: 600; }
+.bg-bulk-dot { margin-left: auto; font-size: 9px; color: #d97706; }
+.bg-bulk-empty { font-size: 12px; color: var(--muted); }
+.bg-bulk-warn { color: #b45309; }
+@media (max-width: 560px) {
+  .bg-bulk-row { grid-template-columns: 1fr; }
+}
 .bg-toolbar-clear {
   border: none;
   background: none;

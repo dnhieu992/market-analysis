@@ -31,5 +31,22 @@ export function createBitgetSetupConfigRepository(client = prisma) {
         update: { leverage, marginUsd },
       });
     },
+
+    /**
+     * Apply the same config to many (symbol, holdSide) pairs in ONE transaction —
+     * the bulk Setup dialog overwrites a whole batch, so a partial write would
+     * leave the tab in a state the trader never asked for.
+     */
+    upsertMany(inputs: BitgetSetupConfigInput[]) {
+      return client.$transaction(
+        inputs.map(({ symbol, holdSide, leverage, marginUsd }) =>
+          client.bitgetSetupConfig.upsert({
+            where: { symbol_holdSide: { symbol, holdSide } },
+            create: { symbol, holdSide, leverage, marginUsd },
+            update: { leverage, marginUsd },
+          }),
+        ),
+      );
+    },
   };
 }
