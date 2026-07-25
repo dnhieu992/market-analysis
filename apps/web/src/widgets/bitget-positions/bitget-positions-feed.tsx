@@ -8,6 +8,7 @@ import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/ty
 import { SetupChartDialog } from '../bitget/setup-chart-dialog';
 
 import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
+import { TpslDialog } from './tpsl-dialog';
 import { useBitgetLivePrices } from './use-bitget-live-prices';
 
 const REFRESH_MS = 15_000;
@@ -61,6 +62,9 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
   // persists in localStorage so the choice sticks across reloads.
   const [showValue, setShowValue] = useState(false);
   const [closingKey, setClosingKey] = useState<string | null>(null);
+  // Which position's TP/SL dialog is open, and whether its save is in flight.
+  const [tpslKey, setTpslKey] = useState<{ symbol: string; holdSide: 'long' | 'short' } | null>(null);
+  const [savingTpsl, setSavingTpsl] = useState(false);
   // Which trade's journal drawer is open — stored as identity so it tracks the
   // live position object across the 15s refreshes (fresh price for new notes).
   const [journalKey, setJournalKey] = useState<{ symbol: string; holdSide: 'long' | 'short' } | null>(null);
@@ -117,6 +121,27 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
     [refresh],
   );
 
+  const saveTpsl = useCallback(
+    async (
+      symbol: string,
+      holdSide: 'long' | 'short',
+      input: { takeProfitPrice: number | null; stopLossPrice: number | null },
+    ) => {
+      setSavingTpsl(true);
+      setError(null);
+      try {
+        await clientRef.current.setBitgetTpsl({ symbol, holdSide, ...input });
+        setTpslKey(null);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Đặt TP/SL thất bại. Thử lại sau.');
+      } finally {
+        setSavingTpsl(false);
+      }
+    },
+    [refresh],
+  );
+
   useEffect(() => {
     const id = setInterval(refresh, REFRESH_MS);
     return () => clearInterval(id);
@@ -164,6 +189,16 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
 
   // The live position whose journal is open. Falls back to the last-known object
   // if the trade just closed, so the drawer stays readable while it's open.
+  // Live position behind the open TP/SL dialog — tracked by identity so the
+  // dialog's mark price stays current across refreshes, and closes itself if the
+  // position disappears (closed on the exchange meanwhile).
+  const tpslPosition = useMemo(() => {
+    if (!tpslKey) return null;
+    return (
+      positions.find((p) => p.symbol === tpslKey.symbol && p.holdSide === tpslKey.holdSide) ?? null
+    );
+  }, [tpslKey, positions]);
+
   const lastJournalPos = useRef<BitgetPosition | null>(null);
   const journalPosition = useMemo(() => {
     if (!journalKey) return null;
@@ -187,12 +222,13 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
           </p>
         </div>
         <div className="bg-head-actions">
-          {configured && positions.length > 0 && (
+          {configured && (
             <button
               type="button"
               className="bg-toggle-value"
               onClick={toggleShowValue}
               aria-pressed={showValue}
+              title="Ẩn/hiện số dư tài khoản và giá trị PnL"
             >
               <EyeIcon off={showValue} />
               {showValue ? 'Ẩn value' : 'Hiện value'}
@@ -216,7 +252,10 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
           <div className="bg-tiles">
             <div className="bg-tile">
               <span className="bg-tile-label">Số dư tài khoản</span>
-              <span className="bg-tile-value">{fmtUsdPlain(accountEquityUsd)}</span>
+              {/* Hidden by default (privacy) — revealed by the same "Hiện value" toggle as PnL. */}
+              <span className="bg-tile-value">
+                {showValue ? fmtUsdPlain(accountEquityUsd) : <span className="bg-tile-hidden">••••••</span>}
+              </span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">Vị thế đang mở</span>
@@ -253,6 +292,9 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
                       <th className="bg-num">Giá trị</th>
                       <th className="bg-num">PnL {showValue ? '(uPnL)' : '(ROE)'}</th>
                       <th className="bg-num">Nhật ký</th>
+                      <th className="bg-num" title="TP/SL đặt trên sàn — Bitget tự đóng lệnh khi chạm mức">
+                        TP / SL
+                      </th>
                       <th className="bg-num">Đóng</th>
                     </tr>
                   </thead>
@@ -267,6 +309,7 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
                         onClose={closePosition}
                         onJournal={() => setJournalKey({ symbol: p.symbol, holdSide: p.holdSide })}
                         onChart={() => setChartSymbol(p.symbol)}
+                        onTpsl={() => setTpslKey({ symbol: p.symbol, holdSide: p.holdSide })}
                       />
                     ))}
                   </tbody>
@@ -297,6 +340,16 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
 
       {chartSymbol && (
         <SetupChartDialog symbol={chartSymbol} onClose={() => setChartSymbol(null)} />
+      )}
+
+      {tpslPosition && (
+        <TpslDialog
+          key={`${tpslPosition.symbol}-${tpslPosition.holdSide}`}
+          position={tpslPosition}
+          saving={savingTpsl}
+          onSave={(input) => void saveTpsl(tpslPosition.symbol, tpslPosition.holdSide, input)}
+          onClose={() => setTpslKey(null)}
+        />
       )}
     </div>
   );
@@ -354,9 +407,10 @@ type PositionRowProps = {
   onClose: (symbol: string, holdSide: 'long' | 'short') => void;
   onJournal: () => void;
   onChart: () => void;
+  onTpsl: () => void;
 };
 
-function PositionRow({ p, showValue, closing, disabled, onClose, onJournal, onChart }: PositionRowProps) {
+function PositionRow({ p, showValue, closing, disabled, onClose, onJournal, onChart, onTpsl }: PositionRowProps) {
   const isLong = p.holdSide === 'long';
   // Flash the live-price cell green/red on each tick.
   const prevPrice = useRef(p.markPrice);
@@ -408,6 +462,21 @@ function PositionRow({ p, showValue, closing, disabled, onClose, onJournal, onCh
       <td className="bg-num">
         <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký theo dõi lệnh">
           📝
+        </button>
+      </td>
+      <td className="bg-num">
+        <button
+          type="button"
+          className="bg-tpsl-btn"
+          onClick={onTpsl}
+          title="Đặt TP/SL trên sàn — Bitget tự đóng lệnh khi chạm mức"
+        >
+          <span className={`bg-tpsl-line ${p.takeProfitPrice != null ? 'bg-tpsl--tp' : 'bg-tpsl--unset'}`}>
+            TP {fmtPrice(p.takeProfitPrice)}
+          </span>
+          <span className={`bg-tpsl-line ${p.stopLossPrice != null ? 'bg-tpsl--sl' : 'bg-tpsl--unset'}`}>
+            SL {fmtPrice(p.stopLossPrice)}
+          </span>
         </button>
       </td>
       <td className="bg-num">

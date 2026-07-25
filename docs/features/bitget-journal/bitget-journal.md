@@ -4,8 +4,11 @@ Trade lifecycle + per-trade journal for `/bitget`. Every Bitget USDT-futures tra
 is mirrored into a single `bitget_trades` row that the worker moves through its
 lifecycle (`status: open → closed`). Each trade carries a timeline of log items
 (`bitget_trade_journals`): **manual** notes the trader writes (Claude-formatted,
-with chart images) plus **system** items the worker writes automatically when a
-trade opens and closes. Items are grouped per trade session by `tradeKey`
+with chart images) plus **system** items written automatically: by the worker when
+a trade opens/closes or hits a PnL milestone, and by the API when the trader
+**adds volume** to an open position from the Setup tab ("➕ Thêm volume vào lệnh")
+or **sets TP/SL** from the positions tab ("🎯 Cập nhật TP/SL"). Items are grouped
+per trade session by `tradeKey`
 (`symbol-holdSide-openedAt(ISO)`), so re-opening the same symbol/side later starts
 a fresh timeline.
 
@@ -62,7 +65,7 @@ a fresh timeline.
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetJournal` / `addBitgetJournal` / `updateBitgetJournal` / `deleteBitgetJournal`
 - `apps/web/src/shared/api/types.ts` — `BitgetJournalNote.kind`, `BitgetClosedTrade.tradeKey/status`, `BitgetPosition.openedAt`
 - `apps/web/src/app/globals.css` — `.bgj-*` drawer styles (+ `.bgj-note--system`), `.bg-journal-btn`
-- `apps/api/src/modules/bitget/bitget.service.ts` — closed history from `bitget_trades`; `openedAt` from `cTime`
+- `apps/api/src/modules/bitget/bitget.service.ts` — closed history from `bitget_trades`; `openedAt` từ `cTime`; `writeSystemLog()` ghi system log khi thêm volume (`openPosition` mode `add`) và khi đặt TP/SL (`setTpsl`)
 - `apps/api/src/modules/bitget/bitget-journal.service.ts` — journal CRUD; blocks edit/delete of system items
 - `apps/api/src/modules/bitget/bitget.controller.ts` / `dto/*` — journal routes + validation
 - `apps/worker/src/modules/bitget-history/bitget-history.service.ts` — lifecycle reconciliation + auto open/close logs; `fetchDayOpenPrice()` (public ticker `openUtc`) feeds the opened log's day-open % line

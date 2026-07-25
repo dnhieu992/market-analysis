@@ -31,9 +31,31 @@ export type BitgetRawPosition = {
   marginSize: string;
   unrealizedPL: string;
   achievedProfits: string;
+  /** Position take-profit trigger price, '' when none is set on the exchange. */
+  takeProfit: string;
+  /** Position stop-loss trigger price, '' when none is set on the exchange. */
+  stopLoss: string;
+  /** Plan-order id backing `takeProfit` ('' when unset) — used to cancel it. */
+  takeProfitId: string;
+  /** Plan-order id backing `stopLoss` ('' when unset) — used to cancel it. */
+  stopLossId: string;
   cTime: string;
   uTime: string;
 };
+
+/** One pending plan order from `/api/v2/mix/order/orders-plan-pending`. */
+export type BitgetPlanOrder = {
+  planType: string;
+  symbol: string;
+  orderId: string;
+  posSide: 'long' | 'short';
+  triggerPrice: string;
+  triggerType: string;
+  cTime: string;
+};
+
+/** Position-level TP/SL trigger type. Mark price matches the "Giá hiện tại" column in the dashboard. */
+const TPSL_TRIGGER_TYPE = 'mark_price';
 
 /** Contract precision + minimums read from `/api/v2/mix/market/contracts`. */
 export type BitgetContractSpec = {
@@ -142,17 +164,71 @@ export class BitgetTradeClient {
     await this.request<unknown>('POST', '/api/v2/mix/order/place-order', undefined, body);
   }
 
+  /** The open position for a side, or null if the exchange is flat on that side. */
+  async getPosition(symbol: string, holdSide: 'long' | 'short'): Promise<BitgetRawPosition | null> {
+    const data = await this.request<BitgetRawPosition[]>(
+      'GET',
+      '/api/v2/mix/position/single-position',
+      { symbol, productType: this.productType, marginCoin: MARGIN_COIN },
+    );
+    return (data ?? []).find((p) => p.holdSide === holdSide && Number(p.total) > 0) ?? null;
+  }
+
   /** Open size for a side, or 0 if the exchange is flat. */
   async getPositionSize(symbol: string, holdSide: 'long' | 'short'): Promise<number> {
-    const data = await this.request<
-      Array<{ holdSide: 'long' | 'short'; total: string }>
-    >('GET', '/api/v2/mix/position/single-position', {
+    const open = await this.getPosition(symbol, holdSide);
+    return open ? Number(open.total) : 0;
+  }
+
+  /**
+   * Set the position-level take-profit / stop-loss on the exchange, so Bitget
+   * itself closes the position when a trigger is hit (nothing depends on this
+   * app being up). Omitted sides are left untouched by this call — the caller
+   * cancels stale plan orders separately. Prices must already be rounded to the
+   * contract's price precision.
+   */
+  async placePositionTpsl(params: {
+    symbol: string;
+    holdSide: 'long' | 'short';
+    takeProfitPrice?: string;
+    stopLossPrice?: string;
+  }): Promise<void> {
+    const body: Record<string, unknown> = {
+      symbol: params.symbol,
+      productType: this.productType,
+      marginCoin: MARGIN_COIN,
+      holdSide: params.holdSide,
+    };
+    if (params.takeProfitPrice) {
+      body.stopSurplusTriggerPrice = params.takeProfitPrice;
+      body.stopSurplusTriggerType = TPSL_TRIGGER_TYPE;
+    }
+    if (params.stopLossPrice) {
+      body.stopLossTriggerPrice = params.stopLossPrice;
+      body.stopLossTriggerType = TPSL_TRIGGER_TYPE;
+    }
+    await this.request<unknown>('POST', '/api/v2/mix/order/place-pos-tpsl', undefined, body);
+  }
+
+  /** Pending TP/SL plan orders for one symbol (position-level and per-order alike). */
+  async getPendingTpslOrders(symbol: string): Promise<BitgetPlanOrder[]> {
+    const data = await this.request<{ entrustedList: BitgetPlanOrder[] | null }>(
+      'GET',
+      '/api/v2/mix/order/orders-plan-pending',
+      { symbol, productType: this.productType, planType: 'profit_loss' },
+    );
+    return data?.entrustedList ?? [];
+  }
+
+  /** Cancel one pending plan order (`planType` must be the order's own type). */
+  async cancelPlanOrder(symbol: string, orderId: string, planType: string): Promise<void> {
+    await this.request<unknown>('POST', '/api/v2/mix/order/cancel-plan-order', undefined, {
       symbol,
       productType: this.productType,
       marginCoin: MARGIN_COIN,
+      planType,
+      orderIdList: [{ orderId }],
     });
-    const open = data.find((p) => p.holdSide === holdSide && Number(p.total) > 0);
-    return open ? Number(open.total) : 0;
   }
 
   /**
@@ -208,7 +284,7 @@ export class BitgetTradeClient {
     method: Extract<Method, 'GET' | 'POST'>,
     path: string,
     query?: Record<string, string>,
-    body?: Record<string, string>,
+    body?: Record<string, unknown>,
   ): Promise<T> {
     const timestamp = Date.now().toString();
     const queryString = query

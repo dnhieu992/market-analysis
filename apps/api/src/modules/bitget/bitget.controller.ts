@@ -19,6 +19,7 @@ import { BitgetSetupService } from './bitget-setup.service';
 import { BitgetSetupChartService } from './bitget-setup-chart.service';
 import { ClosePositionDto } from './dto/close-position.dto';
 import { OpenPositionDto } from './dto/open-position.dto';
+import { SetTpslDto } from './dto/set-tpsl.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
@@ -58,9 +59,24 @@ export class BitgetController {
   }
 
   @Post('positions/open')
-  @ApiOperation({ summary: 'Open a new market position (cross margin) from the Setup tab' })
+  @ApiOperation({
+    summary: 'Open a market position (cross margin) from the Setup tab, or add volume to the open one',
+  })
   openPosition(@Body() dto: OpenPositionDto) {
     return this.service.openPosition(dto);
+  }
+
+  @Post('positions/tpsl')
+  @ApiOperation({
+    summary: 'Set (or clear) the position TP/SL on Bitget so the exchange closes the position at the trigger',
+  })
+  setTpsl(@Body() dto: SetTpslDto) {
+    return this.service.setTpsl({
+      symbol: dto.symbol,
+      holdSide: dto.holdSide,
+      takeProfitPrice: dto.takeProfitPrice ?? null,
+      stopLossPrice: dto.stopLossPrice ?? null,
+    });
   }
 
   @Get('setup')

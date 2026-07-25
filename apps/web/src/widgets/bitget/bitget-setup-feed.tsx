@@ -123,9 +123,9 @@ type Props = {
  * Setup tab: one row per coin ever traded, with a separate LONG and SHORT
  * action cell. Each side carries its own manual-open config (leverage / margin,
  * always cross) persisted in the DB, its own ⚙ Setup dialog, and its own
- * open button. The Long/Short button is disabled independently while that exact
- * coin+side already has an open position, or until the side's margin has been
- * configured — so an open long disables only Long, leaving Short live.
+ * open button. The Long/Short button stays enabled at all times: on a coin+side
+ * that is already open it ADDS volume to that position (scale-in) at the live
+ * position's leverage, and the API records the add-on in the trade's journal.
  */
 export function BitgetSetupFeed({ history, positions: initialPositions, embedded = false }: Props) {
   const clientRef = useRef(createApiClient());
@@ -262,20 +262,23 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
 
   const openPosition = useCallback(
     async (symbol: string, holdSide: HoldSide) => {
-      const cfg = configs[cfgKey(symbol, holdSide)];
+      const key = cfgKey(symbol, holdSide);
+      const cfg = configs[key];
       if (!cfg || !(cfg.marginUsd > 0)) {
         setError(`Cấu hình ký quỹ cho ${symbol} (${holdSide.toUpperCase()}) trước khi mở lệnh.`);
         return;
       }
-      if (
-        !window.confirm(
-          `Mở lệnh ${holdSide.toUpperCase()} ${symbol} theo giá market ngay bây giờ?\n` +
-            `Ký quỹ $${cfg.marginUsd} · đòn bẩy ${cfg.leverage}× · cross`,
-        )
-      ) {
-        return;
-      }
-      const key = cfgKey(symbol, holdSide);
+      // Already open on this coin+side → this click ADDS volume to that position
+      // instead of opening a second one. Spell that out before it goes live.
+      const isAdd = openSides.has(key);
+      const confirmText = isAdd
+        ? `${symbol} đang có vị thế ${holdSide.toUpperCase()} mở.\n` +
+          `THÊM VOLUME vào lệnh đó theo giá market ngay bây giờ?\n` +
+          `Ký quỹ thêm $${cfg.marginUsd} · đòn bẩy của vị thế đang mở · cross`
+        : `Mở lệnh ${holdSide.toUpperCase()} ${symbol} theo giá market ngay bây giờ?\n` +
+          `Ký quỹ $${cfg.marginUsd} · đòn bẩy ${cfg.leverage}× · cross`;
+      if (!window.confirm(confirmText)) return;
+
       setOpeningKey(key);
       setError(null);
       setNotice(null);
@@ -287,7 +290,10 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
           leverage: cfg.leverage,
         });
         setNotice(
-          `Đã mở ${res.holdSide.toUpperCase()} ${symbol}: size ${res.size} @ ~${res.entryPrice}.`,
+          res.mode === 'add'
+            ? `Đã thêm volume vào ${res.holdSide.toUpperCase()} ${symbol}: +${res.size} @ ~${res.entryPrice} ` +
+              `(tổng size ${res.totalSize}, ${res.leverage}×). Đã ghi log vào nhật ký lệnh.`
+            : `Đã mở ${res.holdSide.toUpperCase()} ${symbol}: size ${res.size} @ ~${res.entryPrice}.`,
         );
         await refreshPositions();
       } catch (err) {
@@ -296,7 +302,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
         setOpeningKey(null);
       }
     },
-    [configs, refreshPositions],
+    [configs, openSides, refreshPositions],
   );
 
   const configured = history.configured || positions.configured;
@@ -458,20 +464,24 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                               >
                                 ⚙
                               </button>
+                              {/* Always clickable — on an already-open side it adds
+                                  volume to that position instead of opening a new one. */}
                               <button
                                 type="button"
-                                className={`bg-open-btn ${isLong ? 'bg-open-btn--long' : 'bg-open-btn--short'}`}
+                                className={`bg-open-btn ${isLong ? 'bg-open-btn--long' : 'bg-open-btn--short'} ${
+                                  isOpen ? 'bg-open-btn--add' : ''
+                                }`}
                                 onClick={() => openPosition(symbol, holdSide)}
-                                disabled={isOpen || !configuredSide || opening || openingKey !== null}
+                                disabled={opening || openingKey !== null}
                                 title={
                                   isOpen
-                                    ? 'Hướng này đang có vị thế mở'
+                                    ? `Thêm volume vào vị thế ${isLong ? 'LONG' : 'SHORT'} đang mở`
                                     : !configuredSide
                                       ? 'Cấu hình ký quỹ trước'
                                       : `Mở lệnh ${isLong ? 'LONG' : 'SHORT'} market`
                                 }
                               >
-                                {opening ? '…' : isLong ? 'Long' : 'Short'}
+                                {opening ? '…' : isOpen ? `+ ${isLong ? 'Long' : 'Short'}` : isLong ? 'Long' : 'Short'}
                               </button>
                             </div>
                           </div>

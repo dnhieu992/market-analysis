@@ -54,6 +54,7 @@ import type {
   BitgetPositionsResponse,
   BitgetHistoryResponse,
   BitgetOpenResult,
+  BitgetTpslResult,
   BitgetSetupConfig,
   BitgetQqeSignals,
   BitgetTradeChart,
@@ -1151,6 +1152,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Mở lệnh thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetOpenResult;
+    },
+
+    /**
+     * Set the exchange-side TP/SL of an open position. Both prices are always
+     * sent — `null` clears that trigger on Bitget.
+     */
+    async setBitgetTpsl(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      takeProfitPrice: number | null;
+      stopLossPrice: number | null;
+    }): Promise<BitgetTpslResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/positions/tpsl`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đặt TP/SL thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetTpslResult;
     },
 
     // ── Bitget Setup tab configs (per coin + side, persisted) ────

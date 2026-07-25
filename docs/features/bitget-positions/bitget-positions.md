@@ -7,7 +7,9 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 
 **Số dư tài khoản:** tile **Số dư tài khoản** (equity = số dư ví + PnL chưa thực hiện) lấy từ `GET /api/v2/mix/account/accounts` (marginCoin USDT). Fetch song song với positions, non-fatal (lỗi → `null` → hiển thị "—", không làm trắng bảng). Tile **PnL chưa thực hiện** hiện **% dựa trên số dư tài khoản** (`totalUnrealizedPnlUsd ÷ accountEquity`) khi ẩn value, và số USD khi hiện value.
 
-**Ẩn/hiện value:** toggle **👁 Hiện value / 🙈 Ẩn value** ở góc phải trên bảng chỉ áp dụng cho **PnL** (tile "PnL chưa thực hiện" và cột PnL của từng dòng): khi tắt chỉ hiện **%** (ROE / % trên equity), khi bật hiện thêm số USD. Lựa chọn lưu ở `localStorage` (`bitget:pnl-show-value`). Hai tile **Số dư tài khoản** và **Tổng ký quỹ** **luôn hiện số USD**, không bị toggle này ảnh hưởng.
+**Ẩn/hiện value:** toggle **👁 Hiện value / 🙈 Ẩn value** ở góc phải trên bảng áp dụng cho **số dư tài khoản** và **PnL**: khi tắt, tile "Số dư tài khoản" hiện `••••••` và PnL (tile + cột từng dòng) chỉ hiện **%** (ROE / % trên equity); khi bật hiện số USD đầy đủ. Lựa chọn lưu ở `localStorage` (`bitget:pnl-show-value`), mặc định **ẩn**. Nút toggle hiện bất cứ khi nào đã cấu hình API (kể cả khi không có vị thế nào) để luôn xem lại được số dư. Tile **Tổng ký quỹ** luôn hiện số USD.
+
+**Đặt TP/SL trên sàn:** mỗi dòng có nút **TP / SL** (ngay trước nút Đóng) hiện mức TP/SL đang live trên sàn. Bấm mở dialog để nhập giá kích hoạt; giá trị được đẩy thẳng lên Bitget dưới dạng **position TP/SL plan order** (`POST /api/v2/mix/order/place-pos-tpsl`, trigger theo **Mark Price**, đóng toàn bộ vị thế) — **sàn tự đóng lệnh khi chạm mức**, không phụ thuộc dashboard/worker có đang chạy hay không. Mức hiện tại đọc từ chính row vị thế (`takeProfit` / `stopLoss` của `all-position`). Mỗi lần đặt đều được ghi **log hệ thống** vào nhật ký lệnh (`kind: 'system'`).
 
 ## Main Flow
 1. Server component gộp `BitgetPage` fetch song song `fetchBitgetPositions()` + `fetchBitgetHistory()` khi render (SSR), truyền vào `BitgetTabs`; tab này render `BitgetPositionsFeed` (chế độ `embedded`).
@@ -17,7 +19,13 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
    - Lọc các row có `total > 0`, map sang shape sạch (`BitgetPosition`), tính `notionalUsd = size × markPrice` và `roePct = unrealizedPL / marginSize × 100`, sắp xếp theo giá trị vị thế giảm dần, cộng tổng ký quỹ và tổng uPnL.
 3. Widget client `BitgetPositionsFeed` render 3 tile tổng hợp + bảng vị thế, và **tự làm mới mỗi 15 giây** qua `createApiClient().fetchBitgetPositions()` (dữ liệu authoritative: margin, realized PnL, vị thế mới/đã đóng); có nút "Làm mới" thủ công và mốc thời gian "đồng bộ … trước".
 4. **Force-close (nút Đóng):** widget gọi `closeBitgetPosition(symbol, holdSide)` sau khi `window.confirm`. API `BitgetService.closePosition()` đọc size hiện tại (409 nếu đã đóng), rồi `POST /api/v2/mix/order/close-positions` (market, reduce-only). Thành công → auto-refresh bảng; lỗi → banner đỏ (đọc message từ body). Trong lúc đóng, mọi nút Đóng bị disable, nút của dòng đang xử lý hiện "…".
-5. **Toggle value PnL:** state `showValue` (khởi tạo từ `localStorage` trong `useEffect` để tránh lệch SSR); khi tắt, cột PnL + tile PnL chỉ hiện %/ROE, khi bật hiện thêm số USD. Tile số dư tài khoản và tổng ký quỹ render thẳng `fmtUsdPlain(...)`, không phụ thuộc `showValue`.
+5. **Toggle value:** state `showValue` (khởi tạo từ `localStorage` trong `useEffect` để tránh lệch SSR); khi tắt, tile "Số dư tài khoản" hiện `••••••` và cột PnL + tile PnL chỉ hiện %/ROE; khi bật hiện số USD. Tile tổng ký quỹ render thẳng `fmtUsdPlain(...)`, không phụ thuộc `showValue`.
+8. **Đặt TP/SL (nút TP / SL):** widget mở `TpslDialog` với vị thế live (mark price cập nhật theo WS, kèm ước tính PnL/ROE nếu chạm mức). Bấm "Lưu lên sàn" → `setBitgetTpsl({ symbol, holdSide, takeProfitPrice, stopLossPrice })` → `POST /bitget/positions/tpsl` → `BitgetService.setTpsl()`:
+   - Đọc lại vị thế (`single-position`); nếu đã flat → 409.
+   - Làm tròn giá theo `pricePlace` của contract, kiểm tra chiều (long: TP > giá hiện tại, SL < giá hiện tại; short ngược lại) → 400 với message tiếng Việt nếu sai.
+   - `place-pos-tpsl` với các mức được nhập (bỏ qua ô để trống).
+   - **Dọn plan order thừa** (`cleanupTpslOrders`): đọc `orders-plan-pending?planType=profit_loss`, với mỗi loại `pos_profit`/`pos_loss` giữ lại order **mới nhất** (khi mức đó vẫn được đặt) và **huỷ phần còn lại** qua `cancel-plan-order`; nếu ô để trống thì huỷ hết loại đó. Thứ tự **đặt trước — dọn sau** nên vị thế không bao giờ bị hở bảo vệ giữa chừng.
+   - Ghi log hệ thống vào nhật ký lệnh (tradeKey = `symbol-holdSide-openedAt`), rồi refresh bảng.
 7. **Xem chart (icon cạnh symbol):** mỗi dòng có một nút icon (candlestick, không chữ) ngay sau badge LONG/SHORT. Bấm mở `SetupChartDialog` dùng chung (`apps/web/src/widgets/bitget/setup-chart-dialog.tsx`) — chart SonicR + S/R Channel + RSI render server-side qua `GET /bitget/setup-chart`, có switcher khung M30/H1/H4/D1 (mặc định H4), giống các tab khác. Read-only.
 6. **Giá realtime (WebSocket public Bitget):** hook `useBitgetLivePrices` mở kết nối `wss://ws.bitget.com/v2/ws/public` ngay từ browser (không cần auth, WS không vướng CORS), subscribe channel `ticker` cho từng symbol đang mở. Mỗi tick, widget tính lại **markPrice → uPnL/ROE/notional** ngay trên client giữa hai lần REST refresh, cập nhật cả 3 tile tổng hợp. Ô "Giá hiện tại" nhấp nháy xanh/đỏ theo chiều giá; badge **LIVE** ở header báo trạng thái kết nối WS. uPnL client-side = `(markPrice − entryPrice) × size × (long ? 1 : −1)`, được sàn reconcile lại mỗi 15s.
 
@@ -34,18 +42,26 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - **Đóng khi đã flat** → API trả 409 "Vị thế đã đóng trên sàn"; banner hiện thông báo, bảng refresh bỏ dòng đó.
 - **Chưa cấu hình credentials khi đóng** → API trả 503; nút Đóng vẫn hiện nhưng thao tác báo lỗi rõ.
 - **Đóng thất bại (mạng/sàn)** → 503 với message từ sàn, không refresh nhầm; vị thế giữ nguyên trên bảng.
-- **`showValue` khi SSR** → chỉ đọc `localStorage` trong `useEffect` (client), initial `false` nên không lệch hydrate.
+- **`showValue` khi SSR** → chỉ đọc `localStorage` trong `useEffect` (client), initial `false` nên không lệch hydrate (số dư ẩn mặc định).
+- **TP/SL sai chiều** (long đặt TP dưới giá hiện tại…) → dialog chặn ngay ở client (hint đỏ + disable nút Lưu) và API vẫn kiểm tra lại → 400, tránh lỗi khó hiểu từ sàn.
+- **Để trống ô TP hoặc SL** → mức đó bị **huỷ trên sàn** (không phải "giữ nguyên"); để trống cả hai = gỡ hết TP/SL.
+- **Vị thế đóng khi dialog đang mở** → `tpslPosition` không còn trong danh sách → dialog tự đóng ở lần refresh kế; nếu bấm Lưu trước đó → API trả 409.
+- **Đặt TP/SL khi sàn đã có sẵn mức (đặt từ app Bitget)** → dialog prefill mức cũ; sau khi đặt, `cleanupTpslOrders` đảm bảo chỉ còn **đúng 1 TP + 1 SL** cho mỗi hướng, dù sàn thay thế hay tạo thêm plan order mới.
+- **Lỗi ở bước dọn plan order** → chỉ log `warn`, không fail request (mức mới đã live trên sàn); log ghi rõ có thể còn plan order thừa.
+- **Vị thế được thêm volume sau khi đặt TP/SL** → TP/SL là mức của *vị thế* (đóng toàn bộ), nên vẫn áp dụng cho size mới; chỉ cần cân nhắc chỉnh lại giá vì giá vào trung bình đã đổi.
 
 ## Related Files (FE / BE / Worker)
-- `apps/api/src/modules/bitget/bitget-trade.client.ts` — client Bitget dùng chung (ký v2): `getAllPositions()`, `getPositionSize()`, `closePosition()`, `getAccountBalance()` + type `BitgetRawPosition`.
-- `apps/api/src/modules/bitget/bitget.service.ts` — `BitgetService`: gọi client, map + tính notional/ROE + tổng hợp; `closePosition()` force-close market.
-- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/positions`, `POST /bitget/positions/close`.
+- `apps/api/src/modules/bitget/bitget-trade.client.ts` — client Bitget dùng chung (ký v2): `getAllPositions()`, `getPosition()`, `getPositionSize()`, `closePosition()`, `getAccountBalance()`, `placePositionTpsl()`, `getPendingTpslOrders()`, `cancelPlanOrder()` + type `BitgetRawPosition` (kèm `takeProfit`/`stopLoss`), `BitgetPlanOrder`.
+- `apps/api/src/modules/bitget/bitget.service.ts` — `BitgetService`: gọi client, map + tính notional/ROE + tổng hợp; `closePosition()` force-close market; `setTpsl()` + `cleanupTpslOrders()` + `writeSystemLog()`.
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/positions`, `POST /bitget/positions/close`, `POST /bitget/positions/tpsl`.
 - `apps/api/src/modules/bitget/dto/close-position.dto.ts` — validate `symbol` + `holdSide`.
+- `apps/api/src/modules/bitget/dto/set-tpsl.dto.ts` — validate `symbol`, `holdSide`, `takeProfitPrice`/`stopLossPrice` (nullable = xoá mức).
+- `apps/web/src/widgets/bitget-positions/tpsl-dialog.tsx` — dialog đặt TP/SL: prefill mức đang live, kiểm tra chiều theo giá hiện tại, ước tính PnL/ROE nếu chạm mức.
 - `apps/api/src/modules/bitget/bitget.module.ts` — module, đăng ký trong `apps/api/src/app.module.ts`.
 - `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — bảng vị thế + nút icon xem chart cạnh symbol (`ChartIcon`, mở `SetupChartDialog`).
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — dialog chart dùng chung (Setup tab + Vị thế đang mở): switcher khung M30/H1/H4/D1, fetch PNG từ `GET /bitget/setup-chart`.
-- `apps/web/src/shared/api/types.ts` — type `BitgetPosition`, `BitgetPositionsResponse`.
-- `apps/web/src/shared/api/client.ts` — `fetchBitgetPositions()`, `closeBitgetPosition()`.
+- `apps/web/src/shared/api/types.ts` — type `BitgetPosition` (kèm `takeProfitPrice`/`stopLossPrice`), `BitgetPositionsResponse`, `BitgetTpslResult`.
+- `apps/web/src/shared/api/client.ts` — `fetchBitgetPositions()`, `closeBitgetPosition()`, `setBitgetTpsl()`.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — server component gộp: fetch positions + history, chọn tab từ `?tab=`.
 - `apps/web/src/widgets/bitget/bitget-tabs.tsx` — client: tab bar Vị thế / Lịch sử.
 - `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — widget client: bảng + tile + auto-refresh 15s + ghép giá live, tính lại uPnL/ROE/notional, badge LIVE, flash ô giá (prop `embedded`); nút Đóng force-close + toggle ẩn/hiện value PnL.
@@ -53,4 +69,4 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - `apps/web/src/app/bitget/page.tsx` — route re-export trang gộp.
 - `apps/web/src/app/bitget-positions/page.tsx` — redirect `/bitget` (giữ bookmark cũ).
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — mục nav gộp "Bitget".
-- `apps/web/src/app/globals.css` — style `.bg-*` + `.bg-tabs`/`.bg-tab`/`.bg-panel` + `.bg-table-toolbar`/`.bg-toggle-value`/`.bg-close-btn`.
+- `apps/web/src/app/globals.css` — style `.bg-*` + `.bg-tabs`/`.bg-tab`/`.bg-panel` + `.bg-table-toolbar`/`.bg-toggle-value`/`.bg-close-btn`/`.bg-tile-hidden`/`.bg-tpsl-*`.

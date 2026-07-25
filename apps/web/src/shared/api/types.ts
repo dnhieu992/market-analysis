@@ -591,6 +591,10 @@ export type BitgetPosition = {
   unrealizedPnlUsd: number;
   roePct: number;
   realizedPnlUsd: number;
+  /** Position take-profit trigger set on the exchange, null when none is set. */
+  takeProfitPrice: number | null;
+  /** Position stop-loss trigger set on the exchange, null when none is set. */
+  stopLossPrice: number | null;
   /** When the position was opened (Bitget cTime). Anchors the trade-journal tradeKey. */
   openedAt: string | null;
   updatedAt: string | null;
@@ -678,12 +682,26 @@ export type BitgetQqeSignals = {
 
 export type BitgetOpenResult = {
   opened: true;
+  /** 'new' = fresh position, 'add' = volume added to an already-open one. */
+  mode: 'new' | 'add';
   symbol: string;
   holdSide: 'long' | 'short';
+  /** Size just placed (the added amount when scaling in). */
   size: number;
+  /** Total position size after this order. */
+  totalSize: number;
   entryPrice: number;
   leverage: number;
   marginUsd: number;
+};
+
+/** Result of syncing a position's TP/SL to Bitget (prices as accepted by the exchange). */
+export type BitgetTpslResult = {
+  ok: true;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  takeProfitPrice: number | null;
+  stopLossPrice: number | null;
 };
 
 /** Price/PnL snapshot captured when a trade note was written. */

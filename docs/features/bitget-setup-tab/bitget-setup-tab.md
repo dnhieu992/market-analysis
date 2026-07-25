@@ -6,9 +6,11 @@ closed first) — deduplicated so a coin only ever appears once, in that priorit
 gets a separate **Long** and **Short** action cell. Each side has its own **⚙ Setup** dialog
 (leverage, margin — direction is fixed by the cell, margin mode is always **cross**, order
 type is always **market**) and its own **Long / Short** open button that places a live market
-order on Bitget using that side's config. Each button is disabled **independently** while that
-exact coin **+ side** already has an open position, or until that side's margin has been
-configured — so an open long disables only **Long**, leaving **Short** live. Per-side config is
+order on Bitget using that side's config. The buttons stay **always enabled**: when that exact
+coin **+ side** already has an open position, the button reads **“+ Long” / “+ Short”** (dashed
+border) and clicking it **adds volume to the existing position** (scale-in) instead of opening a
+second one — the add-on is written to the trade's journal as a read-only **system log**.
+Per-side config is
 persisted in the **database** (`bitget_setup_configs`, unique on `symbol + holdSide`) so it
 survives reloads and is shared across devices. Each coin's **realtime price** and **change
 since 00:00 UTC** (the **"Hôm nay"** column, streamed from Bitget's public WebSocket ticker)
@@ -82,24 +84,34 @@ PNG in a new tab.
    leverage (1–125×) and margin in USDT for that cell's fixed side. Margin mode / order type
    are fixed to **Market · Cross**. Saving optimistically updates the cell and persists via
    `PUT /bitget/setup` (upsert on `symbol + holdSide`).
-4. User clicks **Long** or **Short** → confirm dialog → `POST /bitget/positions/open` via
-   `openBitgetPosition()`. The API:
-   - rejects (409) if a position for that symbol+side is already open;
+4. User clicks **Long** / **Short** (or **+ Long** / **+ Short** on an open side) → confirm
+   dialog — its text spells out whether this OPENS a position or ADDS volume to the open one →
+   `POST /bitget/positions/open` via `openBitgetPosition()`. The API:
+   - reads the live position for that symbol+side (`single-position`) to decide `mode`:
+     `'new'` when flat, `'add'` when already open;
    - reads the live ticker price + contract precision;
    - computes size = `margin × leverage ÷ price`, floored to the contract's `volumePlace`
-     (rejected 400 if below `minTradeNum`);
-   - sets cross leverage for the cell's side (passing `holdSide` in hedge mode — see edge
+     (rejected 400 if below `minTradeNum`). When adding, `leverage` is the **live position's**
+     leverage, not the configured one — Bitget refuses leverage changes on an open position;
+   - sets cross leverage **only when flat** (passing `holdSide` in hedge mode — see edge
      cases), then places a **market** order (`marginMode: crossed`, no preset TP/SL — a
-     deliberate manual entry).
-5. On success a green notice shows the filled size/price and positions refresh, flipping the
-   coin to "Đang mở" and disabling its Open button.
+     deliberate manual entry);
+   - when adding: writes a `system` note to the trade's journal (tradeKey
+     `symbol-holdSide-openedAt`) recording added size, margin/leverage, market price and
+     `size trước → sau`, plus a `Logger.log` line in the API process log.
+5. On success a green notice shows the filled size/price (and, for an add-on, the new total
+   size + leverage and a reminder that it was logged) and positions refresh.
 
 ## Edge Cases
-- **Already open (per side):** the side's open button is disabled in the UI when that
-  `symbol+holdSide` is in the live positions set — the **Long** button can be disabled while
-  **Short** stays enabled, and vice versa. The API also guards with a 409 so a stale UI can't
-  double up.
-- **Not configured:** Open is disabled until that side's margin > 0; a hint tooltip explains.
+- **Already open (per side):** the button stays enabled and switches to **+ Long / + Short**;
+  clicking scales into that position. The confirm dialog says so explicitly, so an accidental
+  double-click can't quietly double the position. A stale UI is harmless: the API re-reads the
+  live position and decides `new` vs `add` server-side, never from the client's guess.
+- **Add-on leverage:** the configured leverage is ignored when adding — the position's own
+  leverage is used for sizing and returned in the response (shown in the notice), because
+  Bitget rejects `set-leverage` while a position is open.
+- **Not configured:** clicking Open with margin ≤ 0 shows a red hint instead of firing an
+  order (the button itself is no longer disabled).
 - **Margin too small:** size floors below the contract minimum → API returns 400 with a
   Vietnamese message asking to raise margin/leverage.
 - **Bitget not configured:** if credentials are missing the tab shows the same setup notice
@@ -146,7 +158,7 @@ PNG in a new tab.
 - `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down`, `.bg-open-btn--short` (red short button), `.bg-side-cell`/`.bg-side-cell-inner`/`.bg-side-cfg` (per-side action cell + config summary), `.bg-symbol` sticky column.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`, `GET/PUT /bitget/setup`, `GET /bitget/setup-chart` (public PNG).
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupChartService` + `BinanceMarketDataService`.
-- `apps/api/src/modules/bitget/bitget.service.ts` — `openPosition()` (size math + guards).
+- `apps/api/src/modules/bitget/bitget.service.ts` — `openPosition()` (size math + guards, `new` vs `add` scale-in) và `writeSystemLog()` (log nhật ký cho lần thêm volume).
 - `apps/api/src/modules/bitget/bitget-setup.service.ts` — DB-backed per-side config list/upsert.
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupService` as a provider.
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getTickerPrice`, `getContractSpec`,
