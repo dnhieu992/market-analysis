@@ -20,7 +20,7 @@ import {
   tfLabelOf,
 } from './setup-chart-dialog';
 import { SymbolMultiSelect } from './symbol-multi-select';
-import { BulkSetupDialog } from './bulk-setup-dialog';
+import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
 import { ChartNoteView } from './chart-note-dialog';
 
 const REFRESH_MS = 15_000;
@@ -269,12 +269,7 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
    * than from an optimistic guess about what got written.
    */
   const saveBulkConfig = useCallback(
-    async (input: {
-      symbols: string[];
-      holdSides: HoldSide[];
-      leverage: number;
-      marginUsd: number;
-    }) => {
+    async (input: { symbols: string[]; sides: BulkSideInput[] }) => {
       setBulkSaving(true);
       setError(null);
       setNotice(null);
@@ -287,9 +282,11 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
         });
         setBulkOpen(false);
         setNotice(
-          `Đã lưu ${saved.length} cấu hình: ${input.symbols.length} coin × ` +
-            `${input.holdSides.map((s) => s.toUpperCase()).join('/')} — ` +
-            `${input.leverage}× · $${input.marginUsd} · cross.`,
+          `Đã lưu ${saved.length} cấu hình cho ${input.symbols.length} coin: ` +
+            input.sides
+              .map((s) => `${s.holdSide.toUpperCase()} ${s.leverage}× · $${s.marginUsd}`)
+              .join(' — ') +
+            ' · cross.',
         );
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Lưu cấu hình hàng loạt thất bại. Thử lại sau.');

@@ -51,29 +51,32 @@ export class BitgetSetupService {
   }
 
   /**
-   * Overwrite the config of every `symbols × holdSides` pair with the same
-   * leverage/margin, in one transaction. Duplicate symbols are collapsed so a
-   * sloppy client payload can't fight itself inside the transaction.
+   * Overwrite the config of every `symbols × sides[].holdSide` pair in one
+   * transaction, each side keeping its own leverage/margin. Duplicate symbols
+   * and repeated sides are collapsed (last entry per side wins) so a sloppy
+   * client payload can't fight itself inside the transaction.
    */
   async upsertMany(dto: BulkUpsertSetupConfigDto): Promise<BitgetSetupConfigDto[]> {
-    if (!(dto.leverage >= 1 && dto.leverage <= 125)) {
-      throw new BadRequestException('Đòn bẩy phải trong khoảng 1–125.');
-    }
-    if (!(dto.marginUsd >= 0)) {
-      throw new BadRequestException('Ký quỹ không hợp lệ.');
-    }
     const symbols = [...new Set(dto.symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
-    const holdSides = [...new Set(dto.holdSides.map((s) => (s === 'short' ? 'short' : 'long')))];
     if (symbols.length === 0) throw new BadRequestException('Chọn ít nhất 1 coin.');
-    if (holdSides.length === 0) throw new BadRequestException('Chọn ít nhất 1 hướng (Long/Short).');
+
+    const bySide = new Map<'long' | 'short', { leverage: number; marginUsd: number }>();
+    for (const side of dto.sides) {
+      const holdSide = side.holdSide === 'short' ? 'short' : 'long';
+      if (!(side.leverage >= 1 && side.leverage <= 125)) {
+        throw new BadRequestException(
+          `Đòn bẩy ${holdSide.toUpperCase()} phải trong khoảng 1–125.`,
+        );
+      }
+      if (!(side.marginUsd >= 0)) {
+        throw new BadRequestException(`Ký quỹ ${holdSide.toUpperCase()} không hợp lệ.`);
+      }
+      bySide.set(holdSide, { leverage: Math.round(side.leverage), marginUsd: side.marginUsd });
+    }
+    if (bySide.size === 0) throw new BadRequestException('Chọn ít nhất 1 hướng (Long/Short).');
 
     const inputs = symbols.flatMap((symbol) =>
-      holdSides.map((holdSide) => ({
-        symbol,
-        holdSide,
-        leverage: Math.round(dto.leverage),
-        marginUsd: dto.marginUsd,
-      })),
+      [...bySide.entries()].map(([holdSide, cfg]) => ({ symbol, holdSide, ...cfg })),
     );
     const rows = (await this.repo.upsertMany(inputs)) as SetupConfigRow[];
     return rows.map((r) => this.toDto(r));

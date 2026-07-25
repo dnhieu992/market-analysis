@@ -1210,14 +1210,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     /**
-     * Overwrite the config of many coins at once — every `symbols × holdSides`
-     * pair gets the same leverage/margin. Returns the saved rows.
+     * Overwrite the config of many coins at once. Every listed side carries its
+     * own leverage/margin and is applied to every symbol. Returns the saved rows.
      */
     async saveBitgetSetupConfigsBulk(input: {
       symbols: string[];
-      holdSides: Array<'long' | 'short'>;
-      leverage: number;
-      marginUsd: number;
+      sides: Array<{ holdSide: 'long' | 'short'; leverage: number; marginUsd: number }>;
     }): Promise<BitgetSetupConfig[]> {
       const response = await fetchImpl(
         `${baseUrl}/bitget/setup/bulk`,

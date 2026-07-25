@@ -11387,6 +11387,26 @@ a.metric-card--link:hover {
 /* Wider than the single-coin dialog — it carries the coin picker grid. */
 .bg-setup-dialog--wide { max-width: 620px; }
 .bg-bulk-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* One bordered block per side — LONG and SHORT keep separate leverage/margin. */
+.bg-bulk-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+}
+.bg-bulk-side--long { border-color: rgba(31, 138, 91, 0.45); background: rgba(31, 138, 91, 0.05); }
+.bg-bulk-side--short { border-color: rgba(194, 69, 58, 0.45); background: rgba(194, 69, 58, 0.05); }
+.bg-bulk-side-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
 .bg-bulk-count { font-weight: 700; color: var(--accent, #4f46e5); font-variant-numeric: tabular-nums; }
 .bg-bulk-picker-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bg-bulk-search {

@@ -14,13 +14,15 @@ Per-side config is
 persisted in the **database** (`bitget_setup_configs`, unique on `symbol + holdSide`) so it
 survives reloads and is shared across devices.
 
-A **⚙ Setup nhiều coin** button in the table toolbar opens a **bulk config dialog**: pick the
-side(s) (**LONG** / **SHORT** / both), one leverage + one margin, and any number of coins
-(searchable checkbox grid, "Chọn tất cả" / "Bỏ chọn"; coins that already have a config for the
-selected side(s) are marked with an orange ●). Saving **overwrites** the config of every
-selected `coin × side` pair in a single transaction — sides that are **not** ticked are left
-untouched. The dialog states how many configs will be written and how many of those are
-overwrites before the save.
+A **⚙ Setup nhiều coin** button in the table toolbar opens a **bulk config dialog**. It has
+**two independent side blocks** — **LONG** (green) and **SHORT** (red) — each with its own
+checkbox to enable it plus its **own leverage and margin**, so one save can configure long and
+short at different sizes (or only one of them). Below them is the coin picker: a searchable
+checkbox grid with "Chọn tất cả" / "Bỏ chọn"; coins that already have a config for an enabled
+side are marked with an orange ●. Saving **overwrites** the config of every selected
+`coin × enabled side` pair in a single transaction — a side whose checkbox is **off** is left
+untouched. The dialog states how many configs will be written, with which values per side, and
+how many of those are overwrites before the save.
 
 Each coin's **realtime price** and **change
 since 00:00 UTC** (the **"Hôm nay"** column, streamed from Bitget's public WebSocket ticker)
@@ -95,10 +97,11 @@ PNG in a new tab.
    are fixed to **Market · Cross**. Saving optimistically updates the cell and persists via
    `PUT /bitget/setup` (upsert on `symbol + holdSide`).
 3b. **Bulk setup:** User clicks **⚙ Setup nhiều coin** → dialog opens pre-ticked with the
-   toolbar's current coin filter (empty filter = nothing pre-ticked). Picking sides + leverage +
-   margin + coins and saving calls `PUT /bitget/setup/bulk` (`saveBitgetSetupConfigsBulk()`).
-   `BitgetSetupService.upsertMany()` validates leverage/margin, de-duplicates symbols and sides,
-   expands them into the `symbols × holdSides` cartesian product and writes them through
+   toolbar's current coin filter (empty filter = nothing pre-ticked). Filling the enabled side
+   blocks + picking coins and saving calls `PUT /bitget/setup/bulk`
+   (`saveBitgetSetupConfigsBulk({ symbols, sides: [{ holdSide, leverage, marginUsd }, …] })`).
+   `BitgetSetupService.upsertMany()` validates each side's leverage/margin, de-duplicates symbols
+   and sides (last entry per side wins), expands them into the `symbols × sides` product and writes them through
    `bitgetSetupConfigRepository.upsertMany()` — one Prisma `$transaction`, so a partial write
    can never leave half the batch applied. The saved rows come back and are merged into the
    tab's config map (no optimistic guess).
@@ -135,7 +138,9 @@ PNG in a new tab.
   "N cấu hình đã có sẽ bị ghi đè" line; Save is disabled until at least one coin, one side and
   a valid leverage/margin are set.
 - **Bulk save with no coin / no side selected** → Save stays disabled client-side; the API also
-  rejects an empty `symbols`/`holdSides` array with 400 (Vietnamese message).
+  rejects an empty `symbols`/`sides` array with 400 (Vietnamese message).
+- **A side is enabled but half-filled** (blank margin, leverage out of 1–125) → Save is blocked
+  with an inline red hint naming the fix, so a typo can't silently drop that side from the batch.
 - **Duplicate symbols in the bulk payload** → collapsed server-side (`new Set`) so the same
   row can't be upserted twice inside one transaction.
 - **Bulk save fails** → red alert, dialog stays open with the selection intact, and no config
@@ -193,9 +198,9 @@ PNG in a new tab.
   `setCrossLeverage`, `openMarketPosition`.
 - `apps/api/src/modules/bitget/dto/open-position.dto.ts` — open-order validation.
 - `apps/api/src/modules/bitget/dto/upsert-setup-config.dto.ts` — setup-config validation.
-- `apps/api/src/modules/bitget/dto/bulk-upsert-setup-config.dto.ts` — bulk setup-config validation (`symbols[]`, `holdSides[]`, leverage, margin).
+- `apps/api/src/modules/bitget/dto/bulk-upsert-setup-config.dto.ts` — bulk setup-config validation: `symbols[]` + nested `sides[]` (`BulkSetupSideDto`: holdSide, leverage, marginUsd).
 - `packages/db/src/repositories/bitget-setup-config.repository.ts` — `findAll()`, `upsert()`, `upsertMany()` (one `$transaction`).
-- `apps/web/src/widgets/bitget/bulk-setup-dialog.tsx` — bulk config dialog (side toggles, leverage/margin, searchable coin grid, overwrite warning).
+- `apps/web/src/widgets/bitget/bulk-setup-dialog.tsx` — bulk config dialog: per-side LONG/SHORT blocks (own leverage + margin), searchable coin grid, overwrite warning.
 - `packages/db/prisma/schema.prisma` — `BitgetSetupConfig` model (`bitget_setup_configs`).
 - `packages/db/src/repositories/bitget-setup-config.repository.ts` — `findAll()`, `upsert()`.
 - `packages/db/prisma/migrations/20260720120000_add_bitget_setup_config/migration.sql` — table DDL.

@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
   IsIn,
@@ -7,12 +9,32 @@ import {
   Matches,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
+/** Leverage + margin for ONE side, applied to every symbol in the batch. */
+export class BulkSetupSideDto {
+  @ApiProperty({ enum: ['long', 'short'], description: 'Side these values configure' })
+  @IsIn(['long', 'short'])
+  holdSide!: 'long' | 'short';
+
+  @ApiProperty({ example: 10, description: 'Leverage (cross margin) for this side' })
+  @IsNumber()
+  @Min(1)
+  @Max(125)
+  leverage!: number;
+
+  @ApiProperty({ example: 20, description: 'Margin in USDT for this side' })
+  @IsNumber()
+  @Min(0)
+  marginUsd!: number;
+}
+
 /**
- * Apply one leverage/margin config to many coins at once. The write covers the
- * cartesian product `symbols × holdSides` and OVERWRITES whatever those pairs
- * had before — sides that are not listed are left untouched.
+ * Apply per-side configs to many coins at once. The write covers every
+ * `symbols × sides[].holdSide` pair and OVERWRITES what those pairs had before;
+ * a side that is absent from `sides` is left untouched. Long and short carry
+ * their own leverage/margin, so one save can set both at different sizes.
  */
 export class BulkUpsertSetupConfigDto {
   @ApiProperty({ example: ['BTCUSDT', 'ETHUSDT'], description: 'Symbols to configure' })
@@ -21,20 +43,14 @@ export class BulkUpsertSetupConfigDto {
   @Matches(/^[A-Z0-9]{4,30}$/, { each: true, message: 'symbols must be uppercase Bitget symbols' })
   symbols!: string[];
 
-  @ApiProperty({ example: ['long', 'short'], description: 'Sides to configure for every symbol' })
+  @ApiProperty({
+    type: [BulkSetupSideDto],
+    description: 'Per-side leverage/margin — at most one entry per side',
+  })
   @IsArray()
   @ArrayNotEmpty({ message: 'Chọn ít nhất 1 hướng (Long/Short).' })
-  @IsIn(['long', 'short'], { each: true })
-  holdSides!: Array<'long' | 'short'>;
-
-  @ApiProperty({ example: 10, description: 'Leverage (cross margin), applied to every pair' })
-  @IsNumber()
-  @Min(1)
-  @Max(125)
-  leverage!: number;
-
-  @ApiProperty({ example: 20, description: 'Margin in USDT, applied to every pair' })
-  @IsNumber()
-  @Min(0)
-  marginUsd!: number;
+  @ArrayMaxSize(2)
+  @ValidateNested({ each: true })
+  @Type(() => BulkSetupSideDto)
+  sides!: BulkSetupSideDto[];
 }

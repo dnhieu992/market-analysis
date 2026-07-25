@@ -7,10 +7,29 @@ import type { BitgetSetupConfig } from '@web/shared/api/types';
 
 type HoldSide = 'long' | 'short';
 
+export type BulkSideInput = { holdSide: HoldSide; leverage: number; marginUsd: number };
+
 const DEFAULT_LEVERAGE = 10;
 
 function fmtUsdPlain(n: number): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Draft state of one side's inputs — kept as strings so the fields can be empty. */
+type SideDraft = { on: boolean; leverage: string; marginUsd: string };
+
+/** Parsed draft, or null when the side is off / its numbers are unusable. */
+function parseSide(holdSide: HoldSide, draft: SideDraft): BulkSideInput | null {
+  if (!draft.on) return null;
+  const leverage = Number(draft.leverage);
+  const marginUsd = Number(draft.marginUsd);
+  const ok =
+    Number.isFinite(leverage) &&
+    leverage >= 1 &&
+    leverage <= 125 &&
+    Number.isFinite(marginUsd) &&
+    marginUsd > 0;
+  return ok ? { holdSide, leverage, marginUsd } : null;
 }
 
 type Props = {
@@ -21,20 +40,16 @@ type Props = {
   /** Existing configs keyed by `${symbol}-${holdSide}` — drives the overwrite warning. */
   configs: Record<string, BitgetSetupConfig>;
   saving: boolean;
-  onSave: (input: {
-    symbols: string[];
-    holdSides: HoldSide[];
-    leverage: number;
-    marginUsd: number;
-  }) => void;
+  onSave: (input: { symbols: string[]; sides: BulkSideInput[] }) => void;
   onClose: () => void;
 };
 
 /**
- * Bulk Setup dialog: one leverage + margin applied to many coins at once, for the
- * chosen side(s). Saving OVERWRITES the existing config of every selected
- * `coin × side` pair — sides that are not ticked are left untouched — so the
- * dialog states up front how many existing configs the save will replace.
+ * Bulk Setup dialog: LONG and SHORT each get their OWN leverage + margin, and the
+ * enabled side(s) are written to every selected coin. Saving OVERWRITES the
+ * existing config of each selected `coin × enabled side` pair — a side that is
+ * switched off is left untouched — so the dialog states up front how many
+ * existing configs the save will replace.
  */
 export function BulkSetupDialog({
   symbols,
@@ -45,9 +60,8 @@ export function BulkSetupDialog({
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [sides, setSides] = useState<HoldSide[]>(['long', 'short']);
-  const [leverage, setLeverage] = useState(String(DEFAULT_LEVERAGE));
-  const [marginUsd, setMarginUsd] = useState('');
+  const [long, setLong] = useState<SideDraft>({ on: true, leverage: String(DEFAULT_LEVERAGE), marginUsd: '' });
+  const [short, setShort] = useState<SideDraft>({ on: true, leverage: String(DEFAULT_LEVERAGE), marginUsd: '' });
   const [picked, setPicked] = useState<string[]>(initialSymbols);
   const [query, setQuery] = useState('');
 
@@ -63,27 +77,74 @@ export function BulkSetupDialog({
     return q ? symbols.filter((s) => s.includes(q)) : symbols;
   }, [symbols, query]);
 
-  const lev = Number(leverage);
-  const margin = Number(marginUsd);
-  const validNumbers =
-    Number.isFinite(lev) && lev >= 1 && lev <= 125 && Number.isFinite(margin) && margin > 0;
-  const valid = validNumbers && picked.length > 0 && sides.length > 0;
+  const sides = useMemo(
+    () => [parseSide('long', long), parseSide('short', short)].filter((s): s is BulkSideInput => s != null),
+    [long, short],
+  );
+  // A side that is switched on but not fully/validly filled in blocks the save,
+  // so a typo can never silently drop half the batch.
+  const incomplete = (long.on && !parseSide('long', long)) || (short.on && !parseSide('short', short));
+  const valid = !incomplete && sides.length > 0 && picked.length > 0;
 
   const pairCount = picked.length * sides.length;
   // How many of those pairs already have a config → i.e. will be REPLACED.
   const overwriteCount = useMemo(
     () =>
       picked.reduce(
-        (sum, s) => sum + sides.filter((side) => configs[`${s}-${side}`] != null).length,
+        (sum, s) => sum + sides.filter((side) => configs[`${s}-${side.holdSide}`] != null).length,
         0,
       ),
     [picked, sides, configs],
   );
 
-  const toggleSide = (side: HoldSide) =>
-    setSides((prev) => (prev.includes(side) ? prev.filter((s) => s !== side) : [...prev, side]));
   const toggleSymbol = (s: string) =>
     setPicked((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+
+  const sideBlock = (
+    holdSide: HoldSide,
+    draft: SideDraft,
+    setDraft: (next: SideDraft) => void,
+  ) => {
+    const isLong = holdSide === 'long';
+    return (
+      <div className={`bg-bulk-side ${draft.on ? (isLong ? 'bg-bulk-side--long' : 'bg-bulk-side--short') : ''}`}>
+        <label className="bg-bulk-side-head">
+          <input
+            type="checkbox"
+            checked={draft.on}
+            onChange={(e) => setDraft({ ...draft, on: e.target.checked })}
+          />
+          <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
+            {isLong ? 'LONG' : 'SHORT'}
+          </span>
+        </label>
+        <label className="bg-setup-field">
+          <span>Đòn bẩy (×)</span>
+          <input
+            type="number"
+            min={1}
+            max={125}
+            step={1}
+            disabled={!draft.on}
+            value={draft.leverage}
+            onChange={(e) => setDraft({ ...draft, leverage: e.target.value })}
+          />
+        </label>
+        <label className="bg-setup-field">
+          <span>Ký quỹ (USDT)</span>
+          <input
+            type="number"
+            min={0}
+            step="any"
+            disabled={!draft.on}
+            value={draft.marginUsd}
+            placeholder="vd: 20"
+            onChange={(e) => setDraft({ ...draft, marginUsd: e.target.value })}
+          />
+        </label>
+      </div>
+    );
+  };
 
   if (!mounted) return null;
 
@@ -104,52 +165,15 @@ export function BulkSetupDialog({
         </div>
 
         <div className="bg-setup-body">
-          <div className="bg-setup-field">
-            <span>Hướng áp dụng</span>
-            <div className="bg-setup-side-toggle">
-              {(['long', 'short'] as HoldSide[]).map((side) => {
-                const on = sides.includes(side);
-                const cls = on ? (side === 'long' ? 'bg-setup-side--long' : 'bg-setup-side--short') : '';
-                return (
-                  <button
-                    key={side}
-                    type="button"
-                    className={`bg-setup-side ${cls}`}
-                    aria-pressed={on}
-                    onClick={() => toggleSide(side)}
-                  >
-                    {on ? '✓ ' : ''}
-                    {side === 'long' ? 'LONG' : 'SHORT'}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="bg-bulk-row">
-            <label className="bg-setup-field">
-              <span>Đòn bẩy (×)</span>
-              <input
-                type="number"
-                min={1}
-                max={125}
-                step={1}
-                value={leverage}
-                onChange={(e) => setLeverage(e.target.value)}
-              />
-            </label>
-            <label className="bg-setup-field">
-              <span>Ký quỹ (USDT)</span>
-              <input
-                type="number"
-                min={0}
-                step="any"
-                value={marginUsd}
-                placeholder="vd: 20"
-                onChange={(e) => setMarginUsd(e.target.value)}
-              />
-            </label>
+            {sideBlock('long', long, setLong)}
+            {sideBlock('short', short, setShort)}
           </div>
+          {incomplete && (
+            <span className="bg-tpsl-hint bg-tpsl-hint--bad">
+              Hướng đang bật phải có đòn bẩy 1–125 và ký quỹ &gt; 0 (hoặc tắt hướng đó đi).
+            </span>
+          )}
 
           <div className="bg-setup-field">
             <span>
@@ -179,7 +203,7 @@ export function BulkSetupDialog({
               ) : (
                 visible.map((s) => {
                   const on = picked.includes(s);
-                  const has = sides.some((side) => configs[`${s}-${side}`] != null);
+                  const has = sides.some((side) => configs[`${s}-${side.holdSide}`] != null);
                   return (
                     <label key={s} className={`bg-bulk-item ${on ? 'bg-bulk-item--on' : ''}`}>
                       <input type="checkbox" checked={on} onChange={() => toggleSymbol(s)} />
@@ -200,13 +224,25 @@ export function BulkSetupDialog({
             Sẽ ghi{' '}
             <strong>
               {pairCount} cấu hình ({picked.length} coin × {sides.length} hướng)
-            </strong>{' '}
-            với <strong>{validNumbers ? `${lev}× · ${fmtUsdPlain(margin)} · cross` : '—'}</strong>.
+            </strong>
+            {sides.length > 0 && (
+              <>
+                :{' '}
+                {sides
+                  .map(
+                    (s) =>
+                      `${s.holdSide.toUpperCase()} ${s.leverage}× · ${fmtUsdPlain(s.marginUsd)}`,
+                  )
+                  .join(' — ')}{' '}
+                · cross
+              </>
+            )}
+            .
             {overwriteCount > 0 && (
               <>
                 {' '}
                 Trong đó <strong className="bg-bulk-warn">{overwriteCount} cấu hình đã có sẽ bị ghi đè</strong>{' '}
-                (các coin có dấu ●). Hướng không được chọn giữ nguyên.
+                (các coin có dấu ●). Hướng đang tắt giữ nguyên.
               </>
             )}
           </p>
@@ -220,7 +256,7 @@ export function BulkSetupDialog({
             type="button"
             className="bg-setup-save"
             disabled={!valid || saving}
-            onClick={() => onSave({ symbols: picked, holdSides: sides, leverage: lev, marginUsd: margin })}
+            onClick={() => onSave({ symbols: picked, sides })}
           >
             {saving ? 'Đang lưu…' : `Lưu ${pairCount || ''} cấu hình`}
           </button>
