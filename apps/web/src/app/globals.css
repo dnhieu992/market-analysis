@@ -3919,15 +3919,23 @@ a {
 
 /* ── Dialog ──────────────────────────────────────────────────────────────────── */
 
+/* The viewport meta uses `viewport-fit=cover`, so a plain `inset: 0` overlay starts
+   UNDER the status bar / notch in the installed PWA and its first row (the header
+   with the ✕) becomes unreachable. Pad by the safe-area insets, and size with
+   `dvh` so a mobile browser's collapsing URL bar can't push the header off-screen
+   either. z-index sits above the app shell chrome (sidebar 200, topbar 100). */
 .dialog-backdrop {
   position: fixed;
   inset: 0;
+  height: 100vh; /* fallback for browsers without dvh */
+  height: 100dvh;
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
-  padding: 16px;
+  z-index: 300;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 
 .dialog {
@@ -3936,7 +3944,8 @@ a {
   border-radius: 16px;
   width: 100%;
   max-width: 560px;
-  max-height: 90vh;
+  /* 100% = the backdrop's content box, i.e. viewport minus the safe-area padding. */
+  max-height: min(90dvh, 100%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -3983,11 +3992,13 @@ a {
 
 .dialog--wide { max-width: 780px; }
 
+/* Fills the backdrop's content box exactly — no vw/vh math that can overshoot the
+   visible area (and hide the header) on notched or dynamic-toolbar viewports. */
 .dialog--fullscreen {
-  max-width: calc(100vw - 32px);
+  max-width: 100%;
   width: 100%;
-  height: calc(100vh - 32px);
-  max-height: calc(100vh - 32px);
+  height: 100%;
+  max-height: 100%;
 }
 
 .dialog-header-meta {
@@ -10494,6 +10505,10 @@ a.metric-card--link:hover {
   border-bottom-color: #e2e8f0;
   flex-wrap: wrap;
   gap: 8px;
+  /* Own stacking context above the chart body, so nothing can paint over the ✕. */
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
 }
 /* Title shrinks (and ellipsises) so the tf tabs / save / close never overflow the header */
 .eb-chart-dialog .dialog-title {
@@ -10979,24 +10994,31 @@ a.metric-card--link:hover {
 .bg-qqe-none { color: var(--muted); opacity: 0.6; }
 
 /* Setup config dialog (portaled to body). */
+/* Same safe-area / dvh treatment as .dialog-backdrop — see the note there. */
 .bg-setup-overlay {
   position: fixed;
   inset: 0;
+  height: 100vh;
+  height: 100dvh;
   z-index: 1000;
   background: rgba(15, 12, 9, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
 .bg-setup-dialog {
   width: 100%;
   max-width: 380px;
+  /* Never taller than the padded viewport, so the ✕ row stays reachable; the
+     dialog itself scrolls vertically when the content doesn't fit. */
+  max-height: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
-  overflow: hidden;
+  overflow: hidden auto;
 }
 .bg-setup-head {
   display: flex;
@@ -11077,10 +11099,15 @@ a.metric-card--link:hover {
 .bgj-overlay {
   position: fixed;
   inset: 0;
+  height: 100vh;
+  height: 100dvh;
   z-index: 1000;
   background: rgba(15, 12, 9, 0.45);
   display: flex;
   justify-content: flex-end;
+  /* Keeps the drawer's own header/close below the status bar in the PWA. */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .bgj-drawer {
   width: min(560px, 100%);

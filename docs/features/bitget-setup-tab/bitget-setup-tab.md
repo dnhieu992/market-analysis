@@ -158,6 +158,15 @@ PNG in a new tab.
   explicit `order`, so it can never be pushed out of the (`overflow: hidden`) dialog. Under
   640px the `· SonicR + S/R Channel + RSI` subtitle is hidden and the timeframe tabs drop to
   their own row, keeping 💾 Lưu + ✕ on the first row.
+- **Header hidden under the status bar / URL bar (PWA + mobile):** the viewport meta uses
+  `viewport-fit=cover`, so a plain `inset: 0` overlay starts *under* the notch/status bar and
+  the header's ✕ becomes unclickable. Fixed in the shared dialog primitives, so every tab and
+  every fullscreen dialog inherits it: `.dialog-backdrop` (and `.bg-setup-overlay`,
+  `.bgj-overlay`) are sized with `100dvh` and padded by `max(<pad>, env(safe-area-inset-*))`,
+  `.dialog--fullscreen` fills the padded content box with `height: 100%` instead of
+  `calc(100vh - 32px)`, and `.dialog-backdrop` sits at `z-index: 300` — above the mobile
+  topbar (100) and the sidebar drawer (200). The chart dialog's header also gets its own
+  stacking context so nothing paints over the ✕.
 - **Hedge vs one-way account mode:** honoured via `BITGET_POSITION_MODE` (adds `tradeSide:
   open` in hedge mode), same as the worker trade client.
 - **Per-side leverage in hedge mode:** in hedge mode Bitget keeps a separate leverage per
