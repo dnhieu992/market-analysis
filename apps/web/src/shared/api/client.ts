@@ -51,6 +51,7 @@ import type {
   BitgetTpslResult,
   BitgetSetupConfig,
   BitgetQqeSignals,
+  SupertrendSignals,
   BitgetTradeChart,
   BitgetJournalNote,
   BitgetJournalSnapshot,
@@ -772,6 +773,17 @@ export function createApiClient(options: ApiClientOptions = {}) {
         `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/klines?interval=${encodeURIComponent(interval)}&limit=${limit}`,
         withDefaults(),
       );
+    },
+
+    /**
+     * Current Supertrend(10,3) direction per timeframe, computed live server-side
+     * from Binance klines. `timeframes` narrows the scan (default 4h/1d/1w).
+     */
+    async fetchTrackingCoinSupertrend(symbols: string[], timeframes?: readonly string[]): Promise<SupertrendSignals[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      const tfq = timeframes?.length ? `&timeframes=${encodeURIComponent(timeframes.join(','))}` : '';
+      return fetchJson<SupertrendSignals[]>(fetchImpl, `${baseUrl}/tracking-coins/supertrend?symbols=${q}${tfq}`, withDefaults());
     },
 
     fetchTrackingCoinSetup(symbol: string): Promise<TrackingCoinSetup> {

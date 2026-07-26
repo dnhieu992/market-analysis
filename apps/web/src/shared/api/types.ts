@@ -595,6 +595,23 @@ export type BitgetSetupConfig = {
   marginUsd: number;
 };
 
+/** Supertrend(10,3) state on one timeframe's last closed candle. */
+export type SupertrendTfSignal = {
+  direction: 'up' | 'down';
+  /** Active Supertrend line level on that candle. */
+  line: number;
+  /** Closed candles since the last flip (null if none in the fetched window). */
+  barsSince: number | null;
+  /** The last closed candle IS the flip bar — a brand-new signal. */
+  freshFlip: boolean;
+};
+
+/** Per-coin Supertrend state keyed by timeframe ('4h' | '1d' | '1w'). */
+export type SupertrendSignals = {
+  symbol: string;
+  signals: Record<string, SupertrendTfSignal | null>;
+};
+
 /** colinmck QQE Signals state on one timeframe's last closed candle. */
 export type BitgetQqeTfSignal = {
   state: 'long' | 'short';

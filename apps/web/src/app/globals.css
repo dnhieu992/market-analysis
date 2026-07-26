@@ -8065,6 +8065,27 @@ a.metric-card--link:hover {
 .tc-utbot--bull { background: rgba(34,197,94,0.15); color: #15803d; }
 .tc-utbot--bear { background: rgba(239,68,68,0.15); color: #dc2626; }
 
+/* ── tracking coins: Supertrend(10,3) badge ─────────────────────── */
+.tc-st-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.tc-st--up   { background: rgba(34,197,94,0.15); color: #15803d; }
+.tc-st--down { background: rgba(239,68,68,0.15); color: #dc2626; }
+/* a flip on the last closed candle — ring it so a brand-new signal stands out */
+.tc-st--fresh { box-shadow: 0 0 0 1.5px currentColor; }
+
+/* Supertrend block in the coin detail dialog */
+.tc-st-detail { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.tc-st-detail__row { display: flex; align-items: center; gap: 8px; }
+.tc-st-detail__since { font-size: 0.72rem; color: var(--muted); }
+
 /* ── tracking coins: per-timeframe indicator cell ───────────────── */
 .tc-tf-indicators {
   display: flex;
