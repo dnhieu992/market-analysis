@@ -36,7 +36,10 @@ position's combined mode (`SIGNAL`/`FOMO`/`MIXED`).
 ## Holding-review flow (daily Haiku)
 1. During the worker cron scan (`scanOne`), after the change-log step, `reviewHoldingIfDue`
    runs for the coin.
-2. It aggregates the coin's `dcaBuys` → if held coins ≤ 0 (no open position) it returns (no LLM call).
+2. It aggregates the coin's DCA buy log → if held coins ≤ 0 (no open position) it returns (no LLM call).
+   *(`tracking_coin_dca_buys` was dropped on 2026-07-26 — a rebuild would read `amount`/`avgEntry`
+   from the holding in `TrackingCoin.dcaPortfolioId` instead; see
+   `docs/features/tracking-coins-dca-dashboard/`.)*
 3. Dedupe: if a review row already exists for the coin **since 00:00 UTC today** it returns.
 4. Otherwise it computes avg-entry / PnL% / combined entry-mode and calls
    `TrackingCoinReviewService.review(...)` → Claude Haiku (`tool_use`, structured verdict).
@@ -66,7 +69,7 @@ position's combined mode (`SIGNAL`/`FOMO`/`MIXED`).
 
 ## Related Files (FE / BE / Worker)
 - `packages/core/src/analysis/dca-signal.ts` — `dcaQualityBucket()` helper (shared 70/50/30 thresholds)
-- `packages/db/prisma/schema.prisma` — `TrackingCoinSignalHistory` model (incl. `entryMode`/`avgEntry`/`pnlPct`/`llm*`), `TrackingCoinDcaBuy.entryMode`
+- `packages/db/prisma/schema.prisma` — `TrackingCoinSignalHistory` model (incl. `entryMode`/`avgEntry`/`pnlPct`/`llm*`); ~~`TrackingCoinDcaBuy.entryMode`~~ (model dropped 2026-07-26 — `entryMode` now lives only in the activity-log BUY entry)
 - `packages/db/prisma/migrations/20260627060438_add_tracking_coin_signal_history/migration.sql` — table creation
 - `packages/db/prisma/migrations/20260630130000_add_holding_llm_review/migration.sql` — holding-review + dca-buy entry-mode columns
 - `packages/db/src/repositories/tracking-coins.repository.ts` — `logSignalHistoryIfChanged()`, `findSignalHistory()`, `findLatestSignal()`, `hasHoldingReviewSince()`, `appendHoldingReview()`, `addDcaBuy(entryMode)`

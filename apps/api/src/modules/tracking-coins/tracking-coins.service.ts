@@ -13,13 +13,36 @@ type CoinSetup = {
   swingMinRR: number | null;
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
-  dcaMaxLayers: number | null;
   dcaPortfolioId: string | null;
 };
 
-const DEFAULT_DCA_MAX_LAYERS = 3; // bottom-DCA ladder: 3 tiers × −15% (2026-07-12 backtest)
-
-type DcaBuyRow = { id: string; price: number; usd: number; boughtAt: Date };
+/** The DCA position of a coin — derived entirely from its configured portfolio. */
+export type DcaPositionDto = {
+  symbol: string;
+  currentPrice: number;
+  /** Portfolio the position lives in; `null` = not configured yet (⚙ dialog). */
+  portfolioId: string | null;
+  /** Coin units currently held. */
+  amount: number;
+  /** Holding cost basis — the real break-even and the base for the x2 target. */
+  avgEntry: number | null;
+  capitalDeployed: number;
+  realizedPnl: number;
+  buyCount: number;
+  sellCount: number;
+  /** Advisory next-add level (last buy −15%); nothing is blocked on it. */
+  nextAddPrice: number | null;
+  pnlPct: number | null;
+  targetX2: number | null;
+  transactions: Array<{
+    id: string;
+    type: 'buy' | 'sell';
+    price: number;
+    amount: number;
+    usd: number;
+    at: string;
+  }>;
+};
 
 export type ActivityLogDto = {
   id: string;
@@ -66,22 +89,6 @@ function fmtPrice(n: number): string {
   if (n >= 1) return n.toFixed(3);
   if (n >= 0.01) return n.toFixed(5);
   return n.toPrecision(3);
-}
-
-// Aggregate a coin's DCA buy log into the position summary the dashboard shows.
-function aggregateDca(buys: DcaBuyRow[]): { layers: number; avgEntry: number; capitalDeployed: number } | null {
-  if (!buys || buys.length === 0) return null;
-  let coins = 0;
-  let cost = 0;
-  for (const b of buys) {
-    if (b.price > 0) coins += b.usd / b.price;
-    cost += b.usd;
-  }
-  return {
-    layers: buys.length,
-    avgEntry: coins > 0 ? cost / coins : 0,
-    capitalDeployed: cost,
-  };
 }
 
 export type TrackingCoinWithSignal = {
@@ -140,7 +147,8 @@ export type TrackingCoinWithSignal = {
     swingStructure: string;
     scannedAt: Date;
   } | null;
-  dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
+  /** Position held in the coin's configured portfolio; `null` when flat or unconfigured. */
+  dcaPosition: { amount: number; avgEntry: number; capitalDeployed: number } | null;
 };
 
 @Injectable()
@@ -174,8 +182,21 @@ export class TrackingCoinsService {
 
   async listCoins(): Promise<TrackingCoinWithSignal[]> {
     const rows = await this.repo.findCoinsWithLatestSignal();
+
+    // The at-a-glance position on each row comes from the coin's configured portfolio
+    // holding — same source as the DCA tab, fetched for every coin in one query.
+    const pairs = rows
+      .filter((c) => c.dcaPortfolioId)
+      .map((c) => ({ portfolioId: c.dcaPortfolioId as string, coinId: c.symbol }));
+    const holdings = await this.repo.findHoldingsForPairs(pairs);
+    const holdingByKey = new Map(holdings.map((h) => [`${h.portfolioId}:${h.coinId}`, h]));
+
     return rows.map((coin) => {
       const sig = coin.signals[0] ?? null;
+      const holding = coin.dcaPortfolioId
+        ? holdingByKey.get(`${coin.dcaPortfolioId}:${coin.symbol}`)
+        : undefined;
+      const amount = holding ? Number(holding.totalAmount) : 0;
       return {
         id: coin.id,
         symbol: coin.symbol,
@@ -232,7 +253,14 @@ export class TrackingCoinsService {
               scannedAt: sig.scannedAt,
             }
           : null,
-        dcaPosition: aggregateDca(coin.dcaBuys),
+        dcaPosition:
+          holding && amount > 0
+            ? {
+                amount,
+                avgEntry: Number(holding.avgCost),
+                capitalDeployed: Number(holding.totalCost),
+              }
+            : null,
       };
     });
   }
@@ -291,23 +319,14 @@ export class TrackingCoinsService {
 
   /** Position state stamped on a manual note, so it reads in context months later. */
   private async activitySnapshot(symbol: string): Promise<Record<string, unknown> | null> {
-    const coin = await this.repo.findCoinBySymbol(symbol);
-    if (!coin) return null;
-    const buys = await this.repo.findDcaBuysByCoin(coin.id);
-    const agg = aggregateDca(buys);
-    const price = await this.binance.fetchCurrentPrice(`${symbol}USDT`).catch(() => 0);
+    const pos = await this.getDcaPosition(symbol).catch(() => null);
+    if (!pos) return null;
     return {
-      ...(price > 0 ? { price } : {}),
-      ...(agg
-        ? {
-            avgEntry: agg.avgEntry,
-            layers: agg.layers,
-            capitalDeployed: agg.capitalDeployed,
-            ...(price > 0 && agg.avgEntry > 0
-              ? { pnlPct: Number((((price - agg.avgEntry) / agg.avgEntry) * 100).toFixed(2)) }
-              : {}),
-          }
-        : {}),
+      ...(pos.currentPrice > 0 ? { price: pos.currentPrice } : {}),
+      ...(pos.avgEntry != null ? { avgEntry: pos.avgEntry } : {}),
+      ...(pos.pnlPct != null ? { pnlPct: pos.pnlPct } : {}),
+      layers: pos.buyCount,
+      capitalDeployed: pos.capitalDeployed,
     };
   }
 
@@ -329,212 +348,224 @@ export class TrackingCoinsService {
     }
   }
 
-  // ── DCA position (manual buy log) ────────────────────────────────────────
+  // ── DCA position (a view over the configured portfolio) ──────────────────
+  //
+  // There is no separate DCA store. The position IS the portfolio's Holding +
+  // CoinTransaction rows for this symbol, so buying here writes a real BUY, selling
+  // writes a real SELL, and the /portfolio page can never disagree with this tab.
 
-  async getDcaPosition(symbol: string) {
+  /** Resolve the coin and the portfolio its DCA position lives in. */
+  private async dcaContext(symbol: string, userId?: string) {
     const upper = symbol.toUpperCase();
     const coin = await this.repo.findCoinBySymbol(upper);
     if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
-    const buys = await this.repo.findDcaBuysByCoin(coin.id);
-    const agg = aggregateDca(buys);
+    const portfolioId = coin.dcaPortfolioId ?? null;
+    if (portfolioId && userId) await this.portfolioService.getPortfolio(portfolioId, userId); // ownership guard
+    return { upper, coin, portfolioId };
+  }
+
+  async getDcaPosition(symbol: string, userId?: string): Promise<DcaPositionDto> {
+    const { upper, portfolioId } = await this.dcaContext(symbol, userId);
     const currentPrice = await this.binance.fetchCurrentPrice(`${upper}USDT`).catch(() => 0);
-    const lastAdd = buys.length > 0 ? buys[buys.length - 1]!.price : null;
+
+    // No portfolio configured → nothing to show; the UI points at the ⚙ dialog.
+    if (!portfolioId) {
+      return {
+        symbol: upper,
+        currentPrice,
+        portfolioId: null,
+        amount: 0,
+        avgEntry: null,
+        capitalDeployed: 0,
+        realizedPnl: 0,
+        buyCount: 0,
+        sellCount: 0,
+        nextAddPrice: null,
+        pnlPct: null,
+        targetX2: null,
+        transactions: [],
+      };
+    }
+
+    const [holding, txs] = await Promise.all([
+      this.holdingsService.getHolding(portfolioId, upper),
+      this.repo.findCoinTransactions(portfolioId, upper),
+    ]);
+
+    const amount = holding ? Number(holding.totalAmount) : 0;
+    const avgEntry = holding && Number(holding.avgCost) > 0 ? Number(holding.avgCost) : null;
+    const buys = txs.filter((t) => t.type === 'buy');
+    const lastBuy = buys.length > 0 ? Number(buys[buys.length - 1]!.price) : null;
 
     return {
       symbol: upper,
       currentPrice,
-      // Sync target is read-only here — it is configured per coin from the Actions column.
-      portfolioId: coin.dcaPortfolioId ?? null,
-      maxLayers: coin.dcaMaxLayers ?? DEFAULT_DCA_MAX_LAYERS,
-      layers: agg?.layers ?? 0,
-      avgEntry: agg?.avgEntry ?? null,
-      capitalDeployed: agg?.capitalDeployed ?? 0,
-      // Next layer triggers 15% below the last add (bottom-DCA ladder, 3 tiers × −15% —
-      // claude-backtest/runs/2026-07-12-bottom-dca-x2x3-merged).
-      nextAddPrice: lastAdd != null ? Number((lastAdd * 0.85).toFixed(8)) : null,
-      pnlPct: agg && agg.avgEntry > 0 && currentPrice > 0
-        ? Number((((currentPrice - agg.avgEntry) / agg.avgEntry) * 100).toFixed(2))
-        : null,
-      buys: buys.map((b) => ({
-        id: b.id,
-        price: b.price,
-        usd: b.usd,
-        boughtAt: b.boughtAt.toISOString(),
-        portfolioId: b.portfolioId ?? null,
+      portfolioId,
+      amount,
+      avgEntry,
+      capitalDeployed: holding ? Number(holding.totalCost) : 0,
+      realizedPnl: holding ? Number(holding.realizedPnl) : 0,
+      buyCount: buys.length,
+      sellCount: txs.length - buys.length,
+      // Advisory only — the −15% ladder step from the bottom-DCA backtest, anchored to
+      // the last buy. Nothing is capped or blocked on it.
+      nextAddPrice: lastBuy != null ? Number((lastBuy * 0.85).toFixed(8)) : null,
+      pnlPct:
+        avgEntry != null && currentPrice > 0
+          ? Number((((currentPrice - avgEntry) / avgEntry) * 100).toFixed(2))
+          : null,
+      targetX2: avgEntry != null ? Number((avgEntry * 2).toFixed(8)) : null,
+      transactions: txs.map((t) => ({
+        id: t.id,
+        type: t.type === 'sell' ? ('sell' as const) : ('buy' as const),
+        price: Number(t.price),
+        amount: Number(t.amount),
+        usd: Number(t.totalValue),
+        at: t.transactedAt.toISOString(),
       })),
     };
   }
 
-  /**
-   * Add a DCA layer. When `portfolioId` is given, also mirror it as a BUY
-   * transaction in that portfolio (two-way sync) and link the two records.
-   */
+  /** Buy into the position — a real BUY transaction in the configured portfolio. */
   async addDcaBuy(
     symbol: string,
-    data: { price: number; usd: number; boughtAt?: string; portfolioId?: string },
+    data: { price: number; usd: number; boughtAt?: string },
     userId?: string,
-  ) {
-    const upper = symbol.toUpperCase();
-    const coin = await this.repo.findCoinBySymbol(upper);
-    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
-
-    // The sync target comes from the coin's own config; an explicit body value is only a
-    // fallback for callers that predate the per-coin setting.
-    const target = coin.dcaPortfolioId ?? data.portfolioId ?? null;
-
-    let portfolioId: string | null = null;
-    let transactionId: string | null = null;
-    if (target && data.price > 0 && data.usd > 0) {
-      if (userId) await this.portfolioService.getPortfolio(target, userId); // ownership guard
-      const tx = await this.transactionService.createTransaction(target, {
-        coinId: upper,
-        type: 'buy',
-        price: data.price,
-        amount: data.usd / data.price,
-        fee: 0,
-        note: 'DCA gom (tracking-coins)',
-        ...(data.boughtAt ? { transactedAt: data.boughtAt } : {}),
-      });
-      portfolioId = target;
-      transactionId = (tx as { id: string }).id;
+  ): Promise<DcaPositionDto> {
+    const { upper, coin, portfolioId } = await this.dcaContext(symbol, userId);
+    if (!portfolioId) {
+      throw new BadRequestException(`${upper} chưa cấu hình portfolio — chọn ở icon ⚙ cột Actions`);
+    }
+    if (!(data.price > 0) || !(data.usd > 0)) {
+      throw new BadRequestException('Giá và số USD phải lớn hơn 0');
     }
 
-    // Tag the layer by how it was entered: bought while the signal says GOM = "SIGNAL",
-    // any other zone (or no signal) = "FOMO". Drives the holding-review history feed.
+    const tx = await this.transactionService.createTransaction(portfolioId, {
+      coinId: upper,
+      type: 'buy',
+      price: data.price,
+      amount: data.usd / data.price,
+      fee: 0,
+      note: 'DCA gom (tracking-coins)',
+      ...(data.boughtAt ? { transactedAt: data.boughtAt } : {}),
+    });
+
+    // Freeze the decision moment: the price paid plus the signal read at that instant,
+    // which the next scan would otherwise overwrite.
     const latestSig = await this.repo.findLatestSignal(coin.id);
     const zone = latestSig
       ? dcaZone({ ema34Above: latestSig.ema34Above, rsi: latestSig.rsi ?? 50, low20Pct: latestSig.low20Pct })
       : null;
     const entryMode = zone === 'GOM' ? 'SIGNAL' : 'FOMO';
+    const after = await this.getDcaPosition(upper);
 
-    const buy = await this.repo.addDcaBuy(coin.id, {
-      price: data.price,
-      usd: data.usd,
-      entryMode,
-      boughtAt: data.boughtAt ? new Date(data.boughtAt) : undefined,
-      portfolioId,
-      transactionId,
-    });
-
-    // System log: freeze the decision moment — the layer, the price paid, and where the
-    // average sits afterwards. The signal snapshot is the part a later scan would erase.
-    const after = aggregateDca(await this.repo.findDcaBuysByCoin(coin.id));
-    const maxLayers = coin.dcaMaxLayers ?? DEFAULT_DCA_MAX_LAYERS;
     await this.writeSystemLog({
       symbol: upper,
       event: 'BUY',
-      refId: buy.id,
+      refId: (tx as { id: string }).id,
       content: [
-        `🟢 **Gom lớp ${after?.layers ?? 1}/${maxLayers}** ${upper}`,
+        `🟢 **Gom ${upper}** (lệnh mua thứ ${after.buyCount})`,
         `- Giá mua: ${fmtPrice(data.price)} · ${data.usd.toLocaleString('en-US')} USD`,
-        ...(after ? [`- Vốn TB sau lệnh: ${fmtPrice(after.avgEntry)} · target x2: ${fmtPrice(after.avgEntry * 2)}`] : []),
-        ...(after ? [`- Tổng vốn đã vào: ${after.capitalDeployed.toLocaleString('en-US')} USD`] : []),
+        ...(after.avgEntry != null
+          ? [`- Vốn TB sau lệnh: ${fmtPrice(after.avgEntry)} · target x2: ${fmtPrice(after.avgEntry * 2)}`]
+          : []),
+        `- Đang giữ: ${after.amount} ${upper} · tổng vốn ${after.capitalDeployed.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD`,
         `- Vào lệnh: ${entryMode === 'SIGNAL' ? 'theo tín hiệu (zone GOM)' : 'FOMO (ngoài zone GOM)'}${
           latestSig?.rsi != null ? ` · RSI ${Math.round(latestSig.rsi)}` : ''
         }${latestSig?.dcaScore != null ? ` · dcaScore ${latestSig.dcaScore}` : ''}`,
-        ...(portfolioId ? [] : ['- ⚠️ Không đồng bộ portfolio (chưa cấu hình ở ⚙)']),
       ].join('\n'),
       snapshot: {
         price: data.price,
         usd: data.usd,
-        ...(after ? { avgEntry: after.avgEntry, layers: after.layers, capitalDeployed: after.capitalDeployed } : {}),
+        ...(after.avgEntry != null ? { avgEntry: after.avgEntry } : {}),
+        layers: after.buyCount,
+        capitalDeployed: after.capitalDeployed,
       },
     });
 
     return this.getDcaPosition(upper);
   }
 
-  async deleteDcaBuy(symbol: string, buyId: string, userId?: string) {
-    const buy = await this.repo.findDcaBuyById(buyId);
-    if (buy?.transactionId && buy.portfolioId) {
-      // Removing the linked transaction cascades back to this DCA layer (reverse sync).
-      if (userId) await this.portfolioService.getPortfolio(buy.portfolioId, userId);
-      await this.transactionService.removeTransaction(buy.transactionId, buy.portfolioId);
-    } else {
-      await this.repo.deleteDcaBuy(buyId);
-    }
-    return this.getDcaPosition(symbol);
+  /** Remove a layer — soft-deletes the portfolio transaction and recomputes the holding. */
+  async deleteDcaBuy(symbol: string, transactionId: string, userId?: string): Promise<DcaPositionDto> {
+    const { upper, portfolioId } = await this.dcaContext(symbol, userId);
+    if (!portfolioId) throw new BadRequestException(`${upper} chưa cấu hình portfolio`);
+    await this.transactionService.removeTransaction(transactionId, portfolioId);
+    return this.getDcaPosition(upper);
   }
 
   /**
-   * Close the position ("đã chốt"): sell exactly the DCA-accumulated amount per
-   * portfolio at `sellPrice` (defaults to the live price) — realising P&L without
-   * touching any non-DCA holdings of the same coin — then clear the buy log.
+   * Sell out of the position — partially or in full. `amount` defaults to everything
+   * held; the SELL transaction deducts straight from the portfolio holding.
    */
-  async closeDcaPosition(symbol: string, sellPrice?: number, userId?: string) {
-    const upper = symbol.toUpperCase();
-    const coin = await this.repo.findCoinBySymbol(upper);
-    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+  async sellDcaPosition(
+    symbol: string,
+    data: { price?: number; amount?: number },
+    userId?: string,
+  ): Promise<DcaPositionDto> {
+    const { upper, portfolioId } = await this.dcaContext(symbol, userId);
+    if (!portfolioId) throw new BadRequestException(`${upper} chưa cấu hình portfolio`);
 
-    const buys = await this.repo.findDcaBuysByCoin(coin.id);
-    const price = sellPrice && sellPrice > 0
-      ? sellPrice
-      : await this.binance.fetchCurrentPrice(`${upper}USDT`).catch(() => 0);
+    const price =
+      data.price && data.price > 0
+        ? data.price
+        : await this.binance.fetchCurrentPrice(`${upper}USDT`).catch(() => 0);
+    if (!(price > 0)) throw new BadRequestException('Không lấy được giá bán — nhập giá thủ công');
 
-    // accumulate the synced amount per portfolio
-    const amountByPortfolio = new Map<string, number>();
-    for (const b of buys) {
-      if (b.portfolioId && b.transactionId && b.price > 0) {
-        amountByPortfolio.set(b.portfolioId, (amountByPortfolio.get(b.portfolioId) ?? 0) + b.usd / b.price);
-      }
-    }
+    const before = await this.getDcaPosition(upper);
+    const held = before.amount;
+    if (!(held > 0)) throw new BadRequestException(`Không còn ${upper} nào trong portfolio để bán`);
 
-    if (price > 0) {
-      for (const [pid, rawAmount] of amountByPortfolio) {
-        try {
-          if (userId) await this.portfolioService.getPortfolio(pid, userId);
-          // clamp to the held amount so float drift can't trip the "only X available" guard
-          const held = await this.holdingsService.getHoldingAmount(pid, upper);
-          const amount = Math.min(rawAmount, held);
-          if (amount <= 0) continue;
-          await this.transactionService.createTransaction(pid, {
-            coinId: upper,
-            type: 'sell',
-            price,
-            amount,
-            fee: 0,
-            note: 'DCA chốt toàn bộ (tracking-coins)',
-          });
-        } catch (e) {
-          this.logger.warn(`DCA close: sell failed for portfolio ${pid}: ${e instanceof Error ? e.message : e}`);
-        }
-      }
-    }
+    // Clamp to the held amount so float drift can't trip the "only X available" guard.
+    const amount = Math.min(data.amount && data.amount > 0 ? data.amount : held, held);
+    const full = amount >= held - 1e-12;
 
-    // System log BEFORE clearing the buy log — this is the only place the closed
-    // position's numbers still exist, and the whole point is to review it later.
-    const agg = aggregateDca(buys);
-    if (agg && price > 0) {
-      const pnlPct = agg.avgEntry > 0 ? ((price - agg.avgEntry) / agg.avgEntry) * 100 : 0;
-      const pnlUsd = agg.capitalDeployed * (pnlPct / 100);
-      const firstBuy = buys[0]?.boughtAt;
-      const heldDays = firstBuy ? Math.max(0, Math.round((Date.now() - firstBuy.getTime()) / 86_400_000)) : null;
-      const sign = pnlPct >= 0 ? '+' : '−';
-      await this.writeSystemLog({
-        symbol: upper,
-        event: 'SELL',
-        // One close per buy-log generation: the oldest layer id makes the key stable.
-        refId: `close:${buys[0]?.id ?? upper}`,
-        content: [
-          `🔴 **Đóng vị thế** ${upper}`,
-          `- Giá bán: ${fmtPrice(price)} · vốn TB: ${fmtPrice(agg.avgEntry)}`,
-          `- PnL: ${sign}${Math.abs(pnlPct).toFixed(2)}% (${sign}${Math.abs(pnlUsd).toLocaleString('en-US', { maximumFractionDigits: 2 })} USD)`,
-          `- Đã dùng ${agg.layers} lớp · tổng vốn ${agg.capitalDeployed.toLocaleString('en-US')} USD`,
-          ...(heldDays != null ? [`- Thời gian ôm: ${heldDays} ngày`] : []),
-          `- Target x2 (${fmtPrice(agg.avgEntry * 2)}): ${price >= agg.avgEntry * 2 ? '✅ đạt' : '❌ chưa đạt'}`,
-        ].join('\n'),
-        snapshot: {
-          price,
-          avgEntry: agg.avgEntry,
-          layers: agg.layers,
-          capitalDeployed: agg.capitalDeployed,
-          pnlPct: Number(pnlPct.toFixed(2)),
-        },
-      });
-    }
+    const tx = await this.transactionService.createTransaction(portfolioId, {
+      coinId: upper,
+      type: 'sell',
+      price,
+      amount,
+      fee: 0,
+      note: full ? 'DCA chốt toàn bộ (tracking-coins)' : 'DCA chốt một phần (tracking-coins)',
+    });
 
-    await this.repo.deleteAllDcaBuys(coin.id);
-    return this.getDcaPosition(upper);
+    const avgEntry = before.avgEntry;
+    const pnlPct = avgEntry && avgEntry > 0 ? ((price - avgEntry) / avgEntry) * 100 : null;
+    const pnlUsd = avgEntry && avgEntry > 0 ? (price - avgEntry) * amount : null;
+    const sign = (pnlPct ?? 0) >= 0 ? '+' : '−';
+    const soldPct = (amount / held) * 100;
+    const first = before.transactions[0]?.at;
+    const heldDays = first ? Math.max(0, Math.round((Date.now() - new Date(first).getTime()) / 86_400_000)) : null;
+    const after = await this.getDcaPosition(upper);
+
+    await this.writeSystemLog({
+      symbol: upper,
+      event: 'SELL',
+      refId: (tx as { id: string }).id,
+      content: [
+        full ? `🔴 **Đóng vị thế** ${upper}` : `🟡 **Chốt một phần** ${upper} (${soldPct.toFixed(0)}%)`,
+        `- Giá bán: ${fmtPrice(price)} · ${amount} ${upper} (${(amount * price).toLocaleString('en-US', { maximumFractionDigits: 2 })} USD)`,
+        ...(avgEntry != null ? [`- Vốn TB: ${fmtPrice(avgEntry)}`] : []),
+        ...(pnlPct != null && pnlUsd != null
+          ? [`- PnL: ${sign}${Math.abs(pnlPct).toFixed(2)}% (${sign}${Math.abs(pnlUsd).toLocaleString('en-US', { maximumFractionDigits: 2 })} USD)`]
+          : []),
+        full
+          ? `- Đã dùng ${before.buyCount} lệnh mua${heldDays != null ? ` · ôm ${heldDays} ngày` : ''}`
+          : `- Còn lại: ${after.amount} ${upper}`,
+        ...(avgEntry != null
+          ? [`- Target x2 (${fmtPrice(avgEntry * 2)}): ${price >= avgEntry * 2 ? '✅ đạt' : '❌ chưa đạt'}`]
+          : []),
+      ].join('\n'),
+      snapshot: {
+        price,
+        ...(avgEntry != null ? { avgEntry } : {}),
+        layers: before.buyCount,
+        capitalDeployed: before.capitalDeployed,
+        ...(pnlPct != null ? { pnlPct: Number(pnlPct.toFixed(2)) } : {}),
+      },
+    });
+
+    return after;
   }
 
   async getSetup(symbol: string) {
@@ -545,7 +576,6 @@ export class TrackingCoinsService {
       swingMinRR: coin.swingMinRR ?? null,
       daytradeMaxLoss: coin.daytradeMaxLoss ?? null,
       daytradeMinRR: coin.daytradeMinRR ?? null,
-      dcaMaxLayers: coin.dcaMaxLayers ?? null,
       dcaPortfolioId: coin.dcaPortfolioId ?? null,
     };
   }

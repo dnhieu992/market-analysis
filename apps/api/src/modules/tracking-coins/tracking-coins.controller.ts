@@ -3,7 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AddActivityLogDto, UpdateActivityLogDto } from './dto/activity-log.dto';
-import { AddDcaBuyDto } from './dto/add-dca-buy.dto';
+import { AddDcaBuyDto, SellDcaDto } from './dto/add-dca-buy.dto';
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
 import { TrackingCoinsService } from './tracking-coins.service';
@@ -76,32 +76,31 @@ export class TrackingCoinsController {
   }
 
   @Get('coins/:symbol/dca-position')
-  @ApiOperation({ summary: 'Get the DCA position (buy log + average + P&L) for a coin' })
-  getDcaPosition(@Param('symbol') symbol: string) {
-    return this.service.getDcaPosition(symbol);
+  @ApiOperation({ summary: 'DCA position for a coin, read from its configured portfolio' })
+  getDcaPosition(@Param('symbol') symbol: string, @Req() req: AuthenticatedRequest) {
+    return this.service.getDcaPosition(symbol, req.authUser?.id);
   }
 
   @Post('coins/:symbol/dca-buys')
-  @ApiOperation({ summary: 'Log a DCA buy (layer) for a coin' })
+  @ApiOperation({ summary: 'Buy into the position — writes a BUY transaction in the portfolio' })
   addDcaBuy(@Param('symbol') symbol: string, @Body() body: AddDcaBuyDto, @Req() req: AuthenticatedRequest) {
     return this.service.addDcaBuy(symbol, body, req.authUser?.id);
   }
 
-  @Delete('coins/:symbol/dca-buys/:buyId')
-  @ApiOperation({ summary: 'Delete a single DCA buy' })
-  deleteDcaBuy(@Param('symbol') symbol: string, @Param('buyId') buyId: string, @Req() req: AuthenticatedRequest) {
-    return this.service.deleteDcaBuy(symbol, buyId, req.authUser?.id);
-  }
-
-  @Delete('coins/:symbol/dca-position')
-  @ApiOperation({ summary: 'Close (clear) the entire DCA position for a coin' })
-  closeDcaPosition(
+  @Delete('coins/:symbol/dca-buys/:transactionId')
+  @ApiOperation({ summary: 'Remove one layer — deletes the underlying portfolio transaction' })
+  deleteDcaBuy(
     @Param('symbol') symbol: string,
-    @Query('sellPrice') sellPrice: string | undefined,
+    @Param('transactionId') transactionId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    const price = sellPrice != null && sellPrice !== '' ? Number(sellPrice) : undefined;
-    return this.service.closeDcaPosition(symbol, Number.isFinite(price) ? price : undefined, req.authUser?.id);
+    return this.service.deleteDcaBuy(symbol, transactionId, req.authUser?.id);
+  }
+
+  @Post('coins/:symbol/dca-sell')
+  @ApiOperation({ summary: 'Sell part or all of the position — writes a SELL transaction' })
+  sellDcaPosition(@Param('symbol') symbol: string, @Body() body: SellDcaDto, @Req() req: AuthenticatedRequest) {
+    return this.service.sellDcaPosition(symbol, body, req.authUser?.id);
   }
 
   @Put('coins/:symbol/setup')
@@ -114,7 +113,6 @@ export class TrackingCoinsController {
     if ('swingMinRR'      in body) patch.swingMinRR      = body.swingMinRR      ?? null;
     if ('daytradeMaxLoss' in body) patch.daytradeMaxLoss = body.daytradeMaxLoss ?? null;
     if ('daytradeMinRR'   in body) patch.daytradeMinRR   = body.daytradeMinRR   ?? null;
-    if ('dcaMaxLayers'    in body) patch.dcaMaxLayers    = body.dcaMaxLayers    ?? null;
     if ('dcaPortfolioId'  in body) patch.dcaPortfolioId  = body.dcaPortfolioId  || null;
     return this.service.updateSetup(symbol, patch);
   }

@@ -15,10 +15,15 @@ scoring logic stays in `@app/core`, untouched and still exported**, ready to be 
 `calculateAtr`, `calculateVolumeRatio`, `calcUtBotResult`.
 
 **What was kept** — the DB schema (`TrackingCoinSignal`, `TrackingCoinSignalHistory`,
-`TrackingCoinOrder`, `TrackingCoinDcaBuy`) with all existing rows, and the whole read/display path:
-the coin table (Trend / UT Bot / EMA / RSI / Vol / DCA columns, filters, sparkline), the coin detail
-modal (Overview / DCA position / History / Journal), the DCA buy log + portfolio sync, the journal
-and the prompt generator. Since nothing writes signals any more, **the displayed indicators are
+`TrackingCoinOrder`, and at the time `TrackingCoinDcaBuy`) with all existing rows, and the whole
+read/display path: the coin table (Trend / UT Bot / EMA / RSI / Vol / DCA columns, filters,
+sparkline), the coin detail modal (Overview / DCA position / History / Journal), the DCA buy log +
+portfolio sync, the journal and the prompt generator.
+
+> **Superseded in part (step 2, same day).** The DCA buy log and its portfolio mirror have since been
+> removed: `tracking_coin_dca_buys` and `dcaMaxLayers` are **dropped**, and the DCA position is read
+> straight from the portfolio in `TrackingCoin.dcaPortfolioId`. The History and Journal tabs were also
+> replaced by a single Activity logs tab. See `docs/features/tracking-coins-dca-dashboard/`. Since nothing writes signals any more, **the displayed indicators are
 frozen at the last scan (before 2026-07-26)** until the new flow lands.
 
 ## Main Flow
@@ -106,10 +111,12 @@ from `align-items: flex-start` to `center`; the `.tc-page-header-left` wrapper a
   so it keeps working while the stored signals stay frozen.
 - **Orders** — no new swing orders are generated or evaluated. Existing rows stay in the DB;
   `TrackingCoinOrder.outcome` for anything unresolved stays unresolved.
-- `addDcaBuy` still tags a layer `SIGNAL` vs `FOMO` from the *stored* zone — with signals frozen this
-  tag is no longer meaningful; revisit when the new signal flow lands.
+- `addDcaBuy` still tags a buy `SIGNAL` vs `FOMO` from the *stored* zone (now written into the activity
+  log, not a DCA row) — with signals frozen this tag is no longer meaningful; revisit when the new
+  signal flow lands.
 - `swingMaxLoss` / `swingMinRR` / `daytradeMaxLoss` / `daytradeMinRR` on the coin setup are now inert
-  (kept in schema + `GET/PUT setup`); only `dcaMaxLayers` is still consumed.
+  (kept in schema + `GET/PUT setup`); after step 2 the only setup field actually consumed is
+  `dcaPortfolioId`.
 
 ## Related Files (FE / BE / Worker)
 - `apps/worker/src/modules/tracking-coin-scan/` — **deleted** (scan service, Haiku review service, module)

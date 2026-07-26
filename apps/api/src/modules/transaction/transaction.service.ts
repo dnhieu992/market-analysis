@@ -106,9 +106,8 @@ export class TransactionService {
     await this.txRepository.softDelete(id);
     await this.holdingsService.recalculate(portfolioId, (tx as { coinId: string }).coinId);
 
-    // Reverse sync: if this transaction mirrored a DCA layer, drop that layer too.
-    await prisma.trackingCoinDcaBuy.deleteMany({ where: { transactionId: id } });
-
+    // No DCA mirror to clean up: the tracking-coins DCA tab reads this very transaction
+    // list, so deleting here removes the layer from that view by construction.
     return { message: 'Transaction deleted and holdings recalculated' };
   }
 }

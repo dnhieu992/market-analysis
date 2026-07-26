@@ -47,10 +47,9 @@ export class HoldingsService {
     await this.holdingRepository.update(portfolioId, coinId, { note });
   }
 
-  /** Current held amount for a coin in a portfolio (0 if none). */
-  async getHoldingAmount(portfolioId: string, coinId: string): Promise<number> {
-    const holding = await this.holdingRepository.findByPortfolioAndCoin(portfolioId, coinId);
-    return holding ? Number(holding.totalAmount) : 0;
+  /** Raw holding row for a coin in a portfolio (cost basis, realized PnL); null if none. */
+  getHolding(portfolioId: string, coinId: string) {
+    return this.holdingRepository.findByPortfolioAndCoin(portfolioId, coinId);
   }
 
   async updateOnBuy(
@@ -140,10 +139,11 @@ export class HoldingsService {
         where: { id: { in: ids } },
         data: { portfolioId: targetPortfolioId }
       }),
-      // Keep the DCA ladder ↔ portfolio mirror consistent for any moved layers.
-      prisma.trackingCoinDcaBuy.updateMany({
-        where: { transactionId: { in: ids } },
-        data: { portfolioId: targetPortfolioId }
+      // The tracking-coins DCA tab reads the position out of the configured portfolio,
+      // so follow the coin: otherwise the tab would look at the now-empty source.
+      prisma.trackingCoin.updateMany({
+        where: { symbol: coinId, dcaPortfolioId: sourcePortfolioId },
+        data: { dcaPortfolioId: targetPortfolioId }
       })
     ]);
 

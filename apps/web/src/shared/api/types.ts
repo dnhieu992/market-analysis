@@ -493,7 +493,8 @@ export type TrackingCoinRow = {
     swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
-  dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
+  /** Position held in the coin's configured portfolio; `null` when flat or unconfigured. */
+  dcaPosition: { amount: number; avgEntry: number; capitalDeployed: number } | null;
 };
 
 /**
@@ -520,12 +521,14 @@ export type TrackingCoinActivityLog = {
   updatedAt: string;
 };
 
-export type DcaBuy = {
+/** One BUY/SELL transaction of the position, straight from the portfolio. */
+export type DcaTransaction = {
   id: string;
+  type: 'buy' | 'sell';
   price: number;
+  amount: number;
   usd: number;
-  boughtAt: string;
-  portfolioId: string | null;
+  at: string;
 };
 
 export type TrackingCoinSetup = {
@@ -533,22 +536,30 @@ export type TrackingCoinSetup = {
   swingMinRR: number | null;
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
-  dcaMaxLayers: number | null;
   dcaPortfolioId: string | null;
 };
 
+/**
+ * The DCA position — a view over the coin's configured portfolio, not a separate
+ * store: `amount`/`avgEntry`/`capitalDeployed` are the portfolio Holding, and
+ * `transactions` are its CoinTransaction rows for this coin.
+ */
 export type DcaPosition = {
   symbol: string;
   currentPrice: number;
-  /** Configured sync portfolio (read-only in the DCA tab). */
+  /** Portfolio the position lives in; `null` = not configured yet (⚙ dialog). */
   portfolioId: string | null;
-  maxLayers: number;
-  layers: number;
+  amount: number;
   avgEntry: number | null;
   capitalDeployed: number;
+  realizedPnl: number;
+  buyCount: number;
+  sellCount: number;
+  /** Advisory next-add level (last buy −15%) — nothing is blocked on it. */
   nextAddPrice: number | null;
   pnlPct: number | null;
-  buys: DcaBuy[];
+  targetX2: number | null;
+  transactions: DcaTransaction[];
 };
 
 export type BitgetPosition = {

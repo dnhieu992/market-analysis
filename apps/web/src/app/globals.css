@@ -7594,6 +7594,59 @@ a.metric-card--link:hover {
   line-height: 1;
 }
 
+/* ── DCA position: buy/sell counts, transaction side, sell dialog ── */
+.dcapos-meta {
+  margin: -4px 0 8px;
+  font-size: 0.74rem;
+}
+.dcapos-side {
+  font-weight: 700;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.dcapos-side--buy  { background: rgba(16, 185, 129, 0.16); color: #047857; }
+.dcapos-side--sell { background: rgba(239, 68, 68, 0.16); color: #b91c1c; }
+
+.dcapos-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.dcapos-field > span {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.dcapos-quick {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.dcapos-quick .btn {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 0.74rem;
+}
+.dcapos-sell-preview {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.1);
+  font-size: 0.78rem;
+}
+.dcapos-sell-preview > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dcapos-sell-preview span { color: var(--muted); }
+.dcapos-sell-preview strong { font-variant-numeric: tabular-nums; }
+
 .scr-signal-num {
   font-size: 0.82rem;
   font-weight: 700;

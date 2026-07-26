@@ -381,35 +381,16 @@ model TrackingCoin {
   swingMinRR      Float?
   daytradeMaxLoss Float?
   daytradeMinRR   Float?
-  dcaMaxLayers    Int?
-  // Portfolio every DCA layer of this coin syncs into — configured per coin from the
-  // tracking-coins Actions column, not picked again when logging a buy.
+  // The portfolio this coin's DCA position lives in — configured per coin from the
+  // tracking-coins Actions column. The position itself is NOT stored here: it is the
+  // portfolio's Holding + CoinTransaction rows for this symbol, so the DCA tab and the
+  // portfolio page can never disagree.
   dcaPortfolioId  String?                 @db.Char(36)
   signals         TrackingCoinSignal[]
   signalHistory   TrackingCoinSignalHistory[]
   orders          TrackingCoinOrder[]
-  dcaBuys         TrackingCoinDcaBuy[]
 
   @@map("tracking_coins")
-}
-
-model TrackingCoinDcaBuy {
-  id            String       @id @default(cuid())
-  coinId        String
-  price         Float
-  usd           Float
-  // How the layer was entered: "SIGNAL" (bought while dcaZone=GOM) vs "FOMO" (any other zone).
-  entryMode     String?      @db.VarChar(8)
-  boughtAt      DateTime     @default(now())
-  createdAt     DateTime     @default(now())
-  // Two-way sync with the portfolio: each DCA layer mirrors a CoinTransaction (BUY).
-  portfolioId   String?      @db.Char(36)
-  transactionId String?      @db.Char(36)
-  coin          TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
-
-  @@index([coinId, boughtAt(sort: Asc)])
-  @@index([transactionId])
-  @@map("tracking_coin_dca_buys")
 }
 
 model TrackingCoinOrder {

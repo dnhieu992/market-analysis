@@ -539,9 +539,7 @@ function StrategyInfoDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ── DCA position dialog — buy log, average, P&L, profit-aware chốt ─ */
-
-const DCA_MAX_LAYERS = 3; // bottom-DCA ladder: 3 tiers × −15% (2026-07-12 backtest)
+/* ── DCA position tab — portfolio holding, transactions, buy/sell ─── */
 
 function fmtNum(n: number): string {
   if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -550,12 +548,23 @@ function fmtNum(n: number): string {
   return n.toFixed(8);
 }
 
+/** Capital deployed, short enough for the DCA action button: `$840`, `$1.2k`. */
+function fmtUsdCompact(usd: number): string {
+  if (usd >= 1000) return `$${(usd / 1000).toFixed(usd >= 10_000 ? 0 : 1)}k`;
+  return `$${Math.round(usd)}`;
+}
+
 /** Plain decimal string for a <input type="number"> value (no grouping/scientific). */
 function priceInputStr(n: number): string {
   if (!(n > 0)) return '';
   return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 8 });
 }
 
+/**
+ * DCA position tab — a view over the coin's configured portfolio. Buying writes a real
+ * BUY transaction, selling writes a real SELL that deducts from the holding; nothing is
+ * stored separately, so this tab and /portfolio can never disagree.
+ */
 function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
   symbol: string;
   livePrice: number | null;
@@ -568,6 +577,7 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
   const [usd, setUsd] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sellOpen, setSellOpen] = useState(false);
   const prefilledRef = useRef(false);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
 
@@ -580,8 +590,8 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
 
   useEffect(() => { load(); }, [load]);
 
-  // Portfolios are only needed to name the coin's configured sync target — the target
-  // itself is picked from the Actions ⚙ dialog, never here.
+  // Portfolios are only needed to name the coin's configured portfolio — it is picked
+  // from the Actions ⚙ dialog, never here.
   useEffect(() => {
     createApiClient().fetchPortfolios()
       .then(setPortfolios)
@@ -598,9 +608,11 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
     if (prefilledRef.current) return;
     if (cur > 0) { setPrice(priceInputStr(cur)); prefilledRef.current = true; }
   }, [cur]);
+
   const avg = pos?.avgEntry ?? null;
-  const maxLayers = pos?.maxLayers ?? DCA_MAX_LAYERS;
-  const atCap = (pos?.layers ?? 0) >= maxLayers;
+  const held = pos?.amount ?? 0;
+  const hasPosition = held > 0;
+  const configured = pos?.portfolioId != null;
   const livePnlPct = avg && avg > 0 && cur > 0 ? ((cur - avg) / avg) * 100 : null;
   const inProfit = livePnlPct != null && livePnlPct >= 0;
 
@@ -610,7 +622,6 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
     if (!(p > 0) || !(u > 0)) { setError('Nhập giá và số USD hợp lệ.'); return; }
     setBusy(true); setError(null);
     try {
-      // No portfolioId in the body — the API syncs into the coin's configured portfolio.
       const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u });
       setPos(r); setPrice(cur > 0 ? priceInputStr(cur) : ''); setUsd(''); onChanged();
     } catch (err) {
@@ -618,133 +629,242 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
     } finally { setBusy(false); }
   }
 
-  async function handleDelete(buyId: string) {
+  async function handleDelete(transactionId: string) {
+    if (!window.confirm('Xoá lệnh này khỏi portfolio? Giá vốn trung bình sẽ được tính lại.')) return;
     setBusy(true);
-    try { const r = await createApiClient().deleteDcaBuy(symbol, buyId); setPos(r); onChanged(); }
-    catch { /* ignore */ } finally { setBusy(false); }
+    try { const r = await createApiClient().deleteDcaBuy(symbol, transactionId); setPos(r); onChanged(); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Lỗi xoá.'); }
+    finally { setBusy(false); }
   }
 
-  async function handleClose() {
-    const def = cur > 0 ? priceInputStr(cur) : '';
-    const input = window.prompt(
-      `Chốt toàn bộ DCA ${symbol} — nhập giá bán (tạo lệnh SELL trong portfolio, ghi nhận lãi/lỗ):`,
-      def,
-    );
-    if (input == null) return; // cancelled
-    const sell = parseFloat(input);
-    if (!(sell > 0)) { setError('Giá bán không hợp lệ.'); return; }
+  async function handleSell(sellPrice: number, amount: number) {
     setBusy(true); setError(null);
-    try { const r = await createApiClient().closeDcaPosition(symbol, sell); setPos(r); onChanged(); }
-    catch (err) { setError(err instanceof Error ? err.message : 'Lỗi chốt.'); }
-    finally { setBusy(false); }
+    try {
+      const r = await createApiClient().sellDcaPosition(symbol, { price: sellPrice, amount });
+      setPos(r); setSellOpen(false); onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi bán.');
+    } finally { setBusy(false); }
+  }
+
+  if (loading) {
+    return <div className="setup-body"><div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div></div>;
+  }
+
+  // Without a portfolio there is nowhere to write the trade — point at the ⚙ dialog.
+  if (!configured) {
+    return (
+      <div className="setup-body">
+        <p className="dcapos-hint dcapos-hint--warn">
+          {symbol} chưa gắn portfolio. Vị thế DCA được lưu thẳng vào portfolio (mua tạo lệnh BUY, bán
+          trừ khỏi holding), nên phải chọn portfolio ở icon ⚙ cột Actions trước khi vào lệnh.
+        </p>
+      </div>
+    );
   }
 
   return (
     <div className="setup-body">
-          {loading ? (
-            <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
-          ) : (
-            <>
-              {/* summary */}
-              <div className="dcapos-summary">
-                <div className="dcapos-stat"><span>Layer</span><strong>{pos?.layers ?? 0} / {maxLayers}</strong></div>
-                <div className="dcapos-stat"><span>Giá TB</span><strong>{avg ? `$${fmtNum(avg)}` : '—'}</strong></div>
-                <div className="dcapos-stat"><span>Vốn đã vào</span><strong>${(pos?.capitalDeployed ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong></div>
-                <div className="dcapos-stat">
-                  <span>P&L</span>
-                  <strong className={livePnlPct == null ? '' : inProfit ? 'dcapos-pos' : 'dcapos-neg'}>
-                    {livePnlPct == null ? '—' : `${livePnlPct >= 0 ? '+' : ''}${livePnlPct.toFixed(2)}%`}
-                  </strong>
-                </div>
-              </div>
+      {sellOpen && pos && (
+        <SellDcaDialog
+          symbol={symbol}
+          held={held}
+          avgEntry={avg}
+          livePrice={cur}
+          busy={busy}
+          onConfirm={handleSell}
+          onClose={() => setSellOpen(false)}
+        />
+      )}
 
-              {avg != null && (() => {
-                const target = avg * 2; // full exit at x2 (+100%) — the backtested sweet spot
-                const hitTarget = livePnlPct != null && livePnlPct >= 100;
-                return (
-                  <p className={`dcapos-hint ${hitTarget ? 'dcapos-hint--ok' : 'dcapos-hint--warn'}`}>
-                    {hitTarget
-                      ? `✓ Đã đạt target x2 ($${fmtNum(target)}) → CHỐT TOÀN BỘ.`
-                      : `🎯 Target CHỐT: x2 = $${fmtNum(target)} (+100% từ giá TB${livePnlPct != null ? `, còn ${(100 - livePnlPct).toFixed(0)}%` : ''}). Gom đáy, ôm tới x2 — no SL.`}
-                    {pos?.nextAddPrice != null && ` · Gom layer kế ở ~$${fmtNum(pos.nextAddPrice)} (−15%).`}
-                  </p>
-                );
-              })()}
+      {/* summary — straight from the portfolio holding */}
+      <div className="dcapos-summary">
+        <div className="dcapos-stat"><span>Đang giữ</span><strong>{hasPosition ? fmtNum(held) : '—'}</strong></div>
+        <div className="dcapos-stat"><span>Giá vốn TB</span><strong>{avg ? `$${fmtNum(avg)}` : '—'}</strong></div>
+        <div className="dcapos-stat"><span>Vốn đã vào</span><strong>${(pos?.capitalDeployed ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong></div>
+        <div className="dcapos-stat">
+          <span>P&L</span>
+          <strong className={livePnlPct == null ? '' : inProfit ? 'dcapos-pos' : 'dcapos-neg'}>
+            {livePnlPct == null ? '—' : `${livePnlPct >= 0 ? '+' : ''}${livePnlPct.toFixed(2)}%`}
+          </strong>
+        </div>
+      </div>
 
-              {/* suggested gom price plan (from the base low) — where to place the DCA ladder */}
-              {gomZone && (
-                <div className="dcapos-gomzone">
-                  <div className="dcapos-gomzone__head">
-                    <span>Vùng gom gợi ý</span>
-                    <span className="dcapos-gomzone__band">
-                      ${fmtNum(gomZone.zoneLow)} – ${fmtNum(gomZone.zoneHigh)}
-                    </span>
-                  </div>
-                  <ol className="dcapos-gomzone__ladder">
-                    {gomZone.ladder.map((p, i) => (
-                      <li key={i}>
-                        <span className="dcapos-gomzone__tier">Lệnh {i + 1}</span>
-                        <span className="dcapos-gomzone__price">${fmtNum(p)}</span>
-                        <span className="dcapos-gomzone__step">{i === 0 ? 'mép trên vùng' : '−15% so với lệnh trước'}</span>
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="dcapos-gomzone__foot">
-                    Nếu đủ 3 lệnh: giá TB ~${fmtNum(gomZone.avgCost)} → chốt x2 ~${fmtNum(gomZone.targetX2)}.
-                    <br />
-                    <span className="scr-muted">Bước −15% là spacing cố định của chiến lược (gợi ý, chưa tối ưu riêng).</span>
-                  </p>
-                </div>
-              )}
+      <p className="dcapos-meta scr-muted">
+        {pos?.buyCount ?? 0} lệnh mua · {pos?.sellCount ?? 0} lệnh bán
+        {pos && pos.realizedPnl !== 0 && (
+          <> · Đã chốt: <span className={pos.realizedPnl >= 0 ? 'dcapos-pos' : 'dcapos-neg'}>
+            {pos.realizedPnl >= 0 ? '+' : '−'}${fmtNum(Math.abs(pos.realizedPnl))}
+          </span></>
+        )}
+      </p>
 
-              {/* portfolio sync target — view only, configured from the Actions ⚙ dialog */}
-              <div className="dcapos-portfolio dcapos-portfolio--ro">
-                <span>Đồng bộ vào portfolio</span>
-                <strong className="dcapos-portfolio__value">
-                  {pos?.portfolioId
-                    ? portfolioName(pos.portfolioId)
-                    : <span className="scr-muted">Chưa cấu hình — chọn ở icon ⚙ cột Actions</span>}
-                </strong>
-              </div>
+      {avg != null && hasPosition && (() => {
+        const target = avg * 2; // full exit at x2 (+100%) — the backtested sweet spot
+        const hitTarget = livePnlPct != null && livePnlPct >= 100;
+        return (
+          <p className={`dcapos-hint ${hitTarget ? 'dcapos-hint--ok' : 'dcapos-hint--warn'}`}>
+            {hitTarget
+              ? `✓ Đã đạt target x2 ($${fmtNum(target)}) → CHỐT TOÀN BỘ.`
+              : `🎯 Target CHỐT: x2 = $${fmtNum(target)} (+100% từ giá vốn${livePnlPct != null ? `, còn ${(100 - livePnlPct).toFixed(0)}%` : ''}). Gom đáy, ôm tới x2 — no SL.`}
+            {pos?.nextAddPrice != null && ` · Gom kế gợi ý ở ~$${fmtNum(pos.nextAddPrice)} (−15%).`}
+          </p>
+        );
+      })()}
 
-              {/* add buy */}
-              <form className="dcapos-add" onSubmit={handleAdd}>
-                <input className="setup-input" type="number" step="any" min="0" placeholder="Giá mua"
-                  value={price} onChange={(e) => setPrice(e.target.value)} />
-                <input className="setup-input" type="number" step="any" min="0" placeholder="Số USD"
-                  value={usd} onChange={(e) => setUsd(e.target.value)} />
-                <button className="btn btn--primary" type="submit" disabled={busy || atCap}>
-                  + Gom
-                </button>
-              </form>
-              {atCap && <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Đã đạt trần {maxLayers} layer — ngừng gom, chờ hồi.</p>}
-              {error && <p className="scr-muted ord-error">{error}</p>}
+      {/* suggested gom price plan (from the base low) — where to place the DCA ladder */}
+      {gomZone && (
+        <div className="dcapos-gomzone">
+          <div className="dcapos-gomzone__head">
+            <span>Vùng gom gợi ý</span>
+            <span className="dcapos-gomzone__band">
+              ${fmtNum(gomZone.zoneLow)} – ${fmtNum(gomZone.zoneHigh)}
+            </span>
+          </div>
+          <ol className="dcapos-gomzone__ladder">
+            {gomZone.ladder.map((p, i) => (
+              <li key={i}>
+                <span className="dcapos-gomzone__tier">Lệnh {i + 1}</span>
+                <span className="dcapos-gomzone__price">${fmtNum(p)}</span>
+                <span className="dcapos-gomzone__step">{i === 0 ? 'mép trên vùng' : '−15% so với lệnh trước'}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="dcapos-gomzone__foot">
+            Nếu đủ 3 lệnh: giá TB ~${fmtNum(gomZone.avgCost)} → chốt x2 ~${fmtNum(gomZone.targetX2)}.
+            <br />
+            <span className="scr-muted">Gợi ý giá, không giới hạn số lệnh — bước −15% là spacing cố định của chiến lược.</span>
+          </p>
+        </div>
+      )}
 
-              {/* buy list */}
-              {pos && pos.buys.length > 0 && (
-                <table className="dcapos-table">
-                  <thead><tr><th>Ngày</th><th>Giá</th><th>USD</th><th>Portfolio</th><th></th></tr></thead>
-                  <tbody>
-                    {pos.buys.map((b) => (
-                      <tr key={b.id}>
-                        <td>{b.boughtAt.slice(0, 10)}</td>
-                        <td>${fmtNum(b.price)}</td>
-                        <td>${b.usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
-                        <td className="dcapos-pf">{b.portfolioId ? portfolioName(b.portfolioId) : <span className="scr-muted">—</span>}</td>
-                        <td><button className="dcapos-del" onClick={() => handleDelete(b.id)} disabled={busy} aria-label="Xóa">✕</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+      {/* which portfolio this position lives in — configured from the Actions ⚙ dialog */}
+      <div className="dcapos-portfolio dcapos-portfolio--ro">
+        <span>Vị thế nằm ở portfolio</span>
+        <strong className="dcapos-portfolio__value">{portfolioName(pos?.portfolioId ?? null)}</strong>
+      </div>
 
-              {pos && pos.buys.length > 0 && (
-                <div className="setup-actions">
-                  <button className="btn btn--danger" onClick={handleClose} disabled={busy}>Đóng vị thế (đã chốt)</button>
-                </div>
-              )}
-            </>
+      {/* add buy */}
+      <form className="dcapos-add" onSubmit={handleAdd}>
+        <input className="setup-input" type="number" step="any" min="0" placeholder="Giá mua"
+          value={price} onChange={(e) => setPrice(e.target.value)} />
+        <input className="setup-input" type="number" step="any" min="0" placeholder="Số USD"
+          value={usd} onChange={(e) => setUsd(e.target.value)} />
+        <button className="btn btn--primary" type="submit" disabled={busy}>
+          + Gom
+        </button>
+      </form>
+      {error && <p className="scr-muted ord-error">{error}</p>}
+
+      {/* transactions of this position */}
+      {pos && pos.transactions.length > 0 && (
+        <table className="dcapos-table">
+          <thead><tr><th>Ngày</th><th>Lệnh</th><th>Giá</th><th>Số lượng</th><th>USD</th><th></th></tr></thead>
+          <tbody>
+            {pos.transactions.map((t) => (
+              <tr key={t.id}>
+                <td>{t.at.slice(0, 10)}</td>
+                <td>
+                  <span className={t.type === 'buy' ? 'dcapos-side dcapos-side--buy' : 'dcapos-side dcapos-side--sell'}>
+                    {t.type === 'buy' ? 'MUA' : 'BÁN'}
+                  </span>
+                </td>
+                <td>${fmtNum(t.price)}</td>
+                <td>{fmtNum(t.amount)}</td>
+                <td>${t.usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+                <td><button className="dcapos-del" onClick={() => handleDelete(t.id)} disabled={busy} aria-label="Xóa">✕</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {hasPosition && (
+        <div className="setup-actions">
+          <button className="btn btn--danger" onClick={() => setSellOpen(true)} disabled={busy}>Bán</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── sell dialog (partial or full) ──────────────────────────────── */
+
+function SellDcaDialog({ symbol, held, avgEntry, livePrice, busy, onConfirm, onClose }: {
+  symbol: string;
+  held: number;
+  avgEntry: number | null;
+  livePrice: number;
+  busy: boolean;
+  onConfirm: (price: number, amount: number) => void;
+  onClose: () => void;
+}) {
+  const [price, setPrice] = useState(livePrice > 0 ? priceInputStr(livePrice) : '');
+  const [amount, setAmount] = useState(String(held));
+
+  const p = parseFloat(price);
+  const a = parseFloat(amount);
+  const valid = p > 0 && a > 0 && a <= held * (1 + 1e-9);
+  const proceeds = valid ? p * a : null;
+  const pnlUsd = valid && avgEntry != null && avgEntry > 0 ? (p - avgEntry) * a : null;
+  const pnlPct = avgEntry != null && avgEntry > 0 && p > 0 ? ((p - avgEntry) / avgEntry) * 100 : null;
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Bán {symbol}</span>
+          <button className="dialog-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="dialog-body">
+          <label className="dcapos-field">
+            <span>Giá bán</span>
+            <input className="setup-input" type="number" step="any" min="0"
+              value={price} onChange={(e) => setPrice(e.target.value)} />
+          </label>
+
+          <label className="dcapos-field">
+            <span>Số lượng ({symbol})</span>
+            <input className="setup-input" type="number" step="any" min="0"
+              value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </label>
+
+          <div className="dcapos-quick">
+            {[25, 50, 75].map((pct) => (
+              <button key={pct} type="button" className="btn btn--secondary"
+                onClick={() => setAmount(String(held * (pct / 100)))}>
+                {pct}%
+              </button>
+            ))}
+            <button type="button" className="btn btn--secondary" onClick={() => setAmount(String(held))}>
+              Tất cả
+            </button>
+          </div>
+
+          <div className="dcapos-sell-preview">
+            <div><span>Đang giữ</span><strong>{fmtNum(held)} {symbol}</strong></div>
+            <div><span>Thu về</span><strong>{proceeds != null ? `$${fmtNum(proceeds)}` : '—'}</strong></div>
+            <div>
+              <span>PnL</span>
+              <strong className={pnlUsd == null ? '' : pnlUsd >= 0 ? 'dcapos-pos' : 'dcapos-neg'}>
+                {pnlUsd == null ? '—' : `${pnlUsd >= 0 ? '+' : '−'}$${fmtNum(Math.abs(pnlUsd))}`}
+                {pnlPct != null && ` (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`}
+              </strong>
+            </div>
+          </div>
+
+          {!valid && amount !== '' && a > held && (
+            <p className="scr-muted ord-error">Chỉ còn {fmtNum(held)} {symbol} trong portfolio.</p>
           )}
+
+          <div className="dialog-confirm-actions">
+            <button className="btn btn--secondary" onClick={onClose} disabled={busy}>Hủy</button>
+            <button className="btn btn--danger" onClick={() => onConfirm(p, a)} disabled={busy || !valid}>
+              {busy ? 'Đang bán…' : 'Bán'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1089,8 +1209,15 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
                           <IconPrompt />
                         </button>
-                        <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => { setDetailTab('dca'); setSelectedCoin(coin); }}>
-                          {coin.dcaPosition ? `${coin.dcaPosition.layers}L` : <IconLayers />}
+                        <button
+                          className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`}
+                          data-tooltip={coin.dcaPosition
+                            ? `Đang ôm ${fmtNum(coin.dcaPosition.amount)} ${coin.symbol} · vốn TB $${fmtNum(coin.dcaPosition.avgEntry)}`
+                            : 'DCA position'}
+                          aria-label={`DCA position ${coin.symbol}`}
+                          onClick={() => { setDetailTab('dca'); setSelectedCoin(coin); }}
+                        >
+                          {coin.dcaPosition ? fmtUsdCompact(coin.dcaPosition.capitalDeployed) : <IconLayers />}
                         </button>
                         <button
                           className="tt-btn"

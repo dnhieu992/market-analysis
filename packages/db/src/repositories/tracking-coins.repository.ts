@@ -103,54 +103,31 @@ export function createTrackingCoinsRepository(client = prisma) {
             orderBy: { date: 'desc' },
             take: 1,
           },
-          dcaBuys: { orderBy: { boughtAt: 'asc' } },
         },
         // Market cap desc (MySQL sorts NULL last on DESC), then insertion order.
         orderBy: [{ marketCap: 'desc' }, { addedAt: 'asc' }],
       });
     },
 
-    // ── DCA position (manual buy log) ──────────────────────────────────────
+    // ── DCA position (read straight from the portfolio) ─────────────────────
 
-    findDcaBuysByCoin(coinId: string) {
-      return client.trackingCoinDcaBuy.findMany({
-        where: { coinId },
-        orderBy: { boughtAt: 'asc' },
+    /**
+     * Holdings for the given (portfolio, coin) pairs — the DCA position of every
+     * tracked coin that has a portfolio configured, in one query.
+     */
+    findHoldingsForPairs(pairs: ReadonlyArray<{ portfolioId: string; coinId: string }>) {
+      if (pairs.length === 0) return Promise.resolve([]);
+      return client.holding.findMany({
+        where: { OR: pairs.map((p) => ({ portfolioId: p.portfolioId, coinId: p.coinId })) },
       });
     },
 
-    findDcaBuyById(id: string) {
-      return client.trackingCoinDcaBuy.findUnique({ where: { id } });
-    },
-
-    addDcaBuy(
-      coinId: string,
-      data: { price: number; usd: number; entryMode?: string | null; boughtAt?: Date; portfolioId?: string | null; transactionId?: string | null },
-    ) {
-      return client.trackingCoinDcaBuy.create({
-        data: {
-          coinId,
-          price: data.price,
-          usd: data.usd,
-          ...(data.entryMode !== undefined ? { entryMode: data.entryMode } : {}),
-          ...(data.boughtAt ? { boughtAt: data.boughtAt } : {}),
-          ...(data.portfolioId !== undefined ? { portfolioId: data.portfolioId } : {}),
-          ...(data.transactionId !== undefined ? { transactionId: data.transactionId } : {}),
-        },
+    /** Live (non-deleted) transactions of one coin inside one portfolio, oldest first. */
+    findCoinTransactions(portfolioId: string, coinId: string) {
+      return client.coinTransaction.findMany({
+        where: { portfolioId, coinId, deletedAt: null },
+        orderBy: { transactedAt: 'asc' },
       });
-    },
-
-    deleteDcaBuy(id: string) {
-      return client.trackingCoinDcaBuy.delete({ where: { id } });
-    },
-
-    deleteAllDcaBuys(coinId: string) {
-      return client.trackingCoinDcaBuy.deleteMany({ where: { coinId } });
-    },
-
-    /** Reverse sync: drop any DCA layer mirrored by a (now-deleted) portfolio transaction. */
-    deleteDcaBuysByTransactionId(transactionId: string) {
-      return client.trackingCoinDcaBuy.deleteMany({ where: { transactionId } });
     },
 
     // ── Activity log ─────────────────────────────────────────────────────
@@ -211,7 +188,6 @@ export function createTrackingCoinsRepository(client = prisma) {
         swingMinRR?: number | null;
         daytradeMaxLoss?: number | null;
         daytradeMinRR?: number | null;
-        dcaMaxLayers?: number | null;
         dcaPortfolioId?: string | null;
       },
     ) {

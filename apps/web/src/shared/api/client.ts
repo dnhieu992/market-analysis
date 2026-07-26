@@ -842,7 +842,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
-    addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string; portfolioId?: string }): Promise<DcaPosition> {
+    /** Buy into the position — writes a BUY transaction in the coin's portfolio. */
+    addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string }): Promise<DcaPosition> {
       return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys`, {
         ...withDefaults(),
         method: 'POST',
@@ -851,18 +852,21 @@ export function createApiClient(options: ApiClientOptions = {}) {
       });
     },
 
-    deleteDcaBuy(symbol: string, buyId: string): Promise<DcaPosition> {
-      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys/${encodeURIComponent(buyId)}`, {
+    /** Remove one layer — deletes the underlying portfolio transaction. */
+    deleteDcaBuy(symbol: string, transactionId: string): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys/${encodeURIComponent(transactionId)}`, {
         ...withDefaults(),
         method: 'DELETE',
       });
     },
 
-    closeDcaPosition(symbol: string, sellPrice?: number): Promise<DcaPosition> {
-      const qs = sellPrice != null && sellPrice > 0 ? `?sellPrice=${encodeURIComponent(String(sellPrice))}` : '';
-      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position${qs}`, {
+    /** Sell part (or all, when `amount` is omitted) of the position. */
+    sellDcaPosition(symbol: string, body: { price?: number; amount?: number } = {}): Promise<DcaPosition> {
+      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-sell`, {
         ...withDefaults(),
-        method: 'DELETE',
+        method: 'POST',
+        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
     },
 
