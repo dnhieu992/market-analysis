@@ -22,3 +22,6 @@ apps/web/public/sw.js
 apps/web/public/sw.js.map
 apps/web/public/workbox-*.js
 apps/web/public/workbox-*.js.map
+
+# Local DB dumps taken before destructive migrations — never commit (real data)
+backups/
