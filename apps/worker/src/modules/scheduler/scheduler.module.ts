@@ -8,12 +8,11 @@ import { SmallCapScanModule } from '../small-cap-scan/small-cap-scan.module';
 import { MemeScanModule } from '../meme-scan/meme-scan.module';
 import { SwingSignalModule } from '../swing-signal/swing-signal.module';
 import { TelegramModule } from '../telegram/telegram.module';
-import { EmaStochScanModule } from '../ema-stoch-scan/ema-stoch-scan.module';
 import { VisualAnalysisModule } from '../visual-analysis/visual-analysis.module';
 import { SchedulerService } from './scheduler.service';
 
 @Module({
-  imports: [AnalysisModule, DailySignalModule, TelegramModule, VisualAnalysisModule, SwingSignalModule, SmallCapScanModule, MemeScanModule, EmaStochScanModule, SetupTrackingModule, BitgetHistoryModule],
+  imports: [AnalysisModule, DailySignalModule, TelegramModule, VisualAnalysisModule, SwingSignalModule, SmallCapScanModule, MemeScanModule, SetupTrackingModule, BitgetHistoryModule],
   providers: [SchedulerService],
   exports: [SchedulerService]
 })

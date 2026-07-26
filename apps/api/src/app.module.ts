@@ -29,7 +29,6 @@ import { StorageModule } from './modules/storage/storage.module';
 import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { PatternScannerModule } from './modules/pattern-scanner/pattern-scanner.module';
-import { EmaStochScannerModule } from './modules/ema-stoch-scanner/ema-stoch-scanner.module';
 import { JournalModule } from './modules/journal/journal.module';
 
 @Module({
@@ -61,7 +60,6 @@ import { JournalModule } from './modules/journal/journal.module';
     TrackingCoinsModule,
     BitgetModule,
     PatternScannerModule,
-    EmaStochScannerModule,
     JournalModule,
   ],
   providers: [

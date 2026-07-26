@@ -41,14 +41,9 @@ import type {
   PatternWatchCoin,
   PatternScanResult,
   PatternReferenceImage,
-  EmaBounceCoin,
-  EmaBounceSignal,
-  EmaBouncePreview,
   TradingJournalEntry,
   TradingJournalRevision,
   TrackingCoinRow,
-  TrackingCoinActivityLog,
-  DcaPosition,
   TrackingCoinSetup,
   BitgetPositionsResponse,
   BitgetHistoryResponse,
@@ -801,75 +796,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    fetchDcaPosition(symbol: string): Promise<DcaPosition> {
-      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, withDefaults());
-    },
-
-    fetchCoinActivityLogs(symbol: string): Promise<TrackingCoinActivityLog[]> {
-      return fetchJson<TrackingCoinActivityLog[]>(
-        fetchImpl,
-        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/activity`,
-        withDefaults(),
-      );
-    },
-
-    addCoinActivityLog(symbol: string, body: { content: string; images?: string[] }): Promise<TrackingCoinActivityLog> {
-      return fetchJson<TrackingCoinActivityLog>(
-        fetchImpl,
-        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/activity`,
-        {
-          ...withDefaults(),
-          method: 'POST',
-          headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      );
-    },
-
-    updateCoinActivityLog(id: string, body: { content?: string; images?: string[] }): Promise<TrackingCoinActivityLog> {
-      return fetchJson<TrackingCoinActivityLog>(fetchImpl, `${baseUrl}/tracking-coins/activity/${encodeURIComponent(id)}`, {
-        ...withDefaults(),
-        method: 'PATCH',
-        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    },
-
-    deleteCoinActivityLog(id: string): Promise<{ id: string }> {
-      return fetchJson<{ id: string }>(fetchImpl, `${baseUrl}/tracking-coins/activity/${encodeURIComponent(id)}`, {
-        ...withDefaults(),
-        method: 'DELETE',
-      });
-    },
-
-    /** Buy into the position — writes a BUY transaction in the coin's portfolio. */
-    addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string }): Promise<DcaPosition> {
-      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys`, {
-        ...withDefaults(),
-        method: 'POST',
-        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    },
-
-    /** Remove one layer — deletes the underlying portfolio transaction. */
-    deleteDcaBuy(symbol: string, transactionId: string): Promise<DcaPosition> {
-      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-buys/${encodeURIComponent(transactionId)}`, {
-        ...withDefaults(),
-        method: 'DELETE',
-      });
-    },
-
-    /** Sell part (or all, when `amount` is omitted) of the position. */
-    sellDcaPosition(symbol: string, body: { price?: number; amount?: number } = {}): Promise<DcaPosition> {
-      return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-sell`, {
-        ...withDefaults(),
-        method: 'POST',
-        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    },
-
     // ── Skills ────────────────────────────────────────────────────────
     fetchSkills(): Promise<Skill[]> {
       return fetchJson<Skill[]>(fetchImpl, `${baseUrl}/skills`, withDefaults());
@@ -1011,36 +937,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async removePatternReference(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/pattern-scanner/references/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    // ── EMA Bounce Scanner ──────────────────────────────────────
-    async fetchEmaBounceCoins(): Promise<EmaBounceCoin[]> {
-      return fetchJson<EmaBounceCoin[]>(fetchImpl, `${baseUrl}/ema-bounce/coins`, withDefaults());
-    },
-
-    async addEmaBounceCoin(symbol: string, name?: string): Promise<EmaBounceCoin> {
-      return fetchJson<EmaBounceCoin>(
-        fetchImpl,
-        `${baseUrl}/ema-bounce/coins`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, name }),
-        }),
-      );
-    },
-
-    async removeEmaBounceCoin(symbol: string): Promise<void> {
-      await fetchImpl(`${baseUrl}/ema-bounce/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    async fetchEmaBounceSignals(onlyOpen = false): Promise<EmaBounceSignal[]> {
-      const qs = onlyOpen ? '?open=true' : '';
-      return fetchJson<EmaBounceSignal[]>(fetchImpl, `${baseUrl}/ema-bounce/signals${qs}`, withDefaults());
-    },
-
-    async previewEmaBounce(): Promise<EmaBouncePreview> {
-      return fetchJson<EmaBouncePreview>(fetchImpl, `${baseUrl}/ema-bounce/preview`, withDefaults({ method: 'POST' }));
     },
 
     // ── Trading Journal ─────────────────────────────────────────

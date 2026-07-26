@@ -10,7 +10,6 @@ import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
 import { MemeScanService } from '../meme-scan/meme-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
-import { EmaStochScanService } from '../ema-stoch-scan/ema-stoch-scan.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
 
@@ -27,7 +26,6 @@ export class SchedulerService {
     private readonly dailySignalService: DailySignalService,
     private readonly smallCapScanService: SmallCapScanService,
     private readonly memeScanService: MemeScanService,
-    private readonly emaStochScanService: EmaStochScanService,
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
     private readonly bitgetHistoryService: BitgetHistoryService,
@@ -79,33 +77,6 @@ export class SchedulerService {
 
   // Tracking-coin signal scan removed (2026-07-26 refactor step 1) — the
   // indicator/scoring helpers stay in @app/core for the rebuilt flow.
-
-  // Runs 2 min after each 4h candle close (00:02, 04:02, … UTC) — scan the
-  // /ema-bounce watchlist on the 4h timeframe.
-  @Cron('0 2 */4 * * *', { timeZone: 'UTC' })
-  async runEmaStochScan4h() {
-    this.logger.log('Running EMA-bounce scan (4h)');
-    try {
-      const result = await this.emaStochScanService.scanAll('4h');
-      this.logger.log(`EMA-bounce scan (4h) complete — scanned: ${result.scanned}, failed: ${result.failed}, new: ${result.triggered}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`EMA-bounce scan (4h) failed: ${msg}`);
-    }
-  }
-
-  // Runs 5 min after each daily candle close (00:05 UTC) — scan on the D1 timeframe.
-  @Cron('0 5 0 * * *', { timeZone: 'UTC' })
-  async runEmaStochScanD1() {
-    this.logger.log('Running EMA-bounce scan (1d)');
-    try {
-      const result = await this.emaStochScanService.scanAll('1d');
-      this.logger.log(`EMA-bounce scan (1d) complete — scanned: ${result.scanned}, failed: ${result.failed}, new: ${result.triggered}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`EMA-bounce scan (1d) failed: ${msg}`);
-    }
-  }
 
   // Runs every hour — advance open tracked setups (ENTERED / TP / SL)
   @Cron('0 * * * *', { timeZone: 'UTC' })

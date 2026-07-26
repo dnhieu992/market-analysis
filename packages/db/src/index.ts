@@ -19,8 +19,6 @@ export { createSmallCapRadarRepository } from './repositories/small-cap-radar.re
 export { createMemeRadarRepository } from './repositories/meme-radar.repository';
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
 export { createPatternScannerRepository } from './repositories/pattern-scanner.repository';
-export { createEmaStochScannerRepository } from './repositories/ema-stoch-scanner.repository';
-export type { EmaStochSignalUpsert } from './repositories/ema-stoch-scanner.repository';
 export { createTradingJournalRepository } from './repositories/trading-journal.repository';
 export type { TradingJournalUpsert } from './repositories/trading-journal.repository';
 export { createBitgetTradeRepository } from './repositories/bitget-trade.repository';

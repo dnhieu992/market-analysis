@@ -1723,17 +1723,6 @@ a {
   background: rgba(99, 102, 241, 0.08);
 }
 
-.tt-btn--ai {
-  color: #6d28d9;
-  border-color: rgba(109, 40, 217, 0.25);
-  background: rgba(109, 40, 217, 0.06);
-}
-
-.tt-btn--ai:hover {
-  background: rgba(109, 40, 217, 0.14);
-  border-color: #6d28d9;
-}
-
 .tt-btn--journal {
   color: #b45309;
   border-color: rgba(180, 83, 9, 0.25);
@@ -2209,7 +2198,6 @@ a {
   width: 100%;
   justify-content: center;
 }
-
 
 .trade-status-pill {
   display: inline-flex;
@@ -7385,142 +7373,6 @@ a.metric-card--link:hover {
 .tc-zone--gom  { background: rgba(16, 185, 129, 0.18); color: #059669; }
 .tc-zone--chot { background: rgba(37, 99, 235, 0.16); color: #2563eb; }
 .tc-zone--cho  { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
-
-/* ── DCA position action button (shows layer count when holding) ── */
-.tt-btn--dca-active {
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #059669;
-  background: rgba(16, 185, 129, 0.14);
-}
-
-/* ── per-coin settings button (gear) — highlighted once a portfolio is set ── */
-.tt-btn--set {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.12);
-}
-
-/* ── DCA position dialog ── */
-.dcapos-summary {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.dcapos-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--surface-2, rgba(148, 163, 184, 0.08));
-}
-.dcapos-stat span { font-size: 0.68rem; color: var(--muted); }
-.dcapos-stat strong { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
-.dcapos-pos { color: #059669; }
-.dcapos-neg { color: #dc2626; }
-.dcapos-hint {
-  font-size: 0.78rem;
-  line-height: 1.4;
-  padding: 8px 10px;
-  border-radius: 8px;
-  margin: 0 0 10px;
-}
-.dcapos-hint--ok   { background: rgba(16, 185, 129, 0.12); color: #047857; }
-.dcapos-hint--warn { background: rgba(234, 179, 8, 0.12); color: #b45309; }
-
-/* suggested gom price plan (entry band + −15% ×3 ladder) */
-.dcapos-gomzone {
-  border: 1px solid var(--border, rgba(148, 163, 184, 0.3));
-  border-radius: 8px;
-  padding: 10px;
-  margin: 0 0 10px;
-  background: rgba(59, 130, 246, 0.05);
-}
-.dcapos-gomzone__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-.dcapos-gomzone__band { color: #2563eb; font-variant-numeric: tabular-nums; }
-.dcapos-gomzone__ladder {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.dcapos-gomzone__ladder li {
-  display: grid;
-  grid-template-columns: 4rem 1fr auto;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 0.8rem;
-}
-.dcapos-gomzone__tier { color: var(--text-muted, #64748b); }
-.dcapos-gomzone__price { font-weight: 600; font-variant-numeric: tabular-nums; }
-.dcapos-gomzone__step { color: var(--text-muted, #64748b); font-size: 0.72rem; }
-.dcapos-gomzone__foot {
-  margin: 8px 0 0;
-  font-size: 0.74rem;
-  line-height: 1.4;
-}
-.dcapos-portfolio {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-.dcapos-portfolio > span {
-  font-size: 0.68rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-/* read-only sync target — configured from the Actions ⚙ dialog, not here */
-.dcapos-portfolio--ro {
-  padding: 8px 10px;
-  border: 1px solid var(--border, rgba(148, 163, 184, 0.3));
-  border-radius: 8px;
-  background: rgba(148, 163, 184, 0.06);
-}
-.dcapos-portfolio__value {
-  font-size: 0.84rem;
-  font-weight: 600;
-}
-.dcapos-portfolio__value .scr-muted { font-weight: 400; font-size: 0.76rem; }
-
-/* ── Activity logs tab — reuses the Bitget journal timeline (.bgj-*) inside the
-      coin detail modal, so only the drawer-specific spacing is overridden here ── */
-.tc-activity {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.tc-activity__timeline {
-  flex: 0 1 auto;
-  max-height: 46vh;
-  padding: 0;
-}
-.tc-activity__composer {
-  border-top: 1px solid var(--border, rgba(148, 163, 184, 0.25));
-  padding: 12px 0 0;
-  background: transparent;
-}
-
-.dcapos-add {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.dcapos-pf { font-size: 0.74rem; color: var(--foreground); }
 .tc-history { display: flex; flex-direction: column; gap: 10px; }
 .tc-history-table th, .tc-history-table td { white-space: nowrap; vertical-align: middle; }
 .tc-history-trends { display: inline-flex; gap: 4px; }
@@ -7585,67 +7437,6 @@ a.metric-card--link:hover {
   border-top: 1px solid var(--border, rgba(148, 163, 184, 0.2));
   font-variant-numeric: tabular-nums;
 }
-.dcapos-del {
-  border: none;
-  background: transparent;
-  color: #dc2626;
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-}
-
-/* ── DCA position: buy/sell counts, transaction side, sell dialog ── */
-.dcapos-meta {
-  margin: -4px 0 8px;
-  font-size: 0.74rem;
-}
-.dcapos-side {
-  font-weight: 700;
-  font-size: 0.62rem;
-  letter-spacing: 0.04em;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-.dcapos-side--buy  { background: rgba(16, 185, 129, 0.16); color: #047857; }
-.dcapos-side--sell { background: rgba(239, 68, 68, 0.16); color: #b91c1c; }
-
-.dcapos-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
-}
-.dcapos-field > span {
-  font-size: 0.7rem;
-  color: var(--muted);
-  font-weight: 600;
-}
-.dcapos-quick {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.dcapos-quick .btn {
-  flex: 1;
-  padding: 4px 0;
-  font-size: 0.74rem;
-}
-.dcapos-sell-preview {
-  display: grid;
-  gap: 4px;
-  padding: 8px 10px;
-  margin-bottom: 10px;
-  border-radius: 8px;
-  background: rgba(148, 163, 184, 0.1);
-  font-size: 0.78rem;
-}
-.dcapos-sell-preview > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-.dcapos-sell-preview span { color: var(--muted); }
-.dcapos-sell-preview strong { font-variant-numeric: tabular-nums; }
 
 .scr-signal-num {
   font-size: 0.82rem;
@@ -7754,39 +7545,8 @@ a.metric-card--link:hover {
   .tc-detail-dialog { max-width: 760px; }
 }
 
-/* detail modal: tab bar */
-.tc-detail-tabs {
-  display: flex;
-  gap: 2px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--border);
-  background: #fafafa;
-  flex-shrink: 0;
-  overflow-x: auto;
-}
-.tc-detail-tab {
-  position: relative;
-  padding: 11px 14px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.tc-detail-tab:hover { color: var(--foreground); }
-.tc-detail-tab--active {
-  color: var(--accent, #4f46e5);
-  border-bottom-color: var(--accent, #4f46e5);
-}
-
-/* detail modal: tab content wrappers */
 .tc-overview { display: flex; flex-direction: column; gap: 18px; }
 .tc-overview__empty { text-align: center; padding: 28px 0; }
-.tc-signal { display: flex; flex-direction: column; gap: 14px; }
 
 /* detail modal: aligned per-timeframe indicator grid */
 .tc-tf-grid {
@@ -10422,101 +10182,6 @@ a.metric-card--link:hover {
 .ps-ind-ema-chip--above { background: rgba(52,211,153,0.12); color: #34d399; }
 .ps-ind-ema-chip--below { background: rgba(248,113,113,0.12); color: #f87171; }
 
-/* ── EMA Bounce Scanner (/ema-bounce) ───────────────────────────── */
-.eb-page { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; margin: 0 auto; padding: 8px; }
-.eb-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.eb-title { font-size: 22px; font-weight: 700; margin: 0; }
-.eb-title-row { display: flex; align-items: center; gap: 8px; }
-.eb-info-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
-.eb-info-btn:hover { color: var(--accent); border-color: var(--accent); }
-.eb-sub { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; max-width: 780px; }
-.eb-sub--dialog { margin: 0 0 12px; max-width: none; }
-.eb-sub--dialog:last-child { margin-bottom: 0; }
-.eb-score-list { margin: 0 0 12px; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.6; display: flex; flex-direction: column; gap: 4px; }
-.eb-score-list li { list-style: disc; }
-.eb-score-list b { color: var(--fg); }
-.eb-error { background: rgba(248,113,113,0.12); color: #ef5350; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
-.eb-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
-.eb-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.eb-between { justify-content: space-between; }
-.eb-h2 { font-size: 15px; font-weight: 700; margin: 0 0 10px; }
-.eb-input { flex: 1 1 160px; min-width: 120px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 14px; }
-.eb-btn { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.eb-btn:hover:not(:disabled) { border-color: var(--accent); }
-.eb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.eb-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-/* ── Coin multi-select filter (checkbox dropdown) ── */
-.eb-ms { position: relative; }
-.eb-ms-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-.eb-ms-caret { font-size: 10px; opacity: 0.7; }
-.eb-ms-panel { position: absolute; top: calc(100% + 4px); left: 0; z-index: 50; min-width: 160px; max-height: 260px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
-.eb-ms-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-.eb-ms-item:hover { background: rgba(148,163,184,0.12); }
-.eb-ms-empty { padding: 6px 8px; font-size: 13px; color: var(--muted); }
-.eb-ms-clear { border: none; background: transparent; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; padding: 4px 8px; border-radius: 6px; }
-.eb-ms-clear:hover { background: rgba(148,163,184,0.12); }
-
-/* ── Manage-coins dialog list ── */
-.eb-manage-error { margin-top: 10px; }
-.eb-manage-list { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
-.eb-manage-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; }
-.eb-manage-sym { font-size: 14px; font-weight: 700; }
-.eb-manage-x { border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 6px; transition: color 0.15s, border-color 0.15s; }
-.eb-manage-x:hover:not(:disabled) { color: #ef5350; border-color: #ef5350; }
-.eb-manage-x:disabled { opacity: 0.5; cursor: not-allowed; }
-.eb-muted { color: var(--muted); font-size: 13px; }
-.eb-note { color: var(--muted); font-size: 12px; margin: 10px 0 0; font-style: italic; }
-.eb-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
-.eb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.eb-signal, .eb-mini { border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
-.eb-signal-head, .eb-mini-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
-.eb-signal-sym { font-size: 16px; font-weight: 700; }
-.eb-signal-pnl { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-.eb-kv { display: flex; justify-content: space-between; font-size: 13px; }
-.eb-kv > span:first-child { color: var(--muted); }
-.eb-kv-time { margin-top: 4px; font-size: 12px; }
-.eb-green { color: #26a69a; font-weight: 600; }
-.eb-red { color: #ef5350; font-weight: 600; }
-.eb-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
-.eb-badge-open { background: rgba(59,130,246,0.14); color: #3b82f6; }
-.eb-badge-tp { background: rgba(38,166,154,0.16); color: #26a69a; }
-.eb-badge-exp { background: rgba(148,163,184,0.16); color: #94a3b8; }
-.eb-badge-near { background: rgba(245,158,11,0.16); color: #f59e0b; }
-.eb-badge-reach { background: rgba(38,166,154,0.16); color: #26a69a; }
-.eb-badge-risk { background: rgba(239,68,68,0.16); color: #ef4444; }
-.eb-near { color: #f59e0b; }
-.eb-reach { color: #26a69a; }
-.eb-risk { color: #ef4444; }
-.eb-signal-note { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 4px; line-height: 1.35; }
-.eb-signal-topline { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
-.eb-score { font-size: 22px; font-weight: 800; line-height: 1; }
-.eb-score-u { font-size: 12px; font-weight: 700; margin-left: 1px; opacity: 0.8; }
-.eb-score-inline { font-weight: 700; }
-.eb-score-hot { color: #26a69a; }
-.eb-score-warm { color: #f59e0b; }
-.eb-score-cold { color: #94a3b8; }
-.eb-stoch-num { color: var(--muted); font-size: 11px; }
-
-/* PA block badges — same colour language as the /tracking-coins trend badges. */
-.eb-pa-row { display: inline-flex; gap: 4px; align-items: center; }
-.eb-pa-pts { color: var(--muted); font-size: 11px; }
-.eb-pa {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 4px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-.eb-pa--strong-up   { background: #dcfce7; color: #15803d; }
-.eb-pa--up          { background: #f0fdf4; color: #16a34a; }
-.eb-pa--neutral     { background: #f1f5f9; color: #64748b; }
-.eb-pa--down        { background: #fff7ed; color: #c2410c; }
-.eb-pa--strong-down { background: #fee2e2; color: #dc2626; }
-
 /* ── Trading Journal (/journal) ─────────────────────────────── */
 .tj-page { display: flex; flex-direction: column; gap: 16px; max-width: 900px; margin: 0 auto; padding: 8px; width: 100%; }
 .tj-header { display: flex; flex-direction: column; gap: 4px; }
@@ -10600,22 +10265,8 @@ a.metric-card--link:hover {
 .eb-tf { font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; vertical-align: middle; }
 .eb-select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: inherit; font-size: 13px; }
 
-/* ── EMA-bounce "Xem chart" button + fullscreen chart dialog ── */
-.eb-chart-btn {
-  margin-top: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-.eb-chart-btn:hover { border-color: var(--accent); background: rgba(59,130,246,0.08); }
-
+/* ── Fullscreen chart dialog (shared by the Bitget setup/history charts;
+      `.eb-*` names are historical — the /ema-bounce page they came from is gone) ── */
 .eb-chart-dialog { background: #ffffff; color: #0f172a; }
 .eb-chart-dialog .dialog-header {
   border-bottom-color: #e2e8f0;

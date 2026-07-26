@@ -438,8 +438,6 @@ export type TrackingCoinRow = {
   name: string;
   marketCap: number | null;
   addedAt: string;
-  /** Portfolio this coin's DCA layers sync into — set from the Actions ⚙ dialog. */
-  dcaPortfolioId: string | null;
   signal: {
     rsi: number | null;
     volMultiplier: number | null;
@@ -493,42 +491,6 @@ export type TrackingCoinRow = {
     swingStructure: SwingStructure;
     scannedAt: string;
   } | null;
-  /** Position held in the coin's configured portfolio; `null` when flat or unconfigured. */
-  dcaPosition: { amount: number; avgEntry: number; capitalDeployed: number } | null;
-};
-
-/**
- * One line in a coin's Activity logs tab. `system` entries are written by the API when
- * a DCA layer is bought or the position is closed and cannot be edited or deleted.
- */
-export type TrackingCoinActivityLog = {
-  id: string;
-  symbol: string;
-  kind: 'manual' | 'system';
-  event: 'BUY' | 'SELL' | null;
-  content: string;
-  images: string[];
-  /** Position state frozen when the line was written. */
-  snapshot: {
-    price?: number;
-    usd?: number;
-    avgEntry?: number;
-    layers?: number;
-    capitalDeployed?: number;
-    pnlPct?: number;
-  } | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-/** One BUY/SELL transaction of the position, straight from the portfolio. */
-export type DcaTransaction = {
-  id: string;
-  type: 'buy' | 'sell';
-  price: number;
-  amount: number;
-  usd: number;
-  at: string;
 };
 
 export type TrackingCoinSetup = {
@@ -536,30 +498,6 @@ export type TrackingCoinSetup = {
   swingMinRR: number | null;
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
-  dcaPortfolioId: string | null;
-};
-
-/**
- * The DCA position — a view over the coin's configured portfolio, not a separate
- * store: `amount`/`avgEntry`/`capitalDeployed` are the portfolio Holding, and
- * `transactions` are its CoinTransaction rows for this coin.
- */
-export type DcaPosition = {
-  symbol: string;
-  currentPrice: number;
-  /** Portfolio the position lives in; `null` = not configured yet (⚙ dialog). */
-  portfolioId: string | null;
-  amount: number;
-  avgEntry: number | null;
-  capitalDeployed: number;
-  realizedPnl: number;
-  buyCount: number;
-  sellCount: number;
-  /** Advisory next-add level (last buy −15%) — nothing is blocked on it. */
-  nextAddPrice: number | null;
-  pnlPct: number | null;
-  targetX2: number | null;
-  transactions: DcaTransaction[];
 };
 
 export type BitgetPosition = {
@@ -853,68 +791,6 @@ export type PatternReferenceImage = {
   imageUrl: string;
   notes: string | null;
   createdAt: string;
-};
-
-// ── EMA Bounce Scanner (EMA-stack oversold StochRSI) ──────────────────────────
-export type EmaBounceCoin = {
-  id: string;
-  symbol: string;
-  name: string;
-  addedAt: string;
-};
-
-export type EmaBounceSignal = {
-  id: string;
-  symbol: string;
-  timeframe: string;
-  status: 'open' | 'hit_tp' | 'expired' | string;
-  stage: 'near' | 'reach' | 'risk' | string;
-  note: string | null;
-  score: number;
-  /** Higher-TF PA trend scored by the PA block (D1 for a 4H card, W1 for a D1 card). */
-  htfTrend: PaTrend | null;
-  /** Entry-TF swing structure scored by the PA block. */
-  swingStructure: SwingStructure | null;
-  triggeredAt: string;
-  entryPrice: number;
-  tpPrice: number;
-  distPct: number;
-  rsi: number | null;
-  stochK: number | null;
-  stochD: number | null;
-  ema34: number | null;
-  ema89: number | null;
-  ema200: number | null;
-  currentPrice: number | null;
-  pnlPct: number | null;
-  hitTpAt: string | null;
-  lastCheckedAt: string | null;
-};
-
-export type EmaBounceMatch = {
-  symbol: string;
-  timeframe: string;
-  stage: 'near' | 'reach' | 'risk' | string;
-  note: string;
-  score: number;
-  price: number;
-  tpPrice: number;
-  distPct: number;
-  rsi: number;
-  stochK: number;
-  stochD: number;
-  ema34: number;
-  ema89: number;
-  ema200: number;
-  htfTrend: PaTrend;
-  swingStructure: SwingStructure;
-};
-
-export type EmaBouncePreview = {
-  scannedAt: string;
-  scanned: number;
-  failed: number;
-  matches: EmaBounceMatch[];
 };
 
 /** A daily trading-journal entry (one per calendar day). */

@@ -34,3 +34,8 @@ a warning in the strategy description.
 - `apps/web/src/widgets/back-test-feed/back-test-feed.tsx` — param state, params payload, and the settings UI block (TP %, dist min/max, oversold level).
 - `scripts/run-ema-stack-oversold-stochrsi-backtest.ts` — standalone research script (basket sweep, SL/maxHold variants, MAE reporting).
 - `claude-backtest/runs/2026-07-13-ema-stack-oversold-stochrsi-bounce.md` — backtest run log & takeaway.
+- `packages/core/src/analysis/ema-stack-oversold.ts` — `detectEmaStackOversoldEntry` +
+  `DEFAULT_EMA_STACK_OVERSOLD_CONFIG`, the shared entry maths. Trimmed on 2026-07-26 when the
+  `/ema-bounce` scanner page was deleted: its near/reach detector (`detectEmaStackOversoldSignal`)
+  and 0–100 setup scorer (`scoreEmaStackOversoldSetup`, `formatEmaStackPa`, the score-weight
+  constants) went with the page, so only the strict entry detector this strategy uses remains.
