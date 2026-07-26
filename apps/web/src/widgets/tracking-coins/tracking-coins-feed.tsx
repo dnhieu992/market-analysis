@@ -1023,7 +1023,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       {chartSymbol && (
         <SetupChartDialog
           symbol={chartSymbol}
-          tf="1d"
+          tf="4h"
           timeframes={SWING_CHART_TIMEFRAMES}
           onClose={() => setChartSymbol(null)}
         />

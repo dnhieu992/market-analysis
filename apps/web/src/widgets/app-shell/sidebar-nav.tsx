@@ -38,6 +38,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Manual orders'
   },
   {
+    href: '/tracking-coins',
+    label: 'Tracking Coins · Gom đáy',
+    description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
+  },
+  {
     href: '/bitget',
     label: 'Bitget',
     description: 'Vị thế đang mở & lịch sử lệnh · uPnL, realized PnL, win rate'
@@ -71,11 +76,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/meme-radar',
     label: 'Meme Radar',
     description: 'Daily signal scan for Binance-listed meme coins'
-  },
-  {
-    href: '/tracking-coins',
-    label: 'Tracking Coins · Gom đáy',
-    description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
     href: '/pattern-scanner',
