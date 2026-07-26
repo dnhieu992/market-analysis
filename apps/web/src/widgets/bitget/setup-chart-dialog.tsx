@@ -18,16 +18,9 @@ export const CHART_TIMEFRAMES = [
   { label: 'D1',  tf: '1d'  },
 ] as const satisfies readonly ChartTimeframe[];
 
-/** Swing/DCA QQE scan set (H4 → W1) — used by the /tracking-coins QQE column, which has no intraday horizon. */
+/** Swing/DCA set (H4 → W1) — used by /tracking-coins for both the chart switcher and the QQE column,
+ *  since the page has no intraday horizon. */
 export const SWING_CHART_TIMEFRAMES = [
-  { label: 'H4', tf: '4h' },
-  { label: 'D1', tf: '1d' },
-  { label: 'W1', tf: '1w' },
-] as const satisfies readonly ChartTimeframe[];
-
-/** Chart-dialog switcher on /tracking-coins (H1 → W1) — no M15/M30, the page is swing-only. */
-export const TRACKING_CHART_TIMEFRAMES = [
-  { label: 'H1', tf: '1h' },
   { label: 'H4', tf: '4h' },
   { label: 'D1', tf: '1d' },
   { label: 'W1', tf: '1w' },
