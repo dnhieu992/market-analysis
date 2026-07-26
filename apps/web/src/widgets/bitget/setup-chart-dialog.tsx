@@ -7,21 +7,30 @@ import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 
 import { ChartNoteDialog } from './chart-note-dialog';
 
-/** Timeframes offered by the Setup chart dialog switcher. */
+export type ChartTimeframe = { readonly label: string; readonly tf: string };
+
+/** Timeframes offered by the Setup chart dialog switcher (intraday → D1). */
 export const CHART_TIMEFRAMES = [
   { label: 'M15', tf: '15m' },
   { label: 'M30', tf: 'M30' },
   { label: 'H1',  tf: '1h'  },
   { label: 'H4',  tf: '4h'  },
   { label: 'D1',  tf: '1d'  },
-] as const;
+] as const satisfies readonly ChartTimeframe[];
+
+/** Swing/DCA switcher (H4 → W1) — used by /tracking-coins, which has no intraday horizon. */
+export const SWING_CHART_TIMEFRAMES = [
+  { label: 'H4', tf: '4h' },
+  { label: 'D1', tf: '1d' },
+  { label: 'W1', tf: '1w' },
+] as const satisfies readonly ChartTimeframe[];
 
 /** Timeframe a "Chart" button opens on by default; switchable inside the dialog. */
 export const DEFAULT_CHART_TF = '4h';
 
-/** Friendly timeframe label (M15 / M30 / H1 / H4 / D1) for a raw timeframe key. */
+/** Friendly timeframe label (M15 / M30 / H1 / H4 / D1 / W1) for a raw timeframe key. */
 export const tfLabelOf = (tf: string) =>
-  tf === '15m' ? 'M15' : tf === '1h' ? 'H1' : tf === '4h' ? 'H4' : tf === '1d' ? 'D1' : tf.toUpperCase();
+  tf === '15m' ? 'M15' : tf === '1h' ? 'H1' : tf === '4h' ? 'H4' : tf === '1d' ? 'D1' : tf === '1w' ? 'W1' : tf.toUpperCase();
 
 /**
  * Fullscreen chart dialog for a Bitget coin (SonicR system + S/R channels + RSI,
@@ -34,11 +43,14 @@ export const tfLabelOf = (tf: string) =>
 export function SetupChartDialog({
   symbol,
   tf: initialTf = DEFAULT_CHART_TF,
+  timeframes = CHART_TIMEFRAMES,
   allowSave = false,
   onClose,
 }: {
   symbol: string;
   tf?: string;
+  /** Switcher options — defaults to the intraday→D1 set; pass `SWING_CHART_TIMEFRAMES` for swing pages. */
+  timeframes?: readonly ChartTimeframe[];
   allowSave?: boolean;
   onClose: () => void;
 }) {
@@ -109,7 +121,7 @@ export function SetupChartDialog({
             <span className="eb-chart-note"> · SonicR + S/R Channel + RSI</span>
           </span>
           <div className="eb-tf-tabs" role="tablist" aria-label="Khung thời gian">
-            {CHART_TIMEFRAMES.map(({ label, tf: t }) => (
+            {timeframes.map(({ label, tf: t }) => (
               <button
                 key={t}
                 type="button"

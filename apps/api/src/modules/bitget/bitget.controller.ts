@@ -117,14 +117,16 @@ export class BitgetController {
 
   @Get('qqe-signals')
   @ApiOperation({
-    summary: 'Current colinmck QQE Signals state (long/short) per timeframe (M30/1h/4h/1d) for the given coins. `symbols` is comma-separated.',
+    summary:
+      'Current colinmck QQE Signals state (long/short) per timeframe for the given coins. `symbols` is comma-separated; optional `timeframes` (M30/1h/4h/1d/1w) narrows the scan — defaults to M30,1h,4h,1d.',
   })
-  getQqeSignals(@Query('symbols') symbols?: string) {
-    const list = (symbols ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    return this.setupChart.getQqeSignals(list);
+  getQqeSignals(@Query('symbols') symbols?: string, @Query('timeframes') timeframes?: string) {
+    const split = (raw?: string) =>
+      (raw ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    return this.setupChart.getQqeSignals(split(symbols), split(timeframes));
   }
 
   @Get('trade-chart')

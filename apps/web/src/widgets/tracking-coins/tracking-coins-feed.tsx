@@ -5,13 +5,19 @@ import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio, SignalHistoryRow } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
-import { SetupChartDialog } from '@web/widgets/bitget/setup-chart-dialog';
+import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
+import { QqeCell, bareQqeSymbol, type QqeMap } from '@web/widgets/bitget/qqe-cell';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'dca' | 'ext' | 'mktcap' | 'rsi' | 'vol' | 'coin';
+type SortKey = 'mktcap' | 'rsi' | 'vol' | 'coin';
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
+// QQE readings only change on candle close — same slow cadence as the Bitget Setup tab.
+const QQE_REFRESH_MS = 60_000;
+/** Timeframes the QQE column reports on — the page's swing horizon, same order as the chart switcher. */
+const QQE_TFS = SWING_CHART_TIMEFRAMES;
+const QQE_TF_KEYS = QQE_TFS.map((t) => t.tf);
 
 /* ── live price hook ────────────────────────────────────────────── */
 
@@ -79,7 +85,7 @@ function fmtMarketCap(cap: number | null): string | null {
 
 /* ── shared: W/D1/H4 stacked layout ─────────────────────────────── */
 
-function TfStack({ w, d1, h4, m30 }: { w: ReactNode; d1: ReactNode; h4: ReactNode; m30?: ReactNode }) {
+function TfStack({ w, d1, h4 }: { w: ReactNode; d1: ReactNode; h4: ReactNode }) {
   return (
     <div className="tc-tf-stack">
       <div className="tc-tf-stack-row">
@@ -94,12 +100,6 @@ function TfStack({ w, d1, h4, m30 }: { w: ReactNode; d1: ReactNode; h4: ReactNod
         <span className="tc-tf-label">H4</span>
         <span className="tc-tf-stack-val">{h4}</span>
       </div>
-      {m30 !== undefined && (
-        <div className="tc-tf-stack-row">
-          <span className="tc-tf-label">M30</span>
-          <span className="tc-tf-stack-val">{m30}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -149,15 +149,6 @@ function VolCell({ vol }: { vol: number | null }) {
   return <span className={cls}>{vol.toFixed(1)}×</span>;
 }
 
-/* ── DCA cell — "đáng DCA" quality score + action zone ──────────── */
-
-function dcaQuality(score: number): { label: string; cls: string } {
-  if (score >= 70) return { label: 'An toàn', cls: 'tc-dca--safe' };
-  if (score >= 50) return { label: 'Khá', cls: 'tc-dca--ok' };
-  if (score >= 30) return { label: 'Rủi ro', cls: 'tc-dca--risky' };
-  return { label: 'Tránh', cls: 'tc-dca--avoid' };
-}
-
 /* ── DCA action zone meta ───────────────────────────────────────── */
 
 const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; title: string }> = {
@@ -165,33 +156,6 @@ const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; ti
   CHOT: { label: 'Hồi',  cls: 'tc-zone--chot', title: 'Giá đã hồi lên EMA34 → không còn là điểm gom đáy (chốt theo target x2 ở tab DCA)' },
   CHO:  { label: 'Chờ',  cls: 'tc-zone--cho',  title: 'Chưa vào vùng đáy chất lượng hoặc chưa qua cổng dcaScore' },
 };
-
-function DcaCell({ score, zone }: { score: number | null | undefined; zone: 'GOM' | 'CHO' | 'CHOT' | null | undefined }) {
-  if (score == null) return <span className="scr-muted">—</span>;
-  const q = dcaQuality(score);
-  const z = zone ? ZONE_META[zone] : null;
-  return (
-    <span className="tc-dca" title={`Đáng DCA ${score}/100 (market-cap + trend tuần). ${q.label}.`}>
-      <span className={`tc-dca-badge ${q.cls}`}>
-        <span className="tc-dca-score">{score}</span>
-        <span className="tc-dca-tag">{q.label}</span>
-      </span>
-      {z && <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span>}
-    </span>
-  );
-}
-
-/* ── extension % cell (distance above EMA34 — exit/overheat gauge) ── */
-
-function ExtCell({ ext }: { ext: number | null }) {
-  if (ext == null) return <span className="scr-muted">—</span>;
-  const cls =
-    ext >= 20 ? 'scr-ext scr-ext--hot' :
-    ext >= 0 ? 'scr-ext scr-ext--up' :
-    'scr-ext scr-ext--down';
-  const sign = ext > 0 ? '+' : '';
-  return <span className={cls}>{`${sign}${ext.toFixed(1)}%`}</span>;
-}
 
 /* ── Trend badge ────────────────────────────────────────────────── */
 
@@ -343,7 +307,6 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
     { tf: 'W',  trend: sig.weekTrend, utBot: sig.utBotW1Bullish, e34: sig.wEma34Above,  e89: sig.wEma89Above,  e200: sig.wEma200Above,  rsi: sig.wRsi,  vol: sig.wVolMultiplier },
     { tf: 'D1', trend: sig.trend,   utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,   vol: sig.volMultiplier },
     { tf: 'H4', trend: sig.h4Trend, utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi, vol: sig.h4VolMultiplier },
-    { tf: 'M30', trend: sig.m30Trend, utBot: sig.utBotM30Bullish, e34: sig.m30Ema34Above, e89: sig.m30Ema89Above, e200: sig.m30Ema200Above, rsi: sig.m30Rsi, vol: sig.m30VolMultiplier },
   ];
 
   return (
@@ -856,7 +819,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const symbols = useMemo(() => coins.map(c => c.symbol), [coins]);
   const { prices, flash } = useLivePrices(symbols);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('dca');
+  const [sortKey, setSortKey] = useState<SortKey>('coin');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
@@ -867,8 +830,30 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [qqe, setQqe] = useState<QqeMap>({});
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
+
+  // QQE Signals (colinmck) per coin — the same endpoint/column the Bitget Setup tab uses,
+  // narrowed to this page's swing horizon (H4/D1/W1) so ~40 coins stay one cheap scan.
+  useEffect(() => {
+    if (symbols.length === 0) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const rows = await createApiClient().fetchBitgetQqeSignals(symbols, QQE_TF_KEYS);
+        if (cancelled) return;
+        setQqe((prev) => {
+          const next = { ...prev };
+          for (const r of rows) next[bareQqeSymbol(r.symbol)] = r.signals;
+          return next;
+        });
+      } catch { /* non-fatal: the QQE column keeps its last-known badges */ }
+    };
+    void load();
+    const id = setInterval(() => void load(), QQE_REFRESH_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [symbols]);
 
   async function reloadCoins() {
     try {
@@ -897,8 +882,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     const q = nameFilter.trim().toUpperCase();
     const filtered = coins.filter((c) => !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q));
     return [...filtered].sort((a, b) => {
-      if (sortKey === 'dca') return (b.signal?.dcaScore ?? -Infinity) - (a.signal?.dcaScore ?? -Infinity);
-      if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
       if (sortKey === 'mktcap') return (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity);
       if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
@@ -1002,15 +985,12 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
                   Coin {sortKey === 'coin' && '↑'}
                 </th>
-                <th className="scr-th scr-th--num" onClick={() => setSortKey('dca')}>
-                  DCA {sortKey === 'dca' && '↓'}
+                <th className="scr-th" title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — khung H4/D1/W1, xanh = Long, đỏ = Short">
+                  QQE
                 </th>
                 <th className="scr-th tc-th--stacked">Trend (PA)</th>
                 <th className="scr-th tc-th--stacked">UT Bot</th>
                 <th className="scr-th tc-th--stacked">EMA</th>
-                <th className="scr-th scr-th--num" onClick={() => setSortKey('ext')}>
-                  Ext% {sortKey === 'ext' && '↓'}
-                </th>
                 <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
                   RSI {sortKey === 'rsi' && '↓'}
                 </th>
@@ -1024,7 +1004,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="scr-empty">
+                  <td colSpan={9} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -1057,9 +1037,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </span>
                       )}
                     </td>
-                    {/* DCA — đáng DCA (quality) + vùng hành động */}
-                    <td className="scr-td scr-td--num">
-                      <DcaCell score={sig?.dcaScore} zone={sig?.accZone} />
+                    {/* QQE Signals — live flips only (same cell as the Bitget Setup tab) */}
+                    <td className="scr-td bg-qqe-cell">
+                      <QqeCell signals={qqe[bareQqeSymbol(coin.symbol)]} timeframes={QQE_TFS} />
                     </td>
                     {/* Trend W / D1 / H4 */}
                     <td className="scr-td">
@@ -1068,7 +1048,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<TrendBadge trend={sig.weekTrend} />}
                             d1={<TrendBadge trend={sig.trend} />}
                             h4={<TrendBadge trend={sig.h4Trend} />}
-                            m30={<TrendBadge trend={sig.m30Trend} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
@@ -1079,7 +1058,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<UtBotBadge bullish={sig.utBotW1Bullish} />}
                             d1={<UtBotBadge bullish={sig.utBotD1Bullish} />}
                             h4={<UtBotBadge bullish={sig.utBotH4Bullish} />}
-                            m30={<UtBotBadge bullish={sig.utBotM30Bullish} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
@@ -1090,13 +1068,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<EmaPips e34={sig.wEma34Above} e89={sig.wEma89Above} e200={sig.wEma200Above} />}
                             d1={<EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />}
                             h4={<EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />}
-                            m30={<EmaPips e34={sig.m30Ema34Above} e89={sig.m30Ema89Above} e200={sig.m30Ema200Above} />}
                           />
                         : <span className="scr-muted">—</span>}
-                    </td>
-                    {/* Ext% — distance above EMA34 (D1) */}
-                    <td className="scr-td scr-td--num">
-                      <ExtCell ext={sig?.extPct ?? null} />
                     </td>
                     {/* RSI W / D1 / H4 */}
                     <td className="scr-td">
@@ -1105,7 +1078,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<RsiCell rsi={sig.wRsi} />}
                             d1={<RsiCell rsi={sig.rsi} />}
                             h4={<RsiCell rsi={sig.h4Rsi} />}
-                            m30={<RsiCell rsi={sig.m30Rsi} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
@@ -1116,7 +1088,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             w={<VolCell vol={sig.wVolMultiplier} />}
                             d1={<VolCell vol={sig.volMultiplier} />}
                             h4={<VolCell vol={sig.h4VolMultiplier} />}
-                            m30={<VolCell vol={sig.m30VolMultiplier} />}
                           />
                         : <span className="scr-muted">—</span>}
                     </td>

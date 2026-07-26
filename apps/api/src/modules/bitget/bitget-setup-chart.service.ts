@@ -17,6 +17,12 @@ const normalizeNote = (note?: string | null): string | null => {
 
 /** Timeframes the Setup-tab QQE column reports on — mirrors the chart-view buttons. */
 const QQE_TIMEFRAMES = ['M30', '1h', '4h', '1d'] as const;
+/**
+ * Every timeframe a caller may ask for. `/tracking-coins` is a swing/DCA page, so it
+ * requests only `4h,1d,1w` — narrowing matters because it lists ~40 coins and each
+ * (coin, timeframe) pair costs one Binance klines call.
+ */
+const QQE_SUPPORTED_TIMEFRAMES = ['M30', '1h', '4h', '1d', '1w'] as const;
 /** Candles pulled per timeframe for the QQE compute — enough to warm the bands. */
 const QQE_KLINE_LIMIT = 200;
 /** Min closed candles before a QQE reading is trustworthy. */
@@ -43,6 +49,9 @@ const TF_CONFIG: Record<string, { limit: number; display: number }> = {
   '1h':  { limit: 400, display: 150 },
   '4h':  { limit: 340, display: 120 },
   '1d':  { limit: 300, display: 90  },
+  // Weekly: Binance only serves ~600 weekly candles for old pairs, so EMA200 stays
+  // warm on majors and simply starts late on younger coins.
+  '1w':  { limit: 300, display: 80  },
 };
 
 /** Candle interval (ms) per supported timeframe — used to window a closed trade. */
@@ -52,6 +61,7 @@ const TF_MS: Record<string, number> = {
   '1h': 60 * 60_000,
   '4h': 4 * 60 * 60_000,
   '1d': 24 * 60 * 60_000,
+  '1w': 7 * 24 * 60 * 60_000,
 };
 
 /** A closed trade to render a review chart for (all fields come from history). */
@@ -271,12 +281,16 @@ export class BitgetSetupChartService {
    * column. Readings come from the last CLOSED candle (no repaint) and are cached
    * ~60s per (symbol, timeframe) so the 15s feed refresh doesn't hammer Binance.
    */
-  async getQqeSignals(symbols: string[]): Promise<QqeSymbolSignals[]> {
+  async getQqeSignals(symbols: string[], timeframes?: string[]): Promise<QqeSymbolSignals[]> {
+    const requested = (timeframes ?? []).filter((tf): tf is (typeof QQE_SUPPORTED_TIMEFRAMES)[number] =>
+      (QQE_SUPPORTED_TIMEFRAMES as readonly string[]).includes(tf),
+    );
+    const tfs: readonly string[] = requested.length > 0 ? requested : QQE_TIMEFRAMES;
     const uniqueBare = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
     const out: QqeSymbolSignals[] = [];
     for (const bare of uniqueBare) {
       const signals: Record<string, QqeTfSignal | null> = {};
-      for (const tf of QQE_TIMEFRAMES) {
+      for (const tf of tfs) {
         signals[tf] = await this.qqeForTimeframe(bare, tf);
       }
       out.push({ symbol: bare, signals });

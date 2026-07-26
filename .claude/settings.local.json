@@ -178,7 +178,9 @@
       "WebFetch(domain:www.bitget.com)",
       "WebFetch(domain:python-bitget.readthedocs.io)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(sort -t: -k2)"
+      "Bash(sort -t: -k2)",
+      "Bash(MYSQL_PWD='Pass@word1!' mysql *)",
+      "Bash(MYSQL_PWD=Pass@word1! mysql -h 127.0.0.1 -u market_user -e 'insert into sessions \\(id,userId,tokenHash,expiresAt\\) values \\('\\\\''__TRACKED_VAR__'\\\\'','\\\\''cmnvpm8tq00009b8exi7d33dj'\\\\'','\\\\''__TRACKED_VAR__'\\\\'', date_add\\(now\\(\\), interval 5 minute\\)\\);' market_analysis)"
     ],
     "defaultMode": "acceptEdits"
   }

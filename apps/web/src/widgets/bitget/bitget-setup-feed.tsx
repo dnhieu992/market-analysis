@@ -8,17 +8,16 @@ import type {
   BitgetHistoryResponse,
   BitgetPositionsResponse,
   BitgetSetupConfig,
-  BitgetQqeTfSignal,
   BitgetTradeChart,
 } from '@web/shared/api/types';
 
 import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices';
 import {
-  CHART_TIMEFRAMES,
   DEFAULT_CHART_TF,
   SetupChartDialog,
   tfLabelOf,
 } from './setup-chart-dialog';
+import { QqeCell, bareQqeSymbol as bareSymbol, type QqeMap } from './qqe-cell';
 import { SymbolMultiSelect } from './symbol-multi-select';
 import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
 import { ChartNoteView } from './chart-note-dialog';
@@ -45,42 +44,6 @@ const WATCHLIST_SYMBOLS = [
   'TIAUSDT',
 ];
 
-/** Per-coin QQE state keyed by timeframe, matching the chart-view timeframes. */
-type QqeMap = Record<string, Record<string, BitgetQqeTfSignal | null>>;
-
-// A QQE signal is only "live" for this many closed candles after it fires; older
-// flips are treated as stale and hidden.
-const QQE_SIGNAL_VALID_BARS = 5;
-
-const isLiveSignal = (sig: BitgetQqeTfSignal | null | undefined): sig is BitgetQqeTfSignal =>
-  sig != null && sig.barsSince != null && sig.barsSince < QQE_SIGNAL_VALID_BARS;
-
-/**
- * Only the timeframes with a QQE signal still live (flipped within the last 5
- * closed candles) are shown — the timeframe label itself is coloured green for
- * Long, red for Short.
- */
-function QqeCell({ signals }: { signals: Record<string, BitgetQqeTfSignal | null> | undefined }) {
-  const live = CHART_TIMEFRAMES.filter(({ tf }) => isLiveSignal(signals?.[tf]));
-  if (live.length === 0) return <span className="bg-qqe-none">—</span>;
-  return (
-    <div className="bg-qqe-grid">
-      {live.map(({ label, tf }) => {
-        const sig = signals![tf]!;
-        const cls = sig.state === 'long' ? 'bg-qqe--long' : 'bg-qqe--short';
-        const title =
-          `${label}: QQE ${sig.state === 'long' ? 'Long' : 'Short'}` +
-          (sig.barsSince === 0 ? ' · vừa xuất hiện' : ` · ${sig.barsSince} nến trước`);
-        return (
-          <span key={tf} className={`bg-qqe-tf-badge ${cls}`} title={title}>
-            {label}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
 type ChartTarget = { symbol: string; tf: string };
 
 type HoldSide = 'long' | 'short';
@@ -89,9 +52,6 @@ type HoldSide = 'long' | 'short';
 type ConfigMap = Record<string, BitgetSetupConfig>;
 
 const cfgKey = (symbol: string, holdSide: HoldSide) => `${symbol}-${holdSide}`;
-
-/** Strip the USDT suffix — the QQE API keys its response by the bare coin symbol. */
-const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
 
 function fmtUsdPlain(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';

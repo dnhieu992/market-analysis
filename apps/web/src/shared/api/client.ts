@@ -1159,10 +1159,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     // Current QQE Signals state (long/short) per timeframe for the Setup tab column.
-    async fetchBitgetQqeSignals(symbols: string[]): Promise<BitgetQqeSignals[]> {
+    // `timeframes` narrows the server-side scan (omit for the default M30/1h/4h/1d).
+    async fetchBitgetQqeSignals(symbols: string[], timeframes?: readonly string[]): Promise<BitgetQqeSignals[]> {
       if (symbols.length === 0) return [];
       const q = encodeURIComponent(symbols.join(','));
-      return fetchJson<BitgetQqeSignals[]>(fetchImpl, `${baseUrl}/bitget/qqe-signals?symbols=${q}`, withDefaults({}));
+      const tfq = timeframes?.length ? `&timeframes=${encodeURIComponent(timeframes.join(','))}` : '';
+      return fetchJson<BitgetQqeSignals[]>(fetchImpl, `${baseUrl}/bitget/qqe-signals?symbols=${q}${tfq}`, withDefaults({}));
     },
 
     async saveBitgetSetupConfig(input: BitgetSetupConfig): Promise<BitgetSetupConfig> {
