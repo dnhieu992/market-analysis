@@ -51,11 +51,14 @@ Follow-up on the same "too much noise" complaint, on the UI side:
 ## Step 1c — swing-only timeframes + QQE column (2026-07-26)
 The page is a swing/DCA dashboard, so every intraday reading was dropped and a live signal added:
 
-- **Chart switcher = H4 / D1 / W1.** M15, M30 and H1 are gone; **weekly was added**.
-  `SetupChartDialog` now takes an optional `timeframes` prop and `SWING_CHART_TIMEFRAMES`
-  (H4/D1/W1) is the swing variant — the Bitget Setup tab keeps its own M15…D1 set unchanged.
+- **Chart switcher = H1 / H4 / D1 / W1.** M15 and M30 are gone; **weekly was added**.
+  `SetupChartDialog` now takes an optional `timeframes` prop; `TRACKING_CHART_TIMEFRAMES`
+  (H1/H4/D1/W1) is what /tracking-coins passes, while `SWING_CHART_TIMEFRAMES` (H4/D1/W1) is the
+  narrower set the QQE column scans. The Bitget Setup tab keeps its own M15…D1 set unchanged.
   Server side, `1w` was added to `TF_CONFIG` (limit 300 / display 80) and `TF_MS`, and `tfLabelOf`
   learned `1w → W1`.
+  *(Fixed 2026-07-26: the dialog was documented as swing-only but the `timeframes` prop was never
+  actually passed at the call site, so the page still rendered the default M15…D1 switcher.)*
 - **Table columns**: **DCA** (dcaScore badge + zone) and **Ext%** removed — both were frozen values
   from the dead scan. A **QQE** column takes their place, rendering the *same* `QqeCell` the Bitget
   Setup tab uses (extracted to `widgets/bitget/qqe-cell.tsx`): only timeframes whose colinmck QQE
@@ -103,7 +106,8 @@ The page is a swing/DCA dashboard, so every intraday reading was dropped and a l
   holding) + their count memos removed, `IconChart` + `tc-chart-btn` added to the Coin cell, hosts
   `SetupChartDialog`
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — reused by tracking-coins; gained the
-  optional `timeframes` prop + `SWING_CHART_TIMEFRAMES` (H4/D1/W1) + `1w` label
+  optional `timeframes` prop + `SWING_CHART_TIMEFRAMES` (H4/D1/W1, QQE scan) +
+  `TRACKING_CHART_TIMEFRAMES` (H1/H4/D1/W1, the /tracking-coins switcher) + `1w` label
 - `apps/web/src/widgets/bitget/qqe-cell.tsx` — **new**: `QqeCell` / `isLiveSignal` / `bareQqeSymbol`
   extracted from `bitget-setup-feed.tsx` so both pages render the identical QQE column
 - `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — imports the extracted cell (no behaviour change)

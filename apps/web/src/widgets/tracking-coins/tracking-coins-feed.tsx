@@ -5,7 +5,11 @@ import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio, SignalHistoryRow } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
-import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
+import {
+  SetupChartDialog,
+  SWING_CHART_TIMEFRAMES,
+  TRACKING_CHART_TIMEFRAMES,
+} from '@web/widgets/bitget/setup-chart-dialog';
 import { QqeCell, bareQqeSymbol, type QqeMap } from '@web/widgets/bitget/qqe-cell';
 
 type Props = { initialCoins: TrackingCoinRow[] };
@@ -921,7 +925,12 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         />
       )}
       {chartSymbol && (
-        <SetupChartDialog symbol={chartSymbol} tf="1d" onClose={() => setChartSymbol(null)} />
+        <SetupChartDialog
+          symbol={chartSymbol}
+          tf="1d"
+          timeframes={TRACKING_CHART_TIMEFRAMES}
+          onClose={() => setChartSymbol(null)}
+        />
       )}
       {showInfo && <StrategyInfoDialog onClose={() => setShowInfo(false)} />}
 
