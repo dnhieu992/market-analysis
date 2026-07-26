@@ -47,7 +47,7 @@ import type {
   TradingJournalEntry,
   TradingJournalRevision,
   TrackingCoinRow,
-  SignalHistoryRow,
+  TrackingCoinActivityLog,
   DcaPosition,
   TrackingCoinSetup,
   BitgetPositionsResponse,
@@ -805,12 +805,41 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<DcaPosition>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/dca-position`, withDefaults());
     },
 
-    fetchSignalHistory(symbol: string, limit = 100): Promise<SignalHistoryRow[]> {
-      return fetchJson<SignalHistoryRow[]>(
+    fetchCoinActivityLogs(symbol: string): Promise<TrackingCoinActivityLog[]> {
+      return fetchJson<TrackingCoinActivityLog[]>(
         fetchImpl,
-        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/activity`,
         withDefaults(),
       );
+    },
+
+    addCoinActivityLog(symbol: string, body: { content: string; images?: string[] }): Promise<TrackingCoinActivityLog> {
+      return fetchJson<TrackingCoinActivityLog>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/activity`,
+        {
+          ...withDefaults(),
+          method: 'POST',
+          headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
+    },
+
+    updateCoinActivityLog(id: string, body: { content?: string; images?: string[] }): Promise<TrackingCoinActivityLog> {
+      return fetchJson<TrackingCoinActivityLog>(fetchImpl, `${baseUrl}/tracking-coins/activity/${encodeURIComponent(id)}`, {
+        ...withDefaults(),
+        method: 'PATCH',
+        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    },
+
+    deleteCoinActivityLog(id: string): Promise<{ id: string }> {
+      return fetchJson<{ id: string }>(fetchImpl, `${baseUrl}/tracking-coins/activity/${encodeURIComponent(id)}`, {
+        ...withDefaults(),
+        method: 'DELETE',
+      });
     },
 
     addDcaBuy(symbol: string, body: { price: number; usd: number; boughtAt?: string; portfolioId?: string }): Promise<DcaPosition> {

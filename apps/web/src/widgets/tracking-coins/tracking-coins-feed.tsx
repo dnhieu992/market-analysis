@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback, Fragment, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio, SignalHistoryRow } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
-import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
+import { ActivityLogPanel } from '@web/widgets/tracking-coins/activity-log-panel';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { QqeCell, bareQqeSymbol, type QqeMap } from '@web/widgets/bitget/qqe-cell';
 
@@ -149,14 +149,6 @@ function VolCell({ vol }: { vol: number | null }) {
   return <span className={cls}>{vol.toFixed(1)}×</span>;
 }
 
-/* ── DCA action zone meta ───────────────────────────────────────── */
-
-const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; title: string }> = {
-  GOM:  { label: 'GOM',  cls: 'tc-zone--gom',  title: 'Đáy mạnh (giảm 50–85% + nền đi ngang, RSI thấp) đã qua cổng dcaScore≥50 → gom (spot, no SL, target x2)' },
-  CHOT: { label: 'Hồi',  cls: 'tc-zone--chot', title: 'Giá đã hồi lên EMA34 → không còn là điểm gom đáy (chốt theo target x2 ở tab DCA)' },
-  CHO:  { label: 'Chờ',  cls: 'tc-zone--cho',  title: 'Chưa vào vùng đáy chất lượng hoặc chưa qua cổng dcaScore' },
-};
-
 /* ── Trend badge ────────────────────────────────────────────────── */
 
 const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> = {
@@ -226,6 +218,18 @@ function IconChart() {
   );
 }
 
+function IconActivity() {
+  // Notebook lines — opens the coin's Activity logs tab.
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <line x1="9" y1="7" x2="16" y2="7" />
+      <line x1="9" y1="11" x2="16" y2="11" />
+    </svg>
+  );
+}
+
 function IconSettings() {
   // Gear — opens the per-coin config (which portfolio a DCA position syncs into).
   return (
@@ -250,13 +254,12 @@ function IconPrompt() {
 
 /* ── detail modal ───────────────────────────────────────────────── */
 
-type DetailTab = 'overview' | 'dca' | 'history' | 'journal';
+type DetailTab = 'overview' | 'dca' | 'activity';
 
 const DETAIL_TABS: ReadonlyArray<[DetailTab, string]> = [
   ['overview', 'Overview'],
   ['dca', 'DCA position'],
-  ['history', 'History'],
-  ['journal', 'Journal'],
+  ['activity', 'Activity logs'],
 ];
 
 function CoinDetailModal({ coin, initialTab, livePrice, onChanged, onClose }: {
@@ -296,8 +299,7 @@ function CoinDetailModal({ coin, initialTab, livePrice, onChanged, onClose }: {
         <div className="dialog-body tc-detail-body">
           {tab === 'overview' && <CoinOverview coin={coin} />}
           {tab === 'dca' && <DcaPositionPanel symbol={coin.symbol} livePrice={livePrice} gomZone={coin.signal?.gomZone ?? null} onChanged={onChanged} />}
-          {tab === 'history' && <CoinSignalHistory symbol={coin.symbol} />}
-          {tab === 'journal' && <CoinJournalPanel symbol={coin.symbol} />}
+          {tab === 'activity' && <ActivityLogPanel symbol={coin.symbol} />}
         </div>
       </div>
     </div>
@@ -348,111 +350,6 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
         Cập nhật: {new Date(sig.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
       </div>
       <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
-    </div>
-  );
-}
-
-/* ── signal history (DCA change-log) ─────────────────────────────── */
-
-const BUCKET_META: Record<SignalHistoryRow['dcaBucket'], { label: string; cls: string }> = {
-  safe:  { label: 'An toàn', cls: 'tc-dca--safe' },
-  ok:    { label: 'Khá',     cls: 'tc-dca--ok' },
-  risky: { label: 'Rủi ro',  cls: 'tc-dca--risky' },
-  avoid: { label: 'Tránh',   cls: 'tc-dca--avoid' },
-};
-
-const VERDICT_META: Record<NonNullable<SignalHistoryRow['llmVerdict']>, { label: string; cls: string }> = {
-  GIU:      { label: 'Giữ',       cls: 'tc-verdict--hold' },
-  GOM_THEM: { label: 'Gom thêm',  cls: 'tc-verdict--add' },
-  CHOT_BOT: { label: 'Chốt bớt',  cls: 'tc-verdict--trim' },
-  THOAT:    { label: 'Thoát',     cls: 'tc-verdict--exit' },
-};
-
-const ENTRY_MODE_LABEL: Record<NonNullable<SignalHistoryRow['entryMode']>, string> = {
-  SIGNAL: 'Theo tín hiệu',
-  FOMO:   'FOMO',
-  MIXED:  'Hỗn hợp',
-};
-
-function CoinSignalHistory({ symbol }: { symbol: string }) {
-  const [rows, setRows] = useState<SignalHistoryRow[] | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setRows(null); setError(false);
-    createApiClient().fetchSignalHistory(symbol, 100)
-      .then((r) => { if (!cancelled) setRows(r); })
-      .catch(() => { if (!cancelled) setError(true); });
-    return () => { cancelled = true; };
-  }, [symbol]);
-
-  if (error) return <p className="scr-muted tc-overview__empty">Không tải được lịch sử.</p>;
-  if (rows === null) return <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>;
-  if (rows.length === 0) {
-    return <p className="scr-muted tc-overview__empty">Chưa có thay đổi nào được ghi nhận. Lịch sử chỉ lưu khi vùng DCA hoặc bậc chất lượng đổi.</p>;
-  }
-
-  return (
-    <div className="tc-history">
-      <p className="scr-muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.5 }}>
-        Mỗi dòng là một lần tín hiệu DCA đổi trạng thái (vùng GOM/Chờ/CHỐT hoặc bậc chất lượng). Dòng có nhãn <b>AI</b> là
-        đánh giá vị thế hằng ngày (Claude Haiku) cho coin đang nắm giữ. Mới nhất ở trên.
-      </p>
-      <table className="dcapos-table tc-history-table">
-        <thead>
-          <tr><th>Thời điểm</th><th>DCA</th><th>Vùng</th><th>Trend (W/D1/H4)</th><th>RSI</th><th>Ext%</th><th>Giá</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const b = BUCKET_META[r.dcaBucket];
-            const z = r.dcaZone ? ZONE_META[r.dcaZone] : null;
-            const v = r.llmVerdict ? VERDICT_META[r.llmVerdict] : null;
-            return (
-              <Fragment key={r.id}>
-                <tr className={v ? 'tc-history-row--ai' : undefined}>
-                  <td>{new Date(r.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td>
-                    <span className={`tc-dca-badge ${b.cls}`}>
-                      <span className="tc-dca-score">{r.dcaScore}</span>
-                      <span className="tc-dca-tag">{b.label}</span>
-                    </span>
-                  </td>
-                  <td>{z ? <span className={`tc-zone ${z.cls}`} title={z.title}>{z.label}</span> : <span className="scr-muted">—</span>}</td>
-                  <td>
-                    <span className="tc-history-trends">
-                      <TrendBadge trend={r.weekTrend} />
-                      <TrendBadge trend={r.trend} />
-                      <TrendBadge trend={r.h4Trend} />
-                    </span>
-                  </td>
-                  <td>{r.rsi == null ? <span className="scr-muted">—</span> : Math.round(r.rsi)}</td>
-                  <td>{r.extPct == null ? <span className="scr-muted">—</span> : `${r.extPct > 0 ? '+' : ''}${r.extPct.toFixed(1)}%`}</td>
-                  <td>{r.price == null ? <span className="scr-muted">—</span> : `$${formatPrice(r.price)}`}</td>
-                </tr>
-                {v && (
-                  <tr className="tc-history-ai">
-                    <td colSpan={7}>
-                      <div className="tc-ai-review">
-                        <span className="tc-ai-tag">AI</span>
-                        <span className={`tc-verdict ${v.cls}`}>{v.label}</span>
-                        {r.entryMode && <span className="tc-ai-chip">{ENTRY_MODE_LABEL[r.entryMode]}</span>}
-                        {r.pnlPct != null && (
-                          <span className={`tc-ai-pnl ${r.pnlPct >= 0 ? 'tc-ai-pnl--up' : 'tc-ai-pnl--down'}`}>
-                            {r.pnlPct >= 0 ? '+' : ''}{r.pnlPct.toFixed(1)}%
-                          </span>
-                        )}
-                        {r.avgEntry != null && <span className="tc-ai-chip">Vốn TB ${formatPrice(r.avgEntry)}</span>}
-                        {r.llmReview && <span className="tc-ai-text">{r.llmReview}</span>}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -1194,6 +1091,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </button>
                         <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => { setDetailTab('dca'); setSelectedCoin(coin); }}>
                           {coin.dcaPosition ? `${coin.dcaPosition.layers}L` : <IconLayers />}
+                        </button>
+                        <button
+                          className="tt-btn"
+                          data-tooltip="Activity logs"
+                          aria-label={`Activity logs ${coin.symbol}`}
+                          onClick={() => { setDetailTab('activity'); setSelectedCoin(coin); }}
+                        >
+                          <IconActivity />
                         </button>
                         <button
                           className={`tt-btn${coin.dcaPortfolioId ? ' tt-btn--set' : ''}`}

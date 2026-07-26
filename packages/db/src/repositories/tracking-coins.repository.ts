@@ -153,21 +153,53 @@ export function createTrackingCoinsRepository(client = prisma) {
       return client.trackingCoinDcaBuy.deleteMany({ where: { transactionId } });
     },
 
-    // ── Journal ──────────────────────────────────────────────────────────
+    // ── Activity log ─────────────────────────────────────────────────────
 
-    findJournalByCoin(coinId: string) {
-      return client.trackingCoinJournal.findMany({
-        where: { coinId },
-        orderBy: { date: 'desc' },
+    findActivityLogsBySymbol(symbol: string) {
+      return client.trackingCoinActivityLog.findMany({
+        where: { symbol },
+        orderBy: { createdAt: 'asc' },
       });
     },
 
-    upsertJournalEntry(coinId: string, date: Date, content: string) {
-      return client.trackingCoinJournal.upsert({
-        where: { coinId_date: { coinId, date } },
-        create: { coinId, date, content },
-        update: { content },
+    findActivityLogById(id: string) {
+      return client.trackingCoinActivityLog.findUnique({ where: { id } });
+    },
+
+    createActivityLog(data: {
+      symbol: string;
+      kind?: string;
+      event?: string | null;
+      content: string;
+      images?: string[];
+      snapshot?: Record<string, unknown> | null;
+      refId?: string | null;
+    }) {
+      return client.trackingCoinActivityLog.create({
+        data: {
+          symbol: data.symbol,
+          kind: data.kind ?? 'manual',
+          event: data.event ?? null,
+          content: data.content,
+          images: data.images ?? [],
+          ...(data.snapshot ? { snapshot: data.snapshot as object } : {}),
+          refId: data.refId ?? null,
+        },
       });
+    },
+
+    updateActivityLog(id: string, data: { content?: string; images?: string[] }) {
+      return client.trackingCoinActivityLog.update({
+        where: { id },
+        data: {
+          ...(data.content !== undefined ? { content: data.content } : {}),
+          ...(data.images !== undefined ? { images: data.images } : {}),
+        },
+      });
+    },
+
+    deleteActivityLog(id: string) {
+      return client.trackingCoinActivityLog.delete({ where: { id } });
     },
 
     // ── Orders ───────────────────────────────────────────────────────────

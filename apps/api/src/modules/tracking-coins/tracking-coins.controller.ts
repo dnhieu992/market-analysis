@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
+import { AddActivityLogDto, UpdateActivityLogDto } from './dto/activity-log.dto';
 import { AddDcaBuyDto } from './dto/add-dca-buy.dto';
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
-import { UpsertJournalEntryDto } from './dto/upsert-journal-entry.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
 import { TrackingCoinsService } from './tracking-coins.service';
 
@@ -45,22 +45,28 @@ export class TrackingCoinsController {
     return this.service.fetchKlines(symbol, interval, Number(limit));
   }
 
-  @Get('coins/:symbol/signal-history')
-  @ApiOperation({ summary: 'DCA signal change-log (zone/bucket changes over time)' })
-  getSignalHistory(@Param('symbol') symbol: string, @Query('limit') limit = '100') {
-    return this.service.getSignalHistory(symbol, Number(limit));
+  @Get('coins/:symbol/activity')
+  @ApiOperation({ summary: 'Activity log timeline for a coin (manual notes + buy/sell system entries)' })
+  listActivityLogs(@Param('symbol') symbol: string) {
+    return this.service.listActivityLogs(symbol);
   }
 
-  @Get('coins/:symbol/journal')
-  @ApiOperation({ summary: 'List all journal entries for a coin' })
-  listJournal(@Param('symbol') symbol: string) {
-    return this.service.listJournal(symbol);
+  @Post('coins/:symbol/activity')
+  @ApiOperation({ summary: 'Add a manual note to a coin activity log' })
+  addActivityLog(@Param('symbol') symbol: string, @Body() body: AddActivityLogDto) {
+    return this.service.addActivityLog(symbol, { content: body.content, images: body.images });
   }
 
-  @Put('coins/:symbol/journal')
-  @ApiOperation({ summary: 'Create or update a journal entry for a specific date' })
-  upsertJournalEntry(@Param('symbol') symbol: string, @Body() body: UpsertJournalEntryDto) {
-    return this.service.upsertJournalEntry(symbol, body.date, body.content);
+  @Patch('activity/:id')
+  @ApiOperation({ summary: 'Edit a manual activity log note (system entries are read-only)' })
+  updateActivityLog(@Param('id') id: string, @Body() body: UpdateActivityLogDto) {
+    return this.service.updateActivityLog(id, { content: body.content, images: body.images });
+  }
+
+  @Delete('activity/:id')
+  @ApiOperation({ summary: 'Delete a manual activity log note (system entries are read-only)' })
+  deleteActivityLog(@Param('id') id: string) {
+    return this.service.deleteActivityLog(id);
   }
 
   @Get('coins/:symbol/setup')

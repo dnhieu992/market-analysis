@@ -496,25 +496,28 @@ export type TrackingCoinRow = {
   dcaPosition: { layers: number; avgEntry: number; capitalDeployed: number } | null;
 };
 
-export type SignalHistoryRow = {
+/**
+ * One line in a coin's Activity logs tab. `system` entries are written by the API when
+ * a DCA layer is bought or the position is closed and cannot be edited or deleted.
+ */
+export type TrackingCoinActivityLog = {
   id: string;
-  dcaScore: number;
-  dcaZone: 'GOM' | 'CHO' | 'CHOT' | null;
-  dcaBucket: 'safe' | 'ok' | 'risky' | 'avoid';
-  trend: PaTrend;
-  weekTrend: PaTrend;
-  h4Trend: PaTrend;
-  rsi: number | null;
-  extPct: number | null;
-  price: number | null;
-  // Daily LLM (Haiku) holding review — present only on review rows.
-  entryMode: 'SIGNAL' | 'FOMO' | 'MIXED' | null;
-  avgEntry: number | null;
-  pnlPct: number | null;
-  llmVerdict: 'GIU' | 'GOM_THEM' | 'CHOT_BOT' | 'THOAT' | null;
-  llmReview: string | null;
-  llmModel: string | null;
-  scannedAt: string;
+  symbol: string;
+  kind: 'manual' | 'system';
+  event: 'BUY' | 'SELL' | null;
+  content: string;
+  images: string[];
+  /** Position state frozen when the line was written. */
+  snapshot: {
+    price?: number;
+    usd?: number;
+    avgEntry?: number;
+    layers?: number;
+    capitalDeployed?: number;
+    pnlPct?: number;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type DcaBuy = {

@@ -103,6 +103,30 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - Layers without a `portfolioId` (added before sync, or when the coin has no configured portfolio)
   behave as before — a local-only buy log with no transaction.
 
+## Activity logs (2026-07-26)
+The coin detail modal's third tab, `ActivityLogPanel` — a per-coin timeline modelled on the Bitget
+trade journal (`BitgetJournalDrawer`), reusing its `.bgj-*` styles. It replaces the two tabs it
+supersedes: **History** (the signal change-log, dead since the scan was removed) and **Journal**
+(per-date free text, 0 rows in production) — both deleted, along with the `tracking_coin_journals`
+table. `TrackingCoinSignalHistory` rows are untouched: the signal rebuild still owns that data.
+
+- **Manual notes** — TipTap markdown editor, Claude reformats on save (`reformatJournal`, shared with
+  the Bitget/orders journals), image upload to R2. Editable and deletable.
+- **System entries** — written by the API, read-only (`PATCH`/`DELETE` reject `kind: 'system'`). Only
+  **two events are logged, both driven by a real trade action** — deliberately no time-based or
+  price-milestone tracking, since a moving `avgEntry` makes %-from-entry milestones retroactively wrong:
+  - 🟢 **BUY** (`addDcaBuy`) — layer N/max, price paid, `avgEntry` and the x2 target *after* the layer,
+    total deployed, `SIGNAL`/`FOMO` plus the RSI/`dcaScore` at that instant (the part a later scan
+    would overwrite), and a warning line when no portfolio is configured.
+  - 🔴 **SELL** (`closeDcaPosition`) — written **before** `deleteAllDcaBuys`, the only moment the closed
+    position's numbers still exist: exit price, `avgEntry`, PnL % and USD, layers used, days held, and
+    whether the x2 target was reached.
+- **Idempotency** — `refId` is `UNIQUE` (the `dcaBuyId`, or `close:<oldest layer id>`), so a retried
+  write can never duplicate a line. A failed log is logged as a warning and never rolls back the trade.
+- **Keyed by `symbol`**, not a coin FK — the log survives removing and re-adding a coin.
+- Every entry carries a `snapshot` (`price`, `avgEntry`, `layers`, `capitalDeployed`, `pnlPct`) frozen
+  at write time; manual notes get theirs from the live position when saved.
+
 ## Edge Cases
 - **Micro-cap / unknown market cap** → 0 cap points → can never reach "An toàn" (high death risk).
 - **Missing signal** (never scanned) → DCA cell shows "—".
@@ -116,6 +140,11 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
   original `portfolioId`, and closing the position sells per-portfolio from those links.
 - `PUT /setup` is a **partial** update — only keys present in the body are written, so the ⚙ dialog
   cannot wipe `dcaMaxLayers` or the swing/daytrade risk fields.
+- **Deleting a DCA layer writes no activity entry** — the BUY line stays, so the timeline still shows
+  the layer was bought. The position summary above it is the source of truth for what is held now.
+- **Closing with no live price** (Binance fetch fails and no sell price given) → no SELL entry is
+  written, because a PnL computed against price 0 would be a lie in the permanent log.
+- **Activity logs survive coin removal** — re-adding the symbol later brings the old timeline back.
 - **No scan since 2026-07-26** → every indicator/score on the page is a frozen snapshot of the last
   scan; the Overview footer timestamp shows how old it is.
 - **Stale rows scanned before 2026-07-12** carry `accZone = null` (or the old dd 40–70% band) → the DCA
@@ -148,5 +177,8 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - `apps/web/src/shared/api/client.ts` — `fetchDcaPosition`/`addDcaBuy`/`deleteDcaBuy`/`closeDcaPosition` + `fetchTrackingCoinSetup`/`updateTrackingCoinSetup`
 - `packages/db/prisma/migrations/20260726120000_add_tracking_coin_dca_portfolio/migration.sql` — `dcaPortfolioId` on `TrackingCoin`
 - `apps/api/src/modules/tracking-coins/dto/update-coin-setup.dto.ts` — `dcaPortfolioId` (optional, `null` clears)
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `CoinDetailModal` (hosts the `DCA position` tab), `DcaPositionPanel` (portfolio read-only), `CoinSettingsDialog` + ⚙ Actions button, `StrategyInfoDialog` (header info dialog), sort/column
-- `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*`, `.dcapos-*`, `.si-*` (strategy info dialog) styles
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `CoinDetailModal` (hosts the `DCA position` / `Activity logs` tabs), `DcaPositionPanel` (portfolio read-only), `CoinSettingsDialog` + ⚙ Actions button, `StrategyInfoDialog` (header info dialog), sort/column
+- `apps/web/src/widgets/tracking-coins/activity-log-panel.tsx` — Activity logs timeline + composer
+- `packages/db/prisma/migrations/20260726140000_add_tracking_coin_activity_logs/migration.sql` — creates `tracking_coin_activity_logs`, drops the unused `tracking_coin_journals`
+- `apps/api/src/modules/tracking-coins/dto/activity-log.dto.ts` — add/update note DTOs
+- `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*`, `.dcapos-*`, `.tc-activity*` (Activity logs tab, reuses `.bgj-*`), `.si-*` (strategy info dialog) styles

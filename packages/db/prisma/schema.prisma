@@ -387,7 +387,6 @@ model TrackingCoin {
   dcaPortfolioId  String?                 @db.Char(36)
   signals         TrackingCoinSignal[]
   signalHistory   TrackingCoinSignalHistory[]
-  journals        TrackingCoinJournal[]
   orders          TrackingCoinOrder[]
   dcaBuys         TrackingCoinDcaBuy[]
 
@@ -441,18 +440,26 @@ model TrackingCoinOrder {
   @@map("tracking_coin_orders")
 }
 
-model TrackingCoinJournal {
-  id        String       @id @default(cuid())
-  coinId    String
-  date      DateTime     @db.Date
-  content   String       @db.LongText
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  coin      TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
+// Activity log for a tracked coin — the /tracking-coins "Activity logs" tab. Mirrors
+// BitgetTradeJournal: a timeline of manual markdown notes interleaved with read-only
+// "system" entries the API writes when a DCA layer is bought or the position is sold.
+// Keyed by `symbol` (not a coin FK) so the log survives removing and re-adding a coin.
+model TrackingCoinActivityLog {
+  id        String   @id @default(cuid())
+  symbol    String   @db.VarChar(30)
+  kind      String   @default("manual") @db.VarChar(8) // manual | system
+  event     String?  @db.VarChar(16) // system entries only: BUY | SELL
+  content   String   @db.LongText // Markdown note (Claude-formatted on save)
+  images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
+  snapshot  Json? // { price, usd, avgEntry, layers, capitalDeployed, pnlPct } at write time
+  // Source row a system entry mirrors (dcaBuyId / close marker) — unique, so a retried
+  // write can never duplicate the log line.
+  refId     String?  @unique @db.VarChar(64)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([coinId, date])
-  @@index([coinId, date(sort: Desc)])
-  @@map("tracking_coin_journals")
+  @@index([symbol, createdAt])
+  @@map("tracking_coin_activity_logs")
 }
 
 model TrackingCoinSignal {
