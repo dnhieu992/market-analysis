@@ -1,31 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { calcSupertrendState, dcaGomPlan, dcaZone } from '@app/core';
-import type { Candle, DcaZone, AccZone, DcaGomPlan, SupertrendState } from '@app/core';
+import { dcaGomPlan, dcaZone } from '@app/core';
+import type { DcaZone, AccZone, DcaGomPlan } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
-
-/** Supertrend settings shown on /tracking-coins — ATR 10, multiplier 3. */
-const ST_ATR_PERIOD = 10;
-const ST_MULTIPLIER = 3;
-/** Timeframes the Supertrend column reports on — the page's swing horizon. */
-const ST_TIMEFRAMES = ['4h', '1d', '1w'] as const;
-/** Every timeframe a caller may ask for. */
-const ST_SUPPORTED_TIMEFRAMES = ['M30', '1h', '4h', '1d', '1w'] as const;
-/** Candles pulled per timeframe — enough to warm the ATR and find the last flip. */
-const ST_KLINE_LIMIT = 200;
-/** Min closed candles before a reading is trustworthy. */
-const ST_MIN_CANDLES = 30;
-/** How long a per-(symbol,tf) reading is reused — flips only happen on candle close. */
-const ST_CACHE_TTL_MS = 60_000;
-
-/** Supertrend(10,3) state on one timeframe's last CLOSED candle. */
-export type SupertrendTfSignal = SupertrendState;
-
-export type SupertrendSymbolSignals = {
-  symbol: string;
-  signals: Record<string, SupertrendTfSignal | null>;
-};
 
 type CoinSetup = {
   swingMaxLoss: number | null;
@@ -93,66 +71,8 @@ export type TrackingCoinWithSignal = {
 @Injectable()
 export class TrackingCoinsService {
   private readonly repo = createTrackingCoinsRepository();
-  private readonly supertrendCache = new Map<string, { at: number; value: SupertrendTfSignal | null }>();
 
   constructor(private readonly binance: BinanceMarketDataService) {}
-
-  /**
-   * Current Supertrend(10,3) direction per timeframe for the given coins,
-   * computed live from public Binance klines (no DB, no scan job). Mirrors the
-   * QQE column's shape so the table can render both the same way.
-   */
-  async getSupertrendSignals(symbols: string[], timeframes?: string[]): Promise<SupertrendSymbolSignals[]> {
-    const requested = (timeframes ?? []).filter((tf): tf is (typeof ST_SUPPORTED_TIMEFRAMES)[number] =>
-      (ST_SUPPORTED_TIMEFRAMES as readonly string[]).includes(tf),
-    );
-    const tfs: readonly string[] = requested.length > 0 ? requested : ST_TIMEFRAMES;
-    const bare = [...new Set(symbols.map((s) => s.trim().toUpperCase().replace(/USDT$/, '')).filter(Boolean))];
-
-    const out: SupertrendSymbolSignals[] = [];
-    for (const sym of bare) {
-      const signals: Record<string, SupertrendTfSignal | null> = {};
-      for (const tf of tfs) {
-        signals[tf] = await this.supertrendForTimeframe(sym, tf);
-      }
-      out.push({ symbol: sym, signals });
-    }
-    return out;
-  }
-
-  /** Supertrend reading for one (coin, timeframe), served from cache when still fresh. */
-  private async supertrendForTimeframe(bare: string, tf: string): Promise<SupertrendTfSignal | null> {
-    const cacheKey = `${bare}:${tf}`;
-    const cached = this.supertrendCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < ST_CACHE_TTL_MS) return cached.value;
-
-    try {
-      const klines = await this.binance.fetchKlines({
-        symbol: `${bare}USDT`,
-        timeframe: tf as never,
-        limit: ST_KLINE_LIMIT,
-      });
-      const now = Date.now();
-      // Only fully-closed candles — the forming candle would repaint the direction.
-      const candles: Candle[] = klines
-        .filter((k) => Number(k[6]) <= now)
-        .map((k) => ({
-          open: parseFloat(k[1]),
-          high: parseFloat(k[2]),
-          low: parseFloat(k[3]),
-          close: parseFloat(k[4]),
-        }));
-      const value =
-        candles.length >= ST_MIN_CANDLES
-          ? calcSupertrendState(candles, ST_ATR_PERIOD, ST_MULTIPLIER)
-          : null;
-      this.supertrendCache.set(cacheKey, { at: now, value });
-      return value;
-    } catch {
-      // Transient fetch failure: reuse the last-known reading rather than blanking it.
-      return cached?.value ?? null;
-    }
-  }
 
   /**
    * Proxy raw OHLCV klines from Binance (server-side, avoids browser CORS/geo

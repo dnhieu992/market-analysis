@@ -50,8 +50,6 @@ export type {
   EmaStackOversoldConfig,
   EmaStackOversoldEntry,
 } from './analysis/ema-stack-oversold';
-export { calculateSupertrend, calcSupertrendState } from './indicators/supertrend';
-export type { SupertrendSeries, SupertrendDirection, SupertrendState } from './indicators/supertrend';
 export { isUtBotUptrend, calcUtBotResult, calcUtBotSignals } from './indicators/ut-bot';
 export type { UtBotResult, UtBotBarSignal } from './indicators/ut-bot';
 export { normalizeLlmSignal } from './normalizers/normalize-llm-signal';

@@ -20,20 +20,6 @@ export class TrackingCoinsController {
     return this.service.listCoins();
   }
 
-  @Get('supertrend')
-  @ApiOperation({
-    summary:
-      'Current Supertrend(10,3) direction per timeframe for the given coins. `symbols` is comma-separated; optional `timeframes` (M30/1h/4h/1d/1w) narrows the scan — defaults to 4h,1d,1w.',
-  })
-  getSupertrend(@Query('symbols') symbols?: string, @Query('timeframes') timeframes?: string) {
-    const split = (raw?: string) =>
-      (raw ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-    return this.service.getSupertrendSignals(split(symbols), split(timeframes));
-  }
-
   @Post('coins')
   @ApiOperation({ summary: 'Add a coin to the tracking list' })
   addCoin(@Body() body: AddTrackingCoinDto) {

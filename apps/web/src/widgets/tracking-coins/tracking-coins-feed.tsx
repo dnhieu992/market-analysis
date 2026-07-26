@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, SupertrendTfSignal } from '@web/shared/api/types';
+import type { TrackingCoinRow, PaTrend } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { QqeCell, bareQqeSymbol, type QqeMap } from '@web/widgets/bitget/qqe-cell';
 
@@ -16,13 +16,6 @@ const QQE_REFRESH_MS = 60_000;
 /** Timeframes the QQE column reports on — the page's swing horizon, same order as the chart switcher. */
 const QQE_TFS = SWING_CHART_TIMEFRAMES;
 const QQE_TF_KEYS = QQE_TFS.map((t) => t.tf);
-// Supertrend only flips on candle close — same slow cadence as QQE.
-const SUPERTREND_REFRESH_MS = 60_000;
-/** Timeframe keys for the Supertrend(10,3) column, stacked W → D1 → H4 like the other columns. */
-const ST_TF_W  = '1w';
-const ST_TF_D1 = '1d';
-const ST_TF_H4 = '4h';
-const SUPERTREND_TF_KEYS = [ST_TF_H4, ST_TF_D1, ST_TF_W];
 
 /* ── live price hook ────────────────────────────────────────────── */
 
@@ -116,39 +109,6 @@ function UtBotBadge({ bullish }: { bullish: boolean | null }) {
   return (
     <span className={`tc-utbot-badge ${bullish ? 'tc-utbot--bull' : 'tc-utbot--bear'}`}>
       {bullish ? '● Bull' : '● Bear'}
-    </span>
-  );
-}
-
-/* ── Supertrend(10,3) badge ─────────────────────────────────────── */
-
-/** Per-coin Supertrend state keyed by timeframe, same shape as QqeMap. */
-type SupertrendMap = Record<string, Record<string, SupertrendTfSignal | null>>;
-
-function fmtStLine(line: number): string {
-  return line >= 1 ? line.toLocaleString('en-US', { maximumFractionDigits: 4 }) : line.toPrecision(4);
-}
-
-/**
- * Direction of Supertrend(10, 3) on the last CLOSED candle. A flip on the last
- * candle (`freshFlip`) is marked with a dot so a brand-new signal stands out.
- */
-function SupertrendBadge({ sig }: { sig: SupertrendTfSignal | null | undefined }) {
-  if (!sig) return <span className="scr-muted" style={{ fontSize: '0.75rem' }}>N/A</span>;
-  const up = sig.direction === 'up';
-  const title =
-    `Supertrend(10,3): ${up ? 'Tăng' : 'Giảm'} · line ${fmtStLine(sig.line)}` +
-    (sig.barsSince == null
-      ? ''
-      : sig.barsSince === 0
-      ? ' · vừa đảo chiều'
-      : ` · đảo chiều ${sig.barsSince} nến trước`);
-  return (
-    <span
-      className={`tc-st-badge ${up ? 'tc-st--up' : 'tc-st--down'}${sig.freshFlip ? ' tc-st--fresh' : ''}`}
-      title={title}
-    >
-      {up ? '▲' : '▼'} {fmtStLine(sig.line)}
     </span>
   );
 }
@@ -249,9 +209,8 @@ function IconChart() {
 /* ── detail modal ───────────────────────────────────────────────── */
 
 /** Read-only indicator sheet for one coin — no tabs, no position, no portfolio. */
-function CoinDetailModal({ coin, supertrend, onClose }: {
+function CoinDetailModal({ coin, onClose }: {
   coin: TrackingCoinRow;
-  supertrend: Record<string, SupertrendTfSignal | null> | undefined;
   onClose: () => void;
 }) {
   return (
@@ -266,51 +225,21 @@ function CoinDetailModal({ coin, supertrend, onClose }: {
         </div>
 
         <div className="dialog-body tc-detail-body">
-          <CoinOverview coin={coin} supertrend={supertrend} />
+          <CoinOverview coin={coin} />
         </div>
       </div>
     </div>
   );
 }
 
-function CoinOverview({ coin, supertrend }: {
-  coin: TrackingCoinRow;
-  supertrend: Record<string, SupertrendTfSignal | null> | undefined;
-}) {
+function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
   const sig = coin.signal;
   const tvUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${coin.symbol}USDT`;
-
-  // Supertrend is computed live, so it is shown even when the coin has no stored signal row.
-  const stSection = (
-    <section className="tc-detail-section">
-      <div className="tc-detail-label">Supertrend (10, 3)</div>
-      <div className="tc-st-detail">
-        {[
-          { tf: 'W',  sig: supertrend?.[ST_TF_W] },
-          { tf: 'D1', sig: supertrend?.[ST_TF_D1] },
-          { tf: 'H4', sig: supertrend?.[ST_TF_H4] },
-        ].map((r) => (
-          <div key={r.tf} className="tc-st-detail__row">
-            <span className="tc-tf-label">{r.tf}</span>
-            <SupertrendBadge sig={r.sig} />
-            <span className="tc-st-detail__since">
-              {r.sig?.barsSince == null
-                ? ''
-                : r.sig.barsSince === 0
-                ? 'vừa đảo chiều'
-                : `đảo chiều ${r.sig.barsSince} nến trước`}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 
   if (!sig) {
     return (
       <div className="tc-overview">
         <p className="scr-muted tc-overview__empty">Chưa có dữ liệu chỉ báo cho coin này.</p>
-        {stSection}
         <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
       </div>
     );
@@ -342,8 +271,6 @@ function CoinOverview({ coin, supertrend }: {
           ))}
         </div>
       </section>
-
-      {stSection}
 
       <div className="tc-detail-footer">
         Cập nhật: {new Date(sig.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -523,30 +450,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   const [qqe, setQqe] = useState<QqeMap>({});
-  const [supertrend, setSupertrend] = useState<SupertrendMap>({});
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
-
-  // Supertrend(10,3) per coin on H4/D1/W1 — computed live server-side from Binance
-  // klines (no scan job behind it), refreshed on the same slow cadence as QQE.
-  useEffect(() => {
-    if (symbols.length === 0) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const rows = await createApiClient().fetchTrackingCoinSupertrend(symbols, SUPERTREND_TF_KEYS);
-        if (cancelled) return;
-        setSupertrend((prev) => {
-          const next = { ...prev };
-          for (const r of rows) next[bareQqeSymbol(r.symbol)] = r.signals;
-          return next;
-        });
-      } catch { /* non-fatal: the column keeps its last-known badges */ }
-    };
-    void load();
-    const id = setInterval(() => void load(), SUPERTREND_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(id); };
-  }, [symbols]);
 
   // QQE Signals (colinmck) per coin — the same endpoint/column the Bitget Setup tab uses,
   // narrowed to this page's swing horizon (H4/D1/W1) so ~40 coins stay one cheap scan.
@@ -605,7 +510,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         <CoinDetailModal
           key={selectedCoin.symbol}
           coin={selectedCoin}
-          supertrend={supertrend[bareQqeSymbol(selectedCoin.symbol)]}
           onClose={() => setSelectedCoin(null)}
         />
       )}
@@ -683,9 +587,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                   QQE
                 </th>
                 <th className="scr-th tc-th--stacked">Trend (PA)</th>
-                <th className="scr-th tc-th--stacked" title="Supertrend (ATR 10, hệ số 3) trên nến đã đóng — ▲ xanh = trend tăng, ▼ đỏ = trend giảm; số là mức line">
-                  Supertrend
-                </th>
                 <th className="scr-th tc-th--stacked">UT Bot</th>
                 <th className="scr-th tc-th--stacked">EMA</th>
                 <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
@@ -703,7 +604,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="scr-empty">
+                  <td colSpan={9} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -749,20 +650,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                             h4={<TrendBadge trend={sig.h4Trend} />}
                           />
                         : <span className="scr-muted">—</span>}
-                    </td>
-                    {/* Supertrend(10,3) W / D1 / H4 — live, independent of `sig` */}
-                    <td className="scr-td">
-                      {(() => {
-                        const st = supertrend[bareQqeSymbol(coin.symbol)];
-                        if (!st) return <span className="scr-muted">—</span>;
-                        return (
-                          <TfStack
-                            w={<SupertrendBadge sig={st[ST_TF_W]} />}
-                            d1={<SupertrendBadge sig={st[ST_TF_D1]} />}
-                            h4={<SupertrendBadge sig={st[ST_TF_H4]} />}
-                          />
-                        );
-                      })()}
                     </td>
                     {/* UT Bot W / D1 / H4 */}
                     <td className="scr-td">

@@ -59,24 +59,6 @@ anything else (including equal swings) = neutral**. The 5-level display overlays
 EMA89 → StrongUp (else Up), bearish below EMA89 → StrongDown (else Down), neutral → Neutral. The same
 weekly trend feeds `computeDcaScore`, so a cleaner weekly read also sharpens the safety score.
 
-## Supertrend column (10, 3) — W / D1 / H4
-Added 2026-07-26. A **live** column: unlike Trend/UT Bot/EMA/RSI/Vol (which read the frozen stored
-signal), Supertrend is computed on demand from public Binance klines, so it keeps working with the
-scan removed.
-
-- Indicator: `calculateSupertrend` / `calcSupertrendState` in `packages/core/src/indicators/supertrend.ts`
-  — the classic TradingView/KivancOzbilgic formulation: `atr = rma(tr, 10)`, bands `hl2 ∓ 3 × atr`,
-  each band ratcheting one way only, direction flipping when the close crosses the *previous* opposite
-  band. Returns the active line level, the direction, and `barsSince` the last flip.
-- API: `GET /tracking-coins/supertrend?symbols=BTC,ETH&timeframes=4h,1d,1w` →
-  `[{ symbol, signals: { '4h': { direction, line, barsSince, freshFlip } | null, … } }]`.
-  Only **closed** candles are fed in (the forming candle would repaint), 200 klines per (coin, tf),
-  and each reading is cached **60 s** — a flip can only happen on a candle close.
-- UI: stacked W / D1 / H4 badges, `▲` green for up and `▼` red for down, with the line level next to
-  the arrow; a flip on the last closed candle gets a ring (`.tc-st--fresh`). The tooltip spells out
-  the direction, the line and how many candles ago it flipped. The feed refetches every 60 s. The
-  detail modal shows the same three readings in its own "Supertrend (10, 3)" block.
-
 ## Position tracking / portfolio link — REMOVED (2026-07-26, refactor step 3)
 The page no longer knows anything about portfolios. Everything below was deleted in one pass:
 
@@ -103,8 +85,8 @@ delete.
 
 ## Detail modal (no tabs)
 Clicking a row opens `CoinDetailModal` — a single read-only sheet (`CoinOverview`): the W / D1 / H4
-indicator grid (trend · UT Bot · EMA pips · RSI · Vol×), the live Supertrend(10,3) block, the
-last-scan timestamp, and a TradingView link. The tab bar and the two other tabs are gone; there is no state in the modal beyond open/close.
+indicator grid (trend · UT Bot · EMA pips · RSI · Vol×), the last-scan timestamp, and a TradingView
+link. The tab bar and the two other tabs are gone; there is no state in the modal beyond open/close.
 
 ## Row actions
 The Actions column holds **one button: delete** (trash → `ConfirmRemoveDialog` → `DELETE
@@ -125,39 +107,27 @@ it sits in the Coin column, not in Actions, and opens `SetupChartDialog` (H4 def
 - **Orphaned data** — `TrackingCoin.dcaPortfolioId` values and `tracking_coin_activity_logs` rows are
   left in place, unread. Nothing breaks; a future rebuild can pick them up.
 - **No scan since 2026-07-26** → every indicator/score on the page is a frozen snapshot of the last
-  scan; the detail modal footer timestamp shows how old it is. **Supertrend is the exception** — it is
-  computed live per request, so it stays current.
-- **Supertrend, coin not on Binance / fetch fails** → the badge shows `N/A` for that timeframe (or the
-  whole row shows "—" until the first response); a transient failure reuses the last cached reading
-  instead of blanking the cell, and the page keeps its previous badges when the poll throws.
-- **Supertrend, young coin** (< 30 closed candles on that timeframe, common on W1) → `null` → `N/A`,
-  since the ATR(10) is not warm enough to trust.
-- **No flip inside the fetched 200-candle window** → `barsSince` is `null` and the tooltip simply omits
-  the "đảo chiều N nến trước" part.
+  scan; the detail modal footer timestamp shows how old it is.
 - **Stale rows scanned before 2026-07-12** carry `accZone = null` (or the old dd 40–70% band) →
   zone-derived values stay stale until the signal rebuild lands.
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — the whole page: table + live prices +
-  QQE column + Supertrend column (`SupertrendBadge`, 60 s poll), `CoinDetailModal`/`CoinOverview`
-  (no tabs), `StrategyInfoDialog`, `AddCoinForm`, `ConfirmRemoveDialog` and the single delete action
+  QQE column, `CoinDetailModal`/`CoinOverview` (no tabs), `StrategyInfoDialog`, `AddCoinForm`,
+  `ConfirmRemoveDialog` and the single delete action
 - `apps/web/src/_pages/tracking-coins-page/tracking-coins-page.tsx` — server page, fetches `listCoins`
 - `apps/web/src/app/tracking-coins/page.tsx` — route re-export
 - `apps/web/src/app/globals.css` — `.tc-*` / `.scr-*` styles (the `.dcapos-*`, `.tc-detail-tab*`,
   `.tc-activity*`, `.tt-btn--dca/--set/--ai` rules were deleted with the features; `.dcapos-table` is
   kept because the small-cap and meme radar tables still use it)
 - `apps/web/src/shared/api/types.ts` — `TrackingCoinRow` (no `dcaPortfolioId` / `dcaPosition`),
-  `TrackingCoinSetup`, `SupertrendTfSignal` / `SupertrendSignals`
+  `TrackingCoinSetup`
 - `apps/web/src/shared/api/client.ts` — `fetchCoinKlines`, `fetchTrackingCoinSetup` /
-  `updateTrackingCoinSetup`, `fetchTrackingCoinSupertrend`
+  `updateTrackingCoinSetup`
 - `apps/api/src/modules/tracking-coins/tracking-coins.controller.ts` — list / add / remove / klines /
-  setup / `GET /supertrend`
+  setup only
 - `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — stored-signal read + zone
-  derivation + `getSupertrendSignals` (live Binance compute, 60 s cache); no portfolio, transaction or
-  holding dependency
-- `packages/core/src/indicators/supertrend.ts` — `calculateSupertrend` / `calcSupertrendState` (ATR 10,
-  multiplier 3), with `supertrend.spec.ts` covering warm-up, both trends, flip detection and
-  `barsSince`
+  derivation; no portfolio, transaction or holding dependency
 - `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — providers: service +
   `BinanceMarketDataService` (no `TransactionModule`/`PortfolioModule`/`HoldingsModule`)
 - `apps/api/src/modules/tracking-coins/dto/update-coin-setup.dto.ts` — swing/daytrade risk fields
