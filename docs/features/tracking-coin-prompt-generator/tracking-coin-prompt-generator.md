@@ -1,4 +1,10 @@
 ## Description
+> **ĐÃ GỠ (2026-07-26).** Nút "Tạo prompt" ở cột Actions của `/tracking-coins` và drawer
+> `TrackingCoinChatDrawer` đã bị xoá cùng với đợt dọn cột Actions (chỉ còn action delete).
+> Endpoint proxy nến `GET /tracking-coins/coins/:symbol/klines` và `fetchCoinKlines` trong API client
+> **vẫn còn** (read-only, không phụ thuộc portfolio) nên có thể dựng lại drawer bất cứ lúc nào từ git.
+> Phần dưới mô tả tính năng lúc còn chạy.
+
 Trên trang `/tracking-coins`, mỗi dòng coin có một nút (icon AI). Trước đây nút này mở drawer chat gọi LLM tự động phân tích lệnh hiện tại. Tính năng AI đó **tạm thời bị disable** (code được giữ lại dưới dạng comment để bật lại sau).
 
 Hành vi hiện tại: click nút → drawer trượt ra hiển thị **prompt phân tích đã được tạo sẵn** với đầy đủ chỉ báo của coin (trend D1/H4/M30, UT Bot, EMA, RSI, Volume, giá live, thời điểm scan) **cộng nến thô (OHLCV) dạng CSV** cho D1/H4/M30, và nút **Copy prompt**. Người dùng copy rồi dán vào AI bên ngoài để tự phân tích.

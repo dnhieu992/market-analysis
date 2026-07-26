@@ -134,18 +134,10 @@ export class HoldingsService {
 
     const ids = txs.map((t) => t.id);
 
-    await prisma.$transaction([
-      prisma.coinTransaction.updateMany({
-        where: { id: { in: ids } },
-        data: { portfolioId: targetPortfolioId }
-      }),
-      // The tracking-coins DCA tab reads the position out of the configured portfolio,
-      // so follow the coin: otherwise the tab would look at the now-empty source.
-      prisma.trackingCoin.updateMany({
-        where: { symbol: coinId, dcaPortfolioId: sourcePortfolioId },
-        data: { dcaPortfolioId: targetPortfolioId }
-      })
-    ]);
+    await prisma.coinTransaction.updateMany({
+      where: { id: { in: ids } },
+      data: { portfolioId: targetPortfolioId }
+    });
 
     await this.recalculate(sourcePortfolioId, coinId);
     await this.recalculate(targetPortfolioId, coinId);

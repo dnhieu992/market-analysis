@@ -109,76 +109,6 @@ export function createTrackingCoinsRepository(client = prisma) {
       });
     },
 
-    // ── DCA position (read straight from the portfolio) ─────────────────────
-
-    /**
-     * Holdings for the given (portfolio, coin) pairs — the DCA position of every
-     * tracked coin that has a portfolio configured, in one query.
-     */
-    findHoldingsForPairs(pairs: ReadonlyArray<{ portfolioId: string; coinId: string }>) {
-      if (pairs.length === 0) return Promise.resolve([]);
-      return client.holding.findMany({
-        where: { OR: pairs.map((p) => ({ portfolioId: p.portfolioId, coinId: p.coinId })) },
-      });
-    },
-
-    /** Live (non-deleted) transactions of one coin inside one portfolio, oldest first. */
-    findCoinTransactions(portfolioId: string, coinId: string) {
-      return client.coinTransaction.findMany({
-        where: { portfolioId, coinId, deletedAt: null },
-        orderBy: { transactedAt: 'asc' },
-      });
-    },
-
-    // ── Activity log ─────────────────────────────────────────────────────
-
-    findActivityLogsBySymbol(symbol: string) {
-      return client.trackingCoinActivityLog.findMany({
-        where: { symbol },
-        orderBy: { createdAt: 'asc' },
-      });
-    },
-
-    findActivityLogById(id: string) {
-      return client.trackingCoinActivityLog.findUnique({ where: { id } });
-    },
-
-    createActivityLog(data: {
-      symbol: string;
-      kind?: string;
-      event?: string | null;
-      content: string;
-      images?: string[];
-      snapshot?: Record<string, unknown> | null;
-      refId?: string | null;
-    }) {
-      return client.trackingCoinActivityLog.create({
-        data: {
-          symbol: data.symbol,
-          kind: data.kind ?? 'manual',
-          event: data.event ?? null,
-          content: data.content,
-          images: data.images ?? [],
-          ...(data.snapshot ? { snapshot: data.snapshot as object } : {}),
-          refId: data.refId ?? null,
-        },
-      });
-    },
-
-    updateActivityLog(id: string, data: { content?: string; images?: string[] }) {
-      return client.trackingCoinActivityLog.update({
-        where: { id },
-        data: {
-          ...(data.content !== undefined ? { content: data.content } : {}),
-          ...(data.images !== undefined ? { images: data.images } : {}),
-        },
-      });
-    },
-
-    deleteActivityLog(id: string) {
-      return client.trackingCoinActivityLog.delete({ where: { id } });
-    },
-
     // ── Orders ───────────────────────────────────────────────────────────
 
     updateCoinSetup(
@@ -188,7 +118,6 @@ export function createTrackingCoinsRepository(client = prisma) {
         swingMinRR?: number | null;
         daytradeMaxLoss?: number | null;
         daytradeMinRR?: number | null;
-        dcaPortfolioId?: string | null;
       },
     ) {
       return client.trackingCoin.update({ where: { id: coinId }, data });

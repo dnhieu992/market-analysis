@@ -2,9 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio } from '@web/shared/api/types';
-import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
-import { ActivityLogPanel } from '@web/widgets/tracking-coins/activity-log-panel';
+import type { TrackingCoinRow, PaTrend } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { QqeCell, bareQqeSymbol, type QqeMap } from '@web/widgets/bitget/qqe-cell';
 
@@ -196,16 +194,6 @@ function IconTrash() {
   );
 }
 
-function IconLayers() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </svg>
-  );
-}
-
 function IconChart() {
   // Candlestick glyph — opens the same server-rendered chart the /bitget page uses.
   return (
@@ -218,59 +206,13 @@ function IconChart() {
   );
 }
 
-function IconActivity() {
-  // Notebook lines — opens the coin's Activity logs tab.
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      <line x1="9" y1="7" x2="16" y2="7" />
-      <line x1="9" y1="11" x2="16" y2="11" />
-    </svg>
-  );
-}
-
-function IconSettings() {
-  // Gear — opens the per-coin config (which portfolio a DCA position syncs into).
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-}
-
-function IconPrompt() {
-  // Clipboard with text lines — represents "generate & copy analysis prompt".
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="9" y="2" width="6" height="4" rx="1" ry="1" />
-      <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2" />
-      <line x1="9" y1="12" x2="15" y2="12" />
-      <line x1="9" y1="16" x2="13" y2="16" />
-    </svg>
-  );
-}
-
 /* ── detail modal ───────────────────────────────────────────────── */
 
-type DetailTab = 'overview' | 'dca' | 'activity';
-
-const DETAIL_TABS: ReadonlyArray<[DetailTab, string]> = [
-  ['overview', 'Overview'],
-  ['dca', 'DCA position'],
-  ['activity', 'Activity logs'],
-];
-
-function CoinDetailModal({ coin, initialTab, livePrice, onChanged, onClose }: {
+/** Read-only indicator sheet for one coin — no tabs, no position, no portfolio. */
+function CoinDetailModal({ coin, onClose }: {
   coin: TrackingCoinRow;
-  initialTab: DetailTab;
-  livePrice: number | null;
-  onChanged: () => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<DetailTab>(initialTab);
-
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog tc-detail-dialog" onClick={(e) => e.stopPropagation()}>
@@ -282,24 +224,8 @@ function CoinDetailModal({ coin, initialTab, livePrice, onChanged, onClose }: {
           <button className="dialog-close" onClick={onClose}>✕</button>
         </div>
 
-        <div className="tc-detail-tabs" role="tablist">
-          {DETAIL_TABS.map(([key, label]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={tab === key}
-              className={`tc-detail-tab${tab === key ? ' tc-detail-tab--active' : ''}`}
-              onClick={() => setTab(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         <div className="dialog-body tc-detail-body">
-          {tab === 'overview' && <CoinOverview coin={coin} />}
-          {tab === 'dca' && <DcaPositionPanel symbol={coin.symbol} livePrice={livePrice} gomZone={coin.signal?.gomZone ?? null} onChanged={onChanged} />}
-          {tab === 'activity' && <ActivityLogPanel symbol={coin.symbol} />}
+          <CoinOverview coin={coin} />
         </div>
       </div>
     </div>
@@ -372,80 +298,6 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
             <button className="btn btn--secondary" onClick={onCancel} disabled={isRemoving}>Hủy</button>
             <button className="btn btn--danger" onClick={onConfirm} disabled={isRemoving}>
               {isRemoving ? 'Đang xóa…' : 'Xóa'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── per-coin settings dialog (DCA sync portfolio) ───────────────── */
-
-function CoinSettingsDialog({ coin, onSaved, onClose }: {
-  coin: TrackingCoinRow;
-  onSaved: (dcaPortfolioId: string | null) => void;
-  onClose: () => void;
-}) {
-  const [portfolios, setPortfolios] = useState<Portfolio[] | null>(null);
-  const [portfolioId, setPortfolioId] = useState(coin.dcaPortfolioId ?? '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    createApiClient().fetchPortfolios()
-      .then((ps) => { if (!cancelled) setPortfolios(ps); })
-      .catch(() => { if (!cancelled) setPortfolios([]); });
-    return () => { cancelled = true; };
-  }, []);
-
-  async function handleSave() {
-    setBusy(true); setError(null);
-    try {
-      const next = portfolioId || null;
-      await createApiClient().updateTrackingCoinSetup(coin.symbol, { dcaPortfolioId: next });
-      onSaved(next);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lưu cấu hình thất bại.');
-    } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <span className="dialog-title">Cấu hình {coin.symbol}</span>
-          <button className="dialog-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="dialog-body">
-          <label className="dcapos-portfolio">
-            <span>Portfolio khi mở vị thế</span>
-            {portfolios === null ? (
-              <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
-            ) : (
-              <select
-                className="setup-input"
-                value={portfolioId}
-                onChange={(e) => setPortfolioId(e.target.value)}
-                disabled={portfolios.length === 0}
-              >
-                <option value="">— Không đồng bộ —</option>
-                {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            )}
-          </label>
-          <p className="scr-muted" style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-            Mọi lệnh gom DCA của {coin.symbol} sẽ tự đồng bộ vào portfolio này. Tab DCA chỉ hiển thị,
-            không chọn lại được.
-            {portfolios !== null && portfolios.length === 0 && ' Chưa có portfolio nào để chọn.'}
-          </p>
-          {error && <p className="scr-muted ord-error">{error}</p>}
-          <div className="dialog-confirm-actions">
-            <button className="btn btn--secondary" onClick={onClose} disabled={busy}>Hủy</button>
-            <button className="btn btn--primary" onClick={handleSave} disabled={busy || portfolios === null}>
-              {busy ? 'Đang lưu…' : 'Lưu'}
             </button>
           </div>
         </div>
@@ -539,336 +391,6 @@ function StrategyInfoDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ── DCA position tab — portfolio holding, transactions, buy/sell ─── */
-
-function fmtNum(n: number): string {
-  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
-  if (n >= 1) return n.toFixed(4);
-  if (n >= 0.01) return n.toFixed(5);
-  return n.toFixed(8);
-}
-
-/** Capital deployed, short enough for the DCA action button: `$840`, `$1.2k`. */
-function fmtUsdCompact(usd: number): string {
-  if (usd >= 1000) return `$${(usd / 1000).toFixed(usd >= 10_000 ? 0 : 1)}k`;
-  return `$${Math.round(usd)}`;
-}
-
-/** Plain decimal string for a <input type="number"> value (no grouping/scientific). */
-function priceInputStr(n: number): string {
-  if (!(n > 0)) return '';
-  return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 8 });
-}
-
-/**
- * DCA position tab — a view over the coin's configured portfolio. Buying writes a real
- * BUY transaction, selling writes a real SELL that deducts from the holding; nothing is
- * stored separately, so this tab and /portfolio can never disagree.
- */
-function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
-  symbol: string;
-  livePrice: number | null;
-  gomZone: NonNullable<TrackingCoinRow['signal']>['gomZone'];
-  onChanged: () => void;
-}) {
-  const [pos, setPos] = useState<DcaPosition | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [price, setPrice] = useState('');
-  const [usd, setUsd] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [sellOpen, setSellOpen] = useState(false);
-  const prefilledRef = useRef(false);
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    createApiClient().fetchDcaPosition(symbol)
-      .then((r) => { setPos(r); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [symbol]);
-
-  useEffect(() => { load(); }, [load]);
-
-  // Portfolios are only needed to name the coin's configured portfolio — it is picked
-  // from the Actions ⚙ dialog, never here.
-  useEffect(() => {
-    createApiClient().fetchPortfolios()
-      .then(setPortfolios)
-      .catch(() => {});
-  }, []);
-
-  const portfolioName = (id: string | null) =>
-    id ? (portfolios.find((p) => p.id === id)?.name ?? '—') : '—';
-
-  const cur = livePrice ?? pos?.currentPrice ?? 0;
-
-  // Default the "Giá mua" field to the current price as soon as one is known (once per open).
-  useEffect(() => {
-    if (prefilledRef.current) return;
-    if (cur > 0) { setPrice(priceInputStr(cur)); prefilledRef.current = true; }
-  }, [cur]);
-
-  const avg = pos?.avgEntry ?? null;
-  const held = pos?.amount ?? 0;
-  const hasPosition = held > 0;
-  const configured = pos?.portfolioId != null;
-  const livePnlPct = avg && avg > 0 && cur > 0 ? ((cur - avg) / avg) * 100 : null;
-  const inProfit = livePnlPct != null && livePnlPct >= 0;
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    const p = parseFloat(price), u = parseFloat(usd);
-    if (!(p > 0) || !(u > 0)) { setError('Nhập giá và số USD hợp lệ.'); return; }
-    setBusy(true); setError(null);
-    try {
-      const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u });
-      setPos(r); setPrice(cur > 0 ? priceInputStr(cur) : ''); setUsd(''); onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi lưu.');
-    } finally { setBusy(false); }
-  }
-
-  async function handleDelete(transactionId: string) {
-    if (!window.confirm('Xoá lệnh này khỏi portfolio? Giá vốn trung bình sẽ được tính lại.')) return;
-    setBusy(true);
-    try { const r = await createApiClient().deleteDcaBuy(symbol, transactionId); setPos(r); onChanged(); }
-    catch (err) { setError(err instanceof Error ? err.message : 'Lỗi xoá.'); }
-    finally { setBusy(false); }
-  }
-
-  async function handleSell(sellPrice: number, amount: number) {
-    setBusy(true); setError(null);
-    try {
-      const r = await createApiClient().sellDcaPosition(symbol, { price: sellPrice, amount });
-      setPos(r); setSellOpen(false); onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi bán.');
-    } finally { setBusy(false); }
-  }
-
-  if (loading) {
-    return <div className="setup-body"><div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div></div>;
-  }
-
-  // Without a portfolio there is nowhere to write the trade — point at the ⚙ dialog.
-  if (!configured) {
-    return (
-      <div className="setup-body">
-        <p className="dcapos-hint dcapos-hint--warn">
-          {symbol} chưa gắn portfolio. Vị thế DCA được lưu thẳng vào portfolio (mua tạo lệnh BUY, bán
-          trừ khỏi holding), nên phải chọn portfolio ở icon ⚙ cột Actions trước khi vào lệnh.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="setup-body">
-      {sellOpen && pos && (
-        <SellDcaDialog
-          symbol={symbol}
-          held={held}
-          avgEntry={avg}
-          livePrice={cur}
-          busy={busy}
-          onConfirm={handleSell}
-          onClose={() => setSellOpen(false)}
-        />
-      )}
-
-      {/* summary — straight from the portfolio holding */}
-      <div className="dcapos-summary">
-        <div className="dcapos-stat"><span>Đang giữ</span><strong>{hasPosition ? fmtNum(held) : '—'}</strong></div>
-        <div className="dcapos-stat"><span>Giá vốn TB</span><strong>{avg ? `$${fmtNum(avg)}` : '—'}</strong></div>
-        <div className="dcapos-stat"><span>Vốn đã vào</span><strong>${(pos?.capitalDeployed ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong></div>
-        <div className="dcapos-stat">
-          <span>P&L</span>
-          <strong className={livePnlPct == null ? '' : inProfit ? 'dcapos-pos' : 'dcapos-neg'}>
-            {livePnlPct == null ? '—' : `${livePnlPct >= 0 ? '+' : ''}${livePnlPct.toFixed(2)}%`}
-          </strong>
-        </div>
-      </div>
-
-      <p className="dcapos-meta scr-muted">
-        {pos?.buyCount ?? 0} lệnh mua · {pos?.sellCount ?? 0} lệnh bán
-        {pos && pos.realizedPnl !== 0 && (
-          <> · Đã chốt: <span className={pos.realizedPnl >= 0 ? 'dcapos-pos' : 'dcapos-neg'}>
-            {pos.realizedPnl >= 0 ? '+' : '−'}${fmtNum(Math.abs(pos.realizedPnl))}
-          </span></>
-        )}
-      </p>
-
-      {avg != null && hasPosition && (() => {
-        const target = avg * 2; // full exit at x2 (+100%) — the backtested sweet spot
-        const hitTarget = livePnlPct != null && livePnlPct >= 100;
-        return (
-          <p className={`dcapos-hint ${hitTarget ? 'dcapos-hint--ok' : 'dcapos-hint--warn'}`}>
-            {hitTarget
-              ? `✓ Đã đạt target x2 ($${fmtNum(target)}) → CHỐT TOÀN BỘ.`
-              : `🎯 Target CHỐT: x2 = $${fmtNum(target)} (+100% từ giá vốn${livePnlPct != null ? `, còn ${(100 - livePnlPct).toFixed(0)}%` : ''}). Gom đáy, ôm tới x2 — no SL.`}
-            {pos?.nextAddPrice != null && ` · Gom kế gợi ý ở ~$${fmtNum(pos.nextAddPrice)} (−15%).`}
-          </p>
-        );
-      })()}
-
-      {/* suggested gom price plan (from the base low) — where to place the DCA ladder */}
-      {gomZone && (
-        <div className="dcapos-gomzone">
-          <div className="dcapos-gomzone__head">
-            <span>Vùng gom gợi ý</span>
-            <span className="dcapos-gomzone__band">
-              ${fmtNum(gomZone.zoneLow)} – ${fmtNum(gomZone.zoneHigh)}
-            </span>
-          </div>
-          <ol className="dcapos-gomzone__ladder">
-            {gomZone.ladder.map((p, i) => (
-              <li key={i}>
-                <span className="dcapos-gomzone__tier">Lệnh {i + 1}</span>
-                <span className="dcapos-gomzone__price">${fmtNum(p)}</span>
-                <span className="dcapos-gomzone__step">{i === 0 ? 'mép trên vùng' : '−15% so với lệnh trước'}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="dcapos-gomzone__foot">
-            Nếu đủ 3 lệnh: giá TB ~${fmtNum(gomZone.avgCost)} → chốt x2 ~${fmtNum(gomZone.targetX2)}.
-            <br />
-            <span className="scr-muted">Gợi ý giá, không giới hạn số lệnh — bước −15% là spacing cố định của chiến lược.</span>
-          </p>
-        </div>
-      )}
-
-      {/* which portfolio this position lives in — configured from the Actions ⚙ dialog */}
-      <div className="dcapos-portfolio dcapos-portfolio--ro">
-        <span>Vị thế nằm ở portfolio</span>
-        <strong className="dcapos-portfolio__value">{portfolioName(pos?.portfolioId ?? null)}</strong>
-      </div>
-
-      {/* add buy */}
-      <form className="dcapos-add" onSubmit={handleAdd}>
-        <input className="setup-input" type="number" step="any" min="0" placeholder="Giá mua"
-          value={price} onChange={(e) => setPrice(e.target.value)} />
-        <input className="setup-input" type="number" step="any" min="0" placeholder="Số USD"
-          value={usd} onChange={(e) => setUsd(e.target.value)} />
-        <button className="btn btn--primary" type="submit" disabled={busy}>
-          + Gom
-        </button>
-      </form>
-      {error && <p className="scr-muted ord-error">{error}</p>}
-
-      {/* transactions of this position */}
-      {pos && pos.transactions.length > 0 && (
-        <table className="dcapos-table">
-          <thead><tr><th>Ngày</th><th>Lệnh</th><th>Giá</th><th>Số lượng</th><th>USD</th><th></th></tr></thead>
-          <tbody>
-            {pos.transactions.map((t) => (
-              <tr key={t.id}>
-                <td>{t.at.slice(0, 10)}</td>
-                <td>
-                  <span className={t.type === 'buy' ? 'dcapos-side dcapos-side--buy' : 'dcapos-side dcapos-side--sell'}>
-                    {t.type === 'buy' ? 'MUA' : 'BÁN'}
-                  </span>
-                </td>
-                <td>${fmtNum(t.price)}</td>
-                <td>{fmtNum(t.amount)}</td>
-                <td>${t.usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
-                <td><button className="dcapos-del" onClick={() => handleDelete(t.id)} disabled={busy} aria-label="Xóa">✕</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {hasPosition && (
-        <div className="setup-actions">
-          <button className="btn btn--danger" onClick={() => setSellOpen(true)} disabled={busy}>Bán</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── sell dialog (partial or full) ──────────────────────────────── */
-
-function SellDcaDialog({ symbol, held, avgEntry, livePrice, busy, onConfirm, onClose }: {
-  symbol: string;
-  held: number;
-  avgEntry: number | null;
-  livePrice: number;
-  busy: boolean;
-  onConfirm: (price: number, amount: number) => void;
-  onClose: () => void;
-}) {
-  const [price, setPrice] = useState(livePrice > 0 ? priceInputStr(livePrice) : '');
-  const [amount, setAmount] = useState(String(held));
-
-  const p = parseFloat(price);
-  const a = parseFloat(amount);
-  const valid = p > 0 && a > 0 && a <= held * (1 + 1e-9);
-  const proceeds = valid ? p * a : null;
-  const pnlUsd = valid && avgEntry != null && avgEntry > 0 ? (p - avgEntry) * a : null;
-  const pnlPct = avgEntry != null && avgEntry > 0 && p > 0 ? ((p - avgEntry) / avgEntry) * 100 : null;
-
-  return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <span className="dialog-title">Bán {symbol}</span>
-          <button className="dialog-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="dialog-body">
-          <label className="dcapos-field">
-            <span>Giá bán</span>
-            <input className="setup-input" type="number" step="any" min="0"
-              value={price} onChange={(e) => setPrice(e.target.value)} />
-          </label>
-
-          <label className="dcapos-field">
-            <span>Số lượng ({symbol})</span>
-            <input className="setup-input" type="number" step="any" min="0"
-              value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </label>
-
-          <div className="dcapos-quick">
-            {[25, 50, 75].map((pct) => (
-              <button key={pct} type="button" className="btn btn--secondary"
-                onClick={() => setAmount(String(held * (pct / 100)))}>
-                {pct}%
-              </button>
-            ))}
-            <button type="button" className="btn btn--secondary" onClick={() => setAmount(String(held))}>
-              Tất cả
-            </button>
-          </div>
-
-          <div className="dcapos-sell-preview">
-            <div><span>Đang giữ</span><strong>{fmtNum(held)} {symbol}</strong></div>
-            <div><span>Thu về</span><strong>{proceeds != null ? `$${fmtNum(proceeds)}` : '—'}</strong></div>
-            <div>
-              <span>PnL</span>
-              <strong className={pnlUsd == null ? '' : pnlUsd >= 0 ? 'dcapos-pos' : 'dcapos-neg'}>
-                {pnlUsd == null ? '—' : `${pnlUsd >= 0 ? '+' : '−'}$${fmtNum(Math.abs(pnlUsd))}`}
-                {pnlPct != null && ` (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`}
-              </strong>
-            </div>
-          </div>
-
-          {!valid && amount !== '' && a > held && (
-            <p className="scr-muted ord-error">Chỉ còn {fmtNum(held)} {symbol} trong portfolio.</p>
-          )}
-
-          <div className="dialog-confirm-actions">
-            <button className="btn btn--secondary" onClick={onClose} disabled={busy}>Hủy</button>
-            <button className="btn btn--danger" onClick={() => onConfirm(p, a)} disabled={busy || !valid}>
-              {busy ? 'Đang bán…' : 'Bán'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── add coin form ──────────────────────────────────────────────── */
 
 function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) {
@@ -891,7 +413,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as { id: string; symbol: string; name: string };
-      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), dcaPortfolioId: null, signal: null, dcaPosition: null });
+      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), signal: null });
       setSymbol('');
       setName('');
     } catch (err) {
@@ -926,10 +448,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
-  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
-  const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  const [settingsCoin, setSettingsCoin] = useState<TrackingCoinRow | null>(null);
   const [qqe, setQqe] = useState<QqeMap>({});
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
@@ -954,14 +473,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     const id = setInterval(() => void load(), QQE_REFRESH_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [symbols]);
-
-  async function reloadCoins() {
-    try {
-      const res = await fetch(`${resolveApiBaseUrl()}/tracking-coins`, { credentials: 'include' });
-      if (!res.ok) return;
-      setCoins(await res.json() as TrackingCoinRow[]);
-    } catch { /* ignore */ }
-  }
 
   async function handleRemoveCoin(symbol: string) {
     setRemovingSymbol(symbol);
@@ -999,17 +510,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         <CoinDetailModal
           key={selectedCoin.symbol}
           coin={selectedCoin}
-          initialTab={detailTab}
-          livePrice={prices.get(selectedCoin.symbol) ?? null}
-          onChanged={reloadCoins}
           onClose={() => setSelectedCoin(null)}
-        />
-      )}
-      {chatCoin && (
-        <TrackingCoinChatDrawer
-          coin={chatCoin}
-          livePrice={prices.get(chatCoin.symbol) ?? null}
-          onClose={() => setChatCoin(null)}
         />
       )}
       {confirmRemoveSymbol && (
@@ -1026,17 +527,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           tf="4h"
           timeframes={SWING_CHART_TIMEFRAMES}
           onClose={() => setChartSymbol(null)}
-        />
-      )}
-      {settingsCoin && (
-        <CoinSettingsDialog
-          key={settingsCoin.symbol}
-          coin={settingsCoin}
-          onSaved={(dcaPortfolioId) => {
-            setCoins((prev) => prev.map((c) => c.symbol === settingsCoin.symbol ? { ...c, dcaPortfolioId } : c));
-            setSelectedCoin((prev) => prev && prev.symbol === settingsCoin.symbol ? { ...prev, dcaPortfolioId } : prev);
-          }}
-          onClose={() => setSettingsCoin(null)}
         />
       )}
       {showInfo && <StrategyInfoDialog onClose={() => setShowInfo(false)} />}
@@ -1126,7 +616,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
               {paginated.map((coin) => {
                 const sig = coin.signal;
                 return (
-                  <tr key={coin.id} className="scr-row" onClick={() => { setDetailTab('overview'); setSelectedCoin(coin); }} style={{ cursor: 'pointer' }}>
+                  <tr key={coin.id} className="scr-row" onClick={() => setSelectedCoin(coin)} style={{ cursor: 'pointer' }}>
                     <td className="scr-td scr-td--coin">
                       <span className="tc-coin-line">
                         <span className="scr-symbol">{coin.symbol}</span>
@@ -1206,35 +696,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
-                        <button className="tt-btn tt-btn--ai" data-tooltip="Tạo prompt" aria-label={`Tạo prompt phân tích cho ${coin.symbol}`} onClick={() => setChatCoin(coin)}>
-                          <IconPrompt />
-                        </button>
-                        <button
-                          className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`}
-                          data-tooltip={coin.dcaPosition
-                            ? `Đang ôm ${fmtNum(coin.dcaPosition.amount)} ${coin.symbol} · vốn TB $${fmtNum(coin.dcaPosition.avgEntry)}`
-                            : 'DCA position'}
-                          aria-label={`DCA position ${coin.symbol}`}
-                          onClick={() => { setDetailTab('dca'); setSelectedCoin(coin); }}
-                        >
-                          {coin.dcaPosition ? fmtUsdCompact(coin.dcaPosition.capitalDeployed) : <IconLayers />}
-                        </button>
-                        <button
-                          className="tt-btn"
-                          data-tooltip="Activity logs"
-                          aria-label={`Activity logs ${coin.symbol}`}
-                          onClick={() => { setDetailTab('activity'); setSelectedCoin(coin); }}
-                        >
-                          <IconActivity />
-                        </button>
-                        <button
-                          className={`tt-btn${coin.dcaPortfolioId ? ' tt-btn--set' : ''}`}
-                          data-tooltip={coin.dcaPortfolioId ? 'Cấu hình portfolio' : 'Chưa cấu hình portfolio'}
-                          aria-label={`Cấu hình ${coin.symbol}`}
-                          onClick={() => setSettingsCoin(coin)}
-                        >
-                          <IconSettings />
-                        </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
                           {removingSymbol === coin.symbol ? '…' : <IconTrash />}
                         </button>

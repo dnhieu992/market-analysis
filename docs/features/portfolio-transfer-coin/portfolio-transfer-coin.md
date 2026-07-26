@@ -16,10 +16,8 @@ positions are merged on recalculation. This is a whole-position move, not a part
 4. The API verifies the caller owns **both** the source and the destination portfolio
    (`PortfolioService.getPortfolio` for each), then `HoldingsService.transferCoin`:
    - finds every `CoinTransaction` for that coin in the source portfolio,
-   - in one DB transaction reassigns their `portfolioId` to the target and re-points any
-     tracking coin whose `dcaPortfolioId` is the source at the target (the `/tracking-coins`
-     DCA tab reads the position out of that portfolio, so it must follow the coin rather than
-     keep looking at the now-empty source),
+   - reassigns their `portfolioId` to the target (until 2026-07-26 this also re-pointed the
+     matching `TrackingCoin.dcaPortfolioId`; that link no longer exists),
    - recalculates holdings for the coin in the source (row disappears — no transactions left) and
      in the target (existing + moved transactions are replayed into a merged holding).
 5. On success the UI navigates to `/portfolio/<target>/<coinId>`, where the coin now lives.
@@ -38,7 +36,7 @@ positions are merged on recalculation. This is a whole-position move, not a part
 
 ## Related Files (FE / BE / Worker)
 - `apps/api/src/modules/holdings/holdings.controller.ts` — `POST :coinId/transfer` route, dual ownership check.
-- `apps/api/src/modules/holdings/holdings.service.ts` — `transferCoin()` reassigns transactions + moves `TrackingCoin.dcaPortfolioId`, recalcs both portfolios.
+- `apps/api/src/modules/holdings/holdings.service.ts` — `transferCoin()` reassigns transactions and recalcs both portfolios (the `TrackingCoin.dcaPortfolioId` re-point was dropped 2026-07-26 with the tracking-coins portfolio link).
 - `apps/api/src/modules/holdings/dto/transfer-coin.dto.ts` — `TransferCoinDto { targetPortfolioId }`.
 - `apps/web/src/shared/api/client.ts` — `transferHolding(portfolioId, coinId, targetPortfolioId)`.
 - `apps/web/src/widgets/portfolio-coin-detail/portfolio-coin-detail.tsx` — `TransferCoinModal` + Transfer button.

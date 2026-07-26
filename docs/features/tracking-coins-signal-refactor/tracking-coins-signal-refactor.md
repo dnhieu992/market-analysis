@@ -23,8 +23,14 @@ portfolio sync, the journal and the prompt generator.
 > **Superseded in part (step 2, same day).** The DCA buy log and its portfolio mirror have since been
 > removed: `tracking_coin_dca_buys` and `dcaMaxLayers` are **dropped**, and the DCA position is read
 > straight from the portfolio in `TrackingCoin.dcaPortfolioId`. The History and Journal tabs were also
-> replaced by a single Activity logs tab. See `docs/features/tracking-coins-dca-dashboard/`. Since nothing writes signals any more, **the displayed indicators are
-frozen at the last scan (before 2026-07-26)** until the new flow lands.
+> replaced by a single Activity logs tab. See `docs/features/tracking-coins-dca-dashboard/`. Since
+> nothing writes signals any more, **the displayed indicators are frozen at the last scan (before
+> 2026-07-26)** until the new flow lands.
+>
+> **Step 3 (2026-07-26): the portfolio link is gone too.** The DCA position tab, the Activity logs
+> tab, the prompt-generator drawer and the ⚙ portfolio dialog were removed; the detail modal is now a
+> single read-only indicator sheet and the Actions column keeps only delete. `dcaPortfolioId` and
+> `tracking_coin_activity_logs` stay in the DB, unread.
 
 ## Main Flow
 Before: cron `5 */4 * * *` (worker) or the `⚡ Re-analyze` button → `POST /tracking-coins/scan` →
