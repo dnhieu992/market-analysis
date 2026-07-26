@@ -1,4 +1,9 @@
 ## Description
+> **Signal computation removed (2026-07-26, refactor step 1).** The `/tracking-coins` scan
+> pipeline that produced this no longer runs — see `docs/features/tracking-coins-signal-refactor/`.
+> The indicator/scoring logic below stays in `@app/core` for reuse; the doc describes the intended
+> behaviour for when the flow is rebuilt.
+
 **Entry Score** is a 0–100 "how low-risk is buying this spot coin right now?" gauge shown on
 the `/tracking-coins` page. It repurposes the page from a passive watchlist into a spot-trading
 radar that surfaces the lowest-risk entries first (risk management over profit chasing).

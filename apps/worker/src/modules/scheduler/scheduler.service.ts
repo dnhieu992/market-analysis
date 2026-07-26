@@ -10,7 +10,6 @@ import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
 import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
 import { MemeScanService } from '../meme-scan/meme-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
-import { TrackingCoinScanService } from '../tracking-coin-scan/tracking-coin-scan.service';
 import { EmaStochScanService } from '../ema-stoch-scan/ema-stoch-scan.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
@@ -28,7 +27,6 @@ export class SchedulerService {
     private readonly dailySignalService: DailySignalService,
     private readonly smallCapScanService: SmallCapScanService,
     private readonly memeScanService: MemeScanService,
-    private readonly trackingCoinScanService: TrackingCoinScanService,
     private readonly emaStochScanService: EmaStochScanService,
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
@@ -79,18 +77,8 @@ export class SchedulerService {
     }
   }
 
-  // Runs every 4 hours at minute 5 (00:05, 04:05, … UTC) — scan all tracking-coin watchlist
-  @Cron('5 */4 * * *', { timeZone: 'UTC' })
-  async runTrackingCoinScan() {
-    this.logger.log('Running tracking-coin scan');
-    try {
-      const result = await this.trackingCoinScanService.scanAll();
-      this.logger.log(`Tracking-coin scan complete — scanned: ${result.scanned}, failed: ${result.failed}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Tracking-coin scan failed: ${msg}`);
-    }
-  }
+  // Tracking-coin signal scan removed (2026-07-26 refactor step 1) — the
+  // indicator/scoring helpers stay in @app/core for the rebuilt flow.
 
   // Runs 2 min after each 4h candle close (00:02, 04:02, … UTC) — scan the
   // /ema-bounce watchlist on the 4h timeframe.

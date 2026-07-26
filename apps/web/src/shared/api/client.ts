@@ -47,8 +47,6 @@ import type {
   TradingJournalEntry,
   TradingJournalRevision,
   TrackingCoinRow,
-  OrderSuggestions,
-  TrackingCoinOrder,
   SignalHistoryRow,
   DcaPosition,
   BitgetPositionsResponse,
@@ -772,14 +770,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     // ── Tracking Coins ────────────────────────────────────────────────
-    fetchOrderSuggestions(symbol: string): Promise<OrderSuggestions> {
-      return fetchJson<OrderSuggestions>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/order-suggestions`, withDefaults());
-    },
-
-    fetchCoinOrders(symbol: string): Promise<TrackingCoinOrder[]> {
-      return fetchJson<TrackingCoinOrder[]>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/orders`, withDefaults());
-    },
-
     fetchCoinKlines(symbol: string, interval: string, limit: number): Promise<BinanceKline[]> {
       return fetchJson<BinanceKline[]>(
         fetchImpl,
@@ -822,15 +812,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
         ...withDefaults(),
         method: 'DELETE',
       });
-    },
-
-    updateOrderNotes(orderId: string, notes: string | null): Promise<void> {
-      return fetchImpl(`${baseUrl}/tracking-coins/coins/orders/${encodeURIComponent(orderId)}/notes`, {
-        ...withDefaults(),
-        method: 'PATCH',
-        headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes }),
-      }).then(() => undefined);
     },
 
     // ── Skills ────────────────────────────────────────────────────────
@@ -1102,14 +1083,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async removeTrackingCoin(symbol: string): Promise<void> {
       await fetchImpl(`${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    async triggerTrackingCoinsScan(): Promise<{ scanned: number; failed: number }> {
-      return fetchJson<{ scanned: number; failed: number }>(
-        fetchImpl,
-        `${baseUrl}/tracking-coins/scan`,
-        withDefaults({ method: 'POST' }),
-      );
     },
 
     async fetchBitgetPositions(): Promise<BitgetPositionsResponse> {

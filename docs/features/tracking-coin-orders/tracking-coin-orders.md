@@ -1,4 +1,9 @@
 ## Description
+> **Signal computation removed (2026-07-26, refactor step 1).** The `/tracking-coins` scan
+> pipeline that produced this no longer runs — see `docs/features/tracking-coins-signal-refactor/`.
+> The indicator/scoring logic below stays in `@app/core` for reuse; the doc describes the intended
+> behaviour for when the flow is rebuilt.
+
 Sinh lệnh limit (swing + day-trade) cho mỗi coin trong trang `/tracking-coins`, kèm
 entry zone / TP / SL / R:R, và đánh giá kết quả (kích hoạt, TP/SL) trên dữ liệu nến sau đó.
 Logic là thuật toán hình học (S/R từ swing high/low) — không dùng LLM.

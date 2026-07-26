@@ -1,4 +1,9 @@
 ## Description
+> **Signal computation removed (2026-07-26, refactor step 1).** The `/tracking-coins` scan
+> pipeline that produced this no longer runs — see `docs/features/tracking-coins-signal-refactor/`.
+> The indicator/scoring logic below stays in `@app/core` for reuse; the doc describes the intended
+> behaviour for when the flow is rebuilt.
+
 An append-only change-log of the DCA signal for each tracking coin, so the user
 can compare how a coin's DCA assessment evolved over time. A new history row is
 written **only when the DCA action zone (GOM/CHO/CHOT) OR the quality bucket

@@ -1,4 +1,9 @@
 ## Description
+> **Backend removed too (2026-07-26).** Order generation/evaluation and the
+> `order-suggestions` / `orders` / order-notes endpoints are gone with the signal-scan
+> refactor — see `docs/features/tracking-coins-signal-refactor/`. `computeSwingLimitOrder` /
+> `evaluateLimitOrder` remain in `@app/core`.
+>
 > **UI removed (2026-06-27).** The user no longer uses limit-order signals on `/tracking-coins`,
 > so the **Tín hiệu hôm nay** and **Lịch sử tín hiệu** tabs (and their components `CoinLiveSignal`,
 > `CoinHistorySignal`, `OrderCard`, `NoTradeCard`, `OrderHistoryTable`, `OutcomeBadge`,

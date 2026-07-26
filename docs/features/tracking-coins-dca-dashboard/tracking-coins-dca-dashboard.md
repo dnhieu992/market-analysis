@@ -1,4 +1,9 @@
 ## Description
+> **Signal computation removed (2026-07-26, refactor step 1).** The scan that produced `dcaScore`,
+> `accZone` and the per-timeframe indicators no longer runs — the page now reads the last stored
+> signal and the displayed values are frozen until the new flow lands. Scoring logic stays in
+> `@app/core`. See `docs/features/tracking-coins-signal-refactor/`.
+
 `/tracking-coins` is the single **bottom-accumulation DCA dashboard** (the old `/accumulation` page
 was merged in on 2026-07-12 and now redirects here). The strategy — spot, **no stop-loss**, few orders:
 **gom a strong bottom and HOLD for a full exit at x2 (+100%)**. No swing/dip timing, no EMA34 take-profit.
@@ -19,10 +24,12 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
 (oversold near 20d low) remain in the DB/scan (harmless, unused for display) — see those docs.
 
 ## Main Flow
-1. Daily/manual scan (`TrackingCoinScanService` worker, `TrackingCoinsService.scanOneCoin` API)
-   builds the D1/H4/W1 signal and computes `low20Pct` (% above the rolling 20-day low).
-2. `computeDcaScore` (`@app/core`) scores survival from `marketCap` (max 50) + weekly trend/EMA/UTBot
-   (max 50). Persisted as `dcaScore`, with `low20Pct`, on `TrackingCoinSignal`.
+1. ~~Daily/manual scan (`TrackingCoinScanService` worker, `TrackingCoinsService.scanOneCoin` API)
+   builds the D1/H4/W1 signal and computes `low20Pct` (% above the rolling 20-day low).~~ **Removed
+   2026-07-26** — no signal is written any more.
+2. ~~`computeDcaScore` (`@app/core`) scores survival from `marketCap` (max 50) + weekly trend/EMA/UTBot
+   (max 50). Persisted as `dcaScore`, with `low20Pct`, on `TrackingCoinSignal`.~~ Logic kept in
+   `@app/core`, no longer invoked.
 3. API `listCoins` derives the action `dcaZone` from stored `ema34Above` / `rsi` / `low20Pct`.
 4. The feed shows a **DCA** column (quality badge + zone tag) and defaults to sorting by `dcaScore` desc
    so the safest-to-DCA coins surface first.
@@ -99,6 +106,8 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - **Null RSI** in zone derivation defaults to 50 (treated as not-oversold → not GOM).
 - **No buys logged** → `dcaPosition` is null; the action button shows the layers icon, not a count.
 - Adding a buy is blocked in the UI once 3 layers are reached (the 3-tier ladder cap).
+- **No scan since 2026-07-26** → every indicator/score on the page is a frozen snapshot of the last
+  scan; the Overview footer timestamp shows how old it is.
 - **Stale rows scanned before 2026-07-12** carry `accZone = null` (or the old dd 40–70% band) → the DCA
   cell zone shows "—" until the next 4h scan recomputes with the dd 50–85% config.
 
@@ -117,8 +126,8 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - `packages/db/prisma/migrations/20260626140000_tracking_coin_dca_score/migration.sql`
 - `packages/db/prisma/migrations/20260626160000_tracking_coin_dca_buys/migration.sql`
 - `packages/db/src/repositories/tracking-coins.repository.ts` — DCA-buy CRUD + buys in list query
-- `apps/worker/src/modules/tracking-coin-scan/tracking-coin-scan.service.ts`
-- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — score/zone + `aggregateDca` + position CRUD + **portfolio sync** (forward BUY/SELL via `TransactionService`, ownership via `PortfolioService`, clamp via `HoldingsService`)
+- ~~`apps/worker/src/modules/tracking-coin-scan/tracking-coin-scan.service.ts`~~ — deleted 2026-07-26
+- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — stored-signal read + zone derivation + `aggregateDca` + position CRUD + **portfolio sync** (forward BUY/SELL via `TransactionService`, ownership via `PortfolioService`, clamp via `HoldingsService`)
 - `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — imports `TransactionModule`/`PortfolioModule`/`HoldingsModule`
 - `apps/api/src/modules/transaction/transaction.service.ts` — `removeTransaction` reverse-syncs (deletes linked DCA layer)
 - `apps/api/src/modules/holdings/holdings.service.ts` — `getHoldingAmount` (clamp helper for close-position SELL)

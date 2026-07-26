@@ -1,4 +1,9 @@
 ## Description
+> **Signal computation removed (2026-07-26, refactor step 1).** The `/tracking-coins` scan
+> pipeline that produced this no longer runs — see `docs/features/tracking-coins-signal-refactor/`.
+> The indicator/scoring logic below stays in `@app/core` for reuse; the doc describes the intended
+> behaviour for when the flow is rebuilt.
+
 Adds an **M30 (30-minute)** timeframe row to the per-coin indicator panels on the
 `/tracking-coins` page. It mirrors the existing W / D1 / H4 signal set (PA trend,
 UT Bot bull/bear, EMA 34/89/200 pips, RSI, Vol×). The M30 signal is **display-only**

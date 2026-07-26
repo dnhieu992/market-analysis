@@ -535,47 +535,6 @@ export type DcaPosition = {
   buys: DcaBuy[];
 };
 
-export type OrderSuggestion = {
-  id: string;
-  side: 'LONG' | 'SHORT';
-  entryLow: number;
-  entryHigh: number;
-  tp1: number;
-  tp2: number | null;
-  sl: number;
-  rrRatio: number;
-  rationale: string;
-  notes: string | null;
-};
-
-export type OrderSuggestions = {
-  symbol: string;
-  currentPrice: number;
-  swing: OrderSuggestion | null;
-  generatedAt: string;
-};
-
-export type TrackingCoinOrder = {
-  id: string;
-  date: string;
-  type: 'swing' | 'daytrade';
-  side: 'LONG' | 'SHORT';
-  entryLow: number;
-  entryHigh: number;
-  tp1: number;
-  tp2: number | null;
-  sl: number;
-  rrRatio: number;
-  rationale: string;
-  notes: string | null;
-  positionSize: number | null;
-  positionValue: number | null;
-  activated: boolean | null;
-  outcome: 'tp1' | 'tp2' | 'sl' | 'expired' | null;
-  evaluatedAt: string | null;
-  createdAt: string;
-};
-
 export type BitgetPosition = {
   symbol: string;
   holdSide: 'long' | 'short';

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import type { AuthenticatedRequest } from '../auth/auth.types';
@@ -6,7 +6,6 @@ import { AddDcaBuyDto } from './dto/add-dca-buy.dto';
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpsertJournalEntryDto } from './dto/upsert-journal-entry.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
-import { UpdateOrderNotesDto } from './dto/update-order-notes.dto';
 import { TrackingCoinsService } from './tracking-coins.service';
 
 @ApiTags('Tracking Coins')
@@ -36,12 +35,6 @@ export class TrackingCoinsController {
     return this.service.removeCoin(symbol);
   }
 
-  @Post('scan')
-  @ApiOperation({ summary: 'Manually trigger a full signal scan for all tracked coins' })
-  triggerScan() {
-    return this.service.triggerScan();
-  }
-
   @Get('coins/:symbol/klines')
   @ApiOperation({ summary: 'Proxy raw OHLCV klines from Binance (server-side) for prompt embedding' })
   getKlines(
@@ -68,18 +61,6 @@ export class TrackingCoinsController {
   @ApiOperation({ summary: 'Create or update a journal entry for a specific date' })
   upsertJournalEntry(@Param('symbol') symbol: string, @Body() body: UpsertJournalEntryDto) {
     return this.service.upsertJournalEntry(symbol, body.date, body.content);
-  }
-
-  @Get('coins/:symbol/order-suggestions')
-  @ApiOperation({ summary: 'AI-generated limit order suggestions based on PA analysis' })
-  suggestOrders(@Param('symbol') symbol: string) {
-    return this.service.suggestOrders(symbol);
-  }
-
-  @Get('coins/:symbol/orders')
-  @ApiOperation({ summary: 'List saved limit orders history for a coin' })
-  listOrders(@Param('symbol') symbol: string) {
-    return this.service.listOrders(symbol);
   }
 
   @Get('coins/:symbol/setup')
@@ -115,13 +96,6 @@ export class TrackingCoinsController {
   ) {
     const price = sellPrice != null && sellPrice !== '' ? Number(sellPrice) : undefined;
     return this.service.closeDcaPosition(symbol, Number.isFinite(price) ? price : undefined, req.authUser?.id);
-  }
-
-  @Patch('coins/orders/:orderId/notes')
-  @HttpCode(204)
-  @ApiOperation({ summary: 'Update notes for a saved limit order' })
-  updateOrderNotes(@Param('orderId') orderId: string, @Body() body: UpdateOrderNotesDto) {
-    return this.service.updateOrderNotes(orderId, body.notes ?? null);
   }
 
   @Put('coins/:symbol/setup')

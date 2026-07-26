@@ -360,7 +360,7 @@ function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
   if (!sig) {
     return (
       <div className="tc-overview">
-        <p className="scr-muted tc-overview__empty">Chưa có dữ liệu. Nhấn ⚡ Re-analyze để quét coin này.</p>
+        <p className="scr-muted tc-overview__empty">Chưa có dữ liệu chỉ báo cho coin này.</p>
         <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
       </div>
     );
@@ -882,7 +882,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<TrackingCoinRow[]>(initialCoins);
   const symbols = useMemo(() => coins.map(c => c.symbol), [coins]);
   const { prices, flash } = useLivePrices(symbols);
-  const [reanalyzing, setReanalyzing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('dca');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -907,26 +906,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       if (!res.ok) return;
       setCoins(await res.json() as TrackingCoinRow[]);
     } catch { /* ignore */ }
-  }
-
-  async function handleReanalyze() {
-    setReanalyzing(true);
-    setStatusMsg(null);
-    try {
-      const res = await fetch(`${resolveApiBaseUrl()}/tracking-coins/scan`, { method: 'POST', credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json() as { scanned: number; failed: number };
-        setStatusMsg(`✅ Re-analyze xong: ${data.scanned} coins${data.failed > 0 ? ` (${data.failed} lỗi)` : ''}.`);
-        await reloadCoins();
-      } else {
-        const body = await res.text().catch(() => '');
-        setStatusMsg(`❌ Re-analyze thất bại (HTTP ${res.status})${body ? `: ${body.slice(0, 120)}` : ''}.`);
-      }
-    } catch (err) {
-      setStatusMsg(`❌ Không kết nối được server: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setReanalyzing(false);
-    }
   }
 
   async function handleRemoveCoin(symbol: string) {
@@ -1047,9 +1026,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             </p>
           </div>
           <div className="scr-toolbar-right">
-            <button className="scr-scan-btn" onClick={handleReanalyze} disabled={reanalyzing}>
-              {reanalyzing ? 'Đang scan…' : '⚡ Re-analyze'}
-            </button>
             <button className="scr-add-toggle" onClick={() => setShowAddForm((v) => !v)}>
               {showAddForm ? '✕' : '+ Coin'}
             </button>
