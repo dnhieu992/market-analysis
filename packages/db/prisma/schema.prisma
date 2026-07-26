@@ -382,6 +382,9 @@ model TrackingCoin {
   daytradeMaxLoss Float?
   daytradeMinRR   Float?
   dcaMaxLayers    Int?
+  // Portfolio every DCA layer of this coin syncs into — configured per coin from the
+  // tracking-coins Actions column, not picked again when logging a buy.
+  dcaPortfolioId  String?                 @db.Char(36)
   signals         TrackingCoinSignal[]
   signalHistory   TrackingCoinSignalHistory[]
   journals        TrackingCoinJournal[]

@@ -86,9 +86,12 @@ the plan is the pre-trade suggestion, `nextAddPrice` is the live next-add once b
 Each DCA layer mirrors a portfolio **CoinTransaction**, so the dashboard and the user's
 portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 
-- **Pick portfolio per buy.** The DCA dialog has a portfolio dropdown (the user has 3 allocation
-  buckets); the last choice per coin is remembered in `localStorage` (`dca-portfolio:<symbol>`).
-- **+Gom → BUY (forward).** `addDcaBuy(symbol, {price, usd, portfolioId}, userId)` validates portfolio
+- **Portfolio is configured per coin (2026-07-26).** The ⚙ button in the Actions column opens
+  `CoinSettingsDialog` → pick the portfolio every position on that coin syncs into. It is stored on
+  `TrackingCoin.dcaPortfolioId` (server-side, replaces the old `localStorage` `dca-portfolio:<symbol>`
+  per-buy dropdown). The DCA tab only **displays** the configured target, read-only.
+- **+Gom → BUY (forward).** `addDcaBuy(symbol, {price, usd}, userId)` resolves the target from
+  `coin.dcaPortfolioId` (a body `portfolioId` is only a fallback for older callers), validates portfolio
   ownership, creates a BUY `CoinTransaction` (`amount = usd / price`) → holding recomputes, and stores
   `transactionId`/`portfolioId` on the `TrackingCoinDcaBuy` link.
 - **Delete layer ↔ delete transaction (both ways).** Deleting a layer soft-deletes the linked
@@ -97,8 +100,8 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - **Đóng vị thế (đã chốt) → SELL.** Closing prompts for a sell price (defaults to live price) and
   creates a SELL of **exactly the DCA-accumulated amount per portfolio** (clamped to the held amount so
   it never dumps unrelated holdings of the same coin), realising P&L, then clears the buy log.
-- Layers without a `portfolioId` (added before sync, or when no portfolio exists) behave as before — a
-  local-only buy log with no transaction.
+- Layers without a `portfolioId` (added before sync, or when the coin has no configured portfolio)
+  behave as before — a local-only buy log with no transaction.
 
 ## Edge Cases
 - **Micro-cap / unknown market cap** → 0 cap points → can never reach "An toàn" (high death risk).
@@ -106,6 +109,13 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - **Null RSI** in zone derivation defaults to 50 (treated as not-oversold → not GOM).
 - **No buys logged** → `dcaPosition` is null; the action button shows the layers icon, not a count.
 - Adding a buy is blocked in the UI once 3 layers are reached (the 3-tier ladder cap).
+- **Coin has no configured portfolio** → the DCA tab shows "Chưa cấu hình — chọn ở icon ⚙ cột Actions"
+  and `+ Gom` still logs the layer, just without a portfolio transaction.
+- **No portfolios exist at all** → the ⚙ dialog's select is disabled with a "Chưa có portfolio" note.
+- **Changing the portfolio later** only affects *future* layers; already-synced layers keep their
+  original `portfolioId`, and closing the position sells per-portfolio from those links.
+- `PUT /setup` is a **partial** update — only keys present in the body are written, so the ⚙ dialog
+  cannot wipe `dcaMaxLayers` or the swing/daytrade risk fields.
 - **No scan since 2026-07-26** → every indicator/score on the page is a frozen snapshot of the last
   scan; the Overview footer timestamp shows how old it is.
 - **Stale rows scanned before 2026-07-12** carry `accZone = null` (or the old dd 40–70% band) → the DCA
@@ -135,6 +145,8 @@ portfolio stay in sync (`symbol` ≡ portfolio `coinId`, both bare e.g. `BTC`).
 - `apps/api/src/modules/tracking-coins/tracking-coins.controller.ts` — dca-position / dca-buys routes
 - `apps/api/src/modules/tracking-coins/dto/add-dca-buy.dto.ts`
 - `apps/web/src/shared/api/types.ts` — `dcaScore`/`dcaZone`/`low20Pct`, `dcaPosition`, `DcaPosition`/`DcaBuy`
-- `apps/web/src/shared/api/client.ts` — `fetchDcaPosition`/`addDcaBuy`/`deleteDcaBuy`/`closeDcaPosition`
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `CoinDetailModal` (hosts the `DCA position` tab), `DcaPositionPanel`, `StrategyInfoDialog` (header info dialog), sort/column
+- `apps/web/src/shared/api/client.ts` — `fetchDcaPosition`/`addDcaBuy`/`deleteDcaBuy`/`closeDcaPosition` + `fetchTrackingCoinSetup`/`updateTrackingCoinSetup`
+- `packages/db/prisma/migrations/20260726120000_add_tracking_coin_dca_portfolio/migration.sql` — `dcaPortfolioId` on `TrackingCoin`
+- `apps/api/src/modules/tracking-coins/dto/update-coin-setup.dto.ts` — `dcaPortfolioId` (optional, `null` clears)
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `DcaCell`, `CoinDetailModal` (hosts the `DCA position` tab), `DcaPositionPanel` (portfolio read-only), `CoinSettingsDialog` + ⚙ Actions button, `StrategyInfoDialog` (header info dialog), sort/column
 - `apps/web/src/app/globals.css` — `.tc-dca*`, `.tc-zone*`, `.dcapos-*`, `.si-*` (strategy info dialog) styles

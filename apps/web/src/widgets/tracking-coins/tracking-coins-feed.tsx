@@ -226,6 +226,16 @@ function IconChart() {
   );
 }
 
+function IconSettings() {
+  // Gear — opens the per-coin config (which portfolio a DCA position syncs into).
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
 function IconPrompt() {
   // Clipboard with text lines — represents "generate & copy analysis prompt".
   return (
@@ -473,6 +483,80 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
   );
 }
 
+/* ── per-coin settings dialog (DCA sync portfolio) ───────────────── */
+
+function CoinSettingsDialog({ coin, onSaved, onClose }: {
+  coin: TrackingCoinRow;
+  onSaved: (dcaPortfolioId: string | null) => void;
+  onClose: () => void;
+}) {
+  const [portfolios, setPortfolios] = useState<Portfolio[] | null>(null);
+  const [portfolioId, setPortfolioId] = useState(coin.dcaPortfolioId ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    createApiClient().fetchPortfolios()
+      .then((ps) => { if (!cancelled) setPortfolios(ps); })
+      .catch(() => { if (!cancelled) setPortfolios([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handleSave() {
+    setBusy(true); setError(null);
+    try {
+      const next = portfolioId || null;
+      await createApiClient().updateTrackingCoinSetup(coin.symbol, { dcaPortfolioId: next });
+      onSaved(next);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lưu cấu hình thất bại.');
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Cấu hình {coin.symbol}</span>
+          <button className="dialog-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="dialog-body">
+          <label className="dcapos-portfolio">
+            <span>Portfolio khi mở vị thế</span>
+            {portfolios === null ? (
+              <div className="ord-loading"><span className="ord-loading__spinner" /><span>Đang tải…</span></div>
+            ) : (
+              <select
+                className="setup-input"
+                value={portfolioId}
+                onChange={(e) => setPortfolioId(e.target.value)}
+                disabled={portfolios.length === 0}
+              >
+                <option value="">— Không đồng bộ —</option>
+                {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            )}
+          </label>
+          <p className="scr-muted" style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
+            Mọi lệnh gom DCA của {coin.symbol} sẽ tự đồng bộ vào portfolio này. Tab DCA chỉ hiển thị,
+            không chọn lại được.
+            {portfolios !== null && portfolios.length === 0 && ' Chưa có portfolio nào để chọn.'}
+          </p>
+          {error && <p className="scr-muted ord-error">{error}</p>}
+          <div className="dialog-confirm-actions">
+            <button className="btn btn--secondary" onClick={onClose} disabled={busy}>Hủy</button>
+            <button className="btn btn--primary" onClick={handleSave} disabled={busy || portfolios === null}>
+              {busy ? 'Đang lưu…' : 'Lưu'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Strategy & scoring explainer dialog ─────────────────────────── */
 
 function StrategyInfoDialog({ onClose }: { onClose: () => void }) {
@@ -589,7 +673,6 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
   const [error, setError] = useState<string | null>(null);
   const prefilledRef = useRef(false);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-  const [portfolioId, setPortfolioId] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -600,16 +683,13 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
 
   useEffect(() => { load(); }, [load]);
 
-  // Portfolios for the sync dropdown; default to the last one used for this coin.
+  // Portfolios are only needed to name the coin's configured sync target — the target
+  // itself is picked from the Actions ⚙ dialog, never here.
   useEffect(() => {
     createApiClient().fetchPortfolios()
-      .then((ps) => {
-        setPortfolios(ps);
-        const saved = (typeof window !== 'undefined' && window.localStorage.getItem(`dca-portfolio:${symbol}`)) || '';
-        setPortfolioId(ps.some((p) => p.id === saved) ? saved : (ps[0]?.id ?? ''));
-      })
+      .then(setPortfolios)
       .catch(() => {});
-  }, [symbol]);
+  }, []);
 
   const portfolioName = (id: string | null) =>
     id ? (portfolios.find((p) => p.id === id)?.name ?? '—') : '—';
@@ -633,8 +713,8 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
     if (!(p > 0) || !(u > 0)) { setError('Nhập giá và số USD hợp lệ.'); return; }
     setBusy(true); setError(null);
     try {
-      const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u, ...(portfolioId ? { portfolioId } : {}) });
-      if (portfolioId && typeof window !== 'undefined') window.localStorage.setItem(`dca-portfolio:${symbol}`, portfolioId);
+      // No portfolioId in the body — the API syncs into the coin's configured portfolio.
+      const r = await createApiClient().addDcaBuy(symbol, { price: p, usd: u });
       setPos(r); setPrice(cur > 0 ? priceInputStr(cur) : ''); setUsd(''); onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi lưu.');
@@ -720,17 +800,15 @@ function DcaPositionPanel({ symbol, livePrice, gomZone, onChanged }: {
                 </div>
               )}
 
-              {/* portfolio sync target */}
-              {portfolios.length > 0 ? (
-                <label className="dcapos-portfolio">
-                  <span>Đồng bộ vào portfolio</span>
-                  <select className="setup-input" value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
-                    {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </label>
-              ) : (
-                <p className="scr-muted" style={{ fontSize: '0.75rem' }}>Chưa có portfolio — lệnh gom sẽ không đồng bộ.</p>
-              )}
+              {/* portfolio sync target — view only, configured from the Actions ⚙ dialog */}
+              <div className="dcapos-portfolio dcapos-portfolio--ro">
+                <span>Đồng bộ vào portfolio</span>
+                <strong className="dcapos-portfolio__value">
+                  {pos?.portfolioId
+                    ? portfolioName(pos.portfolioId)
+                    : <span className="scr-muted">Chưa cấu hình — chọn ở icon ⚙ cột Actions</span>}
+                </strong>
+              </div>
 
               {/* add buy */}
               <form className="dcapos-add" onSubmit={handleAdd}>
@@ -796,7 +874,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as { id: string; symbol: string; name: string };
-      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), signal: null, dcaPosition: null });
+      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), dcaPortfolioId: null, signal: null, dcaPosition: null });
       setSymbol('');
       setName('');
     } catch (err) {
@@ -834,6 +912,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [settingsCoin, setSettingsCoin] = useState<TrackingCoinRow | null>(null);
   const [qqe, setQqe] = useState<QqeMap>({});
 
   useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
@@ -930,6 +1009,17 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           tf="1d"
           timeframes={SWING_CHART_TIMEFRAMES}
           onClose={() => setChartSymbol(null)}
+        />
+      )}
+      {settingsCoin && (
+        <CoinSettingsDialog
+          key={settingsCoin.symbol}
+          coin={settingsCoin}
+          onSaved={(dcaPortfolioId) => {
+            setCoins((prev) => prev.map((c) => c.symbol === settingsCoin.symbol ? { ...c, dcaPortfolioId } : c));
+            setSelectedCoin((prev) => prev && prev.symbol === settingsCoin.symbol ? { ...prev, dcaPortfolioId } : prev);
+          }}
+          onClose={() => setSettingsCoin(null)}
         />
       )}
       {showInfo && <StrategyInfoDialog onClose={() => setShowInfo(false)} />}
@@ -1104,6 +1194,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </button>
                         <button className={`tt-btn tt-btn--dca${coin.dcaPosition ? ' tt-btn--dca-active' : ''}`} data-tooltip={coin.dcaPosition ? `Đang ôm ${coin.dcaPosition.layers}L` : 'DCA position'} aria-label={`DCA position ${coin.symbol}`} onClick={() => { setDetailTab('dca'); setSelectedCoin(coin); }}>
                           {coin.dcaPosition ? `${coin.dcaPosition.layers}L` : <IconLayers />}
+                        </button>
+                        <button
+                          className={`tt-btn${coin.dcaPortfolioId ? ' tt-btn--set' : ''}`}
+                          data-tooltip={coin.dcaPortfolioId ? 'Cấu hình portfolio' : 'Chưa cấu hình portfolio'}
+                          aria-label={`Cấu hình ${coin.symbol}`}
+                          onClick={() => setSettingsCoin(coin)}
+                        >
+                          <IconSettings />
                         </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
                           {removingSymbol === coin.symbol ? '…' : <IconTrash />}

@@ -7394,6 +7394,12 @@ a.metric-card--link:hover {
   background: rgba(16, 185, 129, 0.14);
 }
 
+/* ── per-coin settings button (gear) — highlighted once a portfolio is set ── */
+.tt-btn--set {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+
 /* ── DCA position dialog ── */
 .dcapos-summary {
   display: grid;
@@ -7477,6 +7483,19 @@ a.metric-card--link:hover {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+/* read-only sync target — configured from the Actions ⚙ dialog, not here */
+.dcapos-portfolio--ro {
+  padding: 8px 10px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.3));
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.06);
+}
+.dcapos-portfolio__value {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+.dcapos-portfolio__value .scr-muted { font-weight: 400; font-size: 0.76rem; }
+
 .dcapos-add {
   display: grid;
   grid-template-columns: 1fr 1fr auto;

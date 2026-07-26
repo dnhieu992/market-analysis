@@ -101,12 +101,15 @@ export class TrackingCoinsController {
   @Put('coins/:symbol/setup')
   @ApiOperation({ summary: 'Save risk setup settings for a coin' })
   updateSetup(@Param('symbol') symbol: string, @Body() body: UpdateCoinSetupDto) {
-    return this.service.updateSetup(symbol, {
-      swingMaxLoss:    body.swingMaxLoss    ?? null,
-      swingMinRR:      body.swingMinRR      ?? null,
-      daytradeMaxLoss: body.daytradeMaxLoss ?? null,
-      daytradeMinRR:   body.daytradeMinRR   ?? null,
-      dcaMaxLayers:    body.dcaMaxLayers    ?? null,
-    });
+    // Partial update: only the keys present in the body are written, so a dialog that
+    // edits one setting (e.g. the DCA portfolio) cannot wipe the others.
+    const patch: Parameters<TrackingCoinsService['updateSetup']>[1] = {};
+    if ('swingMaxLoss'    in body) patch.swingMaxLoss    = body.swingMaxLoss    ?? null;
+    if ('swingMinRR'      in body) patch.swingMinRR      = body.swingMinRR      ?? null;
+    if ('daytradeMaxLoss' in body) patch.daytradeMaxLoss = body.daytradeMaxLoss ?? null;
+    if ('daytradeMinRR'   in body) patch.daytradeMinRR   = body.daytradeMinRR   ?? null;
+    if ('dcaMaxLayers'    in body) patch.dcaMaxLayers    = body.dcaMaxLayers    ?? null;
+    if ('dcaPortfolioId'  in body) patch.dcaPortfolioId  = body.dcaPortfolioId  || null;
+    return this.service.updateSetup(symbol, patch);
   }
 }

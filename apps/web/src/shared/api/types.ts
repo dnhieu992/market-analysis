@@ -438,6 +438,8 @@ export type TrackingCoinRow = {
   name: string;
   marketCap: number | null;
   addedAt: string;
+  /** Portfolio this coin's DCA layers sync into — set from the Actions ⚙ dialog. */
+  dcaPortfolioId: string | null;
   signal: {
     rsi: number | null;
     volMultiplier: number | null;
@@ -523,9 +525,20 @@ export type DcaBuy = {
   portfolioId: string | null;
 };
 
+export type TrackingCoinSetup = {
+  swingMaxLoss: number | null;
+  swingMinRR: number | null;
+  daytradeMaxLoss: number | null;
+  daytradeMinRR: number | null;
+  dcaMaxLayers: number | null;
+  dcaPortfolioId: string | null;
+};
+
 export type DcaPosition = {
   symbol: string;
   currentPrice: number;
+  /** Configured sync portfolio (read-only in the DCA tab). */
+  portfolioId: string | null;
   maxLayers: number;
   layers: number;
   avgEntry: number | null;

@@ -49,6 +49,7 @@ import type {
   TrackingCoinRow,
   SignalHistoryRow,
   DcaPosition,
+  TrackingCoinSetup,
   BitgetPositionsResponse,
   BitgetHistoryResponse,
   BitgetOpenResult,
@@ -775,6 +776,28 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/klines?interval=${encodeURIComponent(interval)}&limit=${limit}`,
         withDefaults(),
+      );
+    },
+
+    fetchTrackingCoinSetup(symbol: string): Promise<TrackingCoinSetup> {
+      return fetchJson<TrackingCoinSetup>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`,
+        withDefaults(),
+      );
+    },
+
+    /** Partial update — only the keys sent are written. */
+    updateTrackingCoinSetup(symbol: string, body: Partial<TrackingCoinSetup>): Promise<TrackingCoinSetup & { symbol: string }> {
+      return fetchJson<TrackingCoinSetup & { symbol: string }>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/setup`,
+        {
+          ...withDefaults(),
+          method: 'PUT',
+          headers: { ...withDefaults().headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
       );
     },
 

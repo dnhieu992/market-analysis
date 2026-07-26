@@ -14,6 +14,7 @@ type CoinSetup = {
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
   dcaMaxLayers: number | null;
+  dcaPortfolioId: string | null;
 };
 
 const DEFAULT_DCA_MAX_LAYERS = 3; // bottom-DCA ladder: 3 tiers × −15% (2026-07-12 backtest)
@@ -42,6 +43,8 @@ export type TrackingCoinWithSignal = {
   name: string;
   marketCap: number | null;
   addedAt: Date;
+  /** Portfolio this coin's DCA layers sync into (configured per coin, not per buy). */
+  dcaPortfolioId: string | null;
   signal: {
     rsi: number | null;
     volMultiplier: number | null;
@@ -132,6 +135,7 @@ export class TrackingCoinsService {
         name: coin.name,
         marketCap: coin.marketCap,
         addedAt: coin.addedAt,
+        dcaPortfolioId: coin.dcaPortfolioId ?? null,
         signal: sig
           ? {
               rsi: sig.rsi,
@@ -264,6 +268,8 @@ export class TrackingCoinsService {
     return {
       symbol: upper,
       currentPrice,
+      // Sync target is read-only here — it is configured per coin from the Actions column.
+      portfolioId: coin.dcaPortfolioId ?? null,
       maxLayers: coin.dcaMaxLayers ?? DEFAULT_DCA_MAX_LAYERS,
       layers: agg?.layers ?? 0,
       avgEntry: agg?.avgEntry ?? null,
@@ -297,11 +303,15 @@ export class TrackingCoinsService {
     const coin = await this.repo.findCoinBySymbol(upper);
     if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
 
+    // The sync target comes from the coin's own config; an explicit body value is only a
+    // fallback for callers that predate the per-coin setting.
+    const target = coin.dcaPortfolioId ?? data.portfolioId ?? null;
+
     let portfolioId: string | null = null;
     let transactionId: string | null = null;
-    if (data.portfolioId && data.price > 0 && data.usd > 0) {
-      if (userId) await this.portfolioService.getPortfolio(data.portfolioId, userId); // ownership guard
-      const tx = await this.transactionService.createTransaction(data.portfolioId, {
+    if (target && data.price > 0 && data.usd > 0) {
+      if (userId) await this.portfolioService.getPortfolio(target, userId); // ownership guard
+      const tx = await this.transactionService.createTransaction(target, {
         coinId: upper,
         type: 'buy',
         price: data.price,
@@ -310,7 +320,7 @@ export class TrackingCoinsService {
         note: 'DCA gom (tracking-coins)',
         ...(data.boughtAt ? { transactedAt: data.boughtAt } : {}),
       });
-      portfolioId = data.portfolioId;
+      portfolioId = target;
       transactionId = (tx as { id: string }).id;
     }
 
@@ -403,14 +413,16 @@ export class TrackingCoinsService {
       daytradeMaxLoss: coin.daytradeMaxLoss ?? null,
       daytradeMinRR: coin.daytradeMinRR ?? null,
       dcaMaxLayers: coin.dcaMaxLayers ?? null,
+      dcaPortfolioId: coin.dcaPortfolioId ?? null,
     };
   }
 
-  async updateSetup(symbol: string, data: CoinSetup) {
-    const coin = await this.repo.findCoinBySymbol(symbol.toUpperCase());
-    if (!coin) throw new NotFoundException(`Coin ${symbol.toUpperCase()} not found`);
+  async updateSetup(symbol: string, data: Partial<CoinSetup>) {
+    const upper = symbol.toUpperCase();
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
     await this.repo.updateCoinSetup(coin.id, data);
-    return { symbol: symbol.toUpperCase(), ...data };
+    return { symbol: upper, ...(await this.getSetup(upper)) };
   }
 
   private parseSparkline(json: string): number[] {
