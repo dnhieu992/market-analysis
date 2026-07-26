@@ -937,25 +937,17 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       <main className="dashboard-shell scr-shell">
         {/* header */}
         <div className="tc-page-header">
-          <div className="tc-page-header-left">
-            <div className="tc-page-title-row">
-              <h1 className="scr-title">Tracking Coins</h1>
-              <button
-                type="button"
-                className={`tc-info-btn${showInfo ? ' tc-info-btn--active' : ''}`}
-                onClick={() => setShowInfo(true)}
-                aria-label="Giải thích chiến lược & cách tính điểm"
-                title="Chiến lược & cách tính điểm"
-              >
-                i
-              </button>
-            </div>
-            <p className="tc-page-header-sub">
-              Gom vùng đáy mạnh (giảm 50–85% + nền đi ngang) qua cổng dcaScore≥50 · spot, no SL · ladder 3×−15% · target CHỐT x2 ·{' '}
-              {sorted.length < coins.length
-                ? `${sorted.length} / ${coins.length} coins hiển thị`
-                : `${coins.length} coins`}
-            </p>
+          <div className="tc-page-title-row">
+            <h1 className="scr-title">Tracking Coins</h1>
+            <button
+              type="button"
+              className={`tc-info-btn${showInfo ? ' tc-info-btn--active' : ''}`}
+              onClick={() => setShowInfo(true)}
+              aria-label="Giải thích chiến lược & cách tính điểm"
+              title="Chiến lược & cách tính điểm"
+            >
+              i
+            </button>
           </div>
           <div className="scr-toolbar-right">
             <button className="scr-add-toggle" onClick={() => setShowAddForm((v) => !v)}>

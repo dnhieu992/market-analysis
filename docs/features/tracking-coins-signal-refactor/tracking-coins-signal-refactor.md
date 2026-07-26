@@ -82,6 +82,15 @@ with the other numeric cells. Data source is unchanged (`signal.sparkline`, stil
 component in this widget was deleted; `/meme-radar` and `/small-cap-radar` keep their own copies and
 are untouched.
 
+## Step 1e — header slimmed down (2026-07-26)
+The strategy subtitle ("Gom vùng đáy mạnh (giảm 50–85% + nền đi ngang) qua cổng dcaScore≥50 · spot,
+no SL · ladder 3×−15% · target CHỐT x2 · N coins") described the dead scan's gating, so it was
+**removed entirely** — the same explanation still lives behind the `i` button
+(`StrategyInfoDialog`). The coin count that was appended to it went with it. The header is now a
+single row: **title + `i` button on the left, `+ Coin` on the right** (`.tc-page-header` switched
+from `align-items: flex-start` to `center`; the `.tc-page-header-left` wrapper and
+`.tc-page-header-sub` rule are gone).
+
 ## Edge Cases
 - **30d % with no data** → a coin with no signal row, or a stored series with fewer than 2 points, a
   non-finite value, or a first close of 0, renders "—" instead of a percentage.
@@ -129,7 +138,7 @@ are untouched.
   and to the QQE supported set; `getQqeSignals(symbols, timeframes?)`
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetQqeSignals(symbols, timeframes?)`
 - `apps/web/src/app/globals.css` — `.tc-coin-line`, `.tc-chart-btn`, `.tc-chg30` (+`--up/--down/--flat`),
-  `.tc-td--chg30`
+  `.tc-td--chg30`; **step 1e**: `.tc-page-header-left` + `.tc-page-header-sub` removed, header row centered
 - `apps/web/src/shared/api/client.ts` — `triggerTrackingCoinsScan`, `fetchOrderSuggestions`,
   `fetchCoinOrders`, `updateOrderNotes` removed
 - `apps/web/src/shared/api/types.ts` — `OrderSuggestion`, `OrderSuggestions`, `TrackingCoinOrder` removed

@@ -7820,7 +7820,7 @@ a.metric-card--link:hover {
 /* ── tracking coins: page header card ── */
 .tc-page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
   padding: 18px 22px;
@@ -7831,22 +7831,10 @@ a.metric-card--link:hover {
   flex-wrap: wrap;
 }
 
-.tc-page-header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .tc-page-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.tc-page-header-sub {
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin: 0;
 }
 
 /* ── tracking coins: info icon & stage popover ── */
