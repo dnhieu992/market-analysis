@@ -8124,6 +8124,17 @@ a.metric-card--link:hover {
 .tc-live-price--down { color: #dc2626; }
 .tc-live-price--idle { color: var(--muted); }
 
+/* ── tracking coins: 30d % change ── */
+.tc-td--chg30 { min-width: 78px; }
+.tc-chg30 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tc-chg30--up   { color: #16a34a; }
+.tc-chg30--down { color: #dc2626; }
+.tc-chg30--flat { color: var(--muted); }
+
 /* ── tracking coins: stacked D1/H4 rows within an indicator column ── */
 .tc-tf-stack {
   display: flex;

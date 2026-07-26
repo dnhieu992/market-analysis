@@ -172,21 +172,25 @@ function TrendBadge({ trend }: { trend: PaTrend }) {
   return <span className={m.cls} title={m.desc}>{m.label}</span>;
 }
 
-/* ── Sparkline ──────────────────────────────────────────────────── */
+/* ── 30d change ─────────────────────────────────────────────────── */
 
-function Sparkline({ prices }: { prices: number[] }) {
-  if (prices.length < 2) return <span className="scr-muted">—</span>;
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const range = max - min || 1;
-  const W = 80; const H = 28;
-  const step = W / (prices.length - 1);
-  const points = prices.map((p, i) => `${i * step},${H - ((p - min) / range) * H}`).join(' ');
-  const isUp = prices[prices.length - 1]! >= prices[0]!;
+/** % change between the first and last close of the 30-day series (null when unusable). */
+function change30dPct(prices: number[]): number | null {
+  if (prices.length < 2) return null;
+  const first = prices[0]!;
+  const last = prices[prices.length - 1]!;
+  if (!Number.isFinite(first) || !Number.isFinite(last) || first === 0) return null;
+  return ((last - first) / first) * 100;
+}
+
+function Change30d({ prices }: { prices: number[] }) {
+  const pct = change30dPct(prices);
+  if (pct === null) return <span className="scr-muted">—</span>;
+  const dir = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
   return (
-    <svg width={W} height={H} className="scr-sparkline" viewBox={`0 0 ${W} ${H}`}>
-      <polyline points={points} fill="none" stroke={isUp ? '#22c55e' : '#ef4444'} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <span className={`tc-chg30 tc-chg30--${dir}`} title={`Thay đổi 30 ngày: ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`}>
+      {pct >= 0 ? '+' : '−'}{Math.abs(pct).toFixed(1)}%
+    </span>
   );
 }
 
@@ -1002,7 +1006,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <th className="scr-th tc-th--stacked" onClick={() => setSortKey('vol')}>
                   Vol× {sortKey === 'vol' && '↓'}
                 </th>
-                <th className="scr-th">30d</th>
+                <th className="scr-th scr-th--num" title="Thay đổi giá 30 ngày (close đầu → close cuối của chuỗi 30 nến D1)">
+                  30d %
+                </th>
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
             </thead>
@@ -1096,8 +1102,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                           />
                         : <span className="scr-muted">—</span>}
                     </td>
-                    <td className="scr-td scr-td--sparkline">
-                      <Sparkline prices={sig?.sparkline ?? []} />
+                    <td className="scr-td scr-td--num tc-td--chg30">
+                      <Change30d prices={sig?.sparkline ?? []} />
                     </td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">

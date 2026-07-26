@@ -72,7 +72,19 @@ The page is a swing/DCA dashboard, so every intraday reading was dropped and a l
 - Sorting: the `dca` and `ext` sort keys went with their columns; the default sort is now **coin**
   (A→Z). RSI / Vol× / Coin header sorting still works.
 
+## Step 1d — 30d column shows % change instead of the sparkline (2026-07-26)
+The `30d` column rendered an 80×28 SVG sparkline of the stored 30 daily closes — too small to read
+any structure from, so it carried no information. It now shows the **plain % change over that same
+series**: `(last close − first close) / first close × 100`, formatted as `+12.4%` / `−8.3%`, green
+when up, red when down, muted grey at exactly 0. Header renamed `30d` → `30d %` and right-aligned
+with the other numeric cells. Data source is unchanged (`signal.sparkline`, still returned by
+`GET /tracking-coins`), so the value is exactly as fresh as the chart it replaces. The `Sparkline`
+component in this widget was deleted; `/meme-radar` and `/small-cap-radar` keep their own copies and
+are untouched.
+
 ## Edge Cases
+- **30d % with no data** → a coin with no signal row, or a stored series with fewer than 2 points, a
+  non-finite value, or a first close of 0, renders "—" instead of a percentage.
 - **Newly added coin** → no signal row → indicator cells show "—" and the Overview tab says
   "Chưa có dữ liệu chỉ báo cho coin này." Nothing will populate it until the new flow exists.
 - **Stale indicators** — the table keeps rendering the last scanned values; the Overview footer
@@ -104,7 +116,7 @@ The page is a swing/DCA dashboard, so every intraday reading was dropped and a l
 - `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `⚡ Re-analyze` button +
   `handleReanalyze` removed, empty-state copy updated; **step 1b**: facet filters (zone/quality/trend/
   holding) + their count memos removed, `IconChart` + `tc-chart-btn` added to the Coin cell, hosts
-  `SetupChartDialog`
+  `SetupChartDialog`; **step 1d**: `Sparkline` replaced by `change30dPct` + `Change30d` (% cell)
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — reused by tracking-coins; gained the
   optional `timeframes` prop + `SWING_CHART_TIMEFRAMES` (H4/D1/W1 — switcher *and* QQE scan) +
   `1w` label
@@ -116,7 +128,8 @@ The page is a swing/DCA dashboard, so every intraday reading was dropped and a l
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — `1w` added to `TF_CONFIG` / `TF_MS`
   and to the QQE supported set; `getQqeSignals(symbols, timeframes?)`
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetQqeSignals(symbols, timeframes?)`
-- `apps/web/src/app/globals.css` — `.tc-coin-line`, `.tc-chart-btn`
+- `apps/web/src/app/globals.css` — `.tc-coin-line`, `.tc-chart-btn`, `.tc-chg30` (+`--up/--down/--flat`),
+  `.tc-td--chg30`
 - `apps/web/src/shared/api/client.ts` — `triggerTrackingCoinsScan`, `fetchOrderSuggestions`,
   `fetchCoinOrders`, `updateOrderNotes` removed
 - `apps/web/src/shared/api/types.ts` — `OrderSuggestion`, `OrderSuggestions`, `TrackingCoinOrder` removed
