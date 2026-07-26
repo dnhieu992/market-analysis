@@ -32,6 +32,22 @@ After: **no signal computation runs at all.** The page is read-only over stored 
    was never part of the scan.
 3. DCA position, journal, signal-history read, klines proxy and the prompt generator work unchanged.
 
+## Step 1b — filter cleanup + inline chart (2026-07-26)
+Follow-up on the same "too much noise" complaint, on the UI side:
+
+- **All facet filters removed** — the zone (GOM/Chờ/Hồi), quality (An toàn/Khá/Rủi ro/Tránh), trend
+  (↑/→/↓) and Holding chips plus their live counts are gone. **Only the symbol/name search box
+  remains.** Filtering on frozen signal values was misleading anyway. Column-header sorting is
+  untouched.
+- **Chart button in the Coin column** — a small candlestick icon sits next to the symbol. Clicking it
+  (the click is stopped from bubbling into the row's detail modal) opens the **same fullscreen chart
+  dialog the `/bitget` page uses** — `SetupChartDialog` reused as-is from
+  `@web/widgets/bitget/setup-chart-dialog`, so the indicators are identical: **SonicR (EMA34 Dragon +
+  EMA89) + EMA200 + S/R channel + RSI(14)+MA + QQE Long/Short markers + volume MA20**, rendered
+  server-side as a PNG by `GET /bitget/setup-chart` (a `@Public()` route over public Binance klines).
+  It opens on **D1** (swing/DCA horizon) instead of the Bitget default H4, and the M15…D1 switcher
+  inside the dialog still works. `allowSave` is off — no R2 snapshot button here.
+
 ## Edge Cases
 - **Newly added coin** → no signal row → indicator cells show "—" and the Overview tab says
   "Chưa có dữ liệu chỉ báo cho coin này." Nothing will populate it until the new flow exists.
@@ -57,7 +73,13 @@ After: **no signal computation runs at all.** The page is read-only over stored 
   `GET order-suggestions`, `GET orders`, `PATCH orders/:id/notes` removed
 - `apps/api/src/modules/tracking-coins/dto/update-order-notes.dto.ts` — **deleted**
 - `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — `⚡ Re-analyze` button +
-  `handleReanalyze` removed, empty-state copy updated
+  `handleReanalyze` removed, empty-state copy updated; **step 1b**: facet filters (zone/quality/trend/
+  holding) + their count memos removed, `IconChart` + `tc-chart-btn` added to the Coin cell, hosts
+  `SetupChartDialog`
+- `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — **reused unchanged** by tracking-coins
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/setup-chart` (`@Public()`), the
+  shared PNG endpoint both pages hit
+- `apps/web/src/app/globals.css` — `.tc-coin-line`, `.tc-chart-btn`
 - `apps/web/src/shared/api/client.ts` — `triggerTrackingCoinsScan`, `fetchOrderSuggestions`,
   `fetchCoinOrders`, `updateOrderNotes` removed
 - `apps/web/src/shared/api/types.ts` — `OrderSuggestion`, `OrderSuggestions`, `TrackingCoinOrder` removed

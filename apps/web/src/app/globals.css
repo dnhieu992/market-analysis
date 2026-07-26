@@ -8083,6 +8083,33 @@ a.metric-card--link:hover {
   min-width: 32px;
 }
 
+/* ── tracking coins: symbol + inline chart button ── */
+.tc-coin-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tc-chart-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tc-chart-btn:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #2563eb;
+}
+
 /* ── tracking coins: live price ── */
 .tc-live-price {
   display: block;

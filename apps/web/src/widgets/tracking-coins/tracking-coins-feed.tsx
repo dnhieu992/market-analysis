@@ -5,6 +5,7 @@ import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend, DcaPosition, Portfolio, SignalHistoryRow } from '@web/shared/api/types';
 import { TrackingCoinChatDrawer } from '@web/widgets/tracking-coin-chat-drawer/tracking-coin-chat-drawer';
 import { CoinJournalPanel } from '@web/widgets/tracking-coin-journal/tracking-coin-journal';
+import { SetupChartDialog } from '@web/widgets/bitget/setup-chart-dialog';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 type SortKey = 'dca' | 'ext' | 'mktcap' | 'rsi' | 'vol' | 'coin';
@@ -157,47 +158,7 @@ function dcaQuality(score: number): { label: string; cls: string } {
   return { label: 'Tránh', cls: 'tc-dca--avoid' };
 }
 
-/* ── filter facets ──────────────────────────────────────────────── */
-
-type ZoneFilter = 'all' | 'GOM' | 'CHO' | 'CHOT';
-type QualityFilter = 'all' | 'safe' | 'ok' | 'risky' | 'avoid';
-type TrendGroup = 'up' | 'side' | 'down';
-type TrendFilter = 'all' | TrendGroup;
-
-function dcaBucketKey(score: number): Exclude<QualityFilter, 'all'> {
-  if (score >= 70) return 'safe';
-  if (score >= 50) return 'ok';
-  if (score >= 30) return 'risky';
-  return 'avoid';
-}
-
-function trendGroup(t: PaTrend): TrendGroup {
-  if (t === 'StrongUp' || t === 'Up') return 'up';
-  if (t === 'Down' || t === 'StrongDown') return 'down';
-  return 'side';
-}
-
-const ZONE_FILTERS: ReadonlyArray<{ key: ZoneFilter; label: string }> = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'GOM', label: 'GOM' },
-  { key: 'CHO', label: 'Chờ' },
-  { key: 'CHOT', label: 'Hồi' },
-];
-
-const QUALITY_FILTERS: ReadonlyArray<{ key: QualityFilter; label: string }> = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'safe', label: 'An toàn' },
-  { key: 'ok', label: 'Khá' },
-  { key: 'risky', label: 'Rủi ro' },
-  { key: 'avoid', label: 'Tránh' },
-];
-
-const TREND_FILTERS: ReadonlyArray<{ key: TrendFilter; label: string }> = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'up', label: '↑ Tăng' },
-  { key: 'side', label: '→ Ngang' },
-  { key: 'down', label: '↓ Giảm' },
-];
+/* ── DCA action zone meta ───────────────────────────────────────── */
 
 const ZONE_META: Record<'GOM' | 'CHO' | 'CHOT', { label: string; cls: string; title: string }> = {
   GOM:  { label: 'GOM',  cls: 'tc-zone--gom',  title: 'Đáy mạnh (giảm 50–85% + nền đi ngang, RSI thấp) đã qua cổng dcaScore≥50 → gom (spot, no SL, target x2)' },
@@ -281,6 +242,18 @@ function IconLayers() {
       <polygon points="12 2 2 7 12 12 22 7 12 2" />
       <polyline points="2 17 12 22 22 17" />
       <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
+function IconChart() {
+  // Candlestick glyph — opens the same server-rendered chart the /bitget page uses.
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="8" y1="3" x2="8" y2="21" />
+      <rect x="5" y="7" width="6" height="9" rx="1" />
+      <line x1="17" y1="3" x2="17" y2="21" />
+      <rect x="14" y="10" width="6" height="7" rx="1" />
     </svg>
   );
 }
@@ -887,18 +860,15 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
-  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('all');
-  const [qualityFilter, setQualityFilter] = useState<QualityFilter>('all');
-  const [trendFilter, setTrendFilter] = useState<TrendFilter>('all');
-  const [holdingOnly, setHoldingOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [chatCoin, setChatCoin] = useState<TrackingCoinRow | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
 
-  useEffect(() => { setPage(1); }, [nameFilter, sortKey, zoneFilter, qualityFilter, trendFilter, holdingOnly]);
+  useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
 
   async function reloadCoins() {
     try {
@@ -921,44 +891,11 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     }
   }
 
-  // Coins after the text + holding filters — used both for the visible list and
-  // for the per-facet chip counts so the numbers track the current search.
-  const base = useMemo(() => {
-    const q = nameFilter.trim().toUpperCase();
-    return coins.filter((c) =>
-      (!q || c.symbol.includes(q) || c.name.toUpperCase().includes(q)) &&
-      (!holdingOnly || c.dcaPosition != null)
-    );
-  }, [coins, nameFilter, holdingOnly]);
-
-  const zoneCounts = useMemo(() => {
-    const c: Record<ZoneFilter, number> = { all: base.length, GOM: 0, CHO: 0, CHOT: 0 };
-    for (const x of base) { const z = x.signal?.accZone; if (z) c[z] += 1; }
-    return c;
-  }, [base]);
-
-  const qualityCounts = useMemo(() => {
-    const c: Record<QualityFilter, number> = { all: base.length, safe: 0, ok: 0, risky: 0, avoid: 0 };
-    for (const x of base) if (x.signal) c[dcaBucketKey(x.signal.dcaScore)] += 1;
-    return c;
-  }, [base]);
-
-  const trendCounts = useMemo(() => {
-    const c: Record<TrendFilter, number> = { all: base.length, up: 0, side: 0, down: 0 };
-    for (const x of base) if (x.signal) c[trendGroup(x.signal.trend)] += 1;
-    return c;
-  }, [base]);
-
-  const holdingCount = useMemo(() => coins.filter((c) => c.dcaPosition != null).length, [coins]);
-
+  // Name/symbol search is the only filter left (2026-07-26 — the zone / quality /
+  // trend / holding chips were dropped with the signal refactor).
   const sorted = useMemo(() => {
-    const filtered = base.filter((c) => {
-      const sig = c.signal;
-      if (zoneFilter !== 'all' && sig?.accZone !== zoneFilter) return false;
-      if (qualityFilter !== 'all' && (sig == null || dcaBucketKey(sig.dcaScore) !== qualityFilter)) return false;
-      if (trendFilter !== 'all' && (sig == null || trendGroup(sig.trend) !== trendFilter)) return false;
-      return true;
-    });
+    const q = nameFilter.trim().toUpperCase();
+    const filtered = coins.filter((c) => !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q));
     return [...filtered].sort((a, b) => {
       if (sortKey === 'dca') return (b.signal?.dcaScore ?? -Infinity) - (a.signal?.dcaScore ?? -Infinity);
       if (sortKey === 'ext') return (b.signal?.extPct ?? -Infinity) - (a.signal?.extPct ?? -Infinity);
@@ -967,7 +904,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
       if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
       return a.symbol.localeCompare(b.symbol);
     });
-  }, [base, sortKey, zoneFilter, qualityFilter, trendFilter]);
+  }, [coins, nameFilter, sortKey]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -999,6 +936,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onConfirm={async () => { await handleRemoveCoin(confirmRemoveSymbol); setConfirmRemoveSymbol(null); }}
           onCancel={() => setConfirmRemoveSymbol(null)}
         />
+      )}
+      {chartSymbol && (
+        <SetupChartDialog symbol={chartSymbol} tf="1d" onClose={() => setChartSymbol(null)} />
       )}
       {showInfo && <StrategyInfoDialog onClose={() => setShowInfo(false)} />}
 
@@ -1052,43 +992,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             value={nameFilter}
             onChange={(e) => setNameFilter(e.target.value)}
           />
-
-          <div className="tc-chip-row">
-            {ZONE_FILTERS.filter((f) => f.key !== 'all').map((f) => (
-              <button
-                key={f.key}
-                className={`ts-filter${zoneFilter === f.key ? ' is-active' : ''}`}
-                onClick={() => setZoneFilter((v) => (v === f.key ? 'all' : f.key))}
-              >
-                {f.label} <span className="ts-filter-count">{zoneCounts[f.key]}</span>
-              </button>
-            ))}
-            {QUALITY_FILTERS.filter((f) => f.key !== 'all').map((f) => (
-              <button
-                key={f.key}
-                className={`ts-filter${qualityFilter === f.key ? ' is-active' : ''}`}
-                onClick={() => setQualityFilter((v) => (v === f.key ? 'all' : f.key))}
-              >
-                {f.label} <span className="ts-filter-count">{qualityCounts[f.key]}</span>
-              </button>
-            ))}
-            {TREND_FILTERS.filter((f) => f.key !== 'all').map((f) => (
-              <button
-                key={f.key}
-                className={`ts-filter${trendFilter === f.key ? ' is-active' : ''}`}
-                onClick={() => setTrendFilter((v) => (v === f.key ? 'all' : f.key))}
-              >
-                {f.label} <span className="ts-filter-count">{trendCounts[f.key]}</span>
-              </button>
-            ))}
-            <button
-              className={`ts-filter${holdingOnly ? ' is-active' : ''}`}
-              onClick={() => setHoldingOnly((v) => !v)}
-              title="Chỉ hiện coin đang ôm vị thế DCA"
-            >
-              Holding <span className="ts-filter-count">{holdingCount}</span>
-            </button>
-          </div>
         </div>
 
         {/* table */}
@@ -1135,7 +1038,17 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 return (
                   <tr key={coin.id} className="scr-row" onClick={() => { setDetailTab('overview'); setSelectedCoin(coin); }} style={{ cursor: 'pointer' }}>
                     <td className="scr-td scr-td--coin">
-                      <span className="scr-symbol">{coin.symbol}</span>
+                      <span className="tc-coin-line">
+                        <span className="scr-symbol">{coin.symbol}</span>
+                        <button
+                          className="tc-chart-btn"
+                          aria-label={`Xem chart ${coin.symbol}`}
+                          title="Xem chart (SonicR + S/R + RSI)"
+                          onClick={(e) => { e.stopPropagation(); setChartSymbol(coin.symbol); }}
+                        >
+                          <IconChart />
+                        </button>
+                      </span>
                       {coin.name && <span className="scr-name">{coin.name}</span>}
                       {coin.marketCap != null && <span className="scr-name">{fmtMarketCap(coin.marketCap)}</span>}
                       {prices.has(coin.symbol) && (
