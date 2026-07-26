@@ -92,7 +92,9 @@ link. The tab bar and the two other tabs are gone; there is no state in the moda
 The Actions column holds **one button: delete** (trash → `ConfirmRemoveDialog` → `DELETE
 /tracking-coins/coins/:symbol`). The prompt-generator (`TrackingCoinChatDrawer`), DCA-position,
 activity-log and ⚙ settings buttons were removed with their features. The **chart button stays** —
-it sits in the Coin column, not in Actions, and opens `SetupChartDialog` (H4 default).
+it sits in the Coin column, not in Actions, and opens `SetupChartDialog` (H4 default). That chart is
+the shared Bitget renderer, so it carries the **UT Bot (10,3)** trailing stop alongside SonicR /
+EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
 
 
 ## Edge Cases

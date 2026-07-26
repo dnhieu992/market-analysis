@@ -1,6 +1,6 @@
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { ChartConfiguration, Plugin } from 'chart.js';
-import { calculateQqe, type QqeCross } from '@app/core';
+import { calcUtBotSignals, calculateQqe, type QqeCross, type UtBotBarSignal } from '@app/core';
 
 /**
  * colinmck "QQE Signals" params for the Bitget charts (RSI length, RSI smoothing,
@@ -15,6 +15,16 @@ export const QQE_PARAMS = {
   smoothing: 4,
   qqeFactor: 3.2,
   threshold: 10,
+} as const;
+
+/**
+ * UT Bot Alerts params. `atrPeriod` is TradingView's `c` (ATR Period) and
+ * `keyValue` its `a` (sensitivity / ATR multiple) — so this is the "UT Bot 10,3"
+ * setting: ATR(10) trailing stop at 3× ATR.
+ */
+export const UT_BOT_PARAMS = {
+  atrPeriod: 10,
+  keyValue: 3,
 } as const;
 
 export type OhlcCandle = {
@@ -385,6 +395,41 @@ function qqeSignalPlugin(candles: OhlcCandle[], cross: QqeCross[]): Plugin {
           ctx.textBaseline = 'bottom';
           ctx.fillText('Short', x, tipY - 10);
         }
+      });
+      ctx.restore();
+    },
+  };
+}
+
+/**
+ * UT Bot flips: a dot on the trailing-stop line at the bar where the stop
+ * switches side (green = buy flip, red = sell flip). The stop line itself is a
+ * normal dataset so it shows in the legend; only the flip dots need custom
+ * drawing. Kept marker-only (no text) because the QQE plugin already writes
+ * Long/Short labels around the same candles.
+ */
+function utBotFlipPlugin(utBot: UtBotBarSignal[]): Plugin {
+  return {
+    id: 'ut-bot-flips',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales } = chart;
+      const xScale = scales['x'];
+      const yScale = scales['y'];
+      if (!xScale || !yScale) return;
+
+      ctx.save();
+      clipToPriceArea(chart);
+      utBot.forEach((bar, i) => {
+        if (!bar.buySignal && !bar.sellSignal) return;
+        const x = xScale.getPixelForValue(i);
+        const y = yScale.getPixelForValue(bar.stopLevel);
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = bar.buySignal ? '#16a34a' : '#dc2626';
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
       });
       ctx.restore();
     },
@@ -813,6 +858,13 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const qqeCross = tail(
     calculateQqe(fullCloses, QQE_PARAMS.rsiPeriod, QQE_PARAMS.smoothing, QQE_PARAMS.qqeFactor).cross,
   );
+  // UT Bot Alerts (ATR 10, key value 3) — trailing stop computed on full history
+  // so the ATR is warm, then tailed. Split into two series so the line is green
+  // while price holds above the stop and red once it flips below; the NaN gap at
+  // a flip is what visually breaks the line at the switch.
+  const utBot = tail(calcUtBotSignals(fullCandles, UT_BOT_PARAMS.atrPeriod, UT_BOT_PARAMS.keyValue));
+  const utStopUp = utBot.map((b) => (b.stopLevel > 0 && b.uptrend ? b.stopLevel : NaN));
+  const utStopDown = utBot.map((b) => (b.stopLevel > 0 && !b.uptrend ? b.stopLevel : NaN));
   // Engulfing Candles Detector — detected on full history, tailed to the window.
   const engulf = tail(detectEngulfing(fullCandles));
   const srChannels = computeSrChannels(candles);
@@ -863,6 +915,26 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
           tension: 0.1,
         },
         {
+          label: `UT Bot (${UT_BOT_PARAMS.atrPeriod},${UT_BOT_PARAMS.keyValue}) ↑`,
+          data: utStopUp,
+          borderColor: '#16a34a',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          stepped: true,
+          spanGaps: false,
+        },
+        {
+          label: `UT Bot (${UT_BOT_PARAMS.atrPeriod},${UT_BOT_PARAMS.keyValue}) ↓`,
+          data: utStopDown,
+          borderColor: '#dc2626',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          stepped: true,
+          spanGaps: false,
+        },
+        {
           label: 'Giá hiện tại',
           data: flatLine(currentPrice),
           borderColor: 'rgba(30, 41, 59, 0.55)',
@@ -897,7 +969,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
         },
         title: {
           display: true,
-          text: `${symbol} ${timeframe} · SonicR + EMA200 + S/R Channel + RSI + QQE + Engulfing`,
+          text: `${symbol} ${timeframe} · SonicR + EMA200 + UT Bot(${UT_BOT_PARAMS.atrPeriod},${UT_BOT_PARAMS.keyValue}) + S/R Channel + RSI + QQE + Engulfing`,
           color: '#0f172a',
           font: { size: 14, weight: 'bold' },
         },
@@ -908,6 +980,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       sonicDragonPlugin(ema34High, ema34Low),
       candlestickPlugin(candles, engulf),
       qqeSignalPlugin(candles, qqeCross),
+      utBotFlipPlugin(utBot),
       rsiPlugin(rsi, rsiMa),
       volumePlugin(candles, volMa),
       ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),
@@ -922,6 +995,9 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const prices = [
     ...candles.flatMap((c) => [c.high, c.low]),
     ...emaVals,
+    // Keep the UT Bot stop inside the pane — after a sharp flip it can sit well
+    // outside the candle range and would otherwise be clipped away.
+    ...[...utStopUp, ...utStopDown].filter((v) => Number.isFinite(v)),
     ...srChannels.flatMap((c) => [c.hi, c.lo]),
     ...markers.flatMap((m) => (m.kind === 'closed' ? [m.entryPrice, m.closePrice] : [m.entryPrice])),
     currentPrice,

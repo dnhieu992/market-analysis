@@ -34,7 +34,9 @@ Each coin row also has a single **📈 Chart** button that opens a fullscreen di
 server-rendered PNG chart. The dialog has an **M15 / M30 / H1 / H4 / D1** timeframe switcher in
 its header (defaults to **H4**) that re-fetches the render in place — one button per row instead
 of five. The chart carries TradingView-default indicators: the **SonicR system** (EMA34
-of high/low/close as the green "Dragon" ribbon + EMA89 trend line), **Support/Resistance
+of high/low/close as the green "Dragon" ribbon + EMA89 trend line), **UT Bot Alerts (ATR 10,
+key value 3)** — the ATR trailing stop drawn as a stepped line, **green while price holds above
+it, red once price flips below**, with a dot on the line at each flip bar, **Support/Resistance
 Channels** (LonesomeTheBlue-style pivot channels), **RSI(14)**, a **FxCanli Volume (Hacim)**
 pane (per-bar volume histogram coloured by candle direction + MA20), **colinmck "QQE
 Signals" (14,5,4.238)** markers drawn on the price candles — a green ▲ **Long** below the candle
@@ -124,6 +126,12 @@ PNG in a new tab.
    size + leverage and a reminder that it was logged) and positions refresh.
 
 ## Edge Cases
+- **UT Bot warm-up / young coin:** the trailing stop is computed over the *full* fetched history
+  (not just the displayed window) so it is already warm at the left edge. Bars where ATR(10) has
+  no value yet yield `stopLevel = 0`, which is mapped to `NaN` and simply not drawn — the line
+  starts a little later on a coin with very few candles instead of collapsing to zero.
+- **UT Bot after a sharp flip:** the stop can sit far outside the candle range, so its values are
+  folded into the y-axis min/max — the line stays inside the pane rather than being clipped away.
 - **Already open (per side):** the button stays enabled and switches to **+ Long / + Short**;
   clicking scales into that position. The confirm dialog says so explicitly, so an accidental
   double-click can't quietly double the position. A stale UI is harmless: the API re-reads the
@@ -191,7 +199,7 @@ PNG in a new tab.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column. An optional `&timeframes=` (subset of `M30,1h,4h,1d,1w`) narrows the server-side scan; omitted here, so the Setup tab keeps the full M30/1h/4h/1d default. `/tracking-coins` passes `4h,1d,1w`.
 - `apps/web/src/widgets/bitget/qqe-cell.tsx` — `QqeCell` + `isLiveSignal` + `bareQqeSymbol`, extracted from `bitget-setup-feed.tsx` (2026-07-26) so `/tracking-coins` renders the identical column; `timeframes` prop selects which switcher columns a page reports on.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — the chart dialog now takes an optional `timeframes` prop (defaults to `CHART_TIMEFRAMES`); `SWING_CHART_TIMEFRAMES` (H4/D1/W1) is the swing-page variant. `1w` is a supported render timeframe.
-- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + Engulfing Candles Detector (`detectEngulfing`, colours the candle solid green/red — no box/label) + position-marker lines + trade-span (Vào/Đóng) markers.
+- `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + **UT Bot (10,3)** trailing stop (`calcUtBotSignals` from `@app/core`, `UT_BOT_PARAMS`; two stepped datasets green/red + `utBotFlipPlugin` dots) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + Engulfing Candles Detector (`detectEngulfing`, colours the candle solid green/red — no box/label) + position-marker lines + trade-span (Vào/Đóng) markers.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — History tab: per-row M30/H1/H4/D1 buttons + `TradeChartDialog` (review chart + 💾 Lưu to R2).
 - `packages/db/prisma/schema.prisma` / `bitget-trade-chart.repository.ts` — `BitgetTradeChart` model (saved trade-chart snapshots, unique on tradeKey+timeframe).
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.
