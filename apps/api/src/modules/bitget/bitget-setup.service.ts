@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { createBitgetSetupConfigRepository } from '@app/db';
+import { createBitgetSetupConfigRepository, createBitgetSymbolPriorityRepository } from '@app/db';
 
 import type { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
 import type { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
+import type { UpsertSymbolPriorityDto } from './dto/upsert-symbol-priority.dto';
 
 export type BitgetSetupConfigDto = {
   symbol: string;
@@ -11,11 +12,25 @@ export type BitgetSetupConfigDto = {
   marginUsd: number;
 };
 
+/** Manual 0–5 star rating a coin carries in the Setup tab. */
+export type BitgetSymbolPriorityDto = {
+  symbol: string;
+  priority: number;
+};
+
+/** Highest star rating the UI (and this service) accepts. */
+export const MAX_SYMBOL_PRIORITY = 5;
+
 type SetupConfigRow = {
   symbol: string;
   holdSide: string;
   leverage: number;
   marginUsd: number;
+};
+
+type SymbolPriorityRow = {
+  symbol: string;
+  priority: number;
 };
 
 /**
@@ -27,6 +42,7 @@ type SetupConfigRow = {
 @Injectable()
 export class BitgetSetupService {
   private readonly repo = createBitgetSetupConfigRepository();
+  private readonly priorityRepo = createBitgetSymbolPriorityRepository();
 
   async list(): Promise<BitgetSetupConfigDto[]> {
     const rows = (await this.repo.findAll()) as SetupConfigRow[];
@@ -80,6 +96,25 @@ export class BitgetSetupService {
     );
     const rows = (await this.repo.upsertMany(inputs)) as SetupConfigRow[];
     return rows.map((r) => this.toDto(r));
+  }
+
+  /** Every coin's star priority (coins never rated simply have no row). */
+  async listPriorities(): Promise<BitgetSymbolPriorityDto[]> {
+    const rows = (await this.priorityRepo.findAll()) as SymbolPriorityRow[];
+    return rows.map((r) => ({ symbol: r.symbol, priority: r.priority }));
+  }
+
+  /** Set one coin's star priority. 0 clears it (all stars grey in the tab). */
+  async upsertPriority(dto: UpsertSymbolPriorityDto): Promise<BitgetSymbolPriorityDto> {
+    const priority = Math.round(dto.priority);
+    if (!(priority >= 0 && priority <= MAX_SYMBOL_PRIORITY)) {
+      throw new BadRequestException(`Mức ưu tiên phải trong khoảng 0–${MAX_SYMBOL_PRIORITY} sao.`);
+    }
+    const row = (await this.priorityRepo.upsert({
+      symbol: dto.symbol.trim().toUpperCase(),
+      priority,
+    })) as SymbolPriorityRow;
+    return { symbol: row.symbol, priority: row.priority };
   }
 
   private toDto(row: SetupConfigRow): BitgetSetupConfigDto {

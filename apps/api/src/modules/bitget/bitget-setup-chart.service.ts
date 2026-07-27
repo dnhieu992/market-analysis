@@ -32,11 +32,21 @@ const QQE_CACHE_TTL_MS = 60_000;
 
 /** Daily candles pulled to compute the 7d / 30d change (needs ≥ 31 back + today). */
 const CHANGE_KLINE_LIMIT = 40;
+/** 4h candles pulled for the H4 column — only the last CLOSED one is used. */
+const H4_KLINE_LIMIT = 3;
 /** 7d / 30d changes move once a day — reuse a reading for 5 minutes. */
 const CHANGE_CACHE_TTL_MS = 5 * 60_000;
 
-/** 7-day and 30-day price change (as a ratio, 0.0123 = +1.23%) for a coin. */
-export type BitgetPriceChange = { symbol: string; change7d: number | null; change30d: number | null };
+/**
+ * Price change (as a ratio, 0.0123 = +1.23%) for a coin: the last CLOSED 4h
+ * candle's own move (close vs its open) plus the 7-day and 30-day changes.
+ */
+export type BitgetPriceChange = {
+  symbol: string;
+  changeH4: number | null;
+  change7d: number | null;
+  change30d: number | null;
+};
 
 /** Current colinmck QQE state on one timeframe's last CLOSED candle. */
 export type QqeTfSignal = {
@@ -286,6 +296,30 @@ export class BitgetSetupChartService {
   }
 
   /**
+   * Saved-chart count per coin — one grouped query feeding the Setup tab's
+   * Attachments column, which shows how many images each coin references.
+   */
+  async countSavedChartsBySymbol(): Promise<Array<{ symbol: string; count: number }>> {
+    const rows = (await this.chartRepo.countBySymbol()) as Array<{
+      symbol: string;
+      _count: { _all: number };
+    }>;
+    return rows.map((r) => ({ symbol: r.symbol, count: r._count._all }));
+  }
+
+  /**
+   * Saved-chart count per trade — the History tab's Attachments column, where
+   * the gallery is scoped to one `tradeKey` instead of a whole coin.
+   */
+  async countSavedChartsByTradeKey(): Promise<Array<{ tradeKey: string; count: number }>> {
+    const rows = (await this.chartRepo.countByTradeKey()) as Array<{
+      tradeKey: string;
+      _count: { _all: number };
+    }>;
+    return rows.map((r) => ({ tradeKey: r.tradeKey, count: r._count._all }));
+  }
+
+  /**
    * Current colinmck QQE Signals state for each coin across the M30/1h/4h/1d
    * timeframes shown in the chart view — the data behind the Setup-tab "QQE"
    * column. Readings come from the last CLOSED candle (no repaint) and are cached
@@ -309,9 +343,10 @@ export class BitgetSetupChartService {
   }
 
   /**
-   * 7-day and 30-day price change for each coin — the data behind the Setup-tab
-   * "7d" / "30d" columns. Computed from Binance daily candles (current close vs
-   * the close N days ago) and cached ~5 min per coin (daily changes move slowly).
+   * H4 / 7-day / 30-day price change for each coin — the data behind the
+   * Setup-tab "H4", "7 ngày" and "30 ngày" columns. The daily changes compare
+   * the current close with the close N days ago; H4 is the last CLOSED 4h
+   * candle's own move. Cached ~5 min per coin (none of these move faster).
    */
   async getPriceChanges(symbols: string[]): Promise<BitgetPriceChange[]> {
     const uniqueBare = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
@@ -322,7 +357,7 @@ export class BitgetSetupChartService {
     return out;
   }
 
-  /** 7d/30d change for one coin, served from cache when still fresh. */
+  /** H4 + 7d/30d change for one coin, served from cache when still fresh. */
   private async priceChangeFor(bare: string): Promise<BitgetPriceChange> {
     const cached = this.changeCache.get(bare);
     if (cached && Date.now() - cached.at < CHANGE_CACHE_TTL_MS) return cached.value;
@@ -343,12 +378,42 @@ export class BitgetSetupChartService {
           ? (current - past) / past
           : null;
       };
-      const value: BitgetPriceChange = { symbol: bare, change7d: changeAgo(7), change30d: changeAgo(30) };
+      const value: BitgetPriceChange = {
+        symbol: bare,
+        changeH4: await this.h4ChangeFor(bare),
+        change7d: changeAgo(7),
+        change30d: changeAgo(30),
+      };
       this.changeCache.set(bare, { at: Date.now(), value });
       return value;
     } catch {
       // Transient fetch failure: reuse last-known reading, else blanks.
-      return cached?.value ?? { symbol: bare, change7d: null, change30d: null };
+      return cached?.value ?? { symbol: bare, changeH4: null, change7d: null, change30d: null };
+    }
+  }
+
+  /**
+   * The last CLOSED 4h candle's own move, `(close - open) / open`. The forming
+   * candle is skipped on purpose — this column answers "what did the previous H4
+   * bar do", so a repainting value would be misleading.
+   */
+  private async h4ChangeFor(bare: string): Promise<number | null> {
+    try {
+      const klines = await this.binance.fetchKlines({
+        symbol: `${bare}USDT`,
+        timeframe: '4h' as never,
+        limit: H4_KLINE_LIMIT,
+      });
+      const now = Date.now();
+      const closed = klines.filter((k) => Number(k[6]) <= now);
+      const last = closed[closed.length - 1];
+      if (!last) return null;
+      const open = parseFloat(last[1]);
+      const close = parseFloat(last[4]);
+      return open > 0 && Number.isFinite(close) ? (close - open) / open : null;
+    } catch {
+      // Non-fatal: the H4 cell shows "—" and the 7d/30d readings still land.
+      return null;
     }
   }
 

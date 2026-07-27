@@ -595,6 +595,24 @@ export type BitgetSetupConfig = {
   marginUsd: number;
 };
 
+/** Manual 0–5 star rating a coin carries in the Setup tab (drives its default order). */
+export type BitgetSymbolPriority = {
+  symbol: string;
+  priority: number;
+};
+
+/** How many saved charts one coin references — the Setup Attachments badge. */
+export type BitgetChartCount = {
+  symbol: string;
+  count: number;
+};
+
+/** How many saved charts one trade references — the History Attachments badge. */
+export type BitgetTradeChartCount = {
+  tradeKey: string;
+  count: number;
+};
+
 /** colinmck QQE Signals state on one timeframe's last closed candle. */
 export type BitgetQqeTfSignal = {
   state: 'long' | 'short';
@@ -608,9 +626,14 @@ export type BitgetQqeSignals = {
   signals: Record<string, BitgetQqeTfSignal | null>;
 };
 
-/** 7d / 30d price change (ratio, 0.0123 = +1.23%) per coin, keyed by bare symbol. */
+/**
+ * Price change (ratio, 0.0123 = +1.23%) per coin, keyed by bare symbol:
+ * `changeH4` is the last CLOSED 4h candle's own move, `change7d` / `change30d`
+ * compare the current close with the close N days ago.
+ */
 export type BitgetPriceChange = {
   symbol: string;
+  changeH4: number | null;
   change7d: number | null;
   change30d: number | null;
 };

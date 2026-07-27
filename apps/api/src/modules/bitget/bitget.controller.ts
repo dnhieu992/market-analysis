@@ -24,6 +24,7 @@ import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
 import { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
+import { UpsertSymbolPriorityDto } from './dto/upsert-symbol-priority.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
 import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './bitget-setup-chart.service';
@@ -98,6 +99,18 @@ export class BitgetController {
   })
   bulkUpsertSetup(@Body() dto: BulkUpsertSetupConfigDto) {
     return this.setup.upsertMany(dto);
+  }
+
+  @Get('setup/priority')
+  @ApiOperation({ summary: 'List the manual 0–5 star priority of every rated coin (Setup tab ordering)' })
+  listSetupPriorities() {
+    return this.setup.listPriorities();
+  }
+
+  @Put('setup/priority')
+  @ApiOperation({ summary: 'Set one coin’s star priority (0 = none, 5 = max)' })
+  upsertSetupPriority(@Body() dto: UpsertSymbolPriorityDto) {
+    return this.setup.upsertPriority(dto);
   }
 
   @Get('setup-chart')
@@ -176,6 +189,18 @@ export class BitgetController {
   @ApiOperation({ summary: 'List all saved chart snapshots for one coin (by symbol)' })
   listSavedChartsBySymbol(@Query('symbol') symbol: string) {
     return this.setupChart.listSavedChartsBySymbol(symbol?.trim() ?? '');
+  }
+
+  @Get('trade-chart/counts')
+  @ApiOperation({ summary: 'Saved-chart count per coin, for the Setup tab Attachments column' })
+  countSavedChartsBySymbol() {
+    return this.setupChart.countSavedChartsBySymbol();
+  }
+
+  @Get('trade-chart/counts-by-trade')
+  @ApiOperation({ summary: 'Saved-chart count per trade (tradeKey), for the History tab Attachments column' })
+  countSavedChartsByTradeKey() {
+    return this.setupChart.countSavedChartsByTradeKey();
   }
 
   /** Coerce the trade-chart image query string into typed params. */

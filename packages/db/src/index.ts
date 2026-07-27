@@ -37,6 +37,8 @@ export { createBitgetSetupConfigRepository } from './repositories/bitget-setup-c
 export type { BitgetSetupConfigInput } from './repositories/bitget-setup-config.repository';
 export { createBitgetTradeChartRepository } from './repositories/bitget-trade-chart.repository';
 export type { BitgetTradeChartInput } from './repositories/bitget-trade-chart.repository';
+export { createBitgetSymbolPriorityRepository } from './repositories/bitget-symbol-priority.repository';
+export type { BitgetSymbolPriorityInput } from './repositories/bitget-symbol-priority.repository';
 export { createOrderJournalRepository } from './repositories/order-journal.repository';
 export type {
   OrderJournalInput,

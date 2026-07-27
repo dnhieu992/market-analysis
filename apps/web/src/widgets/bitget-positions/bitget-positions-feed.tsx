@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/types';
 
+import { ChartIcon } from '../bitget/chart-icon';
 import { SetupChartDialog } from '../bitget/setup-chart-dialog';
 
 import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
@@ -52,9 +53,11 @@ type Props = {
   initial: BitgetPositionsResponse;
   /** When rendered inside the merged Bitget tabs, drop the outer page chrome + title. */
   embedded?: boolean;
+  /** Reports how many positions are live, so the tab label can show the count. */
+  onCount?: (count: number) => void;
 };
 
-export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
+export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Props) {
   const [data, setData] = useState<BitgetPositionsResponse>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +78,11 @@ export function BitgetPositionsFeed({ initial, embedded = false }: Props) {
   useEffect(() => {
     setShowValue(localStorage.getItem(SHOW_VALUE_KEY) === '1');
   }, []);
+
+  // Keep the tab label's count in step with each 15s refresh.
+  useEffect(() => {
+    onCount?.(data.positions.length);
+  }, [data.positions.length, onCount]);
 
   const toggleShowValue = useCallback(() => {
     setShowValue((prev) => {
@@ -381,29 +389,6 @@ function EyeIcon({ off }: { off: boolean }) {
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
       {off && <line x1="3" y1="3" x2="21" y2="21" />}
-    </svg>
-  );
-}
-
-// Monochrome candlestick-chart icon — inherits text color via currentColor.
-function ChartIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 3v18h18" />
-      <rect x="7" y="10" width="3" height="6" rx="0.5" />
-      <path d="M8.5 7v3M8.5 16v2" />
-      <rect x="14" y="7" width="3" height="8" rx="0.5" />
-      <path d="M15.5 4v3M15.5 15v2" />
     </svg>
   );
 }

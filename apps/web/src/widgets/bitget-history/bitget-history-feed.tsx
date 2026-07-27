@@ -8,6 +8,7 @@ import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-pos
 import type { BitgetClosedTrade, BitgetHistoryResponse, BitgetTradeChart } from '@web/shared/api/types';
 
 import { SymbolMultiSelect } from '@web/widgets/bitget/symbol-multi-select';
+import { ChartIcon } from '@web/widgets/bitget/chart-icon';
 import { ChartNoteDialog, ChartNoteView } from '@web/widgets/bitget/chart-note-dialog';
 
 // Refresh cadence — paired with the worker's ~15s reconcile cron so a just-closed
@@ -86,9 +87,11 @@ type Props = {
   initial: BitgetHistoryResponse;
   /** When rendered inside the merged Bitget tabs, drop the outer page chrome + title. */
   embedded?: boolean;
+  /** Reports how many closed trades are loaded, so the tab label can show the count. */
+  onCount?: (count: number) => void;
 };
 
-export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
+export function BitgetHistoryFeed({ initial, embedded = false, onCount }: Props) {
   const [data, setData] = useState<BitgetHistoryResponse>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +102,24 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [page, setPage] = useState(1);
+  // Saved-chart count per tradeKey — the Attachments badge.
+  const [chartCounts, setChartCounts] = useState<Record<string, number>>({});
   const clientRef = useRef(createApiClient());
+
+  const refreshChartCounts = useCallback(async () => {
+    try {
+      const rows = await clientRef.current.fetchBitgetChartCountsByTrade();
+      const map: Record<string, number> = {};
+      for (const r of rows) map[r.tradeKey] = r.count;
+      setChartCounts(map);
+    } catch {
+      /* non-fatal: the Attachments column falls back to 0 */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshChartCounts();
+  }, [refreshChartCounts]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -120,6 +140,11 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
   }, [refresh]);
 
   const { configured, trades, summary, fetchedAt } = data;
+
+  // Keep the tab label's count in step with each 15s refresh.
+  useEffect(() => {
+    onCount?.(trades.length);
+  }, [trades.length, onCount]);
 
   // Distinct coin names present in history, for the filter select-box.
   const availableSymbols = useMemo(
@@ -252,9 +277,8 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                     <th className="bg-num">PnL ròng</th>
                     <th className="bg-num">Mở</th>
                     <th className="bg-num">Đóng</th>
-                    <th className="bg-num">Chart</th>
-                    <th className="bg-num" title="Xem lại các chart đã lưu từ đúng lệnh này">
-                      Tham chiếu
+                    <th className="bg-num" title="Số ảnh chart đã lưu từ đúng lệnh này — bấm để xem">
+                      Attachments
                     </th>
                     <th className="bg-num">Nhật ký</th>
                   </tr>
@@ -264,6 +288,7 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
                     <TradeRow
                       key={t.positionId || t.tradeKey}
                       t={t}
+                      attachments={chartCounts[t.tradeKey] ?? 0}
                       onChart={() => setChartTarget({ trade: t, tf: DEFAULT_CHART_TF })}
                       onReference={() => setRefTrade(t)}
                       onJournal={() =>
@@ -347,7 +372,11 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
         <TradeChartDialog
           target={chartTarget}
           onChangeTf={(tf) => setChartTarget((prev) => (prev ? { ...prev, tf } : prev))}
-          onClose={() => setChartTarget(null)}
+          // A chart may have been saved from here — refresh the Attachments counts.
+          onClose={() => {
+            setChartTarget(null);
+            void refreshChartCounts();
+          }}
         />
       )}
 
@@ -360,11 +389,14 @@ export function BitgetHistoryFeed({ initial, embedded = false }: Props) {
 
 function TradeRow({
   t,
+  attachments,
   onChart,
   onReference,
   onJournal,
 }: {
   t: BitgetClosedTrade;
+  /** How many charts are saved for this trade — the Attachments badge. */
+  attachments: number;
   onChart: () => void;
   onReference: () => void;
   onJournal: () => void;
@@ -378,6 +410,15 @@ function TradeRow({
           <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
             {isLong ? 'LONG' : 'SHORT'}
           </span>
+          <button
+            type="button"
+            className="bg-chart-icon-btn"
+            onClick={onChart}
+            title="Xem chart quanh lúc vào/đóng lệnh"
+            aria-label={`Xem chart ${t.symbol}`}
+          >
+            <ChartIcon />
+          </button>
         </span>
       </td>
       <td className="bg-num">{fmtQty(t.size)}</td>
@@ -394,21 +435,18 @@ function TradeRow({
       <td className="bg-num">
         <button
           type="button"
-          className="bg-tf-btn bg-view-chart-btn"
-          onClick={onChart}
-          title="Xem chart quanh lúc vào/đóng lệnh"
-        >
-          📈 Xem chart
-        </button>
-      </td>
-      <td className="bg-num">
-        <button
-          type="button"
-          className="bg-ref-btn"
+          className={`bg-ref-btn bg-attach-btn ${attachments === 0 ? 'bg-attach-btn--empty' : ''}`}
           onClick={onReference}
-          title="Xem lại các chart đã lưu từ đúng lệnh này"
+          title={
+            attachments === 0
+              ? 'Chưa có ảnh chart nào lưu từ lệnh này'
+              : `${attachments} ảnh chart đã lưu từ lệnh này — bấm để xem`
+          }
         >
-          🖼 Reference
+          <span className="bg-attach-icon" aria-hidden>
+            🖼
+          </span>
+          <span className="bg-attach-count">{attachments}</span>
         </button>
       </td>
       <td className="bg-num">

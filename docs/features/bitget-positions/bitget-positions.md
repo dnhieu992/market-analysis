@@ -61,7 +61,8 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - `apps/api/src/modules/bitget/dto/set-tpsl.dto.ts` — validate `symbol`, `holdSide`, `takeProfitPrice`/`stopLossPrice` (nullable = xoá mức).
 - `apps/web/src/widgets/bitget-positions/tpsl-dialog.tsx` — dialog đặt TP/SL: prefill mức đang live, kiểm tra chiều theo giá hiện tại, ước tính PnL/ROE nếu chạm mức.
 - `apps/api/src/modules/bitget/bitget.module.ts` — module, đăng ký trong `apps/api/src/app.module.ts`.
-- `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — bảng vị thế + nút icon xem chart cạnh symbol (`ChartIcon`, mở `SetupChartDialog`).
+- `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — bảng vị thế + nút icon xem chart cạnh symbol (mở `SetupChartDialog`); báo số vị thế đang mở lên nhãn tab qua `onCount` (hiện là "Vị thế đang mở (N)").
+- `apps/web/src/widgets/bitget/chart-icon.tsx` — `ChartIcon` (icon nến monochrome) tách ra khỏi widget này 2026-07-27 để tab Setup và tab Lịch sử dùng lại y hệt.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — dialog chart dùng chung (Setup tab + Vị thế đang mở): switcher khung M30/H1/H4/D1, fetch PNG từ `GET /bitget/setup-chart`.
 - `apps/web/src/shared/api/types.ts` — type `BitgetPosition` (kèm `takeProfitPrice`/`stopLossPrice`), `BitgetPositionsResponse` (kèm `initialCapitalUsd`/`equityChangePct`), `BitgetTpslResult`.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — `EMPTY_POSITIONS` fallback phải khớp shape (`initialCapitalUsd`, `equityChangePct`).

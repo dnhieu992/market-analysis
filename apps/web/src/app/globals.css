@@ -10345,6 +10345,47 @@ a.metric-card--link:hover {
 }
 .bg-ref-btn:hover { background: rgba(23, 18, 13, 0.05); }
 
+/* Attachments cell: image icon + how many saved charts the coin references. */
+.bg-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+}
+.bg-attach-icon { font-size: 13px; line-height: 1; }
+.bg-attach-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* No images yet — dim it so a coin with references stands out at a glance. */
+.bg-attach-btn--empty { opacity: 0.5; }
+.bg-attach-btn--empty:hover { opacity: 1; }
+
+/* ── Setup-tab priority stars (rendered under the coin name) ───────── */
+.bg-stars { display: inline-flex; gap: 1px; }
+.bg-star {
+  padding: 0 1px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  /* Compact: the stars sit under the coin name, not in a column of their own. */
+  font-size: 13px;
+  line-height: 1;
+  /* Grey by default — the trader has not rated this coin (or not this far). */
+  color: #cbd5e1;
+  transition: color 0.12s ease, transform 0.12s ease;
+}
+.bg-star--on { color: #f5b301; }
+.bg-star:hover { transform: scale(1.15); }
+.bg-star:focus-visible { outline: 2px solid var(--accent, #f5b301); outline-offset: 1px; border-radius: 3px; }
+
 .bg-gallery-count {
   margin-left: 8px;
   padding: 1px 8px;
@@ -10581,6 +10622,12 @@ a.metric-card--link:hover {
   color: var(--accent, #4f46e5);
   border-bottom-color: var(--accent, #4f46e5);
 }
+/* Row count next to a tab label — quieter than the label it follows. */
+.bg-tab-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}
 /* Embedded feed inside the tabs — the outer .page already owns padding/width. */
 .bg-panel { padding: 0; }
 
@@ -10728,20 +10775,10 @@ a.metric-card--link:hover {
 .bg-setup-btn { padding: 5px 10px; }
 
 /* Symbol cell: coin ticker over a small "view chart" button. */
-.bg-symbol-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
-.bg-chart-btn {
-  padding: 3px 9px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--foreground);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.bg-chart-btn:hover { background: rgba(23, 18, 13, 0.05); }
-.bg-chart-btns { display: flex; gap: 3px; flex-wrap: wrap; }
+/* Setup-tab Symbol cell: coin name + chart icon on the first line, the coin's
+   priority stars underneath (they have no column of their own). */
+.bg-symbol-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.bg-symbol-name { display: inline-flex; align-items: center; gap: 8px; }
 
 /* QQE Signals column: only the timeframes with a live signal show, their label
    coloured green (Long) / red (Short). */
@@ -11423,8 +11460,6 @@ a.metric-card--link:hover {
 .bg-tf-btn--active { background: var(--accent, #1f8a5b); color: #fff; border-color: transparent; }
 .bg-tf-btns--dialog { margin-left: auto; }
 .bg-chart-save-btn { margin-left: 8px; }
-/* Single "Xem chart" button that replaced the per-timeframe row buttons. */
-.bg-view-chart-btn { padding: 4px 10px; }
 
 /* Keep the Symbol column pinned while scrolling the table horizontally. Target
    the symbol cell explicitly rather than :first-child so any table whose first

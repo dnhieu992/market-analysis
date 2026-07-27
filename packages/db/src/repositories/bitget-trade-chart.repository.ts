@@ -33,6 +33,29 @@ export function createBitgetTradeChartRepository(client = prisma) {
       });
     },
 
+    /**
+     * How many charts are archived per coin — one grouped query instead of one
+     * `findBySymbol` per row, so the Setup tab's Attachments column can show a
+     * count for every listed coin at once.
+     */
+    countBySymbol() {
+      return client.bitgetTradeChart.groupBy({
+        by: ['symbol'],
+        _count: { _all: true },
+      });
+    },
+
+    /**
+     * How many charts are archived per trade — the History tab's Attachments
+     * column, whose gallery is scoped to one `tradeKey` rather than a coin.
+     */
+    countByTradeKey() {
+      return client.bitgetTradeChart.groupBy({
+        by: ['tradeKey'],
+        _count: { _all: true },
+      });
+    },
+
     /** Insert or replace the saved chart for one (tradeKey, timeframe). */
     upsert(input: BitgetTradeChartInput) {
       const { tradeKey, timeframe, symbol, url, objectKey, note = null } = input;

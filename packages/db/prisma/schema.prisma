@@ -764,6 +764,19 @@ model BitgetSetupConfig {
   @@map("bitget_setup_configs")
 }
 
+// Manual 0–5 star priority the trader assigns to a coin in the /bitget Setup tab.
+// Drives the tab's default ordering (highest stars first). One row per coin —
+// priority is per-coin, not per-side, so both Long/Short rows share it.
+model BitgetSymbolPriority {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  priority  Int      @default(0) // 0 = no stars, 5 = max
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bitget_symbol_priorities")
+}
+
 // Saved chart snapshots for closed trades — the trader hits "Save" on the trade
 // chart (from the History tab) to archive the annotated PNG (entry/close markers
 // + indicators) on R2 for later study. One row per (tradeKey, timeframe).

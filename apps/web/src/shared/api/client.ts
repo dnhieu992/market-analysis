@@ -50,6 +50,9 @@ import type {
   BitgetOpenResult,
   BitgetTpslResult,
   BitgetSetupConfig,
+  BitgetSymbolPriority,
+  BitgetChartCount,
+  BitgetTradeChartCount,
   BitgetQqeSignals,
   BitgetPriceChange,
   BitgetTradeChart,
@@ -1168,6 +1171,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return (await response.json()) as BitgetSetupConfig[];
     },
 
+    // ── Bitget Setup tab star priority (per coin, drives the default order) ────
+    async fetchBitgetSymbolPriorities(): Promise<BitgetSymbolPriority[]> {
+      return fetchJson<BitgetSymbolPriority[]>(
+        fetchImpl,
+        `${baseUrl}/bitget/setup/priority`,
+        withDefaults({}),
+      );
+    },
+
+    async saveBitgetSymbolPriority(input: BitgetSymbolPriority): Promise<BitgetSymbolPriority> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/setup/priority`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu mức ưu tiên thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetSymbolPriority;
+    },
+
     // ── Bitget trade-review charts (save annotated PNG to R2 + DB) ────
     async saveBitgetTradeChart(input: {
       tradeKey: string;
@@ -1258,6 +1287,24 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<BitgetTradeChart[]>(
         fetchImpl,
         `${baseUrl}/bitget/trade-chart/by-symbol?symbol=${encodeURIComponent(symbol)}`,
+        withDefaults({}),
+      );
+    },
+
+    /** Saved-chart count per coin — the Setup tab's Attachments badge. */
+    async fetchBitgetChartCounts(): Promise<BitgetChartCount[]> {
+      return fetchJson<BitgetChartCount[]>(
+        fetchImpl,
+        `${baseUrl}/bitget/trade-chart/counts`,
+        withDefaults({}),
+      );
+    },
+
+    /** Saved-chart count per trade — the History tab's Attachments badge. */
+    async fetchBitgetChartCountsByTrade(): Promise<BitgetTradeChartCount[]> {
+      return fetchJson<BitgetTradeChartCount[]>(
+        fetchImpl,
+        `${baseUrl}/bitget/trade-chart/counts-by-trade`,
         withDefaults({}),
       );
     },

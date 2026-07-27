@@ -11,6 +11,8 @@ import type {
   BitgetPriceChange,
   BitgetTradeChart,
 } from '@web/shared/api/types';
+import { StarRating } from './star-rating';
+import { ChartIcon } from './chart-icon';
 
 import { useBitgetLivePrices } from '../bitget-positions/use-bitget-live-prices';
 import {
@@ -29,8 +31,11 @@ const QQE_REFRESH_MS = 60_000;
 // 7d / 30d change only moves once a day — poll rarely.
 const CHANGE_REFRESH_MS = 5 * 60_000;
 
-/** Which change column the table is sorted by (null = default pinned order). */
-type SortCol = 'today' | 'd7' | 'd30';
+/** Which sortable column the table is ordered by (null = default pinned order). */
+type SortCol = 'priority' | 'today' | 'h4' | 'd7' | 'd30';
+
+/** The tab opens ordered by the trader's manual star priority, highest first. */
+const DEFAULT_SORT: { col: SortCol; dir: 'desc' | 'asc' } = { col: 'priority', dir: 'desc' };
 
 // Always shown first, regardless of trade history.
 const PINNED_SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
@@ -49,6 +54,29 @@ const WATCHLIST_SYMBOLS = [
   'ONDOUSDT',
   'TIAUSDT',
 ];
+
+/**
+ * The coins the Setup tab lists: BTC/ETH pinned first, then the watchlist, then
+ * every other coin ever traded (newest-first by most recent close), deduped.
+ * Exported so the tab label can show the same total the table renders.
+ */
+export function setupSymbols(trades: BitgetHistoryResponse['trades']): string[] {
+  const lastClose = new Map<string, number>();
+  for (const t of trades) {
+    const ts = new Date(t.closedAt).getTime();
+    const prev = lastClose.get(t.symbol) ?? 0;
+    if (ts > prev) lastClose.set(t.symbol, ts);
+  }
+  const traded = [...lastClose.keys()].sort((a, b) => (lastClose.get(b) ?? 0) - (lastClose.get(a) ?? 0));
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const s of [...PINNED_SYMBOLS, ...WATCHLIST_SYMBOLS, ...traded]) {
+    if (seen.has(s)) continue;
+    seen.add(s);
+    ordered.push(s);
+  }
+  return ordered;
+}
 
 type ChartTarget = { symbol: string; tf: string };
 
@@ -90,6 +118,8 @@ type Props = {
   history: BitgetHistoryResponse;
   positions: BitgetPositionsResponse;
   embedded?: boolean;
+  /** Reports how many coins the tab lists (unfiltered), for the tab label count. */
+  onCount?: (count: number) => void;
 };
 
 /**
@@ -100,7 +130,12 @@ type Props = {
  * that is already open it ADDS volume to that position (scale-in) at the live
  * position's leverage, and the API records the add-on in the trade's journal.
  */
-export function BitgetSetupFeed({ history, positions: initialPositions, embedded = false }: Props) {
+export function BitgetSetupFeed({
+  history,
+  positions: initialPositions,
+  embedded = false,
+  onCount,
+}: Props) {
   const clientRef = useRef(createApiClient());
   const [positions, setPositions] = useState<BitgetPositionsResponse>(initialPositions);
   const [configs, setConfigs] = useState<ConfigMap>({});
@@ -115,9 +150,13 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [qqe, setQqe] = useState<QqeMap>({});
   // 7d/30d change per bare coin symbol (from Binance daily candles, via the API).
   const [priceChanges, setPriceChanges] = useState<Record<string, BitgetPriceChange>>({});
-  // Change-column sort: null keeps the default pinned/watchlist order; clicking a
-  // header cycles desc → asc → back to the default. Only one column sorts at a time.
-  const [sort, setSort] = useState<{ col: SortCol; dir: 'desc' | 'asc' } | null>(null);
+  // Manual 0–5 star priority per coin (persisted) — the tab's default ordering.
+  const [priorities, setPriorities] = useState<Record<string, number>>({});
+  // Saved-chart count per coin — the Attachments badge.
+  const [chartCounts, setChartCounts] = useState<Record<string, number>>({});
+  // Column sort: opens on priority desc; clicking a header cycles desc → asc →
+  // off (pinned/watchlist order). Only one column sorts at a time.
+  const [sort, setSort] = useState<{ col: SortCol; dir: 'desc' | 'asc' } | null>(DEFAULT_SORT);
   // Coin-name filter (empty = all coins), same UX as the History tab.
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
 
@@ -140,25 +179,48 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     };
   }, []);
 
-  // BTC/ETH pinned first, then the watchlist, then every other coin ever traded
-  // (newest-first by most recent close).
-  const symbols = useMemo(() => {
-    const lastClose = new Map<string, number>();
-    for (const t of history.trades) {
-      const ts = new Date(t.closedAt).getTime();
-      const prev = lastClose.get(t.symbol) ?? 0;
-      if (ts > prev) lastClose.set(t.symbol, ts);
+  // Hydrate the saved star priorities so the tab opens in the trader's order.
+  useEffect(() => {
+    let alive = true;
+    clientRef.current
+      .fetchBitgetSymbolPriorities()
+      .then((list) => {
+        if (!alive) return;
+        const map: Record<string, number> = {};
+        for (const p of list) map[p.symbol] = p.priority;
+        setPriorities(map);
+      })
+      .catch(() => {
+        /* non-fatal: every coin just shows 0 stars until one is set */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Attachment counts for every coin at once (one grouped query server-side).
+  const refreshChartCounts = useCallback(async () => {
+    try {
+      const rows = await clientRef.current.fetchBitgetChartCounts();
+      const map: Record<string, number> = {};
+      for (const r of rows) map[r.symbol] = r.count;
+      setChartCounts(map);
+    } catch {
+      /* non-fatal: the Attachments column falls back to 0 */
     }
-    const traded = [...lastClose.keys()].sort((a, b) => (lastClose.get(b) ?? 0) - (lastClose.get(a) ?? 0));
-    const seen = new Set<string>();
-    const ordered: string[] = [];
-    for (const s of [...PINNED_SYMBOLS, ...WATCHLIST_SYMBOLS, ...traded]) {
-      if (seen.has(s)) continue;
-      seen.add(s);
-      ordered.push(s);
-    }
-    return ordered;
-  }, [history.trades]);
+  }, []);
+
+  useEffect(() => {
+    void refreshChartCounts();
+  }, [refreshChartCounts]);
+
+  const symbols = useMemo(() => setupSymbols(history.trades), [history.trades]);
+
+  // The tab label shows the total coin count — the unfiltered list, so the
+  // number does not jump around when the trader narrows the coin filter.
+  useEffect(() => {
+    onCount?.(symbols.length);
+  }, [symbols.length, onCount]);
 
   // (symbol, side) pairs with a live open position on the exchange → Open disabled.
   const openSides = useMemo(
@@ -169,41 +231,46 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   // Realtime last price + 24h change per coin, straight from Bitget's public WS.
   const { prices: livePrices, changes: liveChanges, live } = useBitgetLivePrices(symbols);
 
-  // Change value for a coin on a given column — 24h from the live WS, 7d/30d from
-  // the API. Returns null when the reading is missing (so it can sink in sorting).
-  const changeValue = useCallback(
+  // Sort value for a coin on a given column — stars from the saved priorities,
+  // 24h from the live WS, 7d/30d from the API. Returns null when a price reading
+  // is missing (so it can sink in sorting); an unrated coin is simply 0 stars.
+  const sortValue = useCallback(
     (symbol: string, col: SortCol): number | null => {
+      if (col === 'priority') return priorities[symbol] ?? 0;
       if (col === 'today') {
         const v = liveChanges[symbol];
         return v == null || !Number.isFinite(v) ? null : v;
       }
       const c = priceChanges[bareSymbol(symbol)];
-      const v = col === 'd7' ? c?.change7d : c?.change30d;
+      const v = col === 'h4' ? c?.changeH4 : col === 'd7' ? c?.change7d : c?.change30d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
-    [liveChanges, priceChanges],
+    [liveChanges, priceChanges, priorities],
   );
 
-  // Rows follow the pinned/watchlist order by default; when a change header is
-  // clicked they re-order by that column (coins without a reading sink last).
+  // Rows open ordered by star priority (highest first); clicking another header
+  // re-orders by that column (coins without a reading sink last). Ties keep the
+  // pinned/watchlist order — Array.sort is stable.
   const displaySymbols = useMemo(() => {
     const set = selectedSymbols.length > 0 ? new Set(selectedSymbols) : null;
     const base = set ? symbols.filter((s) => set.has(s)) : symbols;
     if (!sort) return base;
     const miss = sort.dir === 'desc' ? -Infinity : Infinity;
     return [...base].sort((a, b) => {
-      const va = changeValue(a, sort.col) ?? miss;
-      const vb = changeValue(b, sort.col) ?? miss;
+      const va = sortValue(a, sort.col) ?? miss;
+      const vb = sortValue(b, sort.col) ?? miss;
       return sort.dir === 'desc' ? vb - va : va - vb;
     });
-  }, [symbols, selectedSymbols, sort, changeValue]);
+  }, [symbols, selectedSymbols, sort, sortValue]);
 
-  // Cycle a column's sort: desc → asc → off. Clicking a different column starts
-  // fresh at desc so only one column ever sorts at a time.
+  // Cycle a column's sort: desc → asc → off. "Off" falls back to the star
+  // priority order (the tab's default) rather than the raw pinned order — the
+  // stars have no header of their own to click back to. Clicking a different
+  // column starts fresh at desc so only one column ever sorts at a time.
   const cycleSort = useCallback((col: SortCol) => {
     setSort((prev) => {
       if (!prev || prev.col !== col) return { col, dir: 'desc' };
-      return prev.dir === 'desc' ? { col, dir: 'asc' } : null;
+      return prev.dir === 'desc' ? { col, dir: 'asc' } : DEFAULT_SORT;
     });
   }, []);
 
@@ -313,6 +380,25 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
       }
     },
     [],
+  );
+
+  /**
+   * Set a coin's star priority. The row re-sorts immediately (optimistic) and
+   * rolls back if the write fails, so the visible order always matches the DB.
+   */
+  const savePriority = useCallback(
+    async (symbol: string, priority: number) => {
+      const previous = priorities[symbol] ?? 0;
+      setPriorities((prev) => ({ ...prev, [symbol]: priority }));
+      setError(null);
+      try {
+        await clientRef.current.saveBitgetSymbolPriority({ symbol, priority });
+      } catch (err) {
+        setPriorities((prev) => ({ ...prev, [symbol]: previous }));
+        setError(err instanceof Error ? err.message : 'Lưu mức ưu tiên thất bại. Thử lại sau.');
+      }
+    },
+    [priorities],
   );
 
   const openPosition = useCallback(
@@ -438,7 +524,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
           <table className="bg-table">
             <thead>
               <tr>
-                <th>Symbol</th>
+                <th title="Sao ưu tiên (0–5) nằm dưới tên coin — bảng mặc định xếp theo mức ưu tiên, sao nhiều lên trên">
+                  Symbol
+                </th>
                 <th className="bg-num">Giá</th>
                 <SortHeader
                   label="Hôm nay"
@@ -461,13 +549,20 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                   onSort={cycleSort}
                   title="Thay đổi giá 30 ngày (so với giá đóng cửa 30 ngày trước) — bấm để sắp xếp"
                 />
+                <SortHeader
+                  label="H4"
+                  col="h4"
+                  sort={sort}
+                  onSort={cycleSort}
+                  title="Biến động của cây nến H4 ngay trước đó (đã đóng cửa): (đóng − mở) / mở — bấm để sắp xếp"
+                />
                 <th title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — L=Long (xanh) / S=Short (đỏ) theo từng khung M30/H1/H4/D1">
                   QQE
                 </th>
                 <th>Long</th>
                 <th>Short</th>
-                <th className="bg-num" title="Xem lại các chart đã lưu cho coin này">
-                  Tham chiếu
+                <th className="bg-num" title="Số ảnh chart đã lưu cho coin này — bấm để xem lại">
+                  Attachments
                 </th>
               </tr>
             </thead>
@@ -478,27 +573,39 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                 const pc = priceChanges[bareSymbol(symbol)];
                 const change7d = pc?.change7d;
                 const change30d = pc?.change30d;
+                const changeH4 = pc?.changeH4;
+                const priority = priorities[symbol] ?? 0;
+                const attachments = chartCounts[symbol] ?? 0;
                 return (
                   <tr key={symbol}>
                     <td className="bg-symbol">
                       <div className="bg-symbol-cell">
-                        <span>{symbol}</span>
-                        <div className="bg-chart-btns">
+                        <span className="bg-symbol-name">
+                          {symbol}
                           <button
                             type="button"
-                            className="bg-chart-btn"
+                            className="bg-chart-icon-btn"
                             onClick={() => setChartTarget({ symbol, tf: DEFAULT_CHART_TF })}
                             title="Xem chart (SonicR + S/R Channel + RSI) — chọn khung M30/H1/H4/D1 trong dialog"
+                            aria-label={`Xem chart ${symbol}`}
                           >
-                            📈 Chart
+                            <ChartIcon />
                           </button>
-                        </div>
+                        </span>
+                        <StarRating
+                          value={priority}
+                          symbol={symbol}
+                          onChange={(next) => void savePriority(symbol, next)}
+                        />
                       </div>
                     </td>
                     <td className="bg-num bg-price">{fmtPrice(price)}</td>
                     <td className={`bg-num ${chgClass(change)}`}>{fmtChange(change)}</td>
                     <td className={`bg-num ${chgClass(change7d)}`}>{fmtChange(change7d)}</td>
                     <td className={`bg-num ${chgClass(change30d)}`}>{fmtChange(change30d)}</td>
+                    <td className={`bg-num ${chgClass(changeH4)}`} title="Nến H4 đã đóng gần nhất">
+                      {fmtChange(changeH4)}
+                    </td>
                     <td className="bg-qqe-cell">
                       <QqeCell signals={qqe[bareSymbol(symbol)]} />
                     </td>
@@ -559,11 +666,18 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                     <td className="bg-num">
                       <button
                         type="button"
-                        className="bg-ref-btn"
+                        className={`bg-ref-btn bg-attach-btn ${attachments === 0 ? 'bg-attach-btn--empty' : ''}`}
                         onClick={() => setRefSymbol(symbol)}
-                        title="Xem lại các chart đã lưu cho coin này"
+                        title={
+                          attachments === 0
+                            ? `Chưa có ảnh chart nào lưu cho ${symbol}`
+                            : `${attachments} ảnh chart đã lưu cho ${symbol} — bấm để xem`
+                        }
                       >
-                        🖼 Reference
+                        <span className="bg-attach-icon" aria-hidden>
+                          🖼
+                        </span>
+                        <span className="bg-attach-count">{attachments}</span>
                       </button>
                     </td>
                   </tr>
@@ -605,7 +719,11 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
           symbol={chartTarget.symbol}
           tf={chartTarget.tf}
           allowSave
-          onClose={() => setChartTarget(null)}
+          // A chart may have been saved from here — refresh the Attachments counts.
+          onClose={() => {
+            setChartTarget(null);
+            void refreshChartCounts();
+          }}
         />
       )}
 

@@ -26,15 +26,21 @@ how many of those are overwrites before the save.
 
 Each coin's **realtime price** and **change
 since 00:00 UTC** (the **"Hôm nay"** column, streamed from Bitget's public WebSocket ticker)
-show once per row, alongside **"7 ngày"** and **"30 ngày"** columns — the 7-day and 30-day
-price change computed server-side from Binance daily candles (current close vs the close 7 /
-30 candles back), fetched via `GET /bitget/price-changes?symbols=…` on mount and every 5 min.
-The **"Hôm nay"**, **"7 ngày"** and **"30 ngày"** headers are each a **sort toggle**: rows keep
-the default pinned/watchlist order until a header is clicked, then clicking that header cycles
-**descending → ascending → back to default** (coins with no reading always sink to the bottom).
-Only one column sorts at a time — clicking a different header starts fresh at descending.
+show once per row, alongside **"7 ngày"**, **"30 ngày"** and **"H4"** columns. The 7-day and
+30-day price change is computed server-side from Binance daily candles (current close vs the
+close 7 / 30 candles back); **H4** (the last column before QQE) is the **previous CLOSED 4h
+candle's own move**, `(close − open) / open`, from Binance 4h candles — the still-forming
+candle is deliberately skipped so the number never repaints. All three come from
+`GET /bitget/price-changes?symbols=…`, fetched on mount and every 5 min.
+The **"Hôm nay"**, **"7 ngày"**, **"30 ngày"** and **"H4"** headers are each a **sort toggle**: rows keep
+the default **star-priority** order until a header is clicked, then clicking that header cycles
+**descending → ascending → back to that default** (coins with no reading always sink to the
+bottom). Only one column sorts at a time — clicking a different header starts fresh at
+descending.
 
-Each coin row also has a single **📈 Chart** button that opens a fullscreen dialog with a
+Each coin row opens its chart from a **candlestick icon button right next to the coin name**
+(shared `ChartIcon`, identical to the Positions and History tabs — it replaced the old
+"📈 Chart" text button under the name on 2026-07-27). It opens a fullscreen dialog with a
 server-rendered PNG chart. The dialog has an **M15 / M30 / H1 / H4 / D1** timeframe switcher in
 its header (defaults to **H4**) that re-fetches the render in place — one button per row instead
 of five. The chart carries TradingView-default indicators: the **SonicR system** (EMA34
@@ -72,13 +78,30 @@ trend line is drawn alongside the SonicR EMAs on every chart (all tabs); the can
 are sized to keep it warm across the displayed window (`limit ≥ display + 200`, and the trade
 review chart's lookback is 210 bars).
 
-Each coin row also carries a **🖼 Reference** button at the end of the row. Clicking it opens a
-fullscreen **chart gallery** for that coin, laid out like an e-commerce product-image viewer: a
+Each coin row also carries an **Attachments** cell at the end of the row (previously labelled
+"Tham chiếu"): an **🖼 image icon plus the number of saved charts** that reference this coin.
+The counts come from one grouped query, `GET /bitget/trade-chart/counts`, fetched on mount and
+re-fetched whenever the chart dialog closes (a snapshot may have just been saved). A coin with
+**0** images is dimmed but still clickable. Clicking it opens the same
+fullscreen **chart gallery** as before, laid out like an e-commerce product-image viewer: a
 rail of clickable thumbnails on the left (one per saved snapshot, tagged with its timeframe) and
 a large main image on the right with a caption (timeframe + saved-at time). The images are the
 **saved** trade-chart PNGs on public R2 (saved from the History tab's 💾 Lưu action), listed by
 coin via `GET /bitget/trade-chart/by-symbol?symbol=…`. Clicking the main image opens the original
 PNG in a new tab.
+
+The trader can rank coins by hand with a **0–5 star** rating shown **under the coin name** in
+the Symbol cell — there is **no separate Priority column** (it was tried and removed on
+2026-07-27; the stars live with the coin instead). All five stars render on every row: the ones
+up to the coin's rating are **yellow**, the rest stay **grey**, so an unrated coin shows five
+grey stars. Clicking star *n* sets the rating to *n*; clicking the star that is **already** the
+current rating clears it back to **0** (otherwise 1 star would be a floor). Hovering previews
+the rating. Ratings are stored per coin — not per side — in the DB (`bitget_symbol_priorities`,
+unique on `symbol`) via `PUT /bitget/setup/priority`, so they persist across reloads and
+devices. The tab **opens sorted by star priority descending** (highest stars on top). Because
+the stars have no header of their own to click, the change columns' "off" step returns to this
+star order instead of the raw pinned order — so the default is always one click away. Coins
+with equal ratings keep the pinned/watchlist order (the sort is stable).
 
 ## Main Flow
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
@@ -90,6 +113,15 @@ PNG in a new tab.
    to the Bitget public WS `ticker` channel for every listed symbol to show live price + change
    since 00:00 UTC (green/red). A "Realtime / Đang kết nối…" pill reflects the WS state. It also
    fetches the **QQE** column data via `GET /bitget/qqe-signals?symbols=…` on mount and every 60s.
+   On mount it also hydrates the star priorities (`GET /bitget/setup/priority`) and the
+   attachment counts (`GET /bitget/trade-chart/counts`), then renders the rows **sorted by
+   star priority descending**. Each Symbol cell stacks the coin name + chart icon on the first
+   line and that coin's stars underneath. It reports its unfiltered coin count up to
+   `BitgetTabs` via `onCount`, which shows it as **Setup (N)** on the tab label.
+2c. User clicks a star under a coin name → the row re-sorts immediately (optimistic)
+   and `PUT /bitget/setup/priority` (`{ symbol, priority }`) persists it. A failed write rolls
+   the rating back to its previous value and shows a red alert, so the visible order always
+   matches what is in the DB.
 2b. Each row's **QQE** column shows only the chart-view timeframes (**M30 / H1 / H4 / D1**) that
    currently carry a **live** colinmck "QQE Signals" signal — i.e. the QQE line flipped within the
    **last 5 closed candles** (`QQE_SIGNAL_VALID_BARS`); older flips are treated as stale and hidden.
@@ -185,20 +217,43 @@ PNG in a new tab.
   side even in cross margin, so `set-leverage` MUST include `holdSide` — otherwise the traded
   side keeps whatever the Bitget app had set and the requested leverage is silently ignored.
   The call passes `holdSide` in hedge mode, matching the worker trade client.
+- **Priority never rated:** a coin with no row in `bitget_symbol_priorities` counts as **0**
+  stars (all grey) and sorts to the bottom of the default order, keeping its pinned/watchlist
+  position relative to the other 0-star coins.
+- **Getting back to the default order:** with no Priority header to click, cycling a change
+  column past "ascending" restores the star order (`DEFAULT_SORT`) rather than the pinned
+  order, so the trader can always return to their own ranking without a reload.
+- **Clearing a priority:** clicking the current rating's star writes `priority = 0` (the row is
+  kept, not deleted), which is the only way back to "no priority".
+- **Priority hydration / save failure:** a failed `GET` is non-fatal — every coin just shows 0
+  stars. A failed `PUT` restores the previous rating and surfaces a red alert, so the order on
+  screen never drifts from the DB.
+- **H4 on a coin with no closed 4h candle yet / a failed fetch:** `h4ChangeFor` returns
+  `null`, the cell shows "—", and the 7d/30d readings still land — the H4 fetch is wrapped in
+  its own try/catch so it can never blank the whole row.
+- **Attachments count out of date:** counts are fetched on mount and refreshed when the chart
+  dialog closes, so a snapshot saved from that dialog is reflected right away. A count fetch
+  failure is non-fatal — the column falls back to 0 and the gallery still opens with the real
+  images.
 - **No saved charts (Reference gallery):** if the coin has no saved snapshots the gallery shows
   a hint pointing to the History tab's 💾 Lưu action; a list-fetch failure shows a retry notice.
   Both are non-fatal — the rest of the tab keeps working.
 
 ## Related Files (FE / BE / Worker)
-- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + 📈 Chart button and `SetupChartDialog` + 🖼 Reference button and `ChartGalleryDialog` (thumbnail rail + enlarged main image).
-- `packages/db/src/repositories/bitget-trade-chart.repository.ts` — `findBySymbol(symbol)` (all saved snapshots for one coin, newest first) alongside `findByTradeKey`.
-- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — `listSavedChartsBySymbol()` (normalises to `${bare}USDT`); `saveSetupChart(symbol, tf)` snapshots the live chart to R2; TF_CONFIG limits + `TRADE_LOOKBACK_BARS` bumped so EMA200 warms.
-- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin; `POST /bitget/setup-chart/save` snapshots the live Setup chart.
+- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + Symbol cell (coin name + `ChartIcon` button + **priority stars underneath**, which drive the default sort) + `SetupChartDialog` + **Attachments** cell (🖼 + count) opening `ChartGalleryDialog` (thumbnail rail + enlarged main image).
+- `apps/web/src/widgets/bitget/chart-icon.tsx` — shared `ChartIcon` (extracted from `bitget-positions-feed.tsx` on 2026-07-27) so all three tabs use the same icon.
+- `apps/web/src/widgets/bitget/star-rating.tsx` — `StarRating` (0–5 stars, grey → yellow, hover preview, click-current-to-clear) + `MAX_PRIORITY`.
+- `apps/api/src/modules/bitget/dto/upsert-symbol-priority.dto.ts` — validates `{ symbol, priority: 0–5 }`.
+- `packages/db/src/repositories/bitget-symbol-priority.repository.ts` — `findAll()`, `upsert()` for the per-coin star rating.
+- `packages/db/prisma/migrations/20260727120000_add_bitget_symbol_priority/migration.sql` — `bitget_symbol_priorities` table DDL.
+- `packages/db/src/repositories/bitget-trade-chart.repository.ts` — `findBySymbol(symbol)` (all saved snapshots for one coin, newest first) alongside `findByTradeKey`; `countBySymbol()` (grouped count feeding the Attachments column).
+- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — `listSavedChartsBySymbol()` (normalises to `${bare}USDT`); `countSavedChartsBySymbol()` / `countSavedChartsByTradeKey()` (Attachments badges); `h4ChangeFor()` (last closed 4h candle move, folded into `getPriceChanges`); `saveSetupChart(symbol, tf)` snapshots the live chart to R2; TF_CONFIG limits + `TRADE_LOOKBACK_BARS` bumped so EMA200 warms.
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin; `GET /bitget/trade-chart/counts` returns the per-coin chart count; `GET/PUT /bitget/setup/priority` reads/writes the star ratings; `POST /bitget/setup-chart/save` snapshots the live Setup chart.
 - `apps/api/src/modules/bitget/dto/save-setup-chart.dto.ts` — validates `{ symbol, timeframe }` for the Setup-chart save.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — shared chart dialog; `allowSave` prop shows the 💾 Lưu button (Setup tab passes it, positions table does not).
 - `apps/web/src/widgets/bitget/symbol-multi-select.tsx` — shared coin-name multi-select filter (used by the Setup toolbar + the History tab); filters `displaySymbols` (empty = all coins).
-- `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`, `saveBitgetSetupChart({ symbol, timeframe })`.
-- `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack).
+- `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`, `saveBitgetSetupChart({ symbol, timeframe })`, `fetchBitgetChartCounts()`, `fetchBitgetSymbolPriorities()`, `saveBitgetSymbolPriority({ symbol, priority })`.
+- `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-attach-*` (icon + count badge, dimmed at 0), `.bg-symbol-cell` / `.bg-symbol-name` (name + icon row, stars underneath), `.bg-stars` / `.bg-star` / `.bg-star--on` (grey → yellow), `.bg-chart-icon-btn` (shared), `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack). `.bg-chart-btn(s)` and `.bg-view-chart-btn` were deleted with the buttons they styled.
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, computes the per-timeframe QQE column (`getQqeSignals`, 60s cache), and the 7d/30d change column (`getPriceChanges`, daily candles, 5-min cache).
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column. An optional `&timeframes=` (subset of `M30,1h,4h,1d,1w`) narrows the server-side scan; omitted here, so the Setup tab keeps the full M30/1h/4h/1d default. `/tracking-coins` passes `4h,1d,1w`. `GET /bitget/price-changes?symbols=…` returns the 7d/30d change ratio per coin.
 - `apps/web/src/widgets/bitget/qqe-cell.tsx` — `QqeCell` + `isLiveSignal` + `bareQqeSymbol`, extracted from `bitget-setup-feed.tsx` (2026-07-26) so `/tracking-coins` renders the identical column; `timeframes` prop selects which switcher columns a page reports on.
@@ -207,15 +262,15 @@ PNG in a new tab.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — History tab: per-row M30/H1/H4/D1 buttons + `TradeChartDialog` (review chart + 💾 Lưu to R2).
 - `packages/db/prisma/schema.prisma` / `bitget-trade-chart.repository.ts` — `BitgetTradeChart` model (saved trade-chart snapshots, unique on tradeKey+timeframe).
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.
-- `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab.
+- `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab and renders the row count next to each tab label (seeded from the SSR snapshot, kept live by each feed's `onCount`); reuses `setupSymbols()` so the Setup count matches the table exactly.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — supports `?tab=setup` deep-link.
 - `apps/web/src/shared/api/client.ts` — `openBitgetPosition()`, `fetchBitgetSetupConfigs()`, `saveBitgetSetupConfig()`, `fetchBitgetPriceChanges()` (7d/30d change).
-- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`, `BitgetPriceChange`.
+- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`, `BitgetPriceChange`, `BitgetSymbolPriority`, `BitgetChartCount`.
 - `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down`, `.bg-open-btn--short` (red short button), `.bg-side-cell`/`.bg-side-cell-inner`/`.bg-side-cfg` (per-side action cell + config summary), `.bg-symbol` sticky column, `.bg-bulk-*` + `.bg-setup-dialog--wide` (bulk dialog), `.bg-toolbar-right`.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`, `GET/PUT /bitget/setup`, `GET /bitget/setup-chart` (public PNG).
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupChartService` + `BinanceMarketDataService`.
 - `apps/api/src/modules/bitget/bitget.service.ts` — `openPosition()` (size math + guards, `new` vs `add` scale-in) và `writeSystemLog()` (log nhật ký cho lần thêm volume).
-- `apps/api/src/modules/bitget/bitget-setup.service.ts` — DB-backed per-side config list/upsert + `upsertMany()` (bulk, transactional).
+- `apps/api/src/modules/bitget/bitget-setup.service.ts` — DB-backed per-side config list/upsert + `upsertMany()` (bulk, transactional) + `listPriorities()` / `upsertPriority()` (0–5 stars, `MAX_SYMBOL_PRIORITY`).
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupService` as a provider.
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getTickerPrice`, `getContractSpec`,
   `setCrossLeverage`, `openMarketPosition`.
@@ -224,6 +279,6 @@ PNG in a new tab.
 - `apps/api/src/modules/bitget/dto/bulk-upsert-setup-config.dto.ts` — bulk setup-config validation: `symbols[]` + nested `sides[]` (`BulkSetupSideDto`: holdSide, leverage, marginUsd).
 - `packages/db/src/repositories/bitget-setup-config.repository.ts` — `findAll()`, `upsert()`, `upsertMany()` (one `$transaction`).
 - `apps/web/src/widgets/bitget/bulk-setup-dialog.tsx` — bulk config dialog: per-side LONG/SHORT blocks (own leverage + margin), searchable coin grid, overwrite warning.
-- `packages/db/prisma/schema.prisma` — `BitgetSetupConfig` model (`bitget_setup_configs`).
+- `packages/db/prisma/schema.prisma` — `BitgetSetupConfig` model (`bitget_setup_configs`), `BitgetSymbolPriority` model (`bitget_symbol_priorities`, unique on `symbol`).
 - `packages/db/src/repositories/bitget-setup-config.repository.ts` — `findAll()`, `upsert()`.
 - `packages/db/prisma/migrations/20260720120000_add_bitget_setup_config/migration.sql` — table DDL.
