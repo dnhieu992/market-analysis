@@ -511,10 +511,6 @@ export function BitgetSetupFeed({
             >
               ⚙ Setup nhiều coin
             </button>
-            <span className="bg-toolbar-count">
-              {displaySymbols.length} coin
-              {selectedSymbols.length > 0 ? ` (đã lọc từ ${symbols.length})` : ''}
-            </span>
           </div>
         </div>
         {displaySymbols.length === 0 ? (

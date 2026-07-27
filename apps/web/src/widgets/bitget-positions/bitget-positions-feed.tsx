@@ -275,10 +275,6 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
               </span>
             </div>
             <div className="bg-tile">
-              <span className="bg-tile-label">Vị thế đang mở</span>
-              <span className="bg-tile-value">{positions.length}</span>
-            </div>
-            <div className="bg-tile">
               <span className="bg-tile-label">Tổng ký quỹ</span>
               <span className="bg-tile-value">{fmtUsdPlain(totalMarginUsd)}</span>
             </div>

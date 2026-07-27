@@ -259,10 +259,6 @@ export function BitgetHistoryFeed({ initial, embedded = false, onCount }: Props)
                   </button>
                 )}
               </div>
-              <span className="bg-toolbar-count">
-                {filteredTrades.length} lệnh
-                {selectedSymbols.length > 0 ? ` (đã lọc từ ${trades.length})` : ''}
-              </span>
             </div>
             <div className="bg-table-wrap">
               <table className="bg-table">

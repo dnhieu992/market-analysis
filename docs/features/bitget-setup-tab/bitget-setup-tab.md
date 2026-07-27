@@ -117,7 +117,8 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
    attachment counts (`GET /bitget/trade-chart/counts`), then renders the rows **sorted by
    star priority descending**. Each Symbol cell stacks the coin name + chart icon on the first
    line and that coin's stars underneath. It reports its unfiltered coin count up to
-   `BitgetTabs` via `onCount`, which shows it as **Setup (N)** on the tab label.
+   `BitgetTabs` via `onCount`, which shows it as **Setup (N)** on the tab label — the toolbar's
+   own "N coin" counter was removed on 2026-07-27 as a duplicate of that label.
 2c. User clicks a star under a coin name → the row re-sorts immediately (optimistic)
    and `PUT /bitget/setup/priority` (`{ symbol, priority }`) persists it. A failed write rolls
    the rating back to its previous value and shows a red alert, so the visible order always

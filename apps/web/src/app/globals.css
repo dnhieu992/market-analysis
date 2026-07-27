@@ -11201,7 +11201,6 @@ a.metric-card--link:hover {
 }
 .bg-toolbar-filter { display: flex; align-items: center; gap: 8px; }
 .bg-toolbar-label { font-size: 12px; font-weight: 600; color: var(--muted); }
-.bg-toolbar-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bg-toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 /* ── Bulk Setup dialog (one leverage/margin → many coins) ────── */
