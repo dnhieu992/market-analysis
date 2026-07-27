@@ -10917,18 +10917,40 @@ a.metric-card--link:hover {
   padding: 14px 18px;
 }
 .bgj-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+/* Timeline row — every note (system + manual) uses the old system-log treatment:
+   a hollow dot + vertical connector on the left, no card box, so the whole log
+   reads as one uniform timeline. Source is shown only by the tag chip. */
 .bgj-note {
-  border: 1px solid rgba(23, 18, 13, 0.1);
-  border-left: 3px solid rgba(31, 138, 91, 0.6);
-  border-radius: 8px;
-  padding: 7px 10px;
-  background: rgba(23, 18, 13, 0.015);
+  position: relative;
+  padding: 3px 0 8px 20px;
 }
-.bgj-note--editing { border-left-color: #d99125; background: rgba(217, 145, 37, 0.06); }
+/* Timeline circle dot */
+.bgj-note::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(23, 18, 13, 0.3);
+  background: var(--card-bg, #fbfaf8);
+}
+/* Vertical connector line joining consecutive dots */
+.bgj-note::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 15px;
+  bottom: -6px;
+  width: 1px;
+  background: rgba(23, 18, 13, 0.12);
+}
+.bgj-note:last-child::after { display: none; }
+/* Note being edited: fill the dot amber instead of a card highlight. */
+.bgj-note--editing::before { border-color: #d99125; background: #d99125; }
 
-/* System notes: same card layout as manual notes, only distinguished by a
-   neutral left-border + the "Hệ thống" tag, so the timeline reads uniformly. */
-.bgj-note--system { border-left-color: rgba(23, 18, 13, 0.28); }
+/* System notes: muted body + tight line spacing (short event lines). */
 .bgj-note--system .bgj-note-body { color: var(--muted, #6b625a); }
 /* renderMarkdown emits inline margins on <p>/<ul>/<li>, which beat plain class
    rules — use !important so system-note rows stay tightly stacked. */

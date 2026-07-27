@@ -39,9 +39,10 @@ a fresh timeline.
    (`POST /journal/reformat`), images uploaded (`POST /upload/images`), then
    persisted (`POST /bitget/journal`) with a price/PnL snapshot. Manual notes can
    be edited/deleted; system items are read-only.
-5. **Timeline UI** — system and manual items share the **same card layout**; each
-   item carries a source tag chip (`⚙ Hệ thống` for system, `✍ Bạn` for manual) so
-   the origin is explicit while the styling stays uniform.
+5. **Timeline UI** — system and manual items share the **same timeline layout**
+   (hollow dot + vertical connector on the left, no card box — the old system-log
+   style); each item carries a source tag chip (`⚙ Hệ thống` for system, `✍ Bạn`
+   for manual) so the origin is explicit while the styling stays uniform.
 
 ## Edge Cases
 
@@ -75,7 +76,7 @@ a fresh timeline.
 - `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — 📝 on closed trades
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetJournal` / `addBitgetJournal` / `updateBitgetJournal` / `deleteBitgetJournal`
 - `apps/web/src/shared/api/types.ts` — `BitgetJournalNote.kind`, `BitgetClosedTrade.tradeKey/status`, `BitgetPosition.openedAt`
-- `apps/web/src/app/globals.css` — `.bgj-*` drawer styles (system + manual share the card layout via `.bgj-note`; `.bgj-note--system` only recolors the border), `.bgj-note-tag` source chips, `.bg-journal-btn`
+- `apps/web/src/app/globals.css` — `.bgj-*` drawer styles (system + manual share the timeline layout via `.bgj-note` — hollow dot `::before` + connector `::after`, no card; `.bgj-note--system` only mutes the body), `.bgj-note-tag` source chips, `.bg-journal-btn`
 - `apps/api/src/modules/bitget/bitget.service.ts` — closed history from `bitget_trades`; `openedAt` từ `cTime`; `writeSystemLog()` ghi system log khi thêm volume (`openPosition` mode `add`) và khi đặt TP/SL (`setTpsl`)
 - `apps/api/src/modules/bitget/bitget-journal.service.ts` — journal CRUD; blocks edit/delete of system items
 - `apps/api/src/modules/bitget/bitget.controller.ts` / `dto/*` — journal routes + validation
