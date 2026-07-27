@@ -10926,61 +10926,31 @@ a.metric-card--link:hover {
 }
 .bgj-note--editing { border-left-color: #d99125; background: rgba(217, 145, 37, 0.06); }
 
-/* System notes: compact one-line timeline row */
-.bgj-note--system {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  padding: 2px 0 2px 20px;
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 8px;
-}
-/* Timeline circle dot */
-.bgj-note--system::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(23, 18, 13, 0.3);
-  background: var(--card-bg, #fbfaf8);
-  flex-shrink: 0;
-}
-/* Vertical connector line */
-.bgj-note--system::after {
-  content: '';
-  position: absolute;
-  left: 3.5px;
-  top: 15px;
-  bottom: -6px;
-  width: 1px;
-  background: rgba(23, 18, 13, 0.12);
-}
-.bgj-note--system:last-child::after { display: none; }
-.bgj-note--system .bgj-note-head {
-  margin-bottom: 0;
-  flex-shrink: 0;
-}
-.bgj-note--system .bgj-note-body {
-  flex: 1;
-  min-width: 0;
-  font-size: 12.5px;
-  color: var(--muted, #6b625a);
-}
+/* System notes: same card layout as manual notes, only distinguished by a
+   neutral left-border + the "Hệ thống" tag, so the timeline reads uniformly. */
+.bgj-note--system { border-left-color: rgba(23, 18, 13, 0.28); }
+.bgj-note--system .bgj-note-body { color: var(--muted, #6b625a); }
 /* renderMarkdown emits inline margins on <p>/<ul>/<li>, which beat plain class
    rules — use !important so system-note rows stay tightly stacked. */
-.bgj-note--system .bgj-note-body p { margin: 0 !important; }
+.bgj-note--system .bgj-note-body p { margin: 2px 0 !important; }
 .bgj-note--system .bgj-note-body ul,
-.bgj-note--system .bgj-note-body ol { margin: 0 !important; padding-left: 1.1em; }
-.bgj-note--system .bgj-note-body li { margin: 0 !important; line-height: 1.3; }
+.bgj-note--system .bgj-note-body ol { margin: 2px 0 !important; padding-left: 1.1em; }
+.bgj-note--system .bgj-note-body li { margin: 0 !important; line-height: 1.4; }
 /* Single \n between the title and the bullet list renders as <br/>; collapse it
    so the "Giá vào / Size" lines sit right under the heading. */
 .bgj-note--system .bgj-note-body br { display: none; }
+
+/* Source tag chip — "Hệ thống" vs "Bạn". */
+.bgj-note-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.bgj-note-tag--system { background: rgba(23, 18, 13, 0.08); color: var(--muted, #6b625a); }
+.bgj-note-tag--user { background: rgba(31, 138, 91, 0.12); color: #1f8a5b; }
 
 .bgj-status-chip {
   margin-left: 8px;

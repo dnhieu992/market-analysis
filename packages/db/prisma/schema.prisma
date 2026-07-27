@@ -688,6 +688,7 @@ model BitgetTrade {
   marginMode    String    @default("") @db.VarChar(12) // isolated | crossed
   openAvgPrice  Float // average entry fill
   openTotalPos  Float // position size in base asset
+  leverage      Float? // effective leverage at open (notional ÷ margin); null if unknown
   openedAt      DateTime // Bitget ctime (position open time)
   // Close-side fields — null while the trade is still open.
   closeAvgPrice Float? // average exit fill

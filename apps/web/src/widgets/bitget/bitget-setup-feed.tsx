@@ -8,6 +8,7 @@ import type {
   BitgetHistoryResponse,
   BitgetPositionsResponse,
   BitgetSetupConfig,
+  BitgetPriceChange,
   BitgetTradeChart,
 } from '@web/shared/api/types';
 
@@ -25,6 +26,11 @@ import { ChartNoteView } from './chart-note-dialog';
 const REFRESH_MS = 15_000;
 // QQE readings only change on candle close — poll on a slower cadence than positions.
 const QQE_REFRESH_MS = 60_000;
+// 7d / 30d change only moves once a day — poll rarely.
+const CHANGE_REFRESH_MS = 5 * 60_000;
+
+/** Which change column the table is sorted by (null = default pinned order). */
+type SortCol = 'today' | 'd7' | 'd30';
 
 // Always shown first, regardless of trade history.
 const PINNED_SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
@@ -74,6 +80,12 @@ function fmtChange(ratio: number | null | undefined): string {
   return `${sign}${pct.toFixed(2)}%`;
 }
 
+/** Up/down colour class for a change ratio (empty when missing / flat). */
+function chgClass(ratio: number | null | undefined): string {
+  if (ratio == null || !Number.isFinite(ratio)) return '';
+  return ratio > 0 ? 'bg-chg--up' : ratio < 0 ? 'bg-chg--down' : '';
+}
+
 type Props = {
   history: BitgetHistoryResponse;
   positions: BitgetPositionsResponse;
@@ -101,9 +113,11 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [qqe, setQqe] = useState<QqeMap>({});
-  // "Hôm nay" (24h change) sort: null keeps the default pinned/watchlist order;
-  // clicking the header cycles desc → asc → back to the default order.
-  const [changeSort, setChangeSort] = useState<'desc' | 'asc' | null>(null);
+  // 7d/30d change per bare coin symbol (from Binance daily candles, via the API).
+  const [priceChanges, setPriceChanges] = useState<Record<string, BitgetPriceChange>>({});
+  // Change-column sort: null keeps the default pinned/watchlist order; clicking a
+  // header cycles desc → asc → back to the default. Only one column sorts at a time.
+  const [sort, setSort] = useState<{ col: SortCol; dir: 'desc' | 'asc' } | null>(null);
   // Coin-name filter (empty = all coins), same UX as the History tab.
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
 
@@ -155,21 +169,43 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   // Realtime last price + 24h change per coin, straight from Bitget's public WS.
   const { prices: livePrices, changes: liveChanges, live } = useBitgetLivePrices(symbols);
 
-  // Rows follow the pinned/watchlist order by default; when the "Hôm nay" header
-  // is clicked they re-order by 24h change (coins without a reading sink last).
+  // Change value for a coin on a given column — 24h from the live WS, 7d/30d from
+  // the API. Returns null when the reading is missing (so it can sink in sorting).
+  const changeValue = useCallback(
+    (symbol: string, col: SortCol): number | null => {
+      if (col === 'today') {
+        const v = liveChanges[symbol];
+        return v == null || !Number.isFinite(v) ? null : v;
+      }
+      const c = priceChanges[bareSymbol(symbol)];
+      const v = col === 'd7' ? c?.change7d : c?.change30d;
+      return v == null || !Number.isFinite(v) ? null : v;
+    },
+    [liveChanges, priceChanges],
+  );
+
+  // Rows follow the pinned/watchlist order by default; when a change header is
+  // clicked they re-order by that column (coins without a reading sink last).
   const displaySymbols = useMemo(() => {
     const set = selectedSymbols.length > 0 ? new Set(selectedSymbols) : null;
     const base = set ? symbols.filter((s) => set.has(s)) : symbols;
-    if (!changeSort) return base;
-    const miss = changeSort === 'desc' ? -Infinity : Infinity;
+    if (!sort) return base;
+    const miss = sort.dir === 'desc' ? -Infinity : Infinity;
     return [...base].sort((a, b) => {
-      const ca = liveChanges[a];
-      const cb = liveChanges[b];
-      const va = ca == null || !Number.isFinite(ca) ? miss : ca;
-      const vb = cb == null || !Number.isFinite(cb) ? miss : cb;
-      return changeSort === 'desc' ? vb - va : va - vb;
+      const va = changeValue(a, sort.col) ?? miss;
+      const vb = changeValue(b, sort.col) ?? miss;
+      return sort.dir === 'desc' ? vb - va : va - vb;
     });
-  }, [symbols, selectedSymbols, changeSort, liveChanges]);
+  }, [symbols, selectedSymbols, sort, changeValue]);
+
+  // Cycle a column's sort: desc → asc → off. Clicking a different column starts
+  // fresh at desc so only one column ever sorts at a time.
+  const cycleSort = useCallback((col: SortCol) => {
+    setSort((prev) => {
+      if (!prev || prev.col !== col) return { col, dir: 'desc' };
+      return prev.dir === 'desc' ? { col, dir: 'asc' } : null;
+    });
+  }, []);
 
   const refreshPositions = useCallback(async () => {
     try {
@@ -207,6 +243,28 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
     const id = setInterval(() => void refreshQqe(symbols), QQE_REFRESH_MS);
     return () => clearInterval(id);
   }, [symbols, refreshQqe]);
+
+  const refreshChanges = useCallback(async (syms: string[]) => {
+    if (syms.length === 0) return;
+    try {
+      const rows = await clientRef.current.fetchBitgetPriceChanges(syms);
+      setPriceChanges((prev) => {
+        const next = { ...prev };
+        for (const r of rows) next[r.symbol] = r;
+        return next;
+      });
+    } catch {
+      /* non-fatal: the 7d/30d columns just keep their last-known values */
+    }
+  }, []);
+
+  // 7d/30d change refreshes rarely (it only moves once a day).
+  useEffect(() => {
+    if (symbols.length === 0) return;
+    void refreshChanges(symbols);
+    const id = setInterval(() => void refreshChanges(symbols), CHANGE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [symbols, refreshChanges]);
 
   const saveConfig = useCallback(
     async (symbol: string, holdSide: HoldSide, cfg: { leverage: number; marginUsd: number }) => {
@@ -382,21 +440,27 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
               <tr>
                 <th>Symbol</th>
                 <th className="bg-num">Giá</th>
-                <th className="bg-num bg-th-sort" aria-sort={changeSort === 'desc' ? 'descending' : changeSort === 'asc' ? 'ascending' : 'none'}>
-                  <button
-                    type="button"
-                    className="bg-th-sort-btn"
-                    onClick={() =>
-                      setChangeSort((s) => (s === null ? 'desc' : s === 'desc' ? 'asc' : null))
-                    }
-                    title="Sắp xếp theo thay đổi so với mốc 00:00 UTC — bấm để đổi chiều"
-                  >
-                    Hôm nay
-                    <span className="bg-th-sort-ind">
-                      {changeSort === 'desc' ? '▼' : changeSort === 'asc' ? '▲' : '↕'}
-                    </span>
-                  </button>
-                </th>
+                <SortHeader
+                  label="Hôm nay"
+                  col="today"
+                  sort={sort}
+                  onSort={cycleSort}
+                  title="Sắp xếp theo thay đổi so với mốc 00:00 UTC — bấm để đổi chiều (mặc định không sắp xếp)"
+                />
+                <SortHeader
+                  label="7 ngày"
+                  col="d7"
+                  sort={sort}
+                  onSort={cycleSort}
+                  title="Thay đổi giá 7 ngày (so với giá đóng cửa 7 ngày trước) — bấm để sắp xếp"
+                />
+                <SortHeader
+                  label="30 ngày"
+                  col="d30"
+                  sort={sort}
+                  onSort={cycleSort}
+                  title="Thay đổi giá 30 ngày (so với giá đóng cửa 30 ngày trước) — bấm để sắp xếp"
+                />
                 <th title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — L=Long (xanh) / S=Short (đỏ) theo từng khung M30/H1/H4/D1">
                   QQE
                 </th>
@@ -411,14 +475,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
               {displaySymbols.map((symbol) => {
                 const price = livePrices[symbol];
                 const change = liveChanges[symbol];
-                const changeCls =
-                  change == null || !Number.isFinite(change)
-                    ? ''
-                    : change > 0
-                      ? 'bg-chg--up'
-                      : change < 0
-                        ? 'bg-chg--down'
-                        : '';
+                const pc = priceChanges[bareSymbol(symbol)];
+                const change7d = pc?.change7d;
+                const change30d = pc?.change30d;
                 return (
                   <tr key={symbol}>
                     <td className="bg-symbol">
@@ -437,7 +496,9 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
                       </div>
                     </td>
                     <td className="bg-num bg-price">{fmtPrice(price)}</td>
-                    <td className={`bg-num ${changeCls}`}>{fmtChange(change)}</td>
+                    <td className={`bg-num ${chgClass(change)}`}>{fmtChange(change)}</td>
+                    <td className={`bg-num ${chgClass(change7d)}`}>{fmtChange(change7d)}</td>
+                    <td className={`bg-num ${chgClass(change30d)}`}>{fmtChange(change30d)}</td>
                     <td className="bg-qqe-cell">
                       <QqeCell signals={qqe[bareSymbol(symbol)]} />
                     </td>
@@ -555,6 +616,34 @@ export function BitgetSetupFeed({ history, positions: initialPositions, embedded
   );
 }
 
+
+/** A sortable numeric column header — cycles desc → asc → off on click. */
+function SortHeader({
+  label,
+  col,
+  sort,
+  onSort,
+  title,
+}: {
+  label: string;
+  col: SortCol;
+  sort: { col: SortCol; dir: 'desc' | 'asc' } | null;
+  onSort: (col: SortCol) => void;
+  title: string;
+}) {
+  const dir = sort?.col === col ? sort.dir : null;
+  return (
+    <th
+      className="bg-num bg-th-sort"
+      aria-sort={dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : 'none'}
+    >
+      <button type="button" className="bg-th-sort-btn" onClick={() => onSort(col)} title={title}>
+        {label}
+        <span className="bg-th-sort-ind">{dir === 'desc' ? '▼' : dir === 'asc' ? '▲' : '↕'}</span>
+      </button>
+    </th>
+  );
+}
 
 /** Saved-at timestamp formatted for the gallery caption. */
 function fmtSavedAt(iso: string): string {

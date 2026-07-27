@@ -30,6 +30,14 @@ const QQE_MIN_CANDLES = 60;
 /** How long a per-(symbol,tf) QQE reading is reused before recomputing. */
 const QQE_CACHE_TTL_MS = 60_000;
 
+/** Daily candles pulled to compute the 7d / 30d change (needs ≥ 31 back + today). */
+const CHANGE_KLINE_LIMIT = 40;
+/** 7d / 30d changes move once a day — reuse a reading for 5 minutes. */
+const CHANGE_CACHE_TTL_MS = 5 * 60_000;
+
+/** 7-day and 30-day price change (as a ratio, 0.0123 = +1.23%) for a coin. */
+export type BitgetPriceChange = { symbol: string; change7d: number | null; change30d: number | null };
+
 /** Current colinmck QQE state on one timeframe's last CLOSED candle. */
 export type QqeTfSignal = {
   state: 'long' | 'short';
@@ -89,6 +97,8 @@ export class BitgetSetupChartService {
   private readonly chartRepo = createBitgetTradeChartRepository();
   /** Short-lived cache of QQE readings keyed by `${bare}:${tf}` to spare Binance. */
   private readonly qqeCache = new Map<string, { at: number; value: QqeTfSignal | null }>();
+  /** Short-lived cache of 7d/30d change per bare symbol to spare Binance. */
+  private readonly changeCache = new Map<string, { at: number; value: BitgetPriceChange }>();
 
   constructor(
     private readonly binance: BinanceMarketDataService,
@@ -296,6 +306,50 @@ export class BitgetSetupChartService {
       out.push({ symbol: bare, signals });
     }
     return out;
+  }
+
+  /**
+   * 7-day and 30-day price change for each coin — the data behind the Setup-tab
+   * "7d" / "30d" columns. Computed from Binance daily candles (current close vs
+   * the close N days ago) and cached ~5 min per coin (daily changes move slowly).
+   */
+  async getPriceChanges(symbols: string[]): Promise<BitgetPriceChange[]> {
+    const uniqueBare = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
+    const out: BitgetPriceChange[] = [];
+    for (const bare of uniqueBare) {
+      out.push(await this.priceChangeFor(bare));
+    }
+    return out;
+  }
+
+  /** 7d/30d change for one coin, served from cache when still fresh. */
+  private async priceChangeFor(bare: string): Promise<BitgetPriceChange> {
+    const cached = this.changeCache.get(bare);
+    if (cached && Date.now() - cached.at < CHANGE_CACHE_TTL_MS) return cached.value;
+
+    try {
+      const klines = await this.binance.fetchKlines({
+        symbol: `${bare}USDT`,
+        timeframe: '1d' as never,
+        limit: CHANGE_KLINE_LIMIT,
+      });
+      const closes = klines.map((k) => parseFloat(k[4]));
+      const n = closes.length;
+      const current = n > 0 ? closes[n - 1]! : NaN;
+      // `d` days ago = the close `d` candles back from the current (forming) one.
+      const changeAgo = (d: number): number | null => {
+        const past = n > d ? closes[n - 1 - d] : undefined;
+        return past != null && past > 0 && Number.isFinite(current)
+          ? (current - past) / past
+          : null;
+      };
+      const value: BitgetPriceChange = { symbol: bare, change7d: changeAgo(7), change30d: changeAgo(30) };
+      this.changeCache.set(bare, { at: Date.now(), value });
+      return value;
+    } catch {
+      // Transient fetch failure: reuse last-known reading, else blanks.
+      return cached?.value ?? { symbol: bare, change7d: null, change30d: null };
+    }
   }
 
   /** QQE reading for one (coin, timeframe), served from cache when still fresh. */

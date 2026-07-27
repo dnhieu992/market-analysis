@@ -129,6 +129,19 @@ export class BitgetController {
     return this.setupChart.getQqeSignals(split(symbols), split(timeframes));
   }
 
+  @Get('price-changes')
+  @ApiOperation({
+    summary:
+      '7-day and 30-day price change (ratio) per coin for the Setup-tab columns. `symbols` is comma-separated.',
+  })
+  getPriceChanges(@Query('symbols') symbols?: string) {
+    const list = (symbols ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return this.setupChart.getPriceChanges(list);
+  }
+
   @Get('trade-chart')
   @Public() // uses only public Binance market data + trade prices passed in the query
   @Header('Content-Type', 'image/png')

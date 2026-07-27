@@ -8,6 +8,8 @@ export type BitgetTradeOpenInput = {
   marginMode: string;
   openAvgPrice: number;
   openTotalPos: number;
+  /** Effective leverage at open (notional ÷ margin); omit if unknown. */
+  leverage?: number | null;
   openedAt: Date;
 };
 

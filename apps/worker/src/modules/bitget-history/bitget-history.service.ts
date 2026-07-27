@@ -75,6 +75,31 @@ function fmtNum(n: number): string {
   return n.toPrecision(4);
 }
 
+/** Signed percentage with a leading +/− (uses the same − glyph as the rest of the log). */
+function fmtPct(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  return `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(2)}%`;
+}
+
+/** Leverage as e.g. "20x" (drops a trailing ".0"). */
+function fmtLev(lev: number): string {
+  const rounded = Math.round(lev * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}x`;
+}
+
+/**
+ * Effective leverage at open = notional ÷ margin (works for both isolated and
+ * cross, since Bitget's `marginSize` is the position's initial margin). Rounds
+ * to a clean step (leverage is user-set as an integer, e.g. 20x) and returns
+ * null when the inputs are missing so we simply omit the leverage line.
+ */
+function leverageOf(openAvgPrice: number, openTotalPos: number, marginSize: number): number | null {
+  const notional = openAvgPrice * openTotalPos;
+  if (!(marginSize > 0) || !(notional > 0)) return null;
+  const lev = notional / marginSize;
+  return Number.isFinite(lev) && lev > 0 ? Math.round(lev * 10) / 10 : null;
+}
+
 @Injectable()
 export class BitgetHistoryService implements OnModuleInit {
   private readonly logger = new Logger(BitgetHistoryService.name);
@@ -137,6 +162,7 @@ export class BitgetHistoryService implements OnModuleInit {
 
         const openAvgPrice = Number(pos.openPriceAvg);
         const openTotalPos = Number(pos.total);
+        const leverage = leverageOf(openAvgPrice, openTotalPos, Number(pos.marginSize));
         const openedAt = new Date(openedAtMs);
         await this.repo.createOpen({
           tradeKey,
@@ -145,6 +171,7 @@ export class BitgetHistoryService implements OnModuleInit {
           marginMode: pos.marginMode ?? '',
           openAvgPrice,
           openTotalPos,
+          leverage,
           openedAt,
         });
         await this.writeOpenedLog(tradeKey, pos.symbol, pos.holdSide, {
@@ -182,7 +209,7 @@ export class BitgetHistoryService implements OnModuleInit {
 
         if (match && match.status === 'open' && !liveKeys.has(match.tradeKey)) {
           await this.repo.markClosed(match.id, this.closeInput(c));
-          await this.writeClosedLog(match.tradeKey, c);
+          await this.writeClosedLog(match.tradeKey, c, match.leverage);
           closed++;
         } else if (!match) {
           // Opened and closed between polls — never saw it open. Record the full
@@ -204,7 +231,9 @@ export class BitgetHistoryService implements OnModuleInit {
             markPrice: c.openAvgPrice,
             dayOpenPrice: await this.fetchDayOpenPrice(c.symbol),
           });
-          await this.writeClosedLog(tradeKey, c);
+          // Opened+closed between polls — we never saw the live position, so its
+          // leverage is unknown; the close log shows the raw price move only.
+          await this.writeClosedLog(tradeKey, c, null);
           closed++;
         }
       }
@@ -411,12 +440,32 @@ export class BitgetHistoryService implements OnModuleInit {
     }
   }
 
-  private async writeClosedLog(tradeKey: string, c: BitgetClosedNormalized): Promise<void> {
+  private async writeClosedLog(
+    tradeKey: string,
+    c: BitgetClosedNormalized,
+    leverage: number | null | undefined,
+  ): Promise<void> {
     const side = c.holdSide === 'short' ? 'SHORT' : 'LONG';
     const sign = c.netProfit >= 0 ? '+' : '−';
+
+    // Price move in the trade's favour (long: up = gain, short: down = gain),
+    // then scaled by leverage so the log shows the leveraged return, e.g.
+    // "+1.00% × 20x = +20.00%".
+    const rawPct =
+      c.openAvgPrice > 0
+        ? ((c.closeAvgPrice - c.openAvgPrice) / c.openAvgPrice) * 100 * (c.holdSide === 'short' ? -1 : 1)
+        : null;
+    const changeLine =
+      rawPct != null
+        ? leverage && leverage > 0
+          ? `- Biến động giá: ${fmtPct(rawPct)} × ${fmtLev(leverage)} = ${fmtPct(rawPct * leverage)} (gồm đòn bẩy)`
+          : `- Biến động giá: ${fmtPct(rawPct)}`
+        : null;
+
     const content = [
       `🔴 **Đã đóng lệnh** ${side} ${c.symbol}`,
       `- Giá đóng: ${fmtNum(c.closeAvgPrice)}`,
+      ...(changeLine ? [changeLine] : []),
       `- PnL thực: ${sign}${fmtNum(Math.abs(c.netProfit))} USDT`,
       `- Phí: ${fmtNum(c.openFee + c.closeFee)} USDT`,
     ].join('\n');

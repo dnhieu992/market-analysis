@@ -608,6 +608,13 @@ export type BitgetQqeSignals = {
   signals: Record<string, BitgetQqeTfSignal | null>;
 };
 
+/** 7d / 30d price change (ratio, 0.0123 = +1.23%) per coin, keyed by bare symbol. */
+export type BitgetPriceChange = {
+  symbol: string;
+  change7d: number | null;
+  change30d: number | null;
+};
+
 export type BitgetOpenResult = {
   opened: true;
   /** 'new' = fresh position, 'add' = volume added to an already-open one. */

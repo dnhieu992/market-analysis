@@ -285,6 +285,9 @@ export function BitgetJournalDrawer({ target, onClose }: Props) {
                   >
                     <div className="bgj-note-head">
                       <span className="bgj-note-time">{fmtTime(n.createdAt)}</span>
+                      <span className={`bgj-note-tag ${system ? 'bgj-note-tag--system' : 'bgj-note-tag--user'}`}>
+                        {system ? '⚙ Hệ thống' : '✍ Bạn'}
+                      </span>
                       {n.snapshot && !system && (
                         <span className="bgj-note-snap">
                           {fmtPrice(n.snapshot.markPrice)} ·{' '}

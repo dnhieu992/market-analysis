@@ -26,9 +26,13 @@ how many of those are overwrites before the save.
 
 Each coin's **realtime price** and **change
 since 00:00 UTC** (the **"Hôm nay"** column, streamed from Bitget's public WebSocket ticker)
-show once per row. The **"Hôm nay"** header is a **sort toggle**: rows keep the default
-pinned/watchlist order until it is clicked, then clicking cycles **descending → ascending →
-back to default** (coins with no live change reading always sink to the bottom).
+show once per row, alongside **"7 ngày"** and **"30 ngày"** columns — the 7-day and 30-day
+price change computed server-side from Binance daily candles (current close vs the close 7 /
+30 candles back), fetched via `GET /bitget/price-changes?symbols=…` on mount and every 5 min.
+The **"Hôm nay"**, **"7 ngày"** and **"30 ngày"** headers are each a **sort toggle**: rows keep
+the default pinned/watchlist order until a header is clicked, then clicking that header cycles
+**descending → ascending → back to default** (coins with no reading always sink to the bottom).
+Only one column sorts at a time — clicking a different header starts fresh at descending.
 
 Each coin row also has a single **📈 Chart** button that opens a fullscreen dialog with a
 server-rendered PNG chart. The dialog has an **M15 / M30 / H1 / H4 / D1** timeframe switcher in
@@ -195,8 +199,8 @@ PNG in a new tab.
 - `apps/web/src/widgets/bitget/symbol-multi-select.tsx` — shared coin-name multi-select filter (used by the Setup toolbar + the History tab); filters `displaySymbols` (empty = all coins).
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`, `saveBitgetSetupChart({ symbol, timeframe })`.
 - `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack).
-- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, and computes the per-timeframe QQE column (`getQqeSignals`, 60s cache).
-- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column. An optional `&timeframes=` (subset of `M30,1h,4h,1d,1w`) narrows the server-side scan; omitted here, so the Setup tab keeps the full M30/1h/4h/1d default. `/tracking-coins` passes `4h,1d,1w`.
+- `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, computes the per-timeframe QQE column (`getQqeSignals`, 60s cache), and the 7d/30d change column (`getPriceChanges`, daily candles, 5-min cache).
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/qqe-signals?symbols=…` returns the per-coin, per-timeframe QQE state for the Setup column. An optional `&timeframes=` (subset of `M30,1h,4h,1d,1w`) narrows the server-side scan; omitted here, so the Setup tab keeps the full M30/1h/4h/1d default. `/tracking-coins` passes `4h,1d,1w`. `GET /bitget/price-changes?symbols=…` returns the 7d/30d change ratio per coin.
 - `apps/web/src/widgets/bitget/qqe-cell.tsx` — `QqeCell` + `isLiveSignal` + `bareQqeSymbol`, extracted from `bitget-setup-feed.tsx` (2026-07-26) so `/tracking-coins` renders the identical column; `timeframes` prop selects which switcher columns a page reports on.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — the chart dialog now takes an optional `timeframes` prop (defaults to `CHART_TIMEFRAMES`); `SWING_CHART_TIMEFRAMES` (H4/D1/W1) is the swing-page variant. `1w` is a supported render timeframe.
 - `apps/api/src/modules/bitget/setup-chart-renderer.ts` — chartjs-node-canvas renderer: candlesticks + SonicR (EMA34 H/L/C Dragon + EMA89) + **EMA200** (orange trend line) + **UT Bot (10,3)** trailing stop (`calcUtBotSignals` from `@app/core`, `UT_BOT_PARAMS`; two stepped datasets green/red + `utBotFlipPlugin` dots) + S/R channels + RSI(14) pane + FxCanli Volume (Hacim) pane + colinmck QQE Long/Short markers (via `calculateQqe` from `@app/core`) + Engulfing Candles Detector (`detectEngulfing`, colours the candle solid green/red — no box/label) + position-marker lines + trade-span (Vào/Đóng) markers.
@@ -205,8 +209,8 @@ PNG in a new tab.
 - `apps/web/src/widgets/bitget-positions/use-bitget-live-prices.ts` — WS ticker hook; returns `prices`, `changes` (UTC-0 ratio via `changeUtc24h`), `live`.
 - `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — supports `?tab=setup` deep-link.
-- `apps/web/src/shared/api/client.ts` — `openBitgetPosition()`, `fetchBitgetSetupConfigs()`, `saveBitgetSetupConfig()`.
-- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`.
+- `apps/web/src/shared/api/client.ts` — `openBitgetPosition()`, `fetchBitgetSetupConfigs()`, `saveBitgetSetupConfig()`, `fetchBitgetPriceChanges()` (7d/30d change).
+- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`, `BitgetPriceChange`.
 - `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down`, `.bg-open-btn--short` (red short button), `.bg-side-cell`/`.bg-side-cell-inner`/`.bg-side-cfg` (per-side action cell + config summary), `.bg-symbol` sticky column, `.bg-bulk-*` + `.bg-setup-dialog--wide` (bulk dialog), `.bg-toolbar-right`.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`, `GET/PUT /bitget/setup`, `GET /bitget/setup-chart` (public PNG).
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupChartService` + `BinanceMarketDataService`.

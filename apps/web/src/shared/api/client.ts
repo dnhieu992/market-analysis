@@ -51,6 +51,7 @@ import type {
   BitgetTpslResult,
   BitgetSetupConfig,
   BitgetQqeSignals,
+  BitgetPriceChange,
   BitgetTradeChart,
   BitgetJournalNote,
   BitgetJournalSnapshot,
@@ -1117,6 +1118,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const q = encodeURIComponent(symbols.join(','));
       const tfq = timeframes?.length ? `&timeframes=${encodeURIComponent(timeframes.join(','))}` : '';
       return fetchJson<BitgetQqeSignals[]>(fetchImpl, `${baseUrl}/bitget/qqe-signals?symbols=${q}${tfq}`, withDefaults({}));
+    },
+
+    // 7d / 30d price change (ratio) per coin for the Setup tab columns.
+    async fetchBitgetPriceChanges(symbols: string[]): Promise<BitgetPriceChange[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      return fetchJson<BitgetPriceChange[]>(fetchImpl, `${baseUrl}/bitget/price-changes?symbols=${q}`, withDefaults({}));
     },
 
     async saveBitgetSetupConfig(input: BitgetSetupConfig): Promise<BitgetSetupConfig> {
