@@ -48,6 +48,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Vị thế đang mở & lịch sử lệnh · uPnL, realized PnL, win rate'
   },
   {
+    href: '/mexc',
+    label: 'MEXC',
+    description: 'Vị thế đang mở & lịch sử lệnh trên MEXC · uPnL, realized PnL, win rate'
+  },
+  {
     href: '/daily-plan',
     label: 'Daily Plan',
     description: 'BTC daily analysis'

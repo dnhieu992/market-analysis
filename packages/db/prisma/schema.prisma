@@ -796,3 +796,113 @@ model BitgetTradeChart {
   @@map("bitget_trade_charts")
 }
 
+
+// ─── MEXC USDT-futures ────────────────────────────────────────────────────────
+// Independent mirror of the Bitget models above, for the second exchange the
+// dashboard tracks (/mexc). Kept as separate tables on purpose: the two
+// integrations evolve independently, so /bitget can never be broken by a MEXC
+// change (and vice-versa). Field semantics match their Bitget counterparts —
+// see those models for the per-column notes.
+
+// One MEXC USDT-futures trade across its whole lifecycle. `tradeKey`
+// (`symbol-holdSide-openedAt(ISO)`) is the stable id shared with the journal;
+// `positionId` is MEXC's own position id, which — unlike Bitget — is already
+// known while the position is open, so it is recorded at insert time.
+model MexcTrade {
+  id            String    @id @default(cuid())
+  tradeKey      String    @unique @db.VarChar(90) // symbol-holdSide-openedAt(ISO) — stable across lifecycle
+  positionId    String?   @unique @db.VarChar(40) // MEXC positionId — dedupe key
+  status        String    @default("open") @db.VarChar(8) // open | closed
+  symbol        String    @db.VarChar(30)
+  holdSide      String    @db.VarChar(8) // long | short
+  marginMode    String    @default("") @db.VarChar(12) // isolated | crossed
+  openAvgPrice  Float // average entry fill
+  openTotalPos  Float // position size in BASE asset (holdVol × contractSize)
+  leverage      Float? // leverage reported by MEXC on the position
+  openedAt      DateTime // MEXC createTime (position open time)
+  closeAvgPrice Float?
+  netProfit     Float? // realized PnL after fees (MEXC `realised`)
+  pnl           Float? // gross realized pnl (MEXC `closeProfitLoss`)
+  totalFunding  Float? // MEXC `holdFee`
+  openFee       Float? // MEXC reports one accumulated `totalFee` — always 0 here
+  closeFee      Float? // …the whole accumulated fee lands on this side
+  closedAt      DateTime?
+  peakRoePct    Int?
+  troughRoePct  Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([symbol])
+  @@index([status])
+  @@index([closedAt])
+  @@map("mexc_trades")
+}
+
+// Singleton anchor for the MEXC closed-trade log — see `BitgetSyncState`.
+model MexcSyncState {
+  id             String    @id @default("singleton")
+  historyStartAt DateTime?
+  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime  @default(now())
+
+  @@map("mexc_sync_state")
+}
+
+// One log item on a MEXC trade's timeline — see `BitgetTradeJournal`.
+model MexcTradeJournal {
+  id        String   @id @default(cuid())
+  tradeKey  String   @db.VarChar(90)
+  kind      String   @default("manual") @db.VarChar(8) // manual | system
+  symbol    String   @db.VarChar(30)
+  holdSide  String   @db.VarChar(8) // long | short
+  content   String   @db.LongText
+  images    Json     @default("[]")
+  snapshot  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tradeKey, createdAt])
+  @@map("mexc_trade_journals")
+}
+
+// Per-coin, per-side manual-open config for the /mexc Setup tab.
+model MexcSetupConfig {
+  id        String   @id @default(cuid())
+  symbol    String   @db.VarChar(30)
+  holdSide  String   @db.VarChar(8) // long | short
+  leverage  Int      @default(10)
+  marginUsd Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([symbol, holdSide])
+  @@map("mexc_setup_configs")
+}
+
+// Manual 0–5 star priority per coin in the /mexc Setup tab.
+model MexcSymbolPriority {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("mexc_symbol_priorities")
+}
+
+// Saved chart snapshots for MEXC trades / Setup coins.
+model MexcTradeChart {
+  id        String   @id @default(cuid())
+  tradeKey  String   @db.VarChar(90) // links to MexcTrade.tradeKey
+  symbol    String   @db.VarChar(30)
+  timeframe String   @db.VarChar(8) // M30 | 1h | 4h | 1d
+  url       String   @db.Text
+  objectKey String   @db.VarChar(255)
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tradeKey, timeframe])
+  @@index([symbol])
+  @@map("mexc_trade_charts")
+}

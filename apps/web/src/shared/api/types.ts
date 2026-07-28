@@ -685,6 +685,195 @@ export type BitgetJournalNote = {
   updatedAt: string;
 };
 
+// ─── MEXC USDT-futures (/mexc) ───────────────────────────────────────────────
+// Same wire shapes as the Bitget block above, kept as their own types so the
+// two exchange integrations can diverge without one breaking the other.
+
+export type MexcPosition = {
+  symbol: string;
+  holdSide: 'long' | 'short';
+  marginMode: string;
+  leverage: number;
+  size: number;
+  entryPrice: number;
+  markPrice: number;
+  liquidationPrice: number | null;
+  breakEvenPrice: number | null;
+  marginUsd: number;
+  notionalUsd: number;
+  unrealizedPnlUsd: number;
+  roePct: number;
+  realizedPnlUsd: number;
+  /** Position take-profit trigger set on the exchange, null when none is set. */
+  takeProfitPrice: number | null;
+  /** Position stop-loss trigger set on the exchange, null when none is set. */
+  stopLossPrice: number | null;
+  /** When the position was opened (MEXC createTime). Anchors the trade-journal tradeKey. */
+  openedAt: string | null;
+  updatedAt: string | null;
+};
+
+export type MexcPositionsResponse = {
+  configured: boolean;
+  positions: MexcPosition[];
+  totalUnrealizedPnlUsd: number;
+  totalMarginUsd: number;
+  accountEquityUsd: number | null;
+  /** Capital the account started from, USDT — the baseline for `equityChangePct`. */
+  initialCapitalUsd: number;
+  /** Equity vs initial capital, in % (+/-). Null when equity is unavailable. */
+  equityChangePct: number | null;
+  fetchedAt: string;
+};
+
+export type MexcClosedTrade = {
+  positionId: string;
+  /** Stable trade-session key — lets the history tab open the trade's journal. */
+  tradeKey: string;
+  status: 'closed';
+  symbol: string;
+  holdSide: 'long' | 'short';
+  marginMode: string;
+  openAvgPrice: number;
+  closeAvgPrice: number;
+  size: number;
+  netProfit: number;
+  netProfitPct: number;
+  totalFunding: number;
+  feesUsd: number;
+  openedAt: string;
+  closedAt: string;
+};
+
+export type MexcTradeChart = {
+  id: string;
+  tradeKey: string;
+  symbol: string;
+  timeframe: string;
+  url: string;
+  objectKey: string;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MexcClosedSummary = {
+  trades: number;
+  wins: number;
+  losses: number;
+  winRatePct: number;
+  totalNetProfit: number;
+  avgNetProfit: number;
+  bestNetProfit: number;
+  worstNetProfit: number;
+  totalVolumeUsd: number;
+};
+
+export type MexcHistoryResponse = {
+  configured: boolean;
+  trades: MexcClosedTrade[];
+  summary: MexcClosedSummary;
+  fetchedAt: string;
+};
+
+/** Per-coin, per-side manual-open config edited in the Setup dialog (persisted in the DB). */
+export type MexcSetupConfig = {
+  symbol: string;
+  holdSide: 'long' | 'short';
+  leverage: number;
+  marginUsd: number;
+};
+
+/** Manual 0–5 star rating a coin carries in the Setup tab (drives its default order). */
+export type MexcSymbolPriority = {
+  symbol: string;
+  priority: number;
+};
+
+/** How many saved charts one coin references — the Setup Attachments badge. */
+export type MexcChartCount = {
+  symbol: string;
+  count: number;
+};
+
+/** How many saved charts one trade references — the History Attachments badge. */
+export type MexcTradeChartCount = {
+  tradeKey: string;
+  count: number;
+};
+
+/** colinmck QQE Signals state on one timeframe's last closed candle. */
+export type MexcQqeTfSignal = {
+  state: 'long' | 'short';
+  barsSince: number | null;
+  freshCross: boolean;
+};
+
+/** Per-coin QQE state keyed by timeframe ('M30' | '1h' | '4h' | '1d'). */
+export type MexcQqeSignals = {
+  symbol: string;
+  signals: Record<string, MexcQqeTfSignal | null>;
+};
+
+/**
+ * Price change (ratio, 0.0123 = +1.23%) per coin, keyed by bare symbol:
+ * `changeH4` is the last CLOSED 4h candle's own move, `change7d` / `change30d`
+ * compare the current close with the close N days ago.
+ */
+export type MexcPriceChange = {
+  symbol: string;
+  changeH4: number | null;
+  change7d: number | null;
+  change30d: number | null;
+};
+
+export type MexcOpenResult = {
+  opened: true;
+  /** 'new' = fresh position, 'add' = volume added to an already-open one. */
+  mode: 'new' | 'add';
+  symbol: string;
+  holdSide: 'long' | 'short';
+  /** Size just placed (the added amount when scaling in). */
+  size: number;
+  /** Total position size after this order. */
+  totalSize: number;
+  entryPrice: number;
+  leverage: number;
+  marginUsd: number;
+};
+
+/** Result of syncing a position's TP/SL to MEXC (prices as accepted by the exchange). */
+export type MexcTpslResult = {
+  ok: true;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  takeProfitPrice: number | null;
+  stopLossPrice: number | null;
+};
+
+/** Price/PnL snapshot captured when a trade note was written. */
+export type MexcJournalSnapshot = {
+  markPrice?: number;
+  entryPrice?: number;
+  roePct?: number;
+  unrealizedPnlUsd?: number;
+};
+
+/** One manual note in a MEXC trade session's log timeline. */
+export type MexcJournalNote = {
+  id: string;
+  tradeKey: string;
+  /** "manual" (trader note) or "system" (auto open/close event — read-only). */
+  kind: 'manual' | 'system';
+  symbol: string;
+  holdSide: 'long' | 'short';
+  content: string;
+  images: string[];
+  snapshot: MexcJournalSnapshot | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** Price/PnL snapshot captured when a /trades order note was written. */
 export type OrderJournalSnapshot = {
   price?: number;

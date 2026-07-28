@@ -39,6 +39,24 @@ export { createBitgetTradeChartRepository } from './repositories/bitget-trade-ch
 export type { BitgetTradeChartInput } from './repositories/bitget-trade-chart.repository';
 export { createBitgetSymbolPriorityRepository } from './repositories/bitget-symbol-priority.repository';
 export type { BitgetSymbolPriorityInput } from './repositories/bitget-symbol-priority.repository';
+export { createMexcTradeRepository } from './repositories/mexc-trade.repository';
+export type {
+  MexcTradeOpenInput,
+  MexcTradeCloseInput,
+  MexcTradeClosedInput,
+} from './repositories/mexc-trade.repository';
+export { createMexcSyncStateRepository } from './repositories/mexc-sync-state.repository';
+export { createMexcTradeJournalRepository } from './repositories/mexc-trade-journal.repository';
+export type {
+  MexcTradeJournalInput,
+  MexcTradeJournalSnapshot,
+} from './repositories/mexc-trade-journal.repository';
+export { createMexcSetupConfigRepository } from './repositories/mexc-setup-config.repository';
+export type { MexcSetupConfigInput } from './repositories/mexc-setup-config.repository';
+export { createMexcTradeChartRepository } from './repositories/mexc-trade-chart.repository';
+export type { MexcTradeChartInput } from './repositories/mexc-trade-chart.repository';
+export { createMexcSymbolPriorityRepository } from './repositories/mexc-symbol-priority.repository';
+export type { MexcSymbolPriorityInput } from './repositories/mexc-symbol-priority.repository';
 export { createOrderJournalRepository } from './repositories/order-journal.repository';
 export type {
   OrderJournalInput,

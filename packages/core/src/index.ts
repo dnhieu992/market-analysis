@@ -10,6 +10,12 @@ export type {
   ClosedTradeLike,
   BitgetClosedSummary,
 } from './analysis/bitget-closed';
+export { normalizeMexcClosed, summarizeMexcClosed, mexcMarginMode } from './analysis/mexc-closed';
+export type {
+  MexcClosedRaw,
+  MexcClosedNormalized,
+  MexcClosedSummary,
+} from './analysis/mexc-closed';
 export { computeEntryScore } from './analysis/entry-score';
 export type { EntryScoreParams, EntryScoreResult } from './analysis/entry-score';
 export { computeDcaScore, dcaZone, dcaQualityBucket, computeDcaTimingSignal } from './analysis/dca-signal';

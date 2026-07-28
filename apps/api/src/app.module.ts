@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 import { AnalysisModule } from './modules/analysis/analysis.module';
 import { BitgetModule } from './modules/bitget/bitget.module';
+import { MexcModule } from './modules/mexc/mexc.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
@@ -59,6 +60,7 @@ import { JournalModule } from './modules/journal/journal.module';
     MemeRadarModule,
     TrackingCoinsModule,
     BitgetModule,
+    MexcModule,
     PatternScannerModule,
     JournalModule,
   ],

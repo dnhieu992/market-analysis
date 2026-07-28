@@ -58,6 +58,19 @@ import type {
   BitgetTradeChart,
   BitgetJournalNote,
   BitgetJournalSnapshot,
+  MexcPositionsResponse,
+  MexcHistoryResponse,
+  MexcOpenResult,
+  MexcTpslResult,
+  MexcSetupConfig,
+  MexcSymbolPriority,
+  MexcChartCount,
+  MexcTradeChartCount,
+  MexcQqeSignals,
+  MexcPriceChange,
+  MexcTradeChart,
+  MexcJournalNote,
+  MexcJournalSnapshot,
   OrderJournalNote,
   OrderJournalSnapshot,
   BinanceKline,
@@ -1359,6 +1372,302 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async deleteBitgetJournal(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/bitget/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    // ═══ MEXC (/mexc) ════════════════════════════════════════════
+    // Same call shapes as the Bitget methods above against the /mexc
+    // routes. Deliberately a separate set: the two exchange pages own
+    // their endpoints outright, so neither can break the other.
+    async fetchMexcPositions(): Promise<MexcPositionsResponse> {
+      return fetchJson<MexcPositionsResponse>(fetchImpl, `${baseUrl}/mexc/positions`, withDefaults({}));
+    },
+
+    async closeMexcPosition(symbol: string, holdSide: 'long' | 'short'): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/positions/close`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, holdSide }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đóng lệnh thất bại (HTTP ${response.status})`);
+      }
+    },
+
+    async openMexcPosition(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      marginUsd: number;
+      leverage: number;
+    }): Promise<MexcOpenResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/positions/open`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Mở lệnh thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcOpenResult;
+    },
+
+    /**
+     * Set the exchange-side TP/SL of an open position. Both prices are always
+     * sent — `null` clears that trigger on MEXC.
+     */
+    async setMexcTpsl(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      takeProfitPrice: number | null;
+      stopLossPrice: number | null;
+    }): Promise<MexcTpslResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/positions/tpsl`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đặt TP/SL thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcTpslResult;
+    },
+
+    // ── MEXC Setup tab configs (per coin + side, persisted) ────
+    async fetchMexcSetupConfigs(): Promise<MexcSetupConfig[]> {
+      return fetchJson<MexcSetupConfig[]>(fetchImpl, `${baseUrl}/mexc/setup`, withDefaults({}));
+    },
+
+    // Current QQE Signals state (long/short) per timeframe for the Setup tab column.
+    // `timeframes` narrows the server-side scan (omit for the default M30/1h/4h/1d).
+    async fetchMexcQqeSignals(symbols: string[], timeframes?: readonly string[]): Promise<MexcQqeSignals[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      const tfq = timeframes?.length ? `&timeframes=${encodeURIComponent(timeframes.join(','))}` : '';
+      return fetchJson<MexcQqeSignals[]>(fetchImpl, `${baseUrl}/mexc/qqe-signals?symbols=${q}${tfq}`, withDefaults({}));
+    },
+
+    // 7d / 30d price change (ratio) per coin for the Setup tab columns.
+    async fetchMexcPriceChanges(symbols: string[]): Promise<MexcPriceChange[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      return fetchJson<MexcPriceChange[]>(fetchImpl, `${baseUrl}/mexc/price-changes?symbols=${q}`, withDefaults({}));
+    },
+
+    async saveMexcSetupConfig(input: MexcSetupConfig): Promise<MexcSetupConfig> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/setup`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu cấu hình thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcSetupConfig;
+    },
+
+    /**
+     * Overwrite the config of many coins at once. Every listed side carries its
+     * own leverage/margin and is applied to every symbol. Returns the saved rows.
+     */
+    async saveMexcSetupConfigsBulk(input: {
+      symbols: string[];
+      sides: Array<{ holdSide: 'long' | 'short'; leverage: number; marginUsd: number }>;
+    }): Promise<MexcSetupConfig[]> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/setup/bulk`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu cấu hình hàng loạt thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcSetupConfig[];
+    },
+
+    // ── MEXC Setup tab star priority (per coin, drives the default order) ────
+    async fetchMexcSymbolPriorities(): Promise<MexcSymbolPriority[]> {
+      return fetchJson<MexcSymbolPriority[]>(
+        fetchImpl,
+        `${baseUrl}/mexc/setup/priority`,
+        withDefaults({}),
+      );
+    },
+
+    async saveMexcSymbolPriority(input: MexcSymbolPriority): Promise<MexcSymbolPriority> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/setup/priority`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu mức ưu tiên thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcSymbolPriority;
+    },
+
+    // ── MEXC trade-review charts (save annotated PNG to R2 + DB) ────
+    async saveMexcTradeChart(input: {
+      tradeKey: string;
+      symbol: string;
+      timeframe: string;
+      holdSide: 'long' | 'short';
+      entryPrice: number;
+      closePrice: number;
+      pnlUsd: number;
+      openedAt: number;
+      closedAt: number;
+      note?: string | null;
+    }): Promise<MexcTradeChart> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/trade-chart/save`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu chart thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcTradeChart;
+    },
+
+    async saveMexcSetupChart(input: {
+      symbol: string;
+      timeframe: string;
+      note?: string | null;
+    }): Promise<MexcTradeChart> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/setup-chart/save`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu chart thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcTradeChart;
+    },
+
+    async fetchMexcSavedTradeCharts(tradeKey: string): Promise<MexcTradeChart[]> {
+      return fetchJson<MexcTradeChart[]>(
+        fetchImpl,
+        `${baseUrl}/mexc/trade-chart/saved?tradeKey=${encodeURIComponent(tradeKey)}`,
+        withDefaults({}),
+      );
+    },
+
+    async fetchMexcSavedChartsBySymbol(symbol: string): Promise<MexcTradeChart[]> {
+      return fetchJson<MexcTradeChart[]>(
+        fetchImpl,
+        `${baseUrl}/mexc/trade-chart/by-symbol?symbol=${encodeURIComponent(symbol)}`,
+        withDefaults({}),
+      );
+    },
+
+    /** Saved-chart count per coin — the Setup tab's Attachments badge. */
+    async fetchMexcChartCounts(): Promise<MexcChartCount[]> {
+      return fetchJson<MexcChartCount[]>(
+        fetchImpl,
+        `${baseUrl}/mexc/trade-chart/counts`,
+        withDefaults({}),
+      );
+    },
+
+    /** Saved-chart count per trade — the History tab's Attachments badge. */
+    async fetchMexcChartCountsByTrade(): Promise<MexcTradeChartCount[]> {
+      return fetchJson<MexcTradeChartCount[]>(
+        fetchImpl,
+        `${baseUrl}/mexc/trade-chart/counts-by-trade`,
+        withDefaults({}),
+      );
+    },
+
+    async fetchMexcHistory(params: { limit?: number; symbol?: string } = {}): Promise<MexcHistoryResponse> {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.symbol) qs.set('symbol', params.symbol);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      return fetchJson<MexcHistoryResponse>(fetchImpl, `${baseUrl}/mexc/history${suffix}`, withDefaults({}));
+    },
+
+    // ── MEXC per-trade journal ────────────────────────────────
+    async fetchMexcJournal(tradeKey: string): Promise<MexcJournalNote[]> {
+      return fetchJson<MexcJournalNote[]>(
+        fetchImpl,
+        `${baseUrl}/mexc/journal?tradeKey=${encodeURIComponent(tradeKey)}`,
+        withDefaults({}),
+      );
+    },
+
+    async addMexcJournal(input: {
+      tradeKey: string;
+      symbol: string;
+      holdSide: 'long' | 'short';
+      content: string;
+      images: string[];
+      snapshot?: MexcJournalSnapshot;
+    }): Promise<MexcJournalNote> {
+      return fetchJson<MexcJournalNote>(
+        fetchImpl,
+        `${baseUrl}/mexc/journal`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async updateMexcJournal(id: string, input: { content: string; images: string[] }): Promise<MexcJournalNote> {
+      return fetchJson<MexcJournalNote>(
+        fetchImpl,
+        `${baseUrl}/mexc/journal/${encodeURIComponent(id)}`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async deleteMexcJournal(id: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/mexc/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
 
     // ── /trades per-order journal ───────────────────────────────

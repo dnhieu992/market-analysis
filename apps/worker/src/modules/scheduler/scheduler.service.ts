@@ -4,6 +4,7 @@ import { Cron } from '@nestjs/schedule';
 import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
+import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { SetupExtractionService } from '../setup-tracking/setup-extraction.service';
 import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
@@ -29,6 +30,7 @@ export class SchedulerService {
     private readonly setupExtractionService: SetupExtractionService,
     private readonly setupTrackingService: SetupTrackingService,
     private readonly bitgetHistoryService: BitgetHistoryService,
+    private readonly mexcHistoryService: MexcHistoryService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -132,6 +134,34 @@ export class SchedulerService {
       await this.bitgetHistoryService.syncMilestones();
     } catch (err) {
       this.logger.error(`Bitget milestone sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Runs every 15 seconds — the MEXC twin of the Bitget sync above: reconcile
+  // open positions + closed history into the mexc_trades lifecycle table so the
+  // /mexc history tab + realized PnL are permanent, and open/close logs are
+  // written. Same cadence and overlap guard; the two syncs are independent, so a
+  // MEXC outage never stalls the Bitget one.
+  @Cron('*/15 * * * * *', { timeZone: 'UTC' })
+  async runMexcHistorySync() {
+    try {
+      const res = await this.mexcHistoryService.sync();
+      if (res.opened > 0 || res.closed > 0) {
+        this.logger.log(`MEXC trade sync — opened ${res.opened}, closed ${res.closed}`);
+      }
+    } catch (err) {
+      this.logger.error(`MEXC trade sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Runs every minute — ROE% milestones for open MEXC positions, same ratchet
+  // rules as the Bitget milestone sync.
+  @Cron('* * * * *', { timeZone: 'UTC' })
+  async runMexcMilestoneSync() {
+    try {
+      await this.mexcHistoryService.syncMilestones();
+    } catch (err) {
+      this.logger.error(`MEXC milestone sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
