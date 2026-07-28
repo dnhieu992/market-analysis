@@ -49,6 +49,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - **TP/SL sai chiều** (long đặt TP dưới giá hiện tại…) → dialog chặn ngay ở client (hint đỏ + disable nút Lưu) và API vẫn kiểm tra lại → 400, tránh lỗi khó hiểu từ sàn.
 - **Để trống ô TP hoặc SL** → mức đó bị **huỷ trên sàn** (không phải "giữ nguyên"); để trống cả hai = gỡ hết TP/SL.
 - **Vị thế đóng khi dialog đang mở** → `tpslPosition` không còn trong danh sách → dialog tự đóng ở lần refresh kế; nếu bấm Lưu trước đó → API trả 409.
+- **Chưa có TP trên sàn** → ô Take Profit prefill **giá hiện tại (mark price)** để chỉnh nhanh; vì bằng đúng giá hiện tại nên hint đỏ "TP phải cao/thấp hơn giá hiện tại" hiện ngay và nút Lưu bị disable cho tới khi kéo mức đi đúng chiều. Ô Stop Loss vẫn để trống như cũ.
 - **Đặt TP/SL khi sàn đã có sẵn mức (đặt từ app Bitget)** → dialog prefill mức cũ; sau khi đặt, `cleanupTpslOrders` đảm bảo chỉ còn **đúng 1 TP + 1 SL** cho mỗi hướng, dù sàn thay thế hay tạo thêm plan order mới.
 - **Lỗi ở bước dọn plan order** → chỉ log `warn`, không fail request (mức mới đã live trên sàn); log ghi rõ có thể còn plan order thừa.
 - **Vị thế được thêm volume sau khi đặt TP/SL** → TP/SL là mức của *vị thế* (đóng toàn bộ), nên vẫn áp dụng cho size mới; chỉ cần cân nhắc chỉnh lại giá vì giá vào trung bình đã đổi.
@@ -59,7 +60,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/positions`, `POST /bitget/positions/close`, `POST /bitget/positions/tpsl`.
 - `apps/api/src/modules/bitget/dto/close-position.dto.ts` — validate `symbol` + `holdSide`.
 - `apps/api/src/modules/bitget/dto/set-tpsl.dto.ts` — validate `symbol`, `holdSide`, `takeProfitPrice`/`stopLossPrice` (nullable = xoá mức).
-- `apps/web/src/widgets/bitget-positions/tpsl-dialog.tsx` — dialog đặt TP/SL: prefill mức đang live, kiểm tra chiều theo giá hiện tại, ước tính PnL/ROE nếu chạm mức.
+- `apps/web/src/widgets/bitget-positions/tpsl-dialog.tsx` — dialog đặt TP/SL: prefill mức đang live (ô TP fallback về giá hiện tại nếu sàn chưa có TP), kiểm tra chiều theo giá hiện tại, ước tính PnL/ROE nếu chạm mức.
 - `apps/api/src/modules/bitget/bitget.module.ts` — module, đăng ký trong `apps/api/src/app.module.ts`.
 - `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — bảng vị thế + nút icon xem chart cạnh symbol (mở `SetupChartDialog`); báo số vị thế đang mở lên nhãn tab qua `onCount` (hiện là "Vị thế đang mở (N)").
 - `apps/web/src/widgets/bitget/chart-icon.tsx` — `ChartIcon` (icon nến monochrome) tách ra khỏi widget này 2026-07-27 để tab Setup và tab Lịch sử dùng lại y hệt.

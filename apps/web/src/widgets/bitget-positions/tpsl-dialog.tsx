@@ -40,7 +40,9 @@ type Props = {
  */
 export function TpslDialog({ position: p, saving, onSave, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [tp, setTp] = useState(p.takeProfitPrice != null ? String(p.takeProfitPrice) : '');
+  // No TP set yet → prefill with the current mark price so the level can be
+  // nudged from where the market is instead of typed from scratch.
+  const [tp, setTp] = useState(String(p.takeProfitPrice ?? p.markPrice));
   const [sl, setSl] = useState(p.stopLossPrice != null ? String(p.stopLossPrice) : '');
 
   useEffect(() => {
