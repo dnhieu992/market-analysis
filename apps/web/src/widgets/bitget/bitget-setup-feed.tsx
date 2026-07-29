@@ -8,6 +8,7 @@ import type {
   BitgetHistoryResponse,
   BitgetPositionsResponse,
   BitgetSetupConfig,
+  BitgetSymbolNote,
   BitgetPriceChange,
   BitgetTradeChart,
 } from '@web/shared/api/types';
@@ -24,6 +25,7 @@ import { QqeCell, bareQqeSymbol as bareSymbol, type QqeMap } from './qqe-cell';
 import { SymbolMultiSelect } from './symbol-multi-select';
 import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
 import { ChartNoteView } from './chart-note-dialog';
+import { SymbolNoteDialog, notePreview } from './symbol-note-dialog';
 
 const REFRESH_MS = 15_000;
 // QQE readings only change on candle close — poll on a slower cadence than positions.
@@ -159,6 +161,11 @@ export function BitgetSetupFeed({
   const [priorities, setPriorities] = useState<Record<string, number>>({});
   // Saved-chart count per coin — the Attachments badge.
   const [chartCounts, setChartCounts] = useState<Record<string, number>>({});
+  // Free-text assessment per coin (persisted) — the "Đánh giá" column.
+  const [notes, setNotes] = useState<Record<string, BitgetSymbolNote>>({});
+  const [noteTarget, setNoteTarget] = useState<string | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
   // Column sort: opens on priority desc; clicking a header cycles desc → asc →
   // off (pinned/watchlist order). Only one column sorts at a time.
   const [sort, setSort] = useState<{ col: SortCol; dir: 'desc' | 'asc' } | null>(DEFAULT_SORT);
@@ -201,6 +208,48 @@ export function BitgetSetupFeed({
     return () => {
       alive = false;
     };
+  }, []);
+
+  // Hydrate the saved assessments so the "Đánh giá" column is filled on open.
+  useEffect(() => {
+    let alive = true;
+    clientRef.current
+      .fetchBitgetSymbolNotes()
+      .then((list) => {
+        if (!alive) return;
+        const map: Record<string, BitgetSymbolNote> = {};
+        for (const n of list) map[n.symbol] = n;
+        setNotes(map);
+      })
+      .catch(() => {
+        /* non-fatal: the column just shows every coin as unassessed */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /**
+   * Save one coin's assessment. An empty note clears the row server-side, so
+   * the local map drops the entry too and the cell falls back to "+ Đánh giá".
+   */
+  const saveNote = useCallback(async (symbol: string, note: string) => {
+    setNoteSaving(true);
+    setNoteError(null);
+    try {
+      const saved = await clientRef.current.saveBitgetSymbolNote({ symbol, note });
+      setNotes((prev) => {
+        const next = { ...prev };
+        if (saved.note.trim()) next[symbol] = saved;
+        else delete next[symbol];
+        return next;
+      });
+      setNoteTarget(null);
+    } catch (err) {
+      setNoteError(err instanceof Error ? err.message : 'Lưu đánh giá thất bại.');
+    } finally {
+      setNoteSaving(false);
+    }
   }, []);
 
   // Attachment counts for every coin at once (one grouped query server-side).
@@ -560,6 +609,7 @@ export function BitgetSetupFeed({
                 <th title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — L=Long (xanh) / S=Short (đỏ) theo từng khung M30/H1/H4/D1">
                   QQE
                 </th>
+                <th title="Đánh giá tự viết cho coin này — bấm để soạn (Markdown)">Đánh giá</th>
                 <th>Long</th>
                 <th>Short</th>
                 <th className="bg-num" title="Số ảnh chart đã lưu cho coin này — bấm để xem lại">
@@ -577,6 +627,7 @@ export function BitgetSetupFeed({
                 const changeH4 = pc?.changeH4;
                 const priority = priorities[symbol] ?? 0;
                 const attachments = chartCounts[symbol] ?? 0;
+                const note = notes[symbol];
                 return (
                   <tr key={symbol}>
                     <td className="bg-symbol">
@@ -609,6 +660,19 @@ export function BitgetSetupFeed({
                     </td>
                     <td className="bg-qqe-cell">
                       <QqeCell signals={qqe[bareSymbol(symbol)]} />
+                    </td>
+                    <td className="bg-note-cell">
+                      <button
+                        type="button"
+                        className={`bg-note-btn ${note ? '' : 'bg-note-btn--empty'}`}
+                        onClick={() => {
+                          setNoteError(null);
+                          setNoteTarget(symbol);
+                        }}
+                        title={note ? note.note : `Viết đánh giá cho ${symbol}`}
+                      >
+                        {note ? notePreview(note.note) : '+ Đánh giá'}
+                      </button>
                     </td>
                     {sides.map((holdSide) => {
                       const key = cfgKey(symbol, holdSide);
@@ -712,6 +776,18 @@ export function BitgetSetupFeed({
           saving={bulkSaving}
           onSave={(input) => void saveBulkConfig(input)}
           onClose={() => setBulkOpen(false)}
+        />
+      )}
+
+      {noteTarget && (
+        <SymbolNoteDialog
+          symbol={noteTarget}
+          initialNote={notes[noteTarget]?.note ?? ''}
+          updatedAt={notes[noteTarget]?.updatedAt ?? null}
+          saving={noteSaving}
+          error={noteError}
+          onSave={(note) => void saveNote(noteTarget, note)}
+          onClose={() => setNoteTarget(null)}
         />
       )}
 

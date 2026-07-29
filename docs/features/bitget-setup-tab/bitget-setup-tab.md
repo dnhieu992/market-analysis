@@ -162,7 +162,24 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
 5. On success a green notice shows the filled size/price (and, for an add-on, the new total
    size + leverage and a reminder that it was logged) and positions refresh.
 
+**Đánh giá (per-coin assessment)**
+1. Each row carries an **Đánh giá** cell between QQE and the Long/Short buttons: a one-line
+   preview of the saved note, or a dashed **+ Đánh giá** placeholder when there is none. The
+   full text is on the button's tooltip.
+2. Clicking opens `SymbolNoteDialog` — the shared TipTap `MarkdownEditor`, plus a **Xem trước**
+   toggle that renders the Markdown, and the last-updated timestamp.
+3. **Lưu đánh giá** → `PUT /bitget/setup/note` upserts `bitget_symbol_notes` keyed by symbol.
+   Saving blank text deletes the row. The tab hydrates every note once on mount via
+   `GET /bitget/setup/note`.
+
 ## Edge Cases
+- **Đánh giá rỗng = xoá:** saving a blank assessment deletes the row instead of storing an empty
+  string, so "has a note" stays a plain row-exists check and the cell falls back to the dashed
+  **+ Đánh giá** placeholder. The Lưu button is disabled until the text actually changes.
+- **Đánh giá quá dài:** capped at 20 000 characters server-side (guards against pasting a whole
+  document) — over the limit the API returns 400 and the dialog shows the message inline.
+- **Đánh giá vs coin list:** the note is keyed by symbol alone, not by trade — it survives after
+  every position on that coin is closed, which is the point (it is the running view on the coin).
 - **UT Bot warm-up / young coin:** the trailing stop is computed over the *full* fetched history
   (not just the displayed window) so it is already warm at the left edge. Bars where ATR(10) has
   no value yet yield `stopLevel = 0`, which is mapped to `NaN` and simply not drawn — the line
@@ -241,6 +258,10 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
   Both are non-fatal — the rest of the tab keeps working.
 
 ## Related Files (FE / BE / Worker)
+- `apps/web/src/widgets/bitget/symbol-note-dialog.tsx` — **Đánh giá** dialog: shared TipTap `MarkdownEditor` (lazy-loaded) + Xem trước toggle rendering through `renderMarkdown`, and `notePreview()` used by the table cell.
+- `apps/api/src/modules/bitget/dto/upsert-symbol-note.dto.ts` — validates `{ symbol, note }` for the assessment save.
+- `packages/db/src/repositories/bitget-symbol-note.repository.ts` — `findAll()`, `upsert()`, `remove()` for the per-coin assessment.
+- `packages/db/prisma/migrations/20260729170000_add_bitget_symbol_notes/migration.sql` — `bitget_symbol_notes` table DDL (`BitgetSymbolNote` model, unique on symbol, `note` LONGTEXT).
 - `apps/web/src/widgets/bitget/bitget-setup-feed.tsx` — the Setup tab UI + config dialog + live price/change columns + Symbol cell (coin name + `ChartIcon` button + **priority stars underneath**, which drive the default sort) + `SetupChartDialog` + **Attachments** cell (🖼 + count) opening `ChartGalleryDialog` (thumbnail rail + enlarged main image).
 - `apps/web/src/widgets/bitget/chart-icon.tsx` — shared `ChartIcon` (extracted from `bitget-positions-feed.tsx` on 2026-07-27) so all three tabs use the same icon.
 - `apps/web/src/widgets/bitget/star-rating.tsx` — `StarRating` (0–5 stars, grey → yellow, hover preview, click-current-to-clear) + `MAX_PRIORITY`.
@@ -249,7 +270,7 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
 - `packages/db/prisma/migrations/20260727120000_add_bitget_symbol_priority/migration.sql` — `bitget_symbol_priorities` table DDL.
 - `packages/db/src/repositories/bitget-trade-chart.repository.ts` — `findBySymbol(symbol)` (all saved snapshots for one coin, newest first) alongside `findByTradeKey`; `countBySymbol()` (grouped count feeding the Attachments column).
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — `listSavedChartsBySymbol()` (normalises to `${bare}USDT`); `countSavedChartsBySymbol()` / `countSavedChartsByTradeKey()` (Attachments badges); `h4ChangeFor()` (last closed 4h candle move, folded into `getPriceChanges`); `saveSetupChart(symbol, tf)` snapshots the live chart to R2; TF_CONFIG limits + `TRADE_LOOKBACK_BARS` bumped so EMA200 warms.
-- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin; `GET /bitget/trade-chart/counts` returns the per-coin chart count; `GET/PUT /bitget/setup/priority` reads/writes the star ratings; `POST /bitget/setup-chart/save` snapshots the live Setup chart.
+- `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin; `GET /bitget/trade-chart/counts` returns the per-coin chart count; `GET/PUT /bitget/setup/priority` reads/writes the star ratings; `GET/PUT /bitget/setup/note` reads/writes the per-coin assessment; `POST /bitget/setup-chart/save` snapshots the live Setup chart.
 - `apps/api/src/modules/bitget/dto/save-setup-chart.dto.ts` — validates `{ symbol, timeframe }` for the Setup-chart save.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — shared chart dialog; `allowSave` prop shows the 💾 Lưu button (Setup tab passes it, positions table does not).
 - `apps/web/src/widgets/bitget/symbol-multi-select.tsx` — shared coin-name multi-select filter (used by the Setup toolbar + the History tab); filters `displaySymbols` (empty = all coins).
@@ -266,12 +287,12 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
 - `apps/web/src/widgets/bitget/bitget-tabs.tsx` — registers the third `setup` tab and renders the row count next to each tab label (seeded from the SSR snapshot, kept live by each feed's `onCount`); reuses `setupSymbols()` so the Setup count matches the table exactly.
 - `apps/web/src/_pages/bitget-page/bitget-page.tsx` — supports `?tab=setup` deep-link.
 - `apps/web/src/shared/api/client.ts` — `openBitgetPosition()`, `fetchBitgetSetupConfigs()`, `saveBitgetSetupConfig()`, `fetchBitgetPriceChanges()` (7d/30d change).
-- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`, `BitgetPriceChange`, `BitgetSymbolPriority`, `BitgetChartCount`.
+- `apps/web/src/shared/api/types.ts` — `BitgetSetupConfig` (now carries `symbol`), `BitgetOpenResult`, `BitgetPriceChange`, `BitgetSymbolPriority`, `BitgetSymbolNote`, `BitgetChartCount`.
 - `apps/web/src/app/globals.css` — `.bg-setup-*`, `.bg-open-btn`, `.bg-alert--ok`, `.bg-price`, `.bg-chg--up/down`, `.bg-open-btn--short` (red short button), `.bg-side-cell`/`.bg-side-cell-inner`/`.bg-side-cfg` (per-side action cell + config summary), `.bg-symbol` sticky column, `.bg-bulk-*` + `.bg-setup-dialog--wide` (bulk dialog), `.bg-toolbar-right`.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `POST /bitget/positions/open`, `GET/PUT /bitget/setup`, `GET /bitget/setup-chart` (public PNG).
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupChartService` + `BinanceMarketDataService`.
 - `apps/api/src/modules/bitget/bitget.service.ts` — `openPosition()` (size math + guards, `new` vs `add` scale-in) và `writeSystemLog()` (log nhật ký cho lần thêm volume).
-- `apps/api/src/modules/bitget/bitget-setup.service.ts` — DB-backed per-side config list/upsert + `upsertMany()` (bulk, transactional) + `listPriorities()` / `upsertPriority()` (0–5 stars, `MAX_SYMBOL_PRIORITY`).
+- `apps/api/src/modules/bitget/bitget-setup.service.ts` — DB-backed per-side config list/upsert + `upsertMany()` (bulk, transactional) + `listPriorities()` / `upsertPriority()` (0–5 stars, `MAX_SYMBOL_PRIORITY`) + `listNotes()` / `upsertNote()` (per-coin assessment, `MAX_NOTE_LENGTH` 20 000, blank note deletes the row).
 - `apps/api/src/modules/bitget/bitget.module.ts` — registers `BitgetSetupService` as a provider.
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getTickerPrice`, `getContractSpec`,
   `setCrossLeverage`, `openMarketPosition`.

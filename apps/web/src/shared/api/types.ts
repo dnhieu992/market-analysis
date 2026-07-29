@@ -601,6 +601,16 @@ export type BitgetSymbolPriority = {
   priority: number;
 };
 
+/**
+ * The trader's free-text assessment of one coin in the Setup tab (Markdown).
+ * `updatedAt` is null when the note was just cleared.
+ */
+export type BitgetSymbolNote = {
+  symbol: string;
+  note: string;
+  updatedAt: string | null;
+};
+
 /** How many saved charts one coin references — the Setup Attachments badge. */
 export type BitgetChartCount = {
   symbol: string;

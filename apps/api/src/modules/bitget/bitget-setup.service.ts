@@ -1,8 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { createBitgetSetupConfigRepository, createBitgetSymbolPriorityRepository } from '@app/db';
+import {
+  createBitgetSetupConfigRepository,
+  createBitgetSymbolNoteRepository,
+  createBitgetSymbolPriorityRepository,
+} from '@app/db';
 
 import type { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
 import type { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
+import type { UpsertSymbolNoteDto } from './dto/upsert-symbol-note.dto';
 import type { UpsertSymbolPriorityDto } from './dto/upsert-symbol-priority.dto';
 
 export type BitgetSetupConfigDto = {
@@ -18,8 +23,18 @@ export type BitgetSymbolPriorityDto = {
   priority: number;
 };
 
+/** The trader's free-text assessment of one coin in the Setup tab. */
+export type BitgetSymbolNoteDto = {
+  symbol: string;
+  note: string;
+  updatedAt: string | null;
+};
+
 /** Highest star rating the UI (and this service) accepts. */
 export const MAX_SYMBOL_PRIORITY = 5;
+
+/** Guard against an accidental paste of a whole document into the note field. */
+const MAX_NOTE_LENGTH = 20_000;
 
 type SetupConfigRow = {
   symbol: string;
@@ -33,6 +48,12 @@ type SymbolPriorityRow = {
   priority: number;
 };
 
+type SymbolNoteRow = {
+  symbol: string;
+  note: string;
+  updatedAt: Date;
+};
+
 /**
  * Persistence for the /bitget Setup tab's per-coin, per-side open configs
  * (leverage + margin). Backed by the `bitget_setup_configs` table so the two
@@ -43,6 +64,7 @@ type SymbolPriorityRow = {
 export class BitgetSetupService {
   private readonly repo = createBitgetSetupConfigRepository();
   private readonly priorityRepo = createBitgetSymbolPriorityRepository();
+  private readonly noteRepo = createBitgetSymbolNoteRepository();
 
   async list(): Promise<BitgetSetupConfigDto[]> {
     const rows = (await this.repo.findAll()) as SetupConfigRow[];
@@ -115,6 +137,34 @@ export class BitgetSetupService {
       priority,
     })) as SymbolPriorityRow;
     return { symbol: row.symbol, priority: row.priority };
+  }
+
+  /** Every coin's assessment (coins never assessed simply have no row). */
+  async listNotes(): Promise<BitgetSymbolNoteDto[]> {
+    const rows = (await this.noteRepo.findAll()) as SymbolNoteRow[];
+    return rows.map((r) => ({
+      symbol: r.symbol,
+      note: r.note,
+      updatedAt: r.updatedAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Save one coin's assessment. Clearing the text deletes the row rather than
+   * storing an empty string, so "has a note" stays a simple row-exists check.
+   */
+  async upsertNote(dto: UpsertSymbolNoteDto): Promise<BitgetSymbolNoteDto> {
+    const symbol = dto.symbol.trim().toUpperCase();
+    const note = dto.note.trim();
+    if (note.length > MAX_NOTE_LENGTH) {
+      throw new BadRequestException(`Đánh giá quá dài (tối đa ${MAX_NOTE_LENGTH} ký tự).`);
+    }
+    if (!note) {
+      await this.noteRepo.remove(symbol);
+      return { symbol, note: '', updatedAt: null };
+    }
+    const row = (await this.noteRepo.upsert({ symbol, note })) as SymbolNoteRow;
+    return { symbol: row.symbol, note: row.note, updatedAt: row.updatedAt.toISOString() };
   }
 
   private toDto(row: SetupConfigRow): BitgetSetupConfigDto {

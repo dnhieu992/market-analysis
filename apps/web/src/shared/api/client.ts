@@ -51,6 +51,7 @@ import type {
   BitgetTpslResult,
   BitgetSetupConfig,
   BitgetSymbolPriority,
+  BitgetSymbolNote,
   BitgetChartCount,
   BitgetTradeChartCount,
   BitgetQqeSignals,
@@ -1209,6 +1210,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Lưu mức ưu tiên thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetSymbolPriority;
+    },
+
+    // ── Bitget Setup tab per-coin assessment (free Markdown text) ────
+    async fetchBitgetSymbolNotes(): Promise<BitgetSymbolNote[]> {
+      return fetchJson<BitgetSymbolNote[]>(
+        fetchImpl,
+        `${baseUrl}/bitget/setup/note`,
+        withDefaults({}),
+      );
+    },
+
+    async saveBitgetSymbolNote(input: { symbol: string; note: string }): Promise<BitgetSymbolNote> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/setup/note`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu đánh giá thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetSymbolNote;
     },
 
     // ── Bitget trade-review charts (save annotated PNG to R2 + DB) ────

@@ -25,6 +25,7 @@ import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
 import { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
 import { UpsertSymbolPriorityDto } from './dto/upsert-symbol-priority.dto';
+import { UpsertSymbolNoteDto } from './dto/upsert-symbol-note.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
 import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './bitget-setup-chart.service';
@@ -111,6 +112,18 @@ export class BitgetController {
   @ApiOperation({ summary: 'Set one coin’s star priority (0 = none, 5 = max)' })
   upsertSetupPriority(@Body() dto: UpsertSymbolPriorityDto) {
     return this.setup.upsertPriority(dto);
+  }
+
+  @Get('setup/note')
+  @ApiOperation({ summary: 'List the trader’s free-text assessment of every coin (Setup tab)' })
+  listSetupNotes() {
+    return this.setup.listNotes();
+  }
+
+  @Put('setup/note')
+  @ApiOperation({ summary: 'Save one coin’s assessment (empty text deletes it)' })
+  upsertSetupNote(@Body() dto: UpsertSymbolNoteDto) {
+    return this.setup.upsertNote(dto);
   }
 
   @Get('setup-chart')

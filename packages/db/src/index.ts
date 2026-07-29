@@ -39,6 +39,8 @@ export { createBitgetTradeChartRepository } from './repositories/bitget-trade-ch
 export type { BitgetTradeChartInput } from './repositories/bitget-trade-chart.repository';
 export { createBitgetSymbolPriorityRepository } from './repositories/bitget-symbol-priority.repository';
 export type { BitgetSymbolPriorityInput } from './repositories/bitget-symbol-priority.repository';
+export { createBitgetSymbolNoteRepository } from './repositories/bitget-symbol-note.repository';
+export type { BitgetSymbolNoteInput } from './repositories/bitget-symbol-note.repository';
 export { createMexcTradeRepository } from './repositories/mexc-trade.repository';
 export type {
   MexcTradeOpenInput,

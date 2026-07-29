@@ -777,6 +777,19 @@ model BitgetSymbolPriority {
   @@map("bitget_symbol_priorities")
 }
 
+// Free-text assessment ("đánh giá") the trader keeps per coin in the /bitget
+// Setup tab — the running view on that coin, written in Markdown. One row per
+// symbol; an empty note is deleted rather than stored blank.
+model BitgetSymbolNote {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  note      String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bitget_symbol_notes")
+}
+
 // Saved chart snapshots for closed trades — the trader hits "Save" on the trade
 // chart (from the History tab) to archive the annotated PNG (entry/close markers
 // + indicators) on R2 for later study. One row per (tradeKey, timeframe).

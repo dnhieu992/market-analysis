@@ -10560,6 +10560,39 @@ a.metric-card--link:hover {
 .bg-note-ai-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .bg-note-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
+/* ── Setup tab "Đánh giá" column (per-coin free-text assessment) ─────────── */
+/* The toolbar carries a left-aligned timestamp now, so space the two ends. */
+.bg-note-toolbar { justify-content: space-between; align-items: center; }
+.bg-note-meta { font-size: 12px; color: var(--muted); }
+.bg-note-preview {
+  min-height: 220px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  overflow: auto;
+}
+.bg-note-cell { max-width: 220px; }
+.bg-note-btn {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  /* One line only — the full note lives in the dialog (and the tooltip). */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bg-note-btn:hover { border-color: var(--accent); }
+.bg-note-btn--empty { color: var(--muted); border-style: dashed; }
+
 @media (max-width: 720px) {
   .bg-gallery { flex-direction: column-reverse; }
   .bg-gallery-rail {
