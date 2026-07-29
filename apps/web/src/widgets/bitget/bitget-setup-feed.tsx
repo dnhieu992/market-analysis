@@ -53,6 +53,11 @@ const WATCHLIST_SYMBOLS = [
   'FILUSDT',
   'ONDOUSDT',
   'TIAUSDT',
+  'OPUSDT',
+  'ETCUSDT',
+  'ASTERUSDT',
+  'TAOUSDT',
+  'LTCUSDT',
 ];
 
 /**
