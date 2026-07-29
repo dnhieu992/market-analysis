@@ -31,6 +31,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - **MEXC chặn API trading**: sàn đóng endpoint đặt lệnh từ 2022-07-25 và mở lại 2026-03-31; ngoài ra tài khoản phải KYC mới bật được quyền "Order Placing". Nếu key thiếu quyền, lệnh mở/đóng trả 503 kèm nguyên văn mã lỗi MEXC. Phần đọc (vị thế, lịch sử, nhật ký, chart) không bị ảnh hưởng.
 - **Thêm coin không tồn tại**: `contract/detail` không có mã → 400 "MEXC không có hợp đồng futures cho X", không ghi DB. Thêm lại coin đã có = no-op (upsert), không lỗi trùng unique.
 - **Bỏ theo dõi coin không phải thêm tay**: chỉ xoá được row trong `mexc_watchlist_symbols`; coin từ danh sách hardcode hoặc từ lịch sử giao dịch vẫn hiện trong bảng và không có nút ✕.
+- **Coin mới list, chưa đủ lịch sử**: cột 90 ngày cần ≥ 91 nến ngày; thiếu thì ô hiện "—" thay vì một con số sai (7d/30d vẫn hiện bình thường).
 - **`apiAllowed: false`** trên contract → chặn ngay ở `openPosition` với thông báo tiếng Việt, không tốn round-trip.
 - **`externalOid` tối đa 32 ký tự**: vượt quá thì MEXC trả lỗi 2030 và từ chối *mọi* lệnh mở. `buildExternalOid()` ghép side + timestamp base36 + hậu tố ngẫu nhiên (độ dài cố định) rồi cắt symbol theo phần còn lại, nên ID luôn ≤ 32 ký tự kể cả với symbol dài như `1000PEPEUSDT`.
 - **Ticker lỗi** → vị thế rơi về giá vào làm mark price, PnL hiện 0 thay vì một số sai. Balance/TP-SL lỗi cũng non-fatal, bảng vẫn render.
@@ -46,7 +47,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - `apps/web/src/app/mexc/page.tsx` — route `/mexc` (re-export mỏng).
 - `apps/web/src/_pages/mexc-page/mexc-page.tsx` — Server Component, SSR 2 nguồn dữ liệu.
 - `apps/web/src/widgets/mexc/mexc-tabs.tsx` — khung 3 tab + đếm số dòng.
-- `apps/web/src/widgets/mexc/mexc-setup-feed.tsx` — tab Setup (mở lệnh, sao ưu tiên, QQE, 24h/7d/30d).
+- `apps/web/src/widgets/mexc/mexc-setup-feed.tsx` — tab Setup (mở lệnh, sao ưu tiên, QQE, 24h/7d/30d/90d).
 - `apps/web/src/widgets/mexc/{setup-chart-dialog,bulk-setup-dialog,add-coin-dialog,chart-note-dialog,qqe-cell,star-rating,symbol-multi-select,chart-icon}.tsx` — UI phụ trợ của tab Setup.
 - `apps/web/src/widgets/mexc-positions/mexc-positions-feed.tsx` — bảng vị thế đang mở.
 - `apps/web/src/widgets/mexc-positions/{tpsl-dialog,mexc-journal-drawer}.tsx` — dialog TP/SL + drawer nhật ký.

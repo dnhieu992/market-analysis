@@ -34,7 +34,7 @@ const QQE_REFRESH_MS = 60_000;
 const CHANGE_REFRESH_MS = 5 * 60_000;
 
 /** Which sortable column the table is ordered by (null = default pinned order). */
-type SortCol = 'priority' | 'today' | 'h4' | 'd7' | 'd30';
+type SortCol = 'priority' | 'today' | 'd7' | 'd30' | 'd90';
 
 /** The tab opens ordered by the trader's manual star priority, highest first. */
 const DEFAULT_SORT: { col: SortCol; dir: 'desc' | 'asc' } = { col: 'priority', dir: 'desc' };
@@ -283,7 +283,7 @@ export function MexcSetupFeed({
   const { prices: livePrices, changes: liveChanges, live } = useMexcLivePrices(symbols);
 
   // Sort value for a coin on a given column — stars from the saved priorities,
-  // 24h from the live WS, 7d/30d from the API. Returns null when a price reading
+  // 24h from the live WS, 7d/30d/90d from the API. Returns null when a price reading
   // is missing (so it can sink in sorting); an unrated coin is simply 0 stars.
   const sortValue = useCallback(
     (symbol: string, col: SortCol): number | null => {
@@ -293,7 +293,7 @@ export function MexcSetupFeed({
         return v == null || !Number.isFinite(v) ? null : v;
       }
       const c = priceChanges[bareSymbol(symbol)];
-      const v = col === 'h4' ? c?.changeH4 : col === 'd7' ? c?.change7d : c?.change30d;
+      const v = col === 'd7' ? c?.change7d : col === 'd30' ? c?.change30d : c?.change90d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
     [liveChanges, priceChanges, priorities],
@@ -606,11 +606,11 @@ export function MexcSetupFeed({
                   title="Thay đổi giá 30 ngày (so với giá đóng cửa 30 ngày trước) — bấm để sắp xếp"
                 />
                 <SortHeader
-                  label="H4"
-                  col="h4"
+                  label="90 ngày"
+                  col="d90"
                   sort={sort}
                   onSort={cycleSort}
-                  title="Biến động của cây nến H4 ngay trước đó (đã đóng cửa): (đóng − mở) / mở — bấm để sắp xếp"
+                  title="Thay đổi giá 90 ngày (so với giá đóng cửa 90 ngày trước) — bấm để sắp xếp"
                 />
                 <th title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — L=Long (xanh) / S=Short (đỏ) theo từng khung M30/H1/H4/D1">
                   QQE
@@ -628,7 +628,7 @@ export function MexcSetupFeed({
                 const pc = priceChanges[bareSymbol(symbol)];
                 const change7d = pc?.change7d;
                 const change30d = pc?.change30d;
-                const changeH4 = pc?.changeH4;
+                const change90d = pc?.change90d;
                 const priority = priorities[symbol] ?? 0;
                 const attachments = chartCounts[symbol] ?? 0;
                 return (
@@ -658,9 +658,7 @@ export function MexcSetupFeed({
                     <td className={`bg-num ${chgClass(change)}`}>{fmtChange(change)}</td>
                     <td className={`bg-num ${chgClass(change7d)}`}>{fmtChange(change7d)}</td>
                     <td className={`bg-num ${chgClass(change30d)}`}>{fmtChange(change30d)}</td>
-                    <td className={`bg-num ${chgClass(changeH4)}`} title="Nến H4 đã đóng gần nhất">
-                      {fmtChange(changeH4)}
-                    </td>
+                    <td className={`bg-num ${chgClass(change90d)}`}>{fmtChange(change90d)}</td>
                     <td className="bg-qqe-cell">
                       <QqeCell signals={qqe[bareSymbol(symbol)]} />
                     </td>

@@ -822,15 +822,14 @@ export type MexcQqeSignals = {
 };
 
 /**
- * Price change (ratio, 0.0123 = +1.23%) per coin, keyed by bare symbol:
- * `changeH4` is the last CLOSED 4h candle's own move, `change7d` / `change30d`
- * compare the current close with the close N days ago.
+ * Price change (ratio, 0.0123 = +1.23%) per coin, keyed by bare symbol — each
+ * field compares the current close with the close N days ago.
  */
 export type MexcPriceChange = {
   symbol: string;
-  changeH4: number | null;
   change7d: number | null;
   change30d: number | null;
+  change90d: number | null;
 };
 
 export type MexcOpenResult = {

@@ -30,22 +30,20 @@ const QQE_MIN_CANDLES = 60;
 /** How long a per-(symbol,tf) QQE reading is reused before recomputing. */
 const QQE_CACHE_TTL_MS = 60_000;
 
-/** Daily candles pulled to compute the 7d / 30d change (needs ≥ 31 back + today). */
-const CHANGE_KLINE_LIMIT = 40;
-/** 4h candles pulled for the H4 column — only the last CLOSED one is used. */
-const H4_KLINE_LIMIT = 3;
-/** 7d / 30d changes move once a day — reuse a reading for 5 minutes. */
+/** Daily candles pulled to compute the 7d / 30d / 90d change (needs ≥ 91 back + today). */
+const CHANGE_KLINE_LIMIT = 95;
+/** 7d / 30d / 90d changes move once a day — reuse a reading for 5 minutes. */
 const CHANGE_CACHE_TTL_MS = 5 * 60_000;
 
 /**
- * Price change (as a ratio, 0.0123 = +1.23%) for a coin: the last CLOSED 4h
- * candle's own move (close vs its open) plus the 7-day and 30-day changes.
+ * Price change (as a ratio, 0.0123 = +1.23%) for a coin over 7 / 30 / 90 days,
+ * each comparing the current close with the close that many days back.
  */
 export type MexcPriceChange = {
   symbol: string;
-  changeH4: number | null;
   change7d: number | null;
   change30d: number | null;
+  change90d: number | null;
 };
 
 /** Current colinmck QQE state on one timeframe's last CLOSED candle. */
@@ -351,10 +349,9 @@ export class MexcSetupChartService {
   }
 
   /**
-   * H4 / 7-day / 30-day price change for each coin — the data behind the
-   * Setup-tab "H4", "7 ngày" and "30 ngày" columns. The daily changes compare
-   * the current close with the close N days ago; H4 is the last CLOSED 4h
-   * candle's own move. Cached ~5 min per coin (none of these move faster).
+   * Price change for each coin — the data behind the Setup-tab "7 ngày",
+   * "30 ngày" and "90 ngày" columns — each comparing the current close with
+   * the close N days ago. Cached ~5 min per coin (none of these move faster).
    */
   async getPriceChanges(symbols: string[]): Promise<MexcPriceChange[]> {
     const uniqueBare = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
@@ -365,7 +362,7 @@ export class MexcSetupChartService {
     return out;
   }
 
-  /** H4 + 7d/30d change for one coin, served from cache when still fresh. */
+  /** 7d/30d/90d change for one coin, served from cache when still fresh. */
   private async priceChangeFor(bare: string): Promise<MexcPriceChange> {
     const cached = this.changeCache.get(bare);
     if (cached && Date.now() - cached.at < CHANGE_CACHE_TTL_MS) return cached.value;
@@ -388,40 +385,15 @@ export class MexcSetupChartService {
       };
       const value: MexcPriceChange = {
         symbol: bare,
-        changeH4: await this.h4ChangeFor(bare),
         change7d: changeAgo(7),
         change30d: changeAgo(30),
+        change90d: changeAgo(90),
       };
       this.changeCache.set(bare, { at: Date.now(), value });
       return value;
     } catch {
       // Transient fetch failure: reuse last-known reading, else blanks.
-      return cached?.value ?? { symbol: bare, changeH4: null, change7d: null, change30d: null };
-    }
-  }
-
-  /**
-   * The last CLOSED 4h candle's own move, `(close - open) / open`. The forming
-   * candle is skipped on purpose — this column answers "what did the previous H4
-   * bar do", so a repainting value would be misleading.
-   */
-  private async h4ChangeFor(bare: string): Promise<number | null> {
-    try {
-      const klines = await this.binance.fetchKlines({
-        symbol: `${bare}USDT`,
-        timeframe: '4h' as never,
-        limit: H4_KLINE_LIMIT,
-      });
-      const now = Date.now();
-      const closed = klines.filter((k) => Number(k[6]) <= now);
-      const last = closed[closed.length - 1];
-      if (!last) return null;
-      const open = parseFloat(last[1]);
-      const close = parseFloat(last[4]);
-      return open > 0 && Number.isFinite(close) ? (close - open) / open : null;
-    } catch {
-      // Non-fatal: the H4 cell shows "—" and the 7d/30d readings still land.
-      return null;
+      return cached?.value ?? { symbol: bare, change7d: null, change30d: null, change90d: null };
     }
   }
 
