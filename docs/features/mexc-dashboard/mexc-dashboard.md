@@ -21,7 +21,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 2. **Tab Vị thế** — `MexcPositionsFeed` refresh REST mỗi 15s, xen giữa là giá realtime từ WS công khai `wss://contract.mexc.com/edge` (`sub.ticker` từng symbol, ping JSON 20s). uPnL/ROE/notional được tính lại client-side theo giá live.
 3. **Đóng lệnh** — `POST /mexc/positions/close` → đọc vị thế, lấy giá market, gửi `order/create` chiều đóng (`side` 4 = close long / 2 = close short) với `positionId` và toàn bộ `holdVol`.
 4. **TP/SL** — `POST /mexc/positions/tpsl` → validate hướng giá, `stoporder/place` cho cả TP và SL (trigger theo **Fair Price**, đóng toàn bộ vị thế), **rồi mới** huỷ các lệnh TP/SL cũ. Ghi 1 log `system` vào nhật ký lệnh.
-5. **Mở lệnh (tab Setup)** — `POST /mexc/positions/open` → `vol = margin × leverage ÷ giá ÷ contractSize`, làm tròn xuống theo `volScale`; đặt đòn bẩy khi đang flat, rồi `order/create` market cross.
+5. **Mở lệnh (tab Setup)** — `POST /mexc/positions/open` → `vol = margin × leverage ÷ giá ÷ contractSize`, làm tròn xuống theo `volScale`; đặt đòn bẩy khi đang flat, rồi `order/create` market cross. Bảng Setup **chỉ hiện cột SHORT** (trang này giao dịch short-only); chiều long vẫn còn nguyên trong API/DB, chỉ là không có lối vào từ UI.
 6. **Worker sync** — `MexcHistoryService` chạy mỗi 15s: vị thế mới → insert `status=open` + log "Đã mở lệnh"; vị thế đóng (`state=3`) → flip sang `closed` + log "Đã đóng lệnh". Mốc ROE (+50…+200 / −50…−500) ghi mỗi phút, ratchet 1 chiều như Bitget.
 7. **Chart / nhật ký / sao ưu tiên** — giống hệt Bitget, chỉ khác bảng DB (`mexc_*`) và route (`/mexc/*`).
 
