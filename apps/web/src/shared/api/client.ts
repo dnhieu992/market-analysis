@@ -64,6 +64,7 @@ import type {
   MexcTpslResult,
   MexcSetupConfig,
   MexcSymbolPriority,
+  MexcWatchlistSymbol,
   MexcChartCount,
   MexcTradeChartCount,
   MexcQqeSignals,
@@ -1532,6 +1533,44 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Lưu mức ưu tiên thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as MexcSymbolPriority;
+    },
+
+    // ── MEXC Setup tab watchlist (coins added by hand) ────
+    async fetchMexcWatchlist(): Promise<MexcWatchlistSymbol[]> {
+      return fetchJson<MexcWatchlistSymbol[]>(
+        fetchImpl,
+        `${baseUrl}/mexc/setup/watchlist`,
+        withDefaults({}),
+      );
+    },
+
+    async addMexcWatchlistSymbol(symbol: string): Promise<MexcWatchlistSymbol> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/setup/watchlist`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Thêm coin thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcWatchlistSymbol;
+    },
+
+    async deleteMexcWatchlistSymbol(symbol: string): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/setup/watchlist/${encodeURIComponent(symbol)}`,
+        withDefaults({ method: 'DELETE' }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Bỏ theo dõi thất bại (HTTP ${response.status})`);
+      }
     },
 
     // ── MEXC trade-review charts (save annotated PNG to R2 + DB) ────

@@ -10,6 +10,7 @@ import type {
   MexcSetupConfig,
   MexcPriceChange,
   MexcTradeChart,
+  MexcWatchlistSymbol,
 } from '@web/shared/api/types';
 import { StarRating } from './star-rating';
 import { ChartIcon } from './chart-icon';
@@ -23,6 +24,7 @@ import {
 import { QqeCell, bareQqeSymbol as bareSymbol, type QqeMap } from './qqe-cell';
 import { SymbolMultiSelect } from './symbol-multi-select';
 import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
+import { AddCoinDialog } from './add-coin-dialog';
 import { ChartNoteView } from './chart-note-dialog';
 
 const REFRESH_MS = 15_000;
@@ -61,11 +63,15 @@ const WATCHLIST_SYMBOLS = [
 ];
 
 /**
- * The coins the Setup tab lists: BTC/ETH pinned first, then the watchlist, then
- * every other coin ever traded (newest-first by most recent close), deduped.
+ * The coins the Setup tab lists: BTC/ETH pinned first, then the built-in
+ * watchlist, then the coins added by hand (`extra`, from the DB), then every
+ * other coin ever traded (newest-first by most recent close), deduped.
  * Exported so the tab label can show the same total the table renders.
  */
-export function setupSymbols(trades: MexcHistoryResponse['trades']): string[] {
+export function setupSymbols(
+  trades: MexcHistoryResponse['trades'],
+  extra: string[] = [],
+): string[] {
   const lastClose = new Map<string, number>();
   for (const t of trades) {
     const ts = new Date(t.closedAt).getTime();
@@ -75,7 +81,7 @@ export function setupSymbols(trades: MexcHistoryResponse['trades']): string[] {
   const traded = [...lastClose.keys()].sort((a, b) => (lastClose.get(b) ?? 0) - (lastClose.get(a) ?? 0));
   const seen = new Set<string>();
   const ordered: string[] = [];
-  for (const s of [...PINNED_SYMBOLS, ...WATCHLIST_SYMBOLS, ...traded]) {
+  for (const s of [...PINNED_SYMBOLS, ...WATCHLIST_SYMBOLS, ...extra, ...traded]) {
     if (seen.has(s)) continue;
     seen.add(s);
     ordered.push(s);
@@ -149,6 +155,9 @@ export function MexcSetupFeed({
   const [editing, setEditing] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  // Coins added by hand (persisted) — merged into the table's coin list.
+  const [watchlist, setWatchlist] = useState<MexcWatchlistSymbol[]>([]);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const [refSymbol, setRefSymbol] = useState<string | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
@@ -205,6 +214,38 @@ export function MexcSetupFeed({
     };
   }, []);
 
+  // Hydrate the manually added coins so they show up alongside the built-in list.
+  useEffect(() => {
+    let alive = true;
+    clientRef.current
+      .fetchMexcWatchlist()
+      .then((list) => {
+        if (alive) setWatchlist(list);
+      })
+      .catch(() => {
+        /* non-fatal: the table just shows the built-in + traded coins */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /** Track a new coin — the row appears as soon as the API confirms it. */
+  const addWatchlistSymbol = useCallback(async (symbol: string) => {
+    const row = await clientRef.current.addMexcWatchlistSymbol(symbol);
+    setWatchlist((prev) => (prev.some((w) => w.symbol === row.symbol) ? prev : [...prev, row]));
+    setNotice(`Đã thêm ${row.symbol} vào danh sách theo dõi.`);
+    setError(null);
+  }, []);
+
+  /** Stop tracking a manually added coin. */
+  const removeWatchlistSymbol = useCallback(async (symbol: string) => {
+    await clientRef.current.deleteMexcWatchlistSymbol(symbol);
+    setWatchlist((prev) => prev.filter((w) => w.symbol !== symbol));
+    setNotice(`Đã bỏ theo dõi ${symbol}.`);
+    setError(null);
+  }, []);
+
   // Attachment counts for every coin at once (one grouped query server-side).
   const refreshChartCounts = useCallback(async () => {
     try {
@@ -221,7 +262,10 @@ export function MexcSetupFeed({
     void refreshChartCounts();
   }, [refreshChartCounts]);
 
-  const symbols = useMemo(() => setupSymbols(history.trades), [history.trades]);
+  const symbols = useMemo(
+    () => setupSymbols(history.trades, watchlist.map((w) => w.symbol)),
+    [history.trades, watchlist],
+  );
 
   // The tab label shows the total coin count — the unfiltered list, so the
   // number does not jump around when the trader narrows the coin filter.
@@ -514,6 +558,14 @@ export function MexcSetupFeed({
             <button
               type="button"
               className="bg-bulk-btn"
+              onClick={() => setAddOpen(true)}
+              title="Thêm coin vào bảng theo dõi"
+            >
+              + Thêm coin
+            </button>
+            <button
+              type="button"
+              className="bg-bulk-btn"
               onClick={() => setBulkOpen(true)}
               title="Đặt đòn bẩy + ký quỹ cho nhiều coin cùng lúc (ghi đè cấu hình hiện tại)"
             >
@@ -703,6 +755,15 @@ export function MexcSetupFeed({
             setEditing(null);
           }}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {addOpen && (
+        <AddCoinDialog
+          tracked={watchlist}
+          onAdd={addWatchlistSymbol}
+          onRemove={removeWatchlistSymbol}
+          onClose={() => setAddOpen(false)}
         />
       )}
 

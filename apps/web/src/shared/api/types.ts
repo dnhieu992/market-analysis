@@ -790,6 +790,12 @@ export type MexcSymbolPriority = {
   priority: number;
 };
 
+/** A coin the trader added to the Setup tab by hand (on top of the built-in list). */
+export type MexcWatchlistSymbol = {
+  symbol: string;
+  createdAt: string;
+};
+
 /** How many saved charts one coin references — the Setup Attachments badge. */
 export type MexcChartCount = {
   symbol: string;

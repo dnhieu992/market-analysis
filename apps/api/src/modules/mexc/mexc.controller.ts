@@ -25,6 +25,7 @@ import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
 import { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
 import { UpsertSymbolPriorityDto } from './dto/upsert-symbol-priority.dto';
+import { AddWatchlistSymbolDto } from './dto/add-watchlist-symbol.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
 import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './mexc-setup-chart.service';
@@ -111,6 +112,24 @@ export class MexcController {
   @ApiOperation({ summary: 'Set one coin’s star priority (0 = none, 5 = max)' })
   upsertSetupPriority(@Body() dto: UpsertSymbolPriorityDto) {
     return this.setup.upsertPriority(dto);
+  }
+
+  @Get('setup/watchlist')
+  @ApiOperation({ summary: 'List the coins manually added to the Setup tab' })
+  listWatchlist() {
+    return this.setup.listWatchlist();
+  }
+
+  @Post('setup/watchlist')
+  @ApiOperation({ summary: 'Track a new coin in the Setup tab (validated against MEXC contracts)' })
+  addWatchlistSymbol(@Body() dto: AddWatchlistSymbolDto) {
+    return this.setup.addWatchlistSymbol(dto);
+  }
+
+  @Delete('setup/watchlist/:symbol')
+  @ApiOperation({ summary: 'Stop tracking a manually added coin' })
+  removeWatchlistSymbol(@Param('symbol') symbol: string) {
+    return this.setup.removeWatchlistSymbol(symbol);
   }
 
   @Get('setup-chart')

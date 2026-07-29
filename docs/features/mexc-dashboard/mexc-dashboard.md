@@ -23,11 +23,14 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 4. **TP/SL** — `POST /mexc/positions/tpsl` → validate hướng giá, `stoporder/place` cho cả TP và SL (trigger theo **Fair Price**, đóng toàn bộ vị thế), **rồi mới** huỷ các lệnh TP/SL cũ. Ghi 1 log `system` vào nhật ký lệnh.
 5. **Mở lệnh (tab Setup)** — `POST /mexc/positions/open` → `vol = margin × leverage ÷ giá ÷ contractSize`, làm tròn xuống theo `volScale`; đặt đòn bẩy khi đang flat, rồi `order/create` market cross. Bảng Setup **chỉ hiện cột SHORT** (trang này giao dịch short-only); chiều long vẫn còn nguyên trong API/DB, chỉ là không có lối vào từ UI.
 6. **Worker sync** — `MexcHistoryService` chạy mỗi 15s: vị thế mới → insert `status=open` + log "Đã mở lệnh"; vị thế đóng (`state=3`) → flip sang `closed` + log "Đã đóng lệnh". Mốc ROE (+50…+200 / −50…−500) ghi mỗi phút, ratchet 1 chiều như Bitget.
-7. **Chart / nhật ký / sao ưu tiên** — giống hệt Bitget, chỉ khác bảng DB (`mexc_*`) và route (`/mexc/*`).
+7. **Thêm coin theo dõi (tab Setup)** — nút **+ Thêm coin** mở dialog: gõ mã (không cần đuôi `USDT`, hệ thống tự thêm) → `POST /mexc/setup/watchlist` kiểm tra mã có hợp đồng futures trên MEXC (`contract/detail`, public) rồi lưu vào `mexc_watchlist_symbols`. Dialog liệt kê các coin đã thêm thủ công kèm nút ✕ để bỏ theo dõi. Danh sách coin của bảng = pin (BTC/ETH) + watchlist hardcode + coin thêm tay + mọi coin đã từng giao dịch, dedupe.
+8. **Chart / nhật ký / sao ưu tiên** — giống hệt Bitget, chỉ khác bảng DB (`mexc_*`) và route (`/mexc/*`).
 
 ## Edge Cases
 - **Chưa cấu hình key** (`MEXC_API_KEY`/`MEXC_API_SECRET` trống): `configured: false`, trang hiện hướng dẫn thêm env thay vì bảng rỗng khó hiểu. Worker sync tự bỏ qua, không log lỗi.
 - **MEXC chặn API trading**: sàn đóng endpoint đặt lệnh từ 2022-07-25 và mở lại 2026-03-31; ngoài ra tài khoản phải KYC mới bật được quyền "Order Placing". Nếu key thiếu quyền, lệnh mở/đóng trả 503 kèm nguyên văn mã lỗi MEXC. Phần đọc (vị thế, lịch sử, nhật ký, chart) không bị ảnh hưởng.
+- **Thêm coin không tồn tại**: `contract/detail` không có mã → 400 "MEXC không có hợp đồng futures cho X", không ghi DB. Thêm lại coin đã có = no-op (upsert), không lỗi trùng unique.
+- **Bỏ theo dõi coin không phải thêm tay**: chỉ xoá được row trong `mexc_watchlist_symbols`; coin từ danh sách hardcode hoặc từ lịch sử giao dịch vẫn hiện trong bảng và không có nút ✕.
 - **`apiAllowed: false`** trên contract → chặn ngay ở `openPosition` với thông báo tiếng Việt, không tốn round-trip.
 - **`externalOid` tối đa 32 ký tự**: vượt quá thì MEXC trả lỗi 2030 và từ chối *mọi* lệnh mở. `buildExternalOid()` ghép side + timestamp base36 + hậu tố ngẫu nhiên (độ dài cố định) rồi cắt symbol theo phần còn lại, nên ID luôn ≤ 32 ký tự kể cả với symbol dài như `1000PEPEUSDT`.
 - **Ticker lỗi** → vị thế rơi về giá vào làm mark price, PnL hiện 0 thay vì một số sai. Balance/TP-SL lỗi cũng non-fatal, bảng vẫn render.
@@ -44,7 +47,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - `apps/web/src/_pages/mexc-page/mexc-page.tsx` — Server Component, SSR 2 nguồn dữ liệu.
 - `apps/web/src/widgets/mexc/mexc-tabs.tsx` — khung 3 tab + đếm số dòng.
 - `apps/web/src/widgets/mexc/mexc-setup-feed.tsx` — tab Setup (mở lệnh, sao ưu tiên, QQE, 24h/7d/30d).
-- `apps/web/src/widgets/mexc/{setup-chart-dialog,bulk-setup-dialog,chart-note-dialog,qqe-cell,star-rating,symbol-multi-select,chart-icon}.tsx` — UI phụ trợ của tab Setup.
+- `apps/web/src/widgets/mexc/{setup-chart-dialog,bulk-setup-dialog,add-coin-dialog,chart-note-dialog,qqe-cell,star-rating,symbol-multi-select,chart-icon}.tsx` — UI phụ trợ của tab Setup.
 - `apps/web/src/widgets/mexc-positions/mexc-positions-feed.tsx` — bảng vị thế đang mở.
 - `apps/web/src/widgets/mexc-positions/{tpsl-dialog,mexc-journal-drawer}.tsx` — dialog TP/SL + drawer nhật ký.
 - `apps/web/src/widgets/mexc-positions/use-mexc-live-prices.ts` — WS giá realtime MEXC.
@@ -56,7 +59,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 **API**
 - `apps/api/src/modules/mexc/mexc-trade.client.ts` — client MEXC có ký (ký, đổi symbol, đổi contracts↔base, đọc/đặt/huỷ lệnh + TP/SL).
 - `apps/api/src/modules/mexc/mexc.service.ts` — vị thế, lịch sử, mở/đóng lệnh, TP/SL, log `system`.
-- `apps/api/src/modules/mexc/mexc-setup.service.ts` — cấu hình đòn bẩy/ký quỹ + sao ưu tiên.
+- `apps/api/src/modules/mexc/mexc-setup.service.ts` — cấu hình đòn bẩy/ký quỹ + sao ưu tiên + watchlist thủ công (`GET/POST/DELETE /mexc/setup/watchlist`).
 - `apps/api/src/modules/mexc/mexc-setup-chart.service.ts` — chart Setup/trade, QQE, đổi giá; **dùng lại** `../bitget/setup-chart-renderer`.
 - `apps/api/src/modules/mexc/mexc-journal.service.ts` — nhật ký từng lệnh.
 - `apps/api/src/modules/mexc/mexc.controller.ts` + `dto/` — route `/mexc/*`.
@@ -69,7 +72,8 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 
 **Shared**
 - `packages/core/src/analysis/mexc-closed.ts` — chuẩn hoá row lịch sử MEXC; `summarizeMexcClosed` dùng lại phép tính chung.
-- `packages/db/prisma/schema.prisma` — `MexcTrade`, `MexcSyncState`, `MexcTradeJournal`, `MexcSetupConfig`, `MexcSymbolPriority`, `MexcTradeChart`.
+- `packages/db/prisma/schema.prisma` — `MexcTrade`, `MexcSyncState`, `MexcTradeJournal`, `MexcSetupConfig`, `MexcSymbolPriority`, `MexcTradeChart`, `MexcWatchlistSymbol`.
 - `packages/db/prisma/migrations/20260728120000_add_mexc_tables/migration.sql`
+- `packages/db/prisma/migrations/20260729150000_add_mexc_watchlist_symbols/migration.sql`
 - `packages/db/src/repositories/mexc-*.repository.ts`
 - `.env.example` — `MEXC_API_KEY`, `MEXC_API_SECRET`, `MEXC_API_BASE_URL`, `MEXC_INITIAL_CAPITAL_USD`.

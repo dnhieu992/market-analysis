@@ -890,6 +890,17 @@ model MexcSymbolPriority {
   @@map("mexc_symbol_priorities")
 }
 
+// Coins the trader added to the /mexc Setup tab by hand. The tab also lists a
+// hardcoded pin/watchlist plus every coin ever traded — this table is the part
+// that is editable from the UI (the "Thêm coin" dialog).
+model MexcWatchlistSymbol {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  createdAt DateTime @default(now())
+
+  @@map("mexc_watchlist_symbols")
+}
+
 // Saved chart snapshots for MEXC trades / Setup coins.
 model MexcTradeChart {
   id        String   @id @default(cuid())

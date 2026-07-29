@@ -1,9 +1,15 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { createMexcSetupConfigRepository, createMexcSymbolPriorityRepository } from '@app/db';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  createMexcSetupConfigRepository,
+  createMexcSymbolPriorityRepository,
+  createMexcWatchlistRepository,
+} from '@app/db';
 
+import type { AddWatchlistSymbolDto } from './dto/add-watchlist-symbol.dto';
 import type { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
 import type { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
 import type { UpsertSymbolPriorityDto } from './dto/upsert-symbol-priority.dto';
+import { MexcTradeClient } from './mexc-trade.client';
 
 export type MexcSetupConfigDto = {
   symbol: string;
@@ -16,6 +22,12 @@ export type MexcSetupConfigDto = {
 export type MexcSymbolPriorityDto = {
   symbol: string;
   priority: number;
+};
+
+/** One coin the trader added to the Setup tab by hand. */
+export type MexcWatchlistSymbolDto = {
+  symbol: string;
+  createdAt: string;
 };
 
 /** Highest star rating the UI (and this service) accepts. */
@@ -33,6 +45,11 @@ type SymbolPriorityRow = {
   priority: number;
 };
 
+type WatchlistRow = {
+  symbol: string;
+  createdAt: Date;
+};
+
 /**
  * Persistence for the /mexc Setup tab's per-coin, per-side open configs
  * (leverage + margin). Backed by the `mexc_setup_configs` table so the two
@@ -43,6 +60,9 @@ type SymbolPriorityRow = {
 export class MexcSetupService {
   private readonly repo = createMexcSetupConfigRepository();
   private readonly priorityRepo = createMexcSymbolPriorityRepository();
+  private readonly watchlistRepo = createMexcWatchlistRepository();
+  /** Only used for the public `contract/detail` lookup that validates a new coin. */
+  private readonly client = new MexcTradeClient();
 
   async list(): Promise<MexcSetupConfigDto[]> {
     const rows = (await this.repo.findAll()) as SetupConfigRow[];
@@ -115,6 +135,42 @@ export class MexcSetupService {
       priority,
     })) as SymbolPriorityRow;
     return { symbol: row.symbol, priority: row.priority };
+  }
+
+  /** Every coin the trader added by hand, oldest first. */
+  async listWatchlist(): Promise<MexcWatchlistSymbolDto[]> {
+    const rows = (await this.watchlistRepo.findAll()) as WatchlistRow[];
+    return rows.map((r) => this.toWatchlistDto(r));
+  }
+
+  /**
+   * Track a new coin in the Setup tab. The symbol is checked against MEXC's
+   * public contract list first — a typo would otherwise add a permanent row
+   * that renders with no price and no chart. Re-adding an existing coin is a
+   * no-op rather than an error.
+   */
+  async addWatchlistSymbol(dto: AddWatchlistSymbolDto): Promise<MexcWatchlistSymbolDto> {
+    const symbol = dto.symbol.trim().toUpperCase();
+    if (!symbol) throw new BadRequestException('Nhập mã coin.');
+    try {
+      await this.client.getContractSpec(symbol);
+    } catch {
+      throw new BadRequestException(`MEXC không có hợp đồng futures cho ${symbol}.`);
+    }
+    const row = (await this.watchlistRepo.add(symbol)) as WatchlistRow;
+    return this.toWatchlistDto(row);
+  }
+
+  /** Stop tracking a coin. Only removes the manual row — traded coins stay. */
+  async removeWatchlistSymbol(symbol: string): Promise<{ removed: true }> {
+    const clean = symbol.trim().toUpperCase();
+    const count = await this.watchlistRepo.remove(clean);
+    if (count === 0) throw new NotFoundException(`${clean} không có trong danh sách theo dõi.`);
+    return { removed: true };
+  }
+
+  private toWatchlistDto(row: WatchlistRow): MexcWatchlistSymbolDto {
+    return { symbol: row.symbol, createdAt: row.createdAt.toISOString() };
   }
 
   private toDto(row: SetupConfigRow): MexcSetupConfigDto {

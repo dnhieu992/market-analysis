@@ -57,6 +57,7 @@ export { createMexcTradeChartRepository } from './repositories/mexc-trade-chart.
 export type { MexcTradeChartInput } from './repositories/mexc-trade-chart.repository';
 export { createMexcSymbolPriorityRepository } from './repositories/mexc-symbol-priority.repository';
 export type { MexcSymbolPriorityInput } from './repositories/mexc-symbol-priority.repository';
+export { createMexcWatchlistRepository } from './repositories/mexc-watchlist.repository';
 export { createOrderJournalRepository } from './repositories/order-journal.repository';
 export type {
   OrderJournalInput,

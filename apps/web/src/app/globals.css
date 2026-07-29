@@ -11218,6 +11218,42 @@ a.metric-card--link:hover {
 .bg-bulk-btn:hover { background: rgba(23, 18, 13, 0.05); }
 /* Wider than the single-coin dialog — it carries the coin picker grid. */
 .bg-setup-dialog--wide { max-width: 620px; }
+
+/* ── "Thêm coin" dialog: the manually tracked coins, each removable ────────── */
+.bg-wl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.bg-wl-list-label { font-size: 12px; font-weight: 700; color: var(--foreground); }
+.bg-wl-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bg-wl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.bg-wl-chip-x {
+  border: none;
+  border-radius: 999px;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  background: rgba(23, 18, 13, 0.06);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.bg-wl-chip-x:hover:not(:disabled) { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.bg-wl-chip-x:disabled { cursor: default; opacity: 0.6; }
 .bg-bulk-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 /* One bordered block per side — LONG and SHORT keep separate leverage/margin. */
 .bg-bulk-side {
