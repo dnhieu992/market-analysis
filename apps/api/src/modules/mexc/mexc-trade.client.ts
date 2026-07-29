@@ -64,6 +64,22 @@ export function fromMexcSymbol(symbol: string): string {
   return symbol.trim().toUpperCase().replace('_', '');
 }
 
+/** MEXC rejects an `externalOid` longer than this with error 2030. */
+const MAX_EXTERNAL_OID = 32;
+
+/**
+ * Client-side order ID for `order/create`. Nothing reads it back — it only has
+ * to be unique and to fit MEXC's 32-char cap, so the side/timestamp/random part
+ * is fixed-width and the symbol takes whatever budget is left over.
+ */
+export function buildExternalOid(symbol: string, holdSide: 'long' | 'short'): string {
+  const side = holdSide === 'long' ? 'L' : 'S';
+  const stamp = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 6).padEnd(4, '0');
+  const base = fromMexcSymbol(symbol).replace(/[^A-Z0-9]/g, '');
+  return `${side}${base.slice(0, MAX_EXTERNAL_OID - side.length - stamp.length - rand.length)}${stamp}${rand}`;
+}
+
 /** One row from `/api/v1/private/position/open_positions`, in app terms. */
 export type MexcRawPosition = {
   positionId: number;

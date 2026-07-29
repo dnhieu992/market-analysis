@@ -29,6 +29,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - **Chưa cấu hình key** (`MEXC_API_KEY`/`MEXC_API_SECRET` trống): `configured: false`, trang hiện hướng dẫn thêm env thay vì bảng rỗng khó hiểu. Worker sync tự bỏ qua, không log lỗi.
 - **MEXC chặn API trading**: sàn đóng endpoint đặt lệnh từ 2022-07-25 và mở lại 2026-03-31; ngoài ra tài khoản phải KYC mới bật được quyền "Order Placing". Nếu key thiếu quyền, lệnh mở/đóng trả 503 kèm nguyên văn mã lỗi MEXC. Phần đọc (vị thế, lịch sử, nhật ký, chart) không bị ảnh hưởng.
 - **`apiAllowed: false`** trên contract → chặn ngay ở `openPosition` với thông báo tiếng Việt, không tốn round-trip.
+- **`externalOid` tối đa 32 ký tự**: vượt quá thì MEXC trả lỗi 2030 và từ chối *mọi* lệnh mở. `buildExternalOid()` ghép side + timestamp base36 + hậu tố ngẫu nhiên (độ dài cố định) rồi cắt symbol theo phần còn lại, nên ID luôn ≤ 32 ký tự kể cả với symbol dài như `1000PEPEUSDT`.
 - **Ticker lỗi** → vị thế rơi về giá vào làm mark price, PnL hiện 0 thay vì một số sai. Balance/TP-SL lỗi cũng non-fatal, bảng vẫn render.
 - **`contractSize` lookup lỗi** → fallback 1 (coi như đã là base asset); size ghi vào DB sai thang nhưng lệnh vẫn được ghi nhận, không mất dấu.
 - **Vị thế đóng một phần**: history chỉ nhận `state = 3` (đóng hẳn); size lấy `closeVol` vì `holdVol` đã về 0.

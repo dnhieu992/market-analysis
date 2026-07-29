@@ -8,7 +8,7 @@ import {
 import { summarizeMexcClosed, type MexcClosedSummary } from '@app/core';
 import { createMexcTradeJournalRepository, createMexcTradeRepository } from '@app/db';
 
-import { MexcTradeClient, type MexcRawPosition } from './mexc-trade.client';
+import { MexcTradeClient, buildExternalOid, type MexcRawPosition } from './mexc-trade.client';
 
 /**
  * Capital originally put into the MEXC futures wallet, in USDT. The dashboard
@@ -311,7 +311,7 @@ export class MexcService {
 
       // Leverage is only settable while flat — skip it entirely when adding.
       if (!isAdd) await this.client.setCrossLeverage(symbol, holdSide, leverage);
-      const externalOid = `manual-${symbol}-${holdSide}-${Date.now()}`;
+      const externalOid = buildExternalOid(symbol, holdSide);
       await this.client.openMarketPosition({ symbol, holdSide, vol, price, leverage, externalOid });
 
       const totalSize = existingSize + size;
