@@ -595,6 +595,30 @@ export type BitgetSetupConfig = {
   marginUsd: number;
 };
 
+/** Lifecycle of one auto-trade day (see the Bitget auto-entry engine in the API). */
+export type BitgetAutoTradeStatus = 'open' | 'extended' | 'closed' | 'skipped' | 'failed';
+
+/**
+ * Per-coin "auto vào lệnh" switch + the latest run of the 00:00 / 09:00 UTC auto
+ * LONG strategy, shown in the Setup dialog.
+ */
+export type BitgetAutoTrade = {
+  symbol: string;
+  enabled: boolean;
+  latestRun: {
+    /** UTC date (YYYY-MM-DD) the run entered on. */
+    tradeDate: string;
+    status: BitgetAutoTradeStatus;
+    entryPrice: number | null;
+    tpPrice: number | null;
+    marginUsd: number | null;
+    leverage: number | null;
+    exitReason: string | null;
+    detail: string | null;
+    updatedAt: string;
+  } | null;
+};
+
 /** Manual 0–5 star rating a coin carries in the Setup tab (drives its default order). */
 export type BitgetSymbolPriority = {
   symbol: string;

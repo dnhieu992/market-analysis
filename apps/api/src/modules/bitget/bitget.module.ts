@@ -6,6 +6,7 @@ import { BitgetJournalService } from './bitget-journal.service';
 import { BitgetService } from './bitget.service';
 import { BitgetSetupService } from './bitget-setup.service';
 import { BitgetSetupChartService } from './bitget-setup-chart.service';
+import { BitgetAutoTradeService } from './bitget-auto-trade.service';
 
 @Module({
   controllers: [BitgetController],
@@ -14,6 +15,7 @@ import { BitgetSetupChartService } from './bitget-setup-chart.service';
     BitgetJournalService,
     BitgetSetupService,
     BitgetSetupChartService,
+    BitgetAutoTradeService,
     BinanceMarketDataService,
   ],
 })

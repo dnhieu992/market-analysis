@@ -10798,7 +10798,8 @@ a.metric-card--link:hover {
 .bg-open-btn--add { border-style: dashed; }
 
 /* Setup tab: one LONG + one SHORT action cell per coin row. Each stacks a config
-   summary over its ⚙ Setup + open buttons, left-aligned within the cell. */
+   summary over its open button, left-aligned within the cell. The ⚙ that
+   configures BOTH sides lives once per row, in the Symbol cell. */
 .bg-side-cell { vertical-align: middle; }
 .bg-side-cell-inner { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .bg-side-cell .bg-setup-actions { justify-content: flex-start; }
@@ -10812,6 +10813,73 @@ a.metric-card--link:hover {
    priority stars underneath (they have no column of their own). */
 .bg-symbol-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
 .bg-symbol-name { display: inline-flex; align-items: center; gap: 8px; }
+/* The row's single ⚙ — one dialog for LONG + SHORT config and auto-entry. */
+.bg-setup-btn--coin { padding: 2px 7px; font-size: 12px; line-height: 1.4; }
+/* Armed for the 00:00 UTC auto LONG — the badge is the only at-a-glance signal
+   that the bot will trade this coin on its own. */
+.bg-auto-badge {
+  padding: 1px 6px;
+  border: 1px solid rgba(79, 70, 229, 0.45);
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.12);
+  color: #4f46e5;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: help;
+}
+
+/* ── Auto-entry block inside the per-coin ⚙ dialog ─────────────────────────── */
+.bg-auto-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+  border-radius: 10px;
+  background: rgba(79, 70, 229, 0.05);
+}
+.bg-auto-head { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.bg-auto-title { font-size: 13px; font-weight: 700; color: var(--foreground); }
+.bg-auto-state {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(23, 18, 13, 0.08);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+.bg-auto-state--on { background: rgba(79, 70, 229, 0.16); color: #4f46e5; }
+.bg-auto-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.bg-auto-rules strong { color: var(--foreground); }
+.bg-auto-rule-muted { opacity: 0.85; }
+/* Last run of the strategy on this coin — the audit line under the rules. */
+.bg-auto-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.bg-auto-run-date { font-weight: 700; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.bg-auto-run-status { font-weight: 600; }
+.bg-auto-run--open { color: #4f46e5; }
+.bg-auto-run--extended { color: #b45309; }
+.bg-auto-run--failed { color: #dc2626; }
+.bg-auto-run-num { font-variant-numeric: tabular-nums; }
+.bg-auto-run-detail { flex-basis: 100%; margin: 0; font-size: 11px; line-height: 1.5; }
 
 /* QQE Signals column: only the timeframes with a live signal show, their label
    coloured green (Long) / red (Short). */

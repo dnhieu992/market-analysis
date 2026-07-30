@@ -3,9 +3,13 @@ Adds a **Setup** tab to the Bitget dashboard (`/bitget`). It lists **BTC and ETH
 then a fixed **watchlist** (SOL, XRP, SHIB, PEPE, WLD, BCH, AVAX, AAVE, FIL, ONDO, TIA), then
 every other coin that has ever been traded (unique symbols pulled from the History tab, newest
 closed first) — deduplicated so a coin only ever appears once, in that priority order. Each row
-gets a separate **Long** and **Short** action cell. Each side has its own **⚙ Setup** dialog
-(leverage, margin — direction is fixed by the cell, margin mode is always **cross**, order
-type is always **market**) and its own **Long / Short** open button that places a live market
+gets a separate **Long** and **Short** action cell, plus **one ⚙ button per row** (next to the
+coin name in the Symbol cell). That single ⚙ opens the coin's whole config in one dialog —
+**LONG and SHORT side by side** (leverage, margin — margin mode is always **cross**, order type
+is always **market**) **and the “Auto vào lệnh” switch** (see
+[`bitget-auto-trade`](../bitget-auto-trade/bitget-auto-trade.md)). It replaced the two separate
+per-side ⚙ buttons on 2026-07-30: auto-entry is a **per-coin** setting, so a per-side dialog had
+nowhere to put it. Each side keeps its own **Long / Short** open button that places a live market
 order on Bitget using that side's config. The buttons stay **always enabled**: when that exact
 coin **+ side** already has an open position, the button reads **“+ Long” / “+ Short”** (dashed
 border) and clicking it **adds volume to the existing position** (scale-in) instead of opening a
@@ -107,8 +111,10 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
 1. User opens `/bitget` → clicks the **Setup** tab (or lands via `?tab=setup`).
 2. The feed builds the symbol list as `PINNED_SYMBOLS` (BTC, ETH) + `WATCHLIST_SYMBOLS` (fixed
    list, see Description) + every unique symbol from `history.trades` (newest-closed first),
-   deduped, and renders one row per coin, each with a **Long** and a **Short** action cell (config summary + ⚙ + open
-   button). It hydrates saved configs once via `GET /bitget/setup`,
+   deduped, and renders one row per coin, each with a **Long** and a **Short** action cell (config
+   summary + open button) and a single row-level **⚙** in the Symbol cell.
+   It hydrates saved configs once via `GET /bitget/setup`, the auto-entry switches via
+   `GET /bitget/auto-trade` (an **AUTO** badge shows next to the coin name when armed),
    fetches live positions every 15s to know which coin+sides are currently open, and subscribes
    to the Bitget public WS `ticker` channel for every listed symbol to show live price + change
    since 00:00 UTC (green/red). A "Realtime / Đang kết nối…" pill reflects the WS state. It also
@@ -131,10 +137,13 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
    Readings come from the last closed candle (no repaint), computed server-side from public Binance
    klines with `calculateQqe` and cached ~60s per (coin, tf); the 5-candle validity filter is applied
    client-side so the window is easy to tune.
-3. User clicks **⚙** in a side cell → a dialog (portaled to `document.body`) lets them set
-   leverage (1–125×) and margin in USDT for that cell's fixed side. Margin mode / order type
-   are fixed to **Market · Cross**. Saving optimistically updates the cell and persists via
-   `PUT /bitget/setup` (upsert on `symbol + holdSide`).
+3. User clicks the row's **⚙** (Symbol cell) → `CoinSetupDialog` (portaled to `document.body`)
+   opens with three blocks: **LONG** and **SHORT** (leverage 1–125×, margin in USDT; margin mode /
+   order type fixed to **Market · Cross**) and **Auto vào lệnh**. Saving writes only the sides
+   whose numbers actually changed via `PUT /bitget/setup` (upsert on `symbol + holdSide`), **then**
+   the auto switch via `PUT /bitget/auto-trade` — in that order, because arming auto is rejected
+   server-side without a saved LONG margin. A side whose margin field is left **empty** is not
+   written at all, so "chưa cấu hình" keeps its meaning.
 3b. **Bulk setup:** User clicks **⚙ Setup nhiều coin** → dialog opens pre-ticked with the
    toolbar's current coin filter (empty filter = nothing pre-ticked). Filling the enabled side
    blocks + picking coins and saving calls `PUT /bitget/setup/bulk`
@@ -257,7 +266,17 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
   a hint pointing to the History tab's 💾 Lưu action; a list-fetch failure shows a retry notice.
   Both are non-fatal — the rest of the tab keeps working.
 
+- **A side left blank in the row ⚙ dialog:** the side is skipped entirely (no DB row written),
+  so the table keeps showing "chưa cấu hình" instead of a silent `0` margin config.
+- **Arming auto with no LONG margin:** the checkbox is disabled with an inline hint, and the API
+  rejects it with 400 anyway — an armed coin the engine would only ever skip is worse than an
+  obviously-off one.
+- **Row ⚙ save fails halfway** (side saved, auto switch rejected): the dialog stays open with a
+  red inline error and the sides that did land are already reflected in the table, so a retry
+  only re-sends what is still missing.
+
 ## Related Files (FE / BE / Worker)
+- `apps/web/src/widgets/bitget/coin-setup-dialog.tsx` — the row's single ⚙ dialog: LONG + SHORT config blocks and the auto-entry switch (with the strategy spelled out + the coin's latest run).
 - `apps/web/src/widgets/bitget/symbol-note-dialog.tsx` — **Đánh giá** dialog: shared TipTap `MarkdownEditor` (lazy-loaded) + Xem trước toggle rendering through `renderMarkdown`, and `notePreview()` used by the table cell.
 - `apps/api/src/modules/bitget/dto/upsert-symbol-note.dto.ts` — validates `{ symbol, note }` for the assessment save.
 - `packages/db/src/repositories/bitget-symbol-note.repository.ts` — `findAll()`, `upsert()`, `remove()` for the per-coin assessment.

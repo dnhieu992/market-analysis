@@ -50,6 +50,7 @@ import type {
   BitgetOpenResult,
   BitgetTpslResult,
   BitgetSetupConfig,
+  BitgetAutoTrade,
   BitgetSymbolPriority,
   BitgetSymbolNote,
   BitgetChartCount,
@@ -1184,6 +1185,28 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Lưu cấu hình hàng loạt thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetSetupConfig[];
+    },
+
+    // ── Bitget auto-entry (00:00 UTC LONG · TP +2% · 09:00 UTC review) ────
+    async fetchBitgetAutoTrades(): Promise<BitgetAutoTrade[]> {
+      return fetchJson<BitgetAutoTrade[]>(fetchImpl, `${baseUrl}/bitget/auto-trade`, withDefaults({}));
+    },
+
+    async saveBitgetAutoTrade(input: { symbol: string; enabled: boolean }): Promise<BitgetAutoTrade> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/auto-trade`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu cấu hình auto vào lệnh thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetAutoTrade;
     },
 
     // ── Bitget Setup tab star priority (per coin, drives the default order) ────

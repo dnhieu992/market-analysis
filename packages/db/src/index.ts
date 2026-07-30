@@ -41,6 +41,14 @@ export { createBitgetSymbolPriorityRepository } from './repositories/bitget-symb
 export type { BitgetSymbolPriorityInput } from './repositories/bitget-symbol-priority.repository';
 export { createBitgetSymbolNoteRepository } from './repositories/bitget-symbol-note.repository';
 export type { BitgetSymbolNoteInput } from './repositories/bitget-symbol-note.repository';
+export {
+  createBitgetAutoTradeConfigRepository,
+  createBitgetAutoTradeRunRepository,
+} from './repositories/bitget-auto-trade.repository';
+export type {
+  BitgetAutoTradeRunInput,
+  BitgetAutoTradeStatus,
+} from './repositories/bitget-auto-trade.repository';
 export { createMexcTradeRepository } from './repositories/mexc-trade.repository';
 export type {
   MexcTradeOpenInput,

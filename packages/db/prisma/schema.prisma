@@ -790,6 +790,50 @@ model BitgetSymbolNote {
   @@map("bitget_symbol_notes")
 }
 
+// Per-coin "auto vào lệnh" switch for the /bitget Setup tab. When enabled, the
+// API's BitgetAutoTradeService opens a LONG at 00:00 UTC with the coin's saved
+// LONG setup config and manages it at 09:00 UTC. One row per coin — the strategy
+// itself is long-only, so this is per-coin rather than per-side.
+model BitgetAutoTradeConfig {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bitget_auto_trade_configs")
+}
+
+// One row per (coin, UTC trading day) the auto-entry engine acted on. Doubles as
+// the idempotency guard — the unique key stops a re-fired cron from opening a
+// second position — and as the audit trail the Setup tab shows on the ⚙ dialog.
+model BitgetAutoTradeRun {
+  id         String    @id @default(cuid())
+  symbol     String    @db.VarChar(30)
+  tradeDate  String    @db.VarChar(10) // UTC date (YYYY-MM-DD) of the 00:00 entry
+  // open = live and awaiting the 09:00 review · extended = kept past 09:00 with
+  // TP moved to entry · closed = flat · skipped = no entry taken · failed = error
+  status     String    @db.VarChar(12)
+  entryPrice Float?
+  size       Float?
+  leverage   Int?
+  marginUsd  Float?
+  tpPrice    Float? // take-profit currently set on the exchange
+  // Why the run ended: tp_or_manual | forced_review | breakeven_hit | position_changed
+  exitReason String?   @db.VarChar(24)
+  detail     String?   @db.Text // human-readable trace shown in the UI
+  // Exchange-side position open time (cTime) — guards the 09:00 review against
+  // acting on a DIFFERENT position that was opened after this one closed.
+  openedAt   DateTime?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([symbol, tradeDate])
+  @@index([status])
+  @@map("bitget_auto_trade_runs")
+}
+
 // Saved chart snapshots for closed trades — the trader hits "Save" on the trade
 // chart (from the History tab) to archive the annotated PNG (entry/close markers
 // + indicators) on R2 for later study. One row per (tradeKey, timeframe).

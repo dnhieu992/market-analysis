@@ -17,6 +17,7 @@ import { BitgetJournalService } from './bitget-journal.service';
 import { BitgetService } from './bitget.service';
 import { BitgetSetupService } from './bitget-setup.service';
 import { BitgetSetupChartService } from './bitget-setup-chart.service';
+import { BitgetAutoTradeService } from './bitget-auto-trade.service';
 import { ClosePositionDto } from './dto/close-position.dto';
 import { OpenPositionDto } from './dto/open-position.dto';
 import { SetTpslDto } from './dto/set-tpsl.dto';
@@ -26,6 +27,8 @@ import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
 import { BulkUpsertSetupConfigDto } from './dto/bulk-upsert-setup-config.dto';
 import { UpsertSymbolPriorityDto } from './dto/upsert-symbol-priority.dto';
 import { UpsertSymbolNoteDto } from './dto/upsert-symbol-note.dto';
+import { UpsertAutoTradeDto } from './dto/upsert-auto-trade.dto';
+import { RunAutoTradeDto } from './dto/run-auto-trade.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
 import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './bitget-setup-chart.service';
@@ -39,6 +42,7 @@ export class BitgetController {
     private readonly journal: BitgetJournalService,
     private readonly setup: BitgetSetupService,
     private readonly setupChart: BitgetSetupChartService,
+    private readonly autoTrade: BitgetAutoTradeService,
   ) {}
 
   @Get('positions')
@@ -124,6 +128,30 @@ export class BitgetController {
   @ApiOperation({ summary: 'Save one coin’s assessment (empty text deletes it)' })
   upsertSetupNote(@Body() dto: UpsertSymbolNoteDto) {
     return this.setup.upsertNote(dto);
+  }
+
+  @Get('auto-trade')
+  @ApiOperation({
+    summary: 'Per-coin auto-entry switch + the latest run of the 00:00/09:00 UTC auto LONG strategy',
+  })
+  listAutoTrade() {
+    return this.autoTrade.list();
+  }
+
+  @Put('auto-trade')
+  @ApiOperation({ summary: 'Arm / disarm auto-entry for one coin (needs a saved LONG margin config)' })
+  upsertAutoTrade(@Body() dto: UpsertAutoTradeDto) {
+    return this.autoTrade.setEnabled(dto);
+  }
+
+  @Post('auto-trade/run')
+  @ApiOperation({
+    summary:
+      'Run an auto-trade pass immediately against the LIVE account (same code the cron runs) — ' +
+      'for verifying the setup without waiting for 00:00 / 09:00 UTC',
+  })
+  runAutoTrade(@Body() dto: RunAutoTradeDto) {
+    return dto.phase === 'entry' ? this.autoTrade.runEntry() : this.autoTrade.runReview();
   }
 
   @Get('setup-chart')

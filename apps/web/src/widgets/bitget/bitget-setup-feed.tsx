@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
 import type {
+  BitgetAutoTrade,
   BitgetHistoryResponse,
   BitgetPositionsResponse,
   BitgetSetupConfig,
@@ -24,6 +25,7 @@ import {
 import { QqeCell, bareQqeSymbol as bareSymbol, type QqeMap } from './qqe-cell';
 import { SymbolMultiSelect } from './symbol-multi-select';
 import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
+import { CoinSetupDialog, type CoinSetupInput } from './coin-setup-dialog';
 import { ChartNoteView } from './chart-note-dialog';
 import { SymbolNoteDialog, notePreview } from './symbol-note-dialog';
 
@@ -121,6 +123,16 @@ function chgClass(ratio: number | null | undefined): string {
   return ratio > 0 ? 'bg-chg--up' : ratio < 0 ? 'bg-chg--down' : '';
 }
 
+/** Tooltip of the AUTO badge — the strategy plus what the last run did. */
+function autoBadgeTitle(auto: BitgetAutoTrade): string {
+  const strategy =
+    'Auto vào lệnh: LONG 00:00 UTC · TP +2% (giá, chưa tính đòn bẩy) · ' +
+    '09:00 UTC chốt bắt buộc nếu lãi hoặc âm ≤ 0,5%, âm hơn thì dời TP về entry.';
+  const run = auto.latestRun;
+  if (!run) return `${strategy}\nChưa có lượt chạy nào.`;
+  return `${strategy}\nGần nhất (${run.tradeDate}): ${run.detail ?? run.status}`;
+}
+
 type Props = {
   history: BitgetHistoryResponse;
   positions: BitgetPositionsResponse;
@@ -146,7 +158,12 @@ export function BitgetSetupFeed({
   const clientRef = useRef(createApiClient());
   const [positions, setPositions] = useState<BitgetPositionsResponse>(initialPositions);
   const [configs, setConfigs] = useState<ConfigMap>({});
-  const [editing, setEditing] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
+  // The coin whose ⚙ dialog is open (LONG + SHORT config + auto-entry switch).
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  // Auto-entry switch + latest run per coin, keyed by symbol.
+  const [autoTrades, setAutoTrades] = useState<Record<string, BitgetAutoTrade>>({});
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
@@ -185,6 +202,25 @@ export function BitgetSetupFeed({
       })
       .catch(() => {
         /* non-fatal: rows just show as unconfigured until saved */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Hydrate the auto-entry switches so the AUTO badge is right on first paint.
+  useEffect(() => {
+    let alive = true;
+    clientRef.current
+      .fetchBitgetAutoTrades()
+      .then((list) => {
+        if (!alive) return;
+        const map: Record<string, BitgetAutoTrade> = {};
+        for (const a of list) map[a.symbol] = a;
+        setAutoTrades(map);
+      })
+      .catch(() => {
+        /* non-fatal: every coin just reads as auto-off until the dialog is opened */
       });
     return () => {
       alive = false;
@@ -387,19 +423,66 @@ export function BitgetSetupFeed({
     return () => clearInterval(id);
   }, [symbols, refreshChanges]);
 
-  const saveConfig = useCallback(
-    async (symbol: string, holdSide: HoldSide, cfg: { leverage: number; marginUsd: number }) => {
-      const next: BitgetSetupConfig = { symbol, holdSide, ...cfg };
-      // Optimistic update so the row reflects the new config immediately.
-      setConfigs((prev) => ({ ...prev, [cfgKey(symbol, holdSide)]: next }));
+  /**
+   * Save one coin's whole ⚙ dialog: each side whose numbers changed, then the
+   * auto-entry switch. Order matters — arming auto is rejected server-side
+   * without a saved LONG margin, so the config write has to land first.
+   */
+  const saveCoinSetup = useCallback(
+    async (symbol: string, input: CoinSetupInput) => {
+      setEditSaving(true);
+      setEditError(null);
       setError(null);
+      setNotice(null);
       try {
-        await clientRef.current.saveBitgetSetupConfig(next);
+        const sides: Array<[HoldSide, { leverage: number; marginUsd: number } | null]> = [
+          ['long', input.long],
+          ['short', input.short],
+        ];
+        const saved: BitgetSetupConfig[] = [];
+        for (const [holdSide, cfg] of sides) {
+          if (!cfg) continue;
+          const prev = configs[cfgKey(symbol, holdSide)];
+          if (prev && prev.leverage === cfg.leverage && prev.marginUsd === cfg.marginUsd) continue;
+          saved.push(await clientRef.current.saveBitgetSetupConfig({ symbol, holdSide, ...cfg }));
+        }
+        if (saved.length > 0) {
+          setConfigs((prev) => {
+            const next = { ...prev };
+            for (const c of saved) next[cfgKey(c.symbol, c.holdSide)] = c;
+            return next;
+          });
+        }
+
+        const wasEnabled = autoTrades[symbol]?.enabled ?? false;
+        let autoChanged = false;
+        if (input.autoEnabled !== wasEnabled) {
+          const next = await clientRef.current.saveBitgetAutoTrade({
+            symbol,
+            enabled: input.autoEnabled,
+          });
+          setAutoTrades((prev) => ({ ...prev, [symbol]: next }));
+          autoChanged = true;
+        }
+
+        setEditing(null);
+        setNotice(
+          `Đã lưu cấu hình ${symbol}` +
+            (saved.length > 0
+              ? `: ${saved.map((c) => `${c.holdSide.toUpperCase()} ${c.leverage}× · $${c.marginUsd}`).join(' — ')}`
+              : '') +
+            (autoChanged
+              ? ` · auto vào lệnh ${input.autoEnabled ? 'ĐÃ BẬT (LONG 00:00 UTC · TP +2% · review 09:00 UTC)' : 'đã tắt'}`
+              : '') +
+            '.',
+        );
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Lưu cấu hình thất bại. Thử lại sau.');
+        setEditError(err instanceof Error ? err.message : 'Lưu cấu hình thất bại. Thử lại sau.');
+      } finally {
+        setEditSaving(false);
       }
     },
-    [],
+    [autoTrades, configs],
   );
 
   /**
@@ -628,6 +711,7 @@ export function BitgetSetupFeed({
                 const priority = priorities[symbol] ?? 0;
                 const attachments = chartCounts[symbol] ?? 0;
                 const note = notes[symbol];
+                const auto = autoTrades[symbol];
                 return (
                   <tr key={symbol}>
                     <td className="bg-symbol">
@@ -643,6 +727,27 @@ export function BitgetSetupFeed({
                           >
                             <ChartIcon />
                           </button>
+                          <button
+                            type="button"
+                            className="bg-setup-btn bg-setup-btn--coin"
+                            onClick={() => {
+                              setEditError(null);
+                              setEditing(symbol);
+                            }}
+                            title={`Cấu hình ${symbol} — đòn bẩy/ký quỹ LONG & SHORT + auto vào lệnh`}
+                            aria-label={`Cấu hình ${symbol}`}
+                          >
+                            ⚙
+                          </button>
+                          {auto?.enabled && (
+                            <span
+                              className="bg-auto-badge"
+                              title={autoBadgeTitle(auto)}
+                              aria-label={`Auto vào lệnh đang bật cho ${symbol}`}
+                            >
+                              AUTO
+                            </span>
+                          )}
                         </span>
                         <StarRating
                           value={priority}
@@ -696,14 +801,6 @@ export function BitgetSetupFeed({
                               )}
                             </div>
                             <div className="bg-setup-actions">
-                              <button
-                                type="button"
-                                className="bg-setup-btn"
-                                onClick={() => setEditing({ symbol, holdSide })}
-                                title={`Cấu hình ${isLong ? 'LONG' : 'SHORT'} — đòn bẩy / ký quỹ`}
-                              >
-                                ⚙
-                              </button>
                               {/* Always clickable — on an already-open side it adds
                                   volume to that position instead of opening a new one. */}
                               <button
@@ -756,14 +853,14 @@ export function BitgetSetupFeed({
       )}
 
       {editing && (
-        <SetupDialog
-          symbol={editing.symbol}
-          holdSide={editing.holdSide}
-          initial={configs[cfgKey(editing.symbol, editing.holdSide)]}
-          onSave={(cfg) => {
-            void saveConfig(editing.symbol, editing.holdSide, cfg);
-            setEditing(null);
-          }}
+        <CoinSetupDialog
+          symbol={editing}
+          longConfig={configs[cfgKey(editing, 'long')]}
+          shortConfig={configs[cfgKey(editing, 'short')]}
+          auto={autoTrades[editing] ?? null}
+          saving={editSaving}
+          error={editError}
+          onSave={(input) => void saveCoinSetup(editing, input)}
           onClose={() => setEditing(null)}
         />
       )}
@@ -959,119 +1056,6 @@ function ChartGalleryDialog({ symbol, onClose }: { symbol: string; onClose: () =
               </div>
             </div>
           )}
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-const DEFAULT_LEVERAGE = 10;
-
-function SetupDialog({
-  symbol,
-  holdSide,
-  initial,
-  onSave,
-  onClose,
-}: {
-  symbol: string;
-  holdSide: HoldSide;
-  initial: BitgetSetupConfig | undefined;
-  onSave: (cfg: { leverage: number; marginUsd: number }) => void;
-  onClose: () => void;
-}) {
-  const [mounted, setMounted] = useState(false);
-  const [leverage, setLeverage] = useState(String(initial?.leverage ?? DEFAULT_LEVERAGE));
-  const [marginUsd, setMarginUsd] = useState(
-    initial && initial.marginUsd > 0 ? String(initial.marginUsd) : '',
-  );
-
-  useEffect(() => {
-    setMounted(true);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const lev = Number(leverage);
-  const margin = Number(marginUsd);
-  const valid = Number.isFinite(lev) && lev >= 1 && lev <= 125 && Number.isFinite(margin) && margin > 0;
-  const notional = valid ? margin * lev : 0;
-  const isLong = holdSide === 'long';
-
-  if (!mounted) return null;
-
-  return createPortal(
-    <div className="bg-setup-overlay" onClick={onClose}>
-      <div
-        className="bg-setup-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Cấu hình ${symbol} ${holdSide}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="bg-setup-head">
-          <h3>
-            Cấu hình {symbol}{' '}
-            <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
-              {isLong ? 'LONG' : 'SHORT'}
-            </span>
-          </h3>
-          <button type="button" className="bg-setup-x" onClick={onClose} aria-label="Đóng">
-            ×
-          </button>
-        </div>
-
-        <div className="bg-setup-body">
-          <label className="bg-setup-field">
-            <span>Đòn bẩy (×)</span>
-            <input
-              type="number"
-              min={1}
-              max={125}
-              step={1}
-              value={leverage}
-              onChange={(e) => setLeverage(e.target.value)}
-            />
-          </label>
-
-          <label className="bg-setup-field">
-            <span>Loại lệnh / Margin</span>
-            <input type="text" value="Market · Cross" disabled />
-          </label>
-
-          <label className="bg-setup-field">
-            <span>Ký quỹ (USDT)</span>
-            <input
-              type="number"
-              min={0}
-              step="any"
-              value={marginUsd}
-              placeholder="vd: 20"
-              onChange={(e) => setMarginUsd(e.target.value)}
-            />
-          </label>
-
-          <p className="bg-setup-note">
-            Giá trị lệnh (notional) ≈{' '}
-            <strong>{valid ? `$${notional.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : '—'}</strong>{' '}
-            = ký quỹ × đòn bẩy. Size sẽ được tính theo giá market khi bấm Open.
-          </p>
-        </div>
-
-        <div className="bg-setup-foot">
-          <button type="button" className="bg-setup-cancel" onClick={onClose}>
-            Huỷ
-          </button>
-          <button
-            type="button"
-            className="bg-setup-save"
-            disabled={!valid}
-            onClick={() => onSave({ leverage: lev, marginUsd: margin })}
-          >
-            Lưu
-          </button>
         </div>
       </div>
     </div>,
