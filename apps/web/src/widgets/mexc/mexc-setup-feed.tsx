@@ -134,14 +134,12 @@ type Props = {
 };
 
 /**
- * Setup tab: one row per coin ever traded, with a SHORT action cell — this page
- * is traded short-only, so the LONG column is deliberately not rendered (the
- * long side still exists in the config/API, it is just not reachable here).
- * The side carries its own manual-open config (leverage / margin, always cross)
- * persisted in the DB, its own ⚙ Setup dialog, and its own open button. The
- * Short button stays enabled at all times: on a coin+side that is already open
- * it ADDS volume to that position (scale-in) at the live position's leverage,
- * and the API records the add-on in the trade's journal.
+ * Setup tab: one row per coin ever traded, with a separate LONG and SHORT
+ * action cell. Each side carries its own manual-open config (leverage / margin,
+ * always cross) persisted in the DB, its own ⚙ Setup dialog, and its own
+ * open button. The Long/Short button stays enabled at all times: on a coin+side
+ * that is already open it ADDS volume to that position (scale-in) at the live
+ * position's leverage, and the API records the add-on in the trade's journal.
  */
 export function MexcSetupFeed({
   history,
@@ -498,8 +496,7 @@ export function MexcSetupFeed({
   );
 
   const configured = history.configured || positions.configured;
-  // Short-only page — the LONG cell is intentionally absent.
-  const sides: HoldSide[] = ['short'];
+  const sides: HoldSide[] = ['long', 'short'];
 
   return (
     <div className={embedded ? 'bg-panel' : 'page'}>
@@ -507,7 +504,7 @@ export function MexcSetupFeed({
         <div>
           {!embedded && <h1>MEXC · Setup mở lệnh</h1>}
           <p className="bg-sub">
-            Mở lệnh nhanh theo giá market (cross) — trang này chỉ vào lệnh SHORT, cấu hình mỗi coin được lưu lại.
+            Mở lệnh nhanh theo giá market (cross) — mỗi coin có nút Long/Short riêng, cấu hình từng hướng được lưu lại.
           </p>
         </div>
         <div className="bg-head-actions">
@@ -615,6 +612,7 @@ export function MexcSetupFeed({
                 <th title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — L=Long (xanh) / S=Short (đỏ) theo từng khung M30/H1/H4/D1">
                   QQE
                 </th>
+                <th>Long</th>
                 <th>Short</th>
                 <th className="bg-num" title="Số ảnh chart đã lưu cho coin này — bấm để xem lại">
                   Attachments
