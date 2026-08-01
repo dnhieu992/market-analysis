@@ -20,7 +20,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 1. **SSR** — `/mexc` gọi `fetchMexcPositions()` + `fetchMexcHistory({limit:200})`; lỗi thì rơi về snapshot rỗng để trang vẫn render.
 2. **Tab Vị thế** — `MexcPositionsFeed` refresh REST mỗi 15s, xen giữa là giá realtime từ WS công khai `wss://contract.mexc.com/edge` (`sub.ticker` từng symbol, ping JSON 20s). uPnL/ROE/notional được tính lại client-side theo giá live.
 3. **Đóng lệnh** — `POST /mexc/positions/close` → đọc vị thế, lấy giá market, gửi `order/create` chiều đóng (`side` 4 = close long / 2 = close short) với `positionId` và toàn bộ `holdVol`.
-4. **TP/SL** — `POST /mexc/positions/tpsl` → validate hướng giá, `stoporder/place` cho cả TP và SL (trigger theo **Fair Price**, đóng toàn bộ vị thế), **rồi mới** huỷ các lệnh TP/SL cũ. Ghi 1 log `system` vào nhật ký lệnh.
+4. **TP/SL** — `POST /mexc/positions/tpsl` → validate hướng giá, rồi tuỳ trạng thái hiện tại: chưa có lệnh TP/SL → `stoporder/place` (trigger theo **Fair Price**, đóng toàn bộ vị thế); đã có → **sửa giá ngay trên lệnh đang live** (`stoporder/change_price`, fallback `change_plan_price`); xoá cả hai chiều → chỉ huỷ lệnh cũ. Ghi 1 log `system` vào nhật ký lệnh.
 5. **Mở lệnh (tab Setup)** — `POST /mexc/positions/open` → `vol = margin × leverage ÷ giá ÷ contractSize`, làm tròn xuống theo `volScale`; đặt đòn bẩy khi đang flat, rồi `order/create` market cross. Bảng Setup có **cả hai cột LONG và SHORT**, mỗi hướng một nút mở lệnh và một cấu hình (đòn bẩy / margin) riêng.
 6. **Worker sync** — `MexcHistoryService` chạy mỗi 15s: vị thế mới → insert `status=open` + log "Đã mở lệnh"; vị thế đóng (`state=3`) → flip sang `closed` + log "Đã đóng lệnh". Mốc ROE (+50…+200 / −50…−500) ghi mỗi phút, ratchet 1 chiều như Bitget.
 7. **Thêm coin theo dõi (tab Setup)** — nút **+ Thêm coin** mở dialog: gõ mã (không cần đuôi `USDT`, hệ thống tự thêm) → `POST /mexc/setup/watchlist` kiểm tra mã có hợp đồng futures trên MEXC (`contract/detail`, public) rồi lưu vào `mexc_watchlist_symbols`. Dialog liệt kê các coin đã thêm thủ công kèm nút ✕ để bỏ theo dõi. Danh sách coin của bảng = pin (BTC/ETH) + watchlist hardcode + coin thêm tay + mọi coin đã từng giao dịch, dedupe.
@@ -39,7 +39,8 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - **Vị thế đóng một phần**: history chỉ nhận `state = 3` (đóng hẳn); size lấy `closeVol` vì `holdVol` đã về 0.
 - **Đóng/mở giữa 2 lần poll**: insert thẳng `status=closed` kèm cả log mở lẫn log đóng.
 - **Trùng nhịp sync**: cờ `syncing` chặn chạy chồng; `positionId` unique nên close là idempotent.
-- **TP/SL chồng lệnh**: MEXC **stack** chứ không thay thế, nên các lệnh cũ luôn bị huỷ sau khi lệnh mới đã live — không bao giờ có khoảng trống không bảo vệ.
+- **Cập nhật TP/SL khi đã có lệnh**: MEXC chỉ cho **1 lệnh TP/SL trên mỗi vị thế**, `stoporder/place` lần 2 bị từ chối với lỗi `5005 "there is already a position TP/SL order"`. Vì vậy update = sửa giá trên lệnh cũ (vị thế không có khoảng trống không bảo vệ), không phải đặt thêm lệnh mới.
+- **Fallback khi không sửa được tại chỗ**: xoá hẳn 1 chiều TP hoặc SL (endpoint sửa giá chỉ set được giá, không xoá được), có >1 lệnh live, hoặc call sửa lỗi → huỷ lệnh cũ rồi place lại. MEXC giải phóng slot TP/SL bất đồng bộ nên nếu place vẫn dính 5005 thì chờ 800ms và thử lại 1 lần.
 - **Mốc ROE khi thiếu `unRealizedPnl`**: bỏ qua vị thế đó thay vì đoán — thà thiếu log còn hơn log sai.
 
 ## Related Files (FE / BE / Worker)

@@ -8,7 +8,12 @@ import {
 import { summarizeMexcClosed, type MexcClosedSummary } from '@app/core';
 import { createMexcTradeJournalRepository, createMexcTradeRepository } from '@app/db';
 
-import { MexcTradeClient, buildExternalOid, type MexcRawPosition } from './mexc-trade.client';
+import {
+  MexcTradeClient,
+  buildExternalOid,
+  type MexcRawPosition,
+  type MexcStopOrder,
+} from './mexc-trade.client';
 
 /**
  * Capital originally put into the MEXC futures wallet, in USDT. The dashboard
@@ -364,9 +369,9 @@ export class MexcService {
    * MEXC closes the position when a trigger is hit — this app being down must
    * never matter. `null` clears that side.
    *
-   * Order of operations is deliberately place-then-cleanup: the new trigger is
-   * live on the exchange before the older TP/SL order is cancelled, so the
-   * position is never left unprotected mid-update.
+   * MEXC allows exactly ONE position TP/SL order per position and rejects a
+   * second `stoporder/place` with error 5005, so an update modifies the live
+   * order in place instead of stacking a new one — see `replaceTpsl`.
    */
   async setTpsl(input: {
     symbol: string;
@@ -406,19 +411,18 @@ export class MexcService {
       const prevTp = existing.find((o) => o.takeProfitPrice != null)?.takeProfitPrice ?? null;
       const prevSl = existing.find((o) => o.stopLossPrice != null)?.stopLossPrice ?? null;
 
-      if (tp != null || sl != null) {
+      if (tp == null && sl == null) {
+        // Clearing both sides: nothing to place, just drop what is live.
+        await this.cancelTpslOrders(existing.map((o) => o.id));
+      } else if (existing.length > 0) {
+        await this.replaceTpsl(position, existing, tp, sl);
+      } else {
         await this.client.placePositionTpsl({
           position,
           takeProfitPrice: tp ?? undefined,
           stopLossPrice: sl ?? undefined,
         });
       }
-
-      // Cleanup: drop the TP/SL orders that were live BEFORE this call. MEXC
-      // stacks a new stop order rather than replacing, so without this the old
-      // trigger would still fire. Non-fatal — a leftover is worth a warning, not
-      // a failed request after the new trigger is already live.
-      await this.cancelTpslOrders(existing.map((o) => o.id));
 
       this.logger.log(
         `Set MEXC TP/SL for ${holdSide} ${symbol}: TP ${tp ?? 'none'} (was ${prevTp ?? 'none'}), ` +
@@ -447,6 +451,63 @@ export class MexcService {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to set TP/SL for ${holdSide} ${symbol}: ${msg}`);
       throw new ServiceUnavailableException(`Không đặt được TP/SL trên MEXC: ${msg}`);
+    }
+  }
+
+  /**
+   * Update the TP/SL of a position that ALREADY has a live stop order. MEXC
+   * refuses a second `stoporder/place` for it (error 5005), so the live order is
+   * modified in place — which also keeps the position protected throughout.
+   *
+   * Cancel-then-place is the fallback, used when the in-place path cannot work:
+   * a side is being cleared (the change endpoints only set prices, they cannot
+   * remove one), more than one order is somehow live, or the change call fails.
+   * MEXC frees the "one TP/SL per position" slot asynchronously, so a place that
+   * still hits 5005 right after the cancel is retried once.
+   */
+  private async replaceTpsl(
+    position: MexcRawPosition,
+    existing: MexcStopOrder[],
+    tp: number | null,
+    sl: number | null,
+  ): Promise<void> {
+    const current = existing[0];
+    const clearsASide =
+      current != null &&
+      ((tp == null && current.takeProfitPrice != null) || (sl == null && current.stopLossPrice != null));
+
+    if (current != null && existing.length === 1 && !clearsASide) {
+      try {
+        await this.client.changePositionTpsl({
+          stopOrderId: current.id,
+          takeProfitPrice: tp ?? undefined,
+          stopLossPrice: sl ?? undefined,
+        });
+        return;
+      } catch (err) {
+        this.logger.warn(
+          `In-place TP/SL update failed for ${position.holdSide} ${position.symbol}: ` +
+            `${(err as Error).message}. Falling back to cancel-then-place.`,
+        );
+      }
+    }
+
+    // Fatal on purpose: if the old order survives, the place below hits 5005 and
+    // the user must see why rather than get a generic failure.
+    await this.client.cancelTpslOrders(existing.map((o) => o.id));
+
+    const place = () =>
+      this.client.placePositionTpsl({
+        position,
+        takeProfitPrice: tp ?? undefined,
+        stopLossPrice: sl ?? undefined,
+      });
+    try {
+      await place();
+    } catch (err) {
+      if (!/5005/.test((err as Error).message)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await place();
     }
   }
 

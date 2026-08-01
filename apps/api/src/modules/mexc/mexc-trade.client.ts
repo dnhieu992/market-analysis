@@ -344,6 +344,40 @@ export class MexcTradeClient {
     await this.request<unknown>('POST', '/api/v1/private/stoporder/place', undefined, body);
   }
 
+  /**
+   * Change the TP/SL levels of a stop order that is already live. MEXC rejects a
+   * second `stoporder/place` for a position that already has TP/SL (error 5005),
+   * so an UPDATE has to go through here rather than through place.
+   *
+   * MEXC exposes two near-identical endpoints and its docs disagree on which id
+   * a position TP/SL order carries (`orderId` vs `stopPlanOrderId`), so both are
+   * tried before giving up — the caller then falls back to cancel-then-place.
+   */
+  async changePositionTpsl(params: {
+    stopOrderId: number;
+    takeProfitPrice?: number;
+    stopLossPrice?: number;
+  }): Promise<void> {
+    const prices: Record<string, unknown> = {};
+    if (params.takeProfitPrice != null) prices.takeProfitPrice = params.takeProfitPrice;
+    if (params.stopLossPrice != null) prices.stopLossPrice = params.stopLossPrice;
+
+    const attempts: Array<{ path: string; body: Record<string, unknown> }> = [
+      { path: '/api/v1/private/stoporder/change_price', body: { orderId: params.stopOrderId, ...prices } },
+      { path: '/api/v1/private/stoporder/change_plan_price', body: { stopPlanOrderId: params.stopOrderId, ...prices } },
+    ];
+    let lastErr: unknown;
+    for (const attempt of attempts) {
+      try {
+        await this.request<unknown>('POST', attempt.path, undefined, attempt.body);
+        return;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
+
   /** Live (untriggered) TP/SL orders for one symbol. */
   async getPendingTpslOrders(symbol: string): Promise<MexcStopOrder[]> {
     const data = await this.request<RawStopOrderRow[]>('GET', '/api/v1/private/stoporder/open_orders', {
