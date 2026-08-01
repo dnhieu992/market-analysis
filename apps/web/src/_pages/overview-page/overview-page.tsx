@@ -1,14 +1,24 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DashboardOrder } from '@web/shared/api/types';
+import { EXCHANGE_HISTORY_LIMIT } from '@web/shared/api/exchange-orders';
 import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-overview';
 
 async function loadDashboardData() {
   const client = createServerApiClient();
   try {
-    const [paginatedOrders, analysisRuns, portfolios] = await Promise.all([
+    const [paginatedOrders, analysisRuns, portfolios, bitgetPnl, mexcPnl] = await Promise.all([
       client.fetchOrders({ pageSize: 20 }),
       client.fetchAnalysisRuns(),
       client.fetchPortfolios(),
+      // Bitget/MEXC trades are not `Order` rows — fold their realized PnL in by hand.
+      client
+        .fetchBitgetHistory({ limit: EXCHANGE_HISTORY_LIMIT })
+        .then((h) => h.summary.totalNetProfit)
+        .catch(() => 0),
+      client
+        .fetchMexcHistory({ limit: EXCHANGE_HISTORY_LIMIT })
+        .then((h) => h.summary.totalNetProfit)
+        .catch(() => 0),
     ]);
 
     // fetch holdings for all portfolios in parallel
@@ -45,7 +55,10 @@ async function loadDashboardData() {
       recentOrders: paginatedOrders.data,
       openOrderCount: paginatedOrders.openOrders.length,
       closedOrderCount: paginatedOrders.total - paginatedOrders.openOrders.length,
-      closedPnlSum: paginatedOrders.closedPnlSum,
+      closedPnlSum: paginatedOrders.closedPnlSum + bitgetPnl + mexcPnl,
+      manualPnlSum: paginatedOrders.closedPnlSum,
+      bitgetPnlSum: bitgetPnl,
+      mexcPnlSum: mexcPnl,
       analysisRuns,
       allHoldings,
       portfolioCount: portfolios.length,
@@ -56,6 +69,9 @@ async function loadDashboardData() {
       openOrderCount: 0,
       closedOrderCount: 0,
       closedPnlSum: 0,
+      manualPnlSum: 0,
+      bitgetPnlSum: 0,
+      mexcPnlSum: 0,
       analysisRuns: [],
       allHoldings: [],
       portfolioCount: 0,
@@ -66,8 +82,16 @@ async function loadDashboardData() {
 const BTC_TARGET = 1;
 const ETH_TARGET = 10;
 
+function signedUsd(v: number) {
+  return (
+    (v >= 0 ? '+' : '') +
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v)
+  );
+}
+
 function buildOverviewCards(
   closedPnlSum: number,
+  pnlBreakdown: { manual: number; bitget: number; mexc: number },
   btcAmount: number,
   btcCost: number,
   btcAvgCost: number,
@@ -123,7 +147,7 @@ function buildOverviewCards(
     {
       label: 'Total Profit / Loss',
       value: closedPnlSum === 0 ? '--' : totalPnlStr,
-      detail: 'All-time realized P/L across closed trades.',
+      detail: `All-time realized P/L — manual ${signedUsd(pnlBreakdown.manual)} · Bitget ${signedUsd(pnlBreakdown.bitget)} · MEXC ${signedUsd(pnlBreakdown.mexc)}.`,
       positive: closedPnlSum === 0 ? undefined : closedPnlSum >= 0,
       href: '/pnl-calendar'
     }
@@ -131,7 +155,7 @@ function buildOverviewCards(
 }
 
 export default async function OverviewPage() {
-  const { recentOrders, closedPnlSum, allHoldings, portfolioCount } =
+  const { recentOrders, closedPnlSum, manualPnlSum, bitgetPnlSum, mexcPnlSum, allHoldings, portfolioCount } =
     await loadDashboardData();
 
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
@@ -142,6 +166,7 @@ export default async function OverviewPage() {
 
   const cards = buildOverviewCards(
     closedPnlSum,
+    { manual: manualPnlSum, bitget: bitgetPnlSum, mexc: mexcPnlSum },
     btcHolding?.totalAmount ?? 0,
     btcHolding?.totalCost ?? 0,
     btcHolding?.avgCost ?? 0,
