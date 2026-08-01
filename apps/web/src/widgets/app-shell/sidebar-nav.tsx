@@ -38,11 +38,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Manual orders'
   },
   {
-    href: '/tracking-coins',
-    label: 'Tracking Coins · Gom đáy',
-    description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
-  },
-  {
     href: '/bitget',
     label: 'Bitget',
     description: 'Vị thế đang mở & lịch sử lệnh · uPnL, realized PnL, win rate'
@@ -51,6 +46,11 @@ const NAV_ITEMS: NavItem[] = [
     href: '/mexc',
     label: 'MEXC',
     description: 'Vị thế đang mở & lịch sử lệnh trên MEXC · uPnL, realized PnL, win rate'
+  },
+  {
+    href: '/tracking-coins',
+    label: 'Tracking Coins · Gom đáy',
+    description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
     href: '/daily-plan',
