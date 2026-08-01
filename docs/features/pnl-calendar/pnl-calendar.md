@@ -8,7 +8,7 @@
    - `fetchMexcHistory({ limit: 500 })` — MEXC closed trades
 2. Exchange trades are mapped to the `DashboardOrder` shape by `mapExchangeClosedTrades` (`shared/api/exchange-orders.ts`): `holdSide → side`, `openAvgPrice → entryPrice`, `netProfit → pnl`, `size → quantity`, `exchange`/`source` set to `bitget` / `mexc`, id prefixed (`bitget:<positionId>`) so it can never collide with an `Order` id.
 3. The merged array is passed to `PnlCalendarPage`, which groups by `closedAt` for the day/month grids and computes all stats from `pnl`.
-4. The overview page (`_pages/overview-page/overview-page.tsx`) fetches the same two histories but only reads `summary.totalNetProfit`, adds them to `paginatedOrders.closedPnlSum`, and renders the sum in the "Total Profit / Loss" card with a `manual · Bitget · MEXC` breakdown in the detail line.
+4. The overview page (`_pages/overview-page/overview-page.tsx`) fetches the same two histories but only reads `summary.totalNetProfit`, adds them to `paginatedOrders.closedPnlSum`, and renders the combined figure in the "Total Profit / Loss" card. Only the total is shown — no per-source breakdown.
 
 ## Edge Cases
 - **Exchange not configured / API error** — each history fetch has its own `.catch()` returning `0` (overview) or `[]` (calendar), so a broken Bitget or MEXC key never blanks the page; the remaining sources still render.

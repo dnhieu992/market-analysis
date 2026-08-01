@@ -56,9 +56,6 @@ async function loadDashboardData() {
       openOrderCount: paginatedOrders.openOrders.length,
       closedOrderCount: paginatedOrders.total - paginatedOrders.openOrders.length,
       closedPnlSum: paginatedOrders.closedPnlSum + bitgetPnl + mexcPnl,
-      manualPnlSum: paginatedOrders.closedPnlSum,
-      bitgetPnlSum: bitgetPnl,
-      mexcPnlSum: mexcPnl,
       analysisRuns,
       allHoldings,
       portfolioCount: portfolios.length,
@@ -69,9 +66,6 @@ async function loadDashboardData() {
       openOrderCount: 0,
       closedOrderCount: 0,
       closedPnlSum: 0,
-      manualPnlSum: 0,
-      bitgetPnlSum: 0,
-      mexcPnlSum: 0,
       analysisRuns: [],
       allHoldings: [],
       portfolioCount: 0,
@@ -82,16 +76,8 @@ async function loadDashboardData() {
 const BTC_TARGET = 1;
 const ETH_TARGET = 10;
 
-function signedUsd(v: number) {
-  return (
-    (v >= 0 ? '+' : '') +
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v)
-  );
-}
-
 function buildOverviewCards(
   closedPnlSum: number,
-  pnlBreakdown: { manual: number; bitget: number; mexc: number },
   btcAmount: number,
   btcCost: number,
   btcAvgCost: number,
@@ -147,7 +133,7 @@ function buildOverviewCards(
     {
       label: 'Total Profit / Loss',
       value: closedPnlSum === 0 ? '--' : totalPnlStr,
-      detail: `All-time realized P/L — manual ${signedUsd(pnlBreakdown.manual)} · Bitget ${signedUsd(pnlBreakdown.bitget)} · MEXC ${signedUsd(pnlBreakdown.mexc)}.`,
+      detail: 'All-time realized P/L across closed trades.',
       positive: closedPnlSum === 0 ? undefined : closedPnlSum >= 0,
       href: '/pnl-calendar'
     }
@@ -155,7 +141,7 @@ function buildOverviewCards(
 }
 
 export default async function OverviewPage() {
-  const { recentOrders, closedPnlSum, manualPnlSum, bitgetPnlSum, mexcPnlSum, allHoldings, portfolioCount } =
+  const { recentOrders, closedPnlSum, allHoldings, portfolioCount } =
     await loadDashboardData();
 
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
@@ -166,7 +152,6 @@ export default async function OverviewPage() {
 
   const cards = buildOverviewCards(
     closedPnlSum,
-    { manual: manualPnlSum, bitget: bitgetPnlSum, mexc: mexcPnlSum },
     btcHolding?.totalAmount ?? 0,
     btcHolding?.totalCost ?? 0,
     btcHolding?.avgCost ?? 0,
