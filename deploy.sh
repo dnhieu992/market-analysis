@@ -29,8 +29,18 @@ echo "── Run worker tests (gate — aborts deploy on failure)"
 # before it reaches production (set -e aborts).
 pnpm --filter worker test
 
+echo "── Stop running apps to free RAM for the build"
+# This box has 2 vCPU / 3.8GB and no swap. The three pm2 apps hold ~440MB that
+# the build needs; leaving them up during `next build` is what triggers the
+# OOM killer. They get deleted + restarted below anyway, so stopping is free
+# apart from the downtime. Placed AFTER the test gate so a red suite leaves
+# production untouched.
+pm2 stop "$PM2_API" "$PM2_WORKER" "$PM2_WEB" 2>/dev/null || true
+
 echo "── Build all apps"
-pnpm -r build
+# --workspace-concurrency=1 forces one workspace at a time. pnpm defaults to 4,
+# which fires tsc for core/db/api/worker alongside `next build` on 2 cores.
+pnpm -r --workspace-concurrency=1 build
 
 echo "── Restart API"
 pm2 delete "$PM2_API" 2>/dev/null || true

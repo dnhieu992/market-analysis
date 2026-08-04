@@ -73,8 +73,12 @@ pm2 restart market-web                 # after web changes
 2. `pnpm install --frozen-lockfile` — install deps
 3. `pnpm prisma:generate` — regenerate Prisma client
 4. `pnpm --filter @app/db exec prisma migrate deploy` — apply DB migrations
-5. `pnpm -r build` — build ALL packages in correct dependency order
-6. `pm2 restart` for each process: `market-api` (:3000), `market-worker`, `market-web` (:3001)
+5. `pnpm --filter worker test` — test gate; a red suite aborts the deploy
+6. `pm2 stop` the three apps — frees ~440MB so the build does not OOM
+7. `pnpm -r --workspace-concurrency=1 build` — build ALL packages in correct dependency order
+8. `pm2 delete` + `pm2 start` for each process: `market-api` (:3000), `market-worker`, `market-web` (:3001)
+
+**The build is memory-constrained.** This box is 2 vCPU / 3.8GB with **no swap**, and MySQL, Docker (`personal-kb` stack), a GitHub Actions runner, and the app in `/app` already hold ~2.1GB before a deploy starts. `next build` (29 pages + `next-pwa`) is the single largest consumer, so `deploy.sh` stops the pm2 apps first and pins `--workspace-concurrency=1` — pnpm's default of 4 fires `tsc` for core/db/api/worker alongside `next build` on two cores and triggers the OOM killer. Do not remove either guard without adding swap.
 
 **Manual builds must respect dependency order.** `@app/core` and `@app/db` are shared packages consumed by API and worker as compiled `dist/`. If you add a new export to `@app/core` and only run `pnpm --filter api build`, the runtime will throw "X is not a function" because API's dist still references the old core dist. Always build shared packages first, or use `pnpm -r build` to build everything in order.
 
