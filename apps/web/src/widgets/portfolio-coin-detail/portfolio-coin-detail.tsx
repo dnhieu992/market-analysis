@@ -7,6 +7,8 @@ import { CreateTransactionForm } from '@web/features/create-transaction/create-t
 import { createApiClient } from '@web/shared/api/client';
 import { formatCryptoPrice } from '@web/shared/lib/format';
 import type { CoinTransaction, Holding, Portfolio } from '@web/shared/api/types';
+import { ChartIcon } from '@web/widgets/bitget/chart-icon';
+import { SetupChartDialog } from '@web/widgets/bitget/setup-chart-dialog';
 import { CoinChatDrawer } from '@web/widgets/coin-chat-drawer/coin-chat-drawer';
 
 type PortfolioCoinDetailProps = Readonly<{
@@ -271,6 +273,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
   const [addOpen, setAddOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editTx, setEditTx] = useState<CoinTransaction | null>(null);
   const [page, setPage] = useState(1);
@@ -340,7 +343,18 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '0.75rem 0 0.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 600, color: 'var(--muted)' }}>{coinId}</h1>
+          <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 600, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {coinId}
+            <button
+              type="button"
+              className="bg-chart-icon-btn"
+              onClick={() => setChartOpen(true)}
+              title="Xem chart (SonicR + S/R Channel + RSI) — chọn khung M15/M30/H1/H4/D1 trong dialog"
+              aria-label={`Xem chart ${coinId}`}
+            >
+              <ChartIcon />
+            </button>
+          </h1>
           <div style={{ fontSize: '2rem', fontWeight: 700 }}>
             {currentPrice != null ? formatPrice(currentPrice) : <span style={{ color: 'var(--muted)', fontSize: '1.2rem' }}>Fetching price…</span>}
           </div>
@@ -586,6 +600,11 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           onClose={() => setEditTx(null)}
           onSaved={() => startTransition(() => { window.location.reload(); })}
         />
+      )}
+
+      {/* Chart dialog — same renderer/timeframes as the /bitget Setup tab */}
+      {chartOpen && (
+        <SetupChartDialog symbol={coinId} onClose={() => setChartOpen(false)} />
       )}
 
       {/* Transfer coin dialog */}
