@@ -99,64 +99,6 @@ export type UpdateDashboardOrderInput = {
   orderType?: 'market' | 'limit';
 };
 
-export type DailyAnalysis = {
-  aiOutput: DailyAnalysisPlan;
-  id: string;
-  symbol: string;
-  date: string;
-  status: 'TRADE_READY' | 'WAIT' | 'NO_TRADE' | 'PUBLISHED' | string;
-  d1Trend: 'bullish' | 'bearish' | 'neutral' | null;
-  h4Trend: 'bullish' | 'bearish' | 'neutral' | null;
-  d1S1: number | null;
-  d1S2: number | null;
-  d1R1: number | null;
-  d1R2: number | null;
-  h4S1: number | null;
-  h4S2: number | null;
-  h4R1: number | null;
-  h4R2: number | null;
-  llmProvider: string;
-  llmModel: string;
-  pipelineDebugJson: string | null;
-  summary: string;
-  feedbackScore: number | null;
-  feedbackNote: string | null;
-  createdAt: string;
-};
-
-export type TrackedSetupStatus =
-  | 'PENDING'
-  | 'ENTERED'
-  | 'TP1_HIT'
-  | 'TP2_HIT'
-  | 'SL_HIT'
-  | 'INVALID'
-  | 'EXPIRED'
-  | string;
-
-export type TrackedSetup = {
-  id: string;
-  dailyAnalysisId: string;
-  symbol: string;
-  planDate: string;
-  slot: 'primary' | 'secondary' | string;
-  direction: 'long' | 'short' | string;
-  entryLow: number;
-  entryHigh: number;
-  stopLoss: number;
-  takeProfit1: number | null;
-  takeProfit2: number | null;
-  status: TrackedSetupStatus;
-  enteredAt: string | null;
-  tp1HitAt: string | null;
-  tp2HitAt: string | null;
-  slHitAt: string | null;
-  closedAt: string | null;
-  invalidatedReason: string | null;
-  notes: string | null;
-  lastPrice: number | null;
-  lastCheckedAt: string | null;
-};
 
 export type TrackingSettings = {
   id: string;
@@ -403,7 +345,6 @@ export type ChatMessage = {
   createdAt: string;
 };
 
-import type { DailyAnalysisPlan } from '@app/core';
 
 export type OrderFilterParams = {
   symbol?: string;
@@ -424,7 +365,6 @@ export type PaginatedOrders = {
   openOrders: DashboardOrder[];
 };
 
-export type SmallCapStage = 'Breakout' | 'Trending' | 'Accumulating' | 'Waking' | 'Extended' | 'Oversold' | 'Quiet';
 
 export type PaTrend = 'StrongUp' | 'Up' | 'Neutral' | 'Down' | 'StrongDown';
 export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
@@ -931,124 +871,6 @@ export type OrderJournalNote = {
   snapshot: OrderJournalSnapshot | null;
   createdAt: string;
   updatedAt: string;
-};
-
-export type SmallCapCoinRow = {
-  id: string;
-  symbol: string;
-  name: string;
-  marketCap: number | null;
-  listingDate: string | null;
-  addedAt: string;
-  signal: {
-    rsi: number | null;
-    volMultiplier: number | null;
-    ema34Above: boolean;
-    ema89Above: boolean;
-    ema200Above: boolean;
-    stage: SmallCapStage;
-    signalScore: number;
-    extPct: number | null;
-    sparkline: number[];
-    trend: PaTrend;
-    swingStructure: SwingStructure;
-    scannedAt: string;
-  } | null;
-};
-
-export type SmallCapHistoryRow = {
-  id: string;
-  stage: SmallCapStage;
-  signalScore: number;
-  trend: PaTrend;
-  rsi: number | null;
-  volMultiplier: number | null;
-  extPct: number | null;
-  price: number | null;
-  scannedAt: string;
-};
-
-// ── Meme Radar ────────────────────────────────────────────────────────────────
-// Same shape/engine as Small Cap Radar; the universe is meme-token coins on Binance.
-export type MemeStage = SmallCapStage;
-export type MemeCoinRow = SmallCapCoinRow;
-export type MemeHistoryRow = SmallCapHistoryRow;
-
-// ── Pattern Scanner ─────────────────────────────────────────────────────────────
-export type PatternKind = 'double_bottom' | 'double_top' | 'head_shoulders' | 'inverse_head_shoulders';
-
-export type PatternWatchCoin = {
-  id: string;
-  symbol: string;
-  name: string;
-  addedAt: string;
-};
-
-export type PatternMatch = {
-  pattern: PatternKind;
-  direction: 'bullish' | 'bearish';
-  status: 'forming' | 'confirmed';
-  neckline: number;
-  target: number;
-  stop: number;
-  heightPct: number;
-  barsAgo: number;
-  pivots: { idx: number; price: number; role: string }[];
-};
-
-export type CoinIndicators = {
-  rsi: number;
-  ema34: number;
-  ema89: number;
-  ema200: number;
-};
-
-export type PatternSignalBreakdown = {
-  rsiBull: number;
-  rsiBear: number;
-  emaBull: number;
-  emaBear: number;
-  patternBull: number;
-  patternBear: number;
-};
-
-export type PatternSignal = {
-  bullPoints: number;
-  bearPoints: number;
-  bullPct: number;
-  bearPct: number;
-  breakdown: PatternSignalBreakdown;
-};
-
-export type PatternScanCoinResult = {
-  symbol: string;
-  name: string;
-  price: number;
-  /** OHLC series used for the scan (oldest → newest, parallel arrays); pivot `idx` indexes into these. Used to draw the pattern candlestick chart. */
-  opens: number[];
-  highs: number[];
-  lows: number[];
-  closes: number[];
-  matches: PatternMatch[];
-  indicators: CoinIndicators;
-  signal: PatternSignal;
-};
-
-export type PatternScanResult = {
-  scannedAt: string;
-  timeframe: string;
-  patterns: PatternKind[];
-  scanned: number;
-  failed: number;
-  coins: PatternScanCoinResult[];
-};
-
-export type PatternReferenceImage = {
-  id: string;
-  pattern: PatternKind;
-  imageUrl: string;
-  notes: string | null;
-  createdAt: string;
 };
 
 /** A daily trading-journal entry (one per calendar day). */

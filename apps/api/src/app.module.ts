@@ -9,7 +9,6 @@ import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { ChatModule } from './modules/chat/chat.module';
-import { DailyAnalysisModule } from './modules/daily-analysis/daily-analysis.module';
 import { HealthModule } from './modules/health/health.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -20,16 +19,12 @@ import { SignalsModule } from './modules/signals/signals.module';
 import { StrategiesModule } from './modules/strategies/strategies.module';
 import { TelegramLogsModule } from './modules/telegram-logs/telegram-logs.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
-import { SmallCapRadarModule } from './modules/small-cap-radar/small-cap-radar.module';
-import { MemeRadarModule } from './modules/meme-radar/meme-radar.module';
 import { TrackingCoinsModule } from './modules/tracking-coins/tracking-coins.module';
-import { TrackedSetupsModule } from './modules/tracked-setups/tracked-setups.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
-import { PatternScannerModule } from './modules/pattern-scanner/pattern-scanner.module';
 import { JournalModule } from './modules/journal/journal.module';
 
 @Module({
@@ -44,8 +39,6 @@ import { JournalModule } from './modules/journal/journal.module';
     OrdersModule,
     TelegramLogsModule,
     WorkerModule,
-    DailyAnalysisModule,
-    TrackedSetupsModule,
     SettingsModule,
     StrategiesModule,
     PortfolioModule,
@@ -56,12 +49,9 @@ import { JournalModule } from './modules/journal/journal.module';
     UploadModule,
     StorageModule,
     SkillsModule,
-    SmallCapRadarModule,
-    MemeRadarModule,
     TrackingCoinsModule,
     BitgetModule,
     MexcModule,
-    PatternScannerModule,
     JournalModule,
   ],
   providers: [

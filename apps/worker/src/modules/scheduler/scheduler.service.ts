@@ -6,10 +6,6 @@ import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.s
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
-import { SetupExtractionService } from '../setup-tracking/setup-extraction.service';
-import { SetupTrackingService } from '../setup-tracking/setup-tracking.service';
-import { SmallCapScanService } from '../small-cap-scan/small-cap-scan.service';
-import { MemeScanService } from '../meme-scan/meme-scan.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
@@ -25,10 +21,6 @@ export class SchedulerService {
     private readonly telegramService: TelegramService,
     private readonly swingSignalService: SwingSignalService,
     private readonly dailySignalService: DailySignalService,
-    private readonly smallCapScanService: SmallCapScanService,
-    private readonly memeScanService: MemeScanService,
-    private readonly setupExtractionService: SetupExtractionService,
-    private readonly setupTrackingService: SetupTrackingService,
     private readonly bitgetHistoryService: BitgetHistoryService,
     private readonly mexcHistoryService: MexcHistoryService,
     @Optional() config?: { trackedSymbols: string[] }
@@ -53,57 +45,11 @@ export class SchedulerService {
     await this.dailySignalService.checkAndSend();
   }
 
-  // Runs every day at 00:05 UTC — scan all small-cap watchlist coins
-  @Cron('5 0 * * *', { timeZone: 'UTC' })
-  async runSmallCapScan() {
-    this.logger.log('Running small-cap radar scan');
-    try {
-      await this.smallCapScanService.scanAll();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Small-cap scan failed: ${msg}`);
-    }
-  }
-
-  // Runs every day at 00:07 UTC — scan all meme-radar watchlist coins
-  @Cron('7 0 * * *', { timeZone: 'UTC' })
-  async runMemeScan() {
-    this.logger.log('Running meme radar scan');
-    try {
-      await this.memeScanService.scanAll();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Meme scan failed: ${msg}`);
-    }
-  }
+  // Small-cap radar (00:05 UTC) and meme radar (00:07 UTC) scans removed
+  // together with their pages (2026-08-04).
 
   // Tracking-coin signal scan removed (2026-07-26 refactor step 1) — the
   // indicator/scoring helpers stay in @app/core for the rebuilt flow.
-
-  // Runs every hour — advance open tracked setups (ENTERED / TP / SL)
-  @Cron('0 * * * *', { timeZone: 'UTC' })
-  async runSetupTracking() {
-    this.logger.log('Running tracked-setup hourly check');
-    try {
-      await this.setupTrackingService.trackOpenSetups();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Setup tracking failed: ${msg}`);
-    }
-  }
-
-  // Runs every day at 00:45 UTC (after the 00:30 plan generation) — expire stale
-  // setups and invalidate those whose premise no longer holds.
-  @Cron('45 0 * * *', { timeZone: 'UTC' })
-  async runSetupReview() {
-    this.logger.log('Running tracked-setup daily review');
-    try {
-      await this.setupTrackingService.reviewStaleSetups();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Setup review failed: ${msg}`);
-    }
-  }
 
   // Runs every 15 seconds — reconcile Bitget open positions + closed history into
   // the bitget_trades lifecycle table (open→closed) so the /bitget history tab +
@@ -186,9 +132,6 @@ export class SchedulerService {
           messageType: 'daily-plan'
         });
         this.logger.log(`sendAnalysisMessage result for ${symbol}: ${JSON.stringify(msgResult)}`);
-
-        // Extract trackable trade setups from the freshly-saved plan (non-fatal).
-        await this.setupExtractionService.extractForSymbol(symbol);
 
         this.logger.log(`Daily analysis sent for ${symbol}`);
       } catch (error) {

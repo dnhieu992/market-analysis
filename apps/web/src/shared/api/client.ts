@@ -8,7 +8,6 @@ import type {
   CreatePortfolioInput,
   CreateTransactionInput,
   CreateTradingStrategyInput,
-  DailyAnalysis,
   DashboardAnalysisRun,
   DashboardHealth,
   DashboardOrder,
@@ -23,7 +22,6 @@ import type {
   QueryTransactionsInput,
   RunBackTestInput,
   Skill,
-  TrackedSetup,
   TrackingSettings,
   TradingStrategy,
   UpdateDashboardOrderInput,
@@ -33,14 +31,6 @@ import type {
   UserProfile,
   Conversation,
   ChatMessage,
-  SmallCapCoinRow,
-  SmallCapHistoryRow,
-  MemeCoinRow,
-  MemeHistoryRow,
-  PatternKind,
-  PatternWatchCoin,
-  PatternScanResult,
-  PatternReferenceImage,
   TradingJournalEntry,
   TradingJournalRevision,
   TrackingCoinRow,
@@ -231,69 +221,6 @@ function mapAnalysisRun(row: JsonRecord): DashboardAnalysisRun {
   };
 }
 
-function mapDailyAnalysis(row: JsonRecord): DailyAnalysis {
-  const aiOutput =
-    row.aiOutput && typeof row.aiOutput === 'object' && row.aiOutput !== null
-      ? (row.aiOutput as DailyAnalysis['aiOutput'])
-      : row.aiOutputJson && typeof row.aiOutputJson === 'string'
-      ? (JSON.parse(row.aiOutputJson) as DailyAnalysis['aiOutput'])
-      : ({} as DailyAnalysis['aiOutput']);
-
-  return {
-    aiOutput,
-    id: String(row.id),
-    symbol: String(row.symbol),
-    date: String(row.date),
-    status: String(row.status ?? 'WAIT') as DailyAnalysis['status'],
-    d1Trend: row.d1Trend != null ? (String(row.d1Trend) as 'bullish' | 'bearish' | 'neutral') : null,
-    h4Trend: row.h4Trend != null ? (String(row.h4Trend) as 'bullish' | 'bearish' | 'neutral') : null,
-    d1S1: row.d1S1 != null ? Number(row.d1S1) : null,
-    d1S2: row.d1S2 != null ? Number(row.d1S2) : null,
-    d1R1: row.d1R1 != null ? Number(row.d1R1) : null,
-    d1R2: row.d1R2 != null ? Number(row.d1R2) : null,
-    h4S1: row.h4S1 != null ? Number(row.h4S1) : null,
-    h4S2: row.h4S2 != null ? Number(row.h4S2) : null,
-    h4R1: row.h4R1 != null ? Number(row.h4R1) : null,
-    h4R2: row.h4R2 != null ? Number(row.h4R2) : null,
-    llmProvider: String(row.llmProvider ?? ''),
-    llmModel: String(row.llmModel ?? ''),
-    pipelineDebugJson:
-      row.pipelineDebugJson == null ? null : String(row.pipelineDebugJson),
-    summary: String(row.summary ?? ''),
-    feedbackScore: row.feedbackScore == null ? null : Number(row.feedbackScore),
-    feedbackNote: row.feedbackNote == null ? null : String(row.feedbackNote),
-    createdAt: String(row.createdAt)
-  };
-}
-
-function mapTrackedSetup(row: JsonRecord): TrackedSetup {
-  const num = (v: unknown): number | null => (v == null ? null : Number(v));
-  const str = (v: unknown): string | null => (v == null ? null : String(v));
-  return {
-    id: String(row.id),
-    dailyAnalysisId: String(row.dailyAnalysisId),
-    symbol: String(row.symbol),
-    planDate: String(row.planDate),
-    slot: String(row.slot) as TrackedSetup['slot'],
-    direction: String(row.direction) as TrackedSetup['direction'],
-    entryLow: Number(row.entryLow),
-    entryHigh: Number(row.entryHigh),
-    stopLoss: Number(row.stopLoss),
-    takeProfit1: num(row.takeProfit1),
-    takeProfit2: num(row.takeProfit2),
-    status: String(row.status ?? 'PENDING') as TrackedSetup['status'],
-    enteredAt: str(row.enteredAt),
-    tp1HitAt: str(row.tp1HitAt),
-    tp2HitAt: str(row.tp2HitAt),
-    slHitAt: str(row.slHitAt),
-    closedAt: str(row.closedAt),
-    invalidatedReason: str(row.invalidatedReason),
-    notes: str(row.notes),
-    lastPrice: num(row.lastPrice),
-    lastCheckedAt: str(row.lastCheckedAt)
-  };
-}
-
 function mapSettings(row: JsonRecord): TrackingSettings {
   const symbols = Array.isArray(row.trackingSymbols)
     ? (row.trackingSymbols as unknown[]).map(String)
@@ -473,46 +400,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     async fetchHealth(): Promise<DashboardHealth> {
       return fetchJson<DashboardHealth>(fetchImpl, `${baseUrl}/health`, withDefaults());
-    },
-    async fetchDailyAnalysis(symbol?: string): Promise<DailyAnalysis[]> {
-      const url = symbol
-        ? `${baseUrl}/daily-analysis?symbol=${symbol}`
-        : `${baseUrl}/daily-analysis`;
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
-      return rows.map(mapDailyAnalysis);
-    },
-    async fetchTrackedSetups(symbol?: string): Promise<TrackedSetup[]> {
-      const url = symbol
-        ? `${baseUrl}/tracked-setups?symbol=${encodeURIComponent(symbol)}`
-        : `${baseUrl}/tracked-setups`;
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
-      return rows.map(mapTrackedSetup);
-    },
-    async fetchTrackedSetupsByPlans(ids: string[]): Promise<TrackedSetup[]> {
-      if (ids.length === 0) return [];
-      const url = `${baseUrl}/tracked-setups/by-plans?ids=${encodeURIComponent(ids.join(','))}`;
-      const rows = await fetchJson<JsonRecord[]>(fetchImpl, url, withDefaults());
-      return rows.map(mapTrackedSetup);
-    },
-    async updateTrackedSetupNotes(id: string, notes: string | null): Promise<TrackedSetup> {
-      const response = await fetchImpl(`${baseUrl}/tracked-setups/${id}/notes`, withDefaults({
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes })
-      }));
-      if (!response.ok) {
-        throw new Error(`Failed to update tracked setup notes: ${response.status}`);
-      }
-      return mapTrackedSetup((await response.json()) as JsonRecord);
-    },
-    async updateDailyAnalysisFeedback(id: string, score: number, note?: string): Promise<DailyAnalysis> {
-      const response = await fetchImpl(`${baseUrl}/daily-analysis/${id}/feedback`, withDefaults({
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ score, note })
-      }));
-      if (!response.ok) throw new Error(`Failed to update feedback: ${response.status}`);
-      return mapDailyAnalysis((await response.json()) as JsonRecord);
     },
     async createOrder(input: CreateDashboardOrderInput): Promise<DashboardOrder> {
       const response = await fetchImpl(`${baseUrl}/orders`, withDefaults({
@@ -870,95 +757,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return res.json() as Promise<ChatMessage>;
     },
 
-    async fetchSmallCapRadar(): Promise<SmallCapCoinRow[]> {
-      return fetchJson<SmallCapCoinRow[]>(fetchImpl, `${baseUrl}/small-cap-radar`, withDefaults());
-    },
-
-    async addSmallCapCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {
-      return fetchJson<{ id: string; symbol: string; name: string }>(
-        fetchImpl,
-        `${baseUrl}/small-cap-radar/coins`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, name }),
-        }),
-      );
-    },
-
-    async removeSmallCapCoin(symbol: string): Promise<void> {
-      await fetchImpl(`${baseUrl}/small-cap-radar/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    fetchSmallCapSignalHistory(symbol: string, limit = 100): Promise<SmallCapHistoryRow[]> {
-      return fetchJson<SmallCapHistoryRow[]>(
-        fetchImpl,
-        `${baseUrl}/small-cap-radar/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
-        withDefaults(),
-      );
-    },
-
-    async triggerSmallCapScan(): Promise<{ scanned: number; failed: number }> {
-      return fetchJson<{ scanned: number; failed: number }>(
-        fetchImpl,
-        `${baseUrl}/small-cap-radar/scan`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    // ── Pattern Scanner ──────────────────────────────────────────────
-    async fetchPatternCoins(): Promise<PatternWatchCoin[]> {
-      return fetchJson<PatternWatchCoin[]>(fetchImpl, `${baseUrl}/pattern-scanner/coins`, withDefaults());
-    },
-
-    async addPatternCoin(symbol: string, name?: string): Promise<PatternWatchCoin> {
-      return fetchJson<PatternWatchCoin>(
-        fetchImpl,
-        `${baseUrl}/pattern-scanner/coins`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, name }),
-        }),
-      );
-    },
-
-    async removePatternCoin(symbol: string): Promise<void> {
-      await fetchImpl(`${baseUrl}/pattern-scanner/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    async scanPatterns(patterns: PatternKind[], timeframe: string): Promise<PatternScanResult> {
-      return fetchJson<PatternScanResult>(
-        fetchImpl,
-        `${baseUrl}/pattern-scanner/scan`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ patterns, timeframe }),
-        }),
-      );
-    },
-
-    async fetchPatternReferences(pattern: PatternKind | string): Promise<PatternReferenceImage[]> {
-      return fetchJson<PatternReferenceImage[]>(fetchImpl, `${baseUrl}/pattern-scanner/references/${encodeURIComponent(pattern)}`, withDefaults());
-    },
-
-    async uploadPatternReference(pattern: PatternKind | string, file: File, notes?: string): Promise<PatternReferenceImage> {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('pattern', pattern);
-      if (notes) form.append('notes', notes);
-      return fetchJson<PatternReferenceImage>(
-        fetchImpl,
-        `${baseUrl}/pattern-scanner/references/upload`,
-        withDefaults({ method: 'POST', body: form }),
-      );
-    },
-
-    async removePatternReference(id: string): Promise<void> {
-      await fetchImpl(`${baseUrl}/pattern-scanner/references/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
-    },
-
     // ── Trading Journal ─────────────────────────────────────────
     async fetchJournalEntries(): Promise<TradingJournalEntry[]> {
       return fetchJson<TradingJournalEntry[]>(fetchImpl, `${baseUrl}/journal`, withDefaults());
@@ -999,42 +797,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
         }),
       );
       return res.content;
-    },
-
-    async fetchMemeRadar(): Promise<MemeCoinRow[]> {
-      return fetchJson<MemeCoinRow[]>(fetchImpl, `${baseUrl}/meme-radar`, withDefaults());
-    },
-
-    async addMemeCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {
-      return fetchJson<{ id: string; symbol: string; name: string }>(
-        fetchImpl,
-        `${baseUrl}/meme-radar/coins`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol, name }),
-        }),
-      );
-    },
-
-    async removeMemeCoin(symbol: string): Promise<void> {
-      await fetchImpl(`${baseUrl}/meme-radar/coins/${encodeURIComponent(symbol)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    fetchMemeSignalHistory(symbol: string, limit = 100): Promise<MemeHistoryRow[]> {
-      return fetchJson<MemeHistoryRow[]>(
-        fetchImpl,
-        `${baseUrl}/meme-radar/coins/${encodeURIComponent(symbol)}/signal-history?limit=${limit}`,
-        withDefaults(),
-      );
-    },
-
-    async triggerMemeScan(): Promise<{ scanned: number; failed: number }> {
-      return fetchJson<{ scanned: number; failed: number }>(
-        fetchImpl,
-        `${baseUrl}/meme-radar/scan`,
-        withDefaults({ method: 'POST' }),
-      );
     },
 
     async fetchTrackingCoins(): Promise<TrackingCoinRow[]> {

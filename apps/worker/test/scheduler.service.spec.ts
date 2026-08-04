@@ -18,13 +18,6 @@ describe('SchedulerService', () => {
     const dailySignalService = {
       checkAndSend: jest.fn().mockResolvedValue(undefined)
     };
-    const setupExtractionService = {
-      extractForSymbol: jest.fn().mockResolvedValue(0)
-    };
-    const setupTrackingService = {
-      trackOpenSetups: jest.fn().mockResolvedValue(undefined),
-      reviewStaleSetups: jest.fn().mockResolvedValue(undefined)
-    };
 
     return {
       service: new SchedulerService(
@@ -33,23 +26,18 @@ describe('SchedulerService', () => {
         telegramService as never,
         swingSignalService as never,
         dailySignalService as never,
-        { scanAll: jest.fn().mockResolvedValue({ scanned: 0, failed: 0 }) } as never,
-        { scanAll: jest.fn().mockResolvedValue({ scanned: 0, failed: 0 }) } as never,
-        setupExtractionService as never,
-        setupTrackingService as never,
         { sync: jest.fn().mockResolvedValue({ synced: 0, pages: 0 }) } as never,
         { sync: jest.fn().mockResolvedValue({ synced: 0, pages: 0 }) } as never,
         { trackedSymbols: ['BTCUSDT', 'ETHUSDT'] }
       ),
       visualAnalysisService,
       telegramService,
-      dailySignalService,
-      setupExtractionService
+      dailySignalService
     };
   }
 
-  it('generates and sends a daily plan per tracked symbol, then extracts setups', async () => {
-    const { service, visualAnalysisService, telegramService, dailySignalService, setupExtractionService } =
+  it('generates and sends a daily plan per tracked symbol', async () => {
+    const { service, visualAnalysisService, telegramService, dailySignalService } =
       createService();
 
     await service.sendDailySignals();
@@ -61,7 +49,6 @@ describe('SchedulerService', () => {
       content: 'Daily plan summary',
       messageType: 'daily-plan'
     });
-    expect(setupExtractionService.extractForSymbol).toHaveBeenCalledTimes(2);
     expect(dailySignalService.checkAndSend).toHaveBeenCalledTimes(1);
   });
 });

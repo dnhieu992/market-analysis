@@ -1,5 +1,7 @@
 /**
- * Chart-pattern detectors for the /pattern-scanner page.
+ * Chart-pattern detectors. The /pattern-scanner page that first used these was
+ * removed on 2026-08-04; the detectors stay because the back-test
+ * `chart-pattern` strategy still runs them.
  *
  * Pure functions over an OHLC series (oldest → newest). Each detector finds the most
  * RECENT qualifying formation and reports its key levels (neckline, measured-move target,

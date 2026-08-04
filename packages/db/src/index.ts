@@ -4,7 +4,6 @@ export { createOrderRepository } from './repositories/order.repository';
 export { createSignalRepository } from './repositories/signal.repository';
 export { createTelegramMessageLogRepository } from './repositories/telegram-message-log.repository';
 export { createDailyAnalysisRepository } from './repositories/daily-analysis.repository';
-export { createTrackedSetupRepository } from './repositories/tracked-setup.repository';
 export { createSettingsRepository } from './repositories/settings.repository';
 export { createUserRepository } from './repositories/user.repository';
 export { createSessionRepository } from './repositories/session.repository';
@@ -15,10 +14,7 @@ export { createCoinTransactionRepository } from './repositories/coin-transaction
 export { createHoldingRepository } from './repositories/holding.repository';
 export { createPnlHistoryRepository } from './repositories/pnl-history.repository';
 export { createConversationRepository } from './repositories/conversation.repository';
-export { createSmallCapRadarRepository } from './repositories/small-cap-radar.repository';
-export { createMemeRadarRepository } from './repositories/meme-radar.repository';
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
-export { createPatternScannerRepository } from './repositories/pattern-scanner.repository';
 export { createTradingJournalRepository } from './repositories/trading-journal.repository';
 export type { TradingJournalUpsert } from './repositories/trading-journal.repository';
 export { createBitgetTradeRepository } from './repositories/bitget-trade.repository';

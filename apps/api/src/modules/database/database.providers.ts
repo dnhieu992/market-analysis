@@ -3,8 +3,6 @@ import {
   createAnalysisRunRepository,
   createCoinTransactionRepository,
   createConversationRepository,
-  createDailyAnalysisRepository,
-  createTrackedSetupRepository,
   createHoldingRepository,
   createOrderRepository,
   createPnlHistoryRepository,
@@ -19,8 +17,6 @@ import {
 } from '@app/db';
 
 export const ANALYSIS_RUN_REPOSITORY = Symbol('ANALYSIS_RUN_REPOSITORY');
-export const DAILY_ANALYSIS_REPOSITORY = Symbol('DAILY_ANALYSIS_REPOSITORY');
-export const TRACKED_SETUP_REPOSITORY = Symbol('TRACKED_SETUP_REPOSITORY');
 export const SIGNAL_REPOSITORY = Symbol('SIGNAL_REPOSITORY');
 export const ORDER_REPOSITORY = Symbol('ORDER_REPOSITORY');
 export const TELEGRAM_LOG_REPOSITORY = Symbol('TELEGRAM_LOG_REPOSITORY');
@@ -41,14 +37,6 @@ export const DatabaseProviders: Provider[] = [
   {
     provide: ANALYSIS_RUN_REPOSITORY,
     useFactory: () => createAnalysisRunRepository()
-  },
-  {
-    provide: DAILY_ANALYSIS_REPOSITORY,
-    useFactory: () => createDailyAnalysisRepository()
-  },
-  {
-    provide: TRACKED_SETUP_REPOSITORY,
-    useFactory: () => createTrackedSetupRepository()
   },
   {
     provide: SIGNAL_REPOSITORY,

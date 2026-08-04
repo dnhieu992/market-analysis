@@ -12,7 +12,7 @@ describe('AppShell', () => {
 
     expect(markup).toContain('Overview');
     expect(markup).toContain('Trading History');
-    expect(markup).toContain('Daily Plan');
+    expect(markup).toContain('Portfolio');
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('Dashboard body');
   });

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The auto daily plan feature runs once per day and sends a multi-timeframe trading analysis for each tracked symbol to Telegram. It generates candlestick chart images for each active timeframe, sends them all to Claude Vision with a Vietnamese prompt, and delivers both the charts and the AI analysis text to the user. The result is also persisted to the database. Users can rate each plan (1–5 stars + note) for future LLM knowledge use.
+The auto daily plan feature runs once per day and sends a multi-timeframe trading analysis for each tracked symbol to Telegram. It generates candlestick chart images for each active timeframe, sends them all to Claude Vision with a Vietnamese prompt, and delivers both the charts and the AI analysis text to the user. The result is also persisted to the database (`DailyAnalysis`).
 
 ---
 
@@ -20,8 +20,7 @@ The auto daily plan feature runs once per day and sends a multi-timeframe tradin
 - The result is saved to the `DailyAnalysis` database table
 - If a record already exists for the same symbol + date, the DB save is skipped (dedup)
 - If the analysis fails for one symbol, the error is logged and the loop continues for the next symbol
-- **Before** producing today's plan for each symbol, the worker calls the LLM to **review the previous day's plan** against the actual price action that followed. The evaluation (bias correct?, entry/SL/TP hit?, what was right/wrong, lessons) is saved into the previous record's `feedbackNote`, prefixed with `🤖 Đánh giá tự động bởi AI` so the dashboard shows it is machine-generated. This step is fully non-fatal (failures are logged and swallowed) and never overwrites an existing note, so it cannot break the main analysis flow.
-- Users can submit feedback via the web dashboard; **both the score (1–5) and the note are optional** — either, both, or just one may be saved to `feedbackScore` / `feedbackNote` for future LLM training data. The note uses the shared TipTap markdown editor.
+- **Before** producing today's plan for each symbol, the worker calls the LLM to **review the previous day's plan** against the actual price action that followed. The evaluation (bias correct?, entry/SL/TP hit?, what was right/wrong, lessons) is saved into the previous record's `feedbackNote`, prefixed with `🤖 Đánh giá tự động bởi AI` to mark it machine-generated. This step is fully non-fatal (failures are logged and swallowed) and never overwrites an existing note, so it cannot break the main analysis flow.
 
 ---
 
@@ -159,32 +158,13 @@ Structural fields (`d1Trend`, `h4Trend`, `d1S1`…`h4R2`) are nullable and left 
 
 ## Web Dashboard Integration
 
-The `/daily-plan` page in the web app displays the results of the daily analysis for all tracked symbols.
+**Removed on 2026-08-04.** The `/daily-plan` page, the `daily-analysis` API module and
+the manual 1–5 star feedback UI were all deleted. The worker flow above is unchanged —
+plans are still generated daily, sent to Telegram and persisted to `DailyAnalysis` — but
+nothing reads them back over HTTP any more.
 
-### Requirements
-
-- The page fetches all `DailyAnalysis` records across all symbols (not limited to one symbol), ordered by date descending
-- Each record is displayed as a card showing:
-  - Symbol, date, and status badge (`PUBLISHED`, `WAIT`, `TRADE_READY`, etc.)
-  - AI analysis text (`summary` field) rendered in a scrollable pre-formatted block
-  - Trend badges (D1 / H4) and S/R level rows — only shown when the structural fields are non-null
-  - LLM model name in the card footer
-- Structural fields (`d1Trend`, `h4Trend`, `d1S1`…`h4R2`) are treated as optional — cards render correctly when they are null (as produced by this feature)
-
-### Affected Files
-
-| File | Change |
-|---|---|
-| `packages/db/src/repositories/daily-analysis.repository.ts` | Added `listAll(limit)` method to fetch records across all symbols |
-| `apps/api/src/modules/daily-analysis/daily-analysis.service.ts` | `list()` without a symbol argument calls `listAll()` instead of defaulting to BTCUSDT |
-| `apps/web/src/shared/api/types.ts` | Structural fields made `\| null`; `status` accepts `'PUBLISHED'` |
-| `apps/web/src/shared/api/client.ts` | `fetchDailyAnalysis()` without args omits the symbol query param; mapper is null-safe for all structural fields |
-| `apps/web/src/_pages/daily-plan-page/daily-plan-page.tsx` | Calls `fetchDailyAnalysis()` with no argument to fetch all symbols |
-| `apps/web/src/widgets/daily-plan-feed/daily-plan-feed.tsx` | Rebuilt to show AI analysis text prominently; structural sections rendered conditionally. Detail dialog now renders the full summary (no "Show more" toggle). Feedback score is optional/clearable and the note uses the shared `MarkdownEditor`. |
-| `apps/web/src/app/globals.css` | Added all daily plan card styles; field grid collapses to a single column at ≤640px so cards fit mobile width (no horizontal scroll) |
-| `apps/api/src/modules/daily-analysis/dto/update-feedback.dto.ts` | `score` made optional (`@IsOptional`) |
-| `apps/api/src/modules/daily-analysis/daily-analysis.service.ts` | `updateFeedback` accepts optional `score` |
-| `packages/db/src/repositories/daily-analysis.repository.ts` | `updateFeedback` writes `feedbackScore: score ?? null` |
+`feedbackNote` is still written by the automatic AI review step (see Requirements); only
+the user-submitted score/note path is gone.
 
 ---
 

@@ -53,16 +53,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
-    href: '/daily-plan',
-    label: 'Daily Plan',
-    description: 'BTC daily analysis'
-  },
-  {
-    href: '/tracked-setups',
-    label: 'Lệnh theo dõi',
-    description: 'Setup từ Daily Plan · trạng thái live'
-  },
-  {
     href: '/strategy',
     label: 'Strategies',
     description: 'Manage trading strategies'
@@ -71,21 +61,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/strategy-test',
     label: 'Strategy Lab',
     description: 'Back-test trading strategies'
-  },
-  {
-    href: '/small-cap-radar',
-    label: 'Small Cap Radar',
-    description: 'Daily signal scan for small-cap watchlist'
-  },
-  {
-    href: '/meme-radar',
-    label: 'Meme Radar',
-    description: 'Daily signal scan for Binance-listed meme coins'
-  },
-  {
-    href: '/pattern-scanner',
-    label: 'Pattern Scanner',
-    description: 'Quét mô hình giá: 2 đáy, 2 đỉnh, vai đầu vai'
   },
   {
     href: '/skills',
