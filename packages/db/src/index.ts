@@ -69,3 +69,12 @@ export type {
   OrderJournalInput,
   OrderJournalSnapshot,
 } from './repositories/order-journal.repository';
+export {
+  createAssetCategoryRepository,
+  createAssetTransactionRepository,
+} from './repositories/asset.repository';
+export type {
+  AssetCategoryInput,
+  AssetTransactionInput,
+  AssetCategoryBalance,
+} from './repositories/asset.repository';

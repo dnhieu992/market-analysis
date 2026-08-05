@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { AnalysisModule } from './modules/analysis/analysis.module';
+import { AssetModule } from './modules/asset/asset.module';
 import { BitgetModule } from './modules/bitget/bitget.module';
 import { MexcModule } from './modules/mexc/mexc.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
@@ -55,6 +56,7 @@ import { JournalModule } from './modules/journal/journal.module';
     BitgetModule,
     MexcModule,
     JournalModule,
+    AssetModule,
   ],
   providers: [
     {

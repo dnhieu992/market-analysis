@@ -926,3 +926,45 @@ export type SupertrendScanResult = {
   startedAt: string;
   durationMs: number;
 };
+
+// ── My Asset (/my-asset) ──────────────────────────────────────────────────────
+
+/** One bucket the trader's USDT is split into. `balanceUsdt` is derived from the ledger. */
+export type AssetCategory = {
+  id: string;
+  key: string;
+  label: string;
+  sortOrder: number;
+  balanceUsdt: number;
+};
+
+/** DEPOSIT = nạp lên sàn, WITHDRAW = rút khỏi sàn, TRANSFER = chuyển giữa 2 danh mục. */
+export type AssetTransactionType = 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER';
+
+export type AssetTransaction = {
+  id: string;
+  type: AssetTransactionType;
+  amountUsdt: number;
+  fromCategoryId: string | null;
+  toCategoryId: string | null;
+  note: string | null;
+  occurredAt: string;
+  createdAt: string;
+};
+
+export type AssetSummary = {
+  totalUsdt: number;
+  totalDepositedUsdt: number;
+  totalWithdrawnUsdt: number;
+  categories: AssetCategory[];
+  transactions: AssetTransaction[];
+};
+
+export type CreateAssetTransactionInput = {
+  type: AssetTransactionType;
+  amountUsdt: number;
+  fromCategoryId?: string;
+  toCategoryId?: string;
+  note?: string;
+  occurredAt?: string;
+};

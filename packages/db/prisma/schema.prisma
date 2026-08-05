@@ -803,3 +803,51 @@ model MexcTradeChart {
   @@index([symbol])
   @@map("mexc_trade_charts")
 }
+
+// ── My Asset (/my-asset) ──────────────────────────────────────────────────────
+// The trader's USDT capital split across named buckets. Seeded with spot,
+// trading, bitget, mexc and wallet, but the set is editable from the UI — a new
+// exchange or wallet is a new row, not a code change.
+model AssetCategory {
+  id        String   @id @default(cuid())
+  // Stable slug used by the UI and by any code that needs a specific bucket
+  // (e.g. "bitget"). Renaming the label never breaks those lookups.
+  key       String   @unique @db.VarChar(30)
+  label     String   @db.VarChar(60)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outgoing AssetTransaction[] @relation("AssetTransactionFrom")
+  incoming AssetTransaction[] @relation("AssetTransactionTo")
+
+  @@map("asset_categories")
+}
+
+// Append-only ledger of every USDT movement. Balances are NEVER stored — each
+// category's balance and the page total are summed from these rows, so the two
+// can never drift apart and any past state stays reconstructible.
+//
+//   DEPOSIT  — money onto the exchange:   toCategory set,   fromCategory null
+//   WITHDRAW — money off the exchange:    fromCategory set, toCategory null
+//   TRANSFER — between two buckets:       both set
+model AssetTransaction {
+  id             String   @id @default(cuid())
+  type           String   @db.VarChar(10) // DEPOSIT | WITHDRAW | TRANSFER
+  amountUsdt     Decimal  @db.Decimal(20, 8)
+  fromCategoryId String?
+  toCategoryId   String?
+  note           String?  @db.Text
+  occurredAt     DateTime
+  createdAt      DateTime @default(now())
+
+  // Restrict, not Cascade: deleting a category must never silently rewrite
+  // history and change the total. The API blocks the delete while rows exist.
+  fromCategory AssetCategory? @relation("AssetTransactionFrom", fields: [fromCategoryId], references: [id], onDelete: Restrict)
+  toCategory   AssetCategory? @relation("AssetTransactionTo", fields: [toCategoryId], references: [id], onDelete: Restrict)
+
+  @@index([occurredAt(sort: Desc)])
+  @@index([fromCategoryId])
+  @@index([toCategoryId])
+  @@map("asset_transactions")
+}

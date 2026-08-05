@@ -66,6 +66,10 @@ import type {
   MexcJournalSnapshot,
   OrderJournalNote,
   OrderJournalSnapshot,
+  AssetCategory,
+  AssetSummary,
+  AssetTransaction,
+  CreateAssetTransactionInput,
   BinanceKline,
   ImageRef,
   SupertrendScanResult,
@@ -152,6 +156,24 @@ async function fetchJson<T>(fetchImpl: FetchLike, url: string, init?: RequestIni
 
   if (!response.ok) {
     throw new Error(`Request failed for ${url}: ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+/**
+ * Like `fetchJson`, but rethrows the API's `message` on failure. The /asset
+ * endpoints reject with rules the trader wrote (empty amount, transfer into the
+ * same bucket, deleting a category that still has history) — those read far
+ * better in the dialog than "Request failed … 409".
+ */
+async function assetMutation<T>(fetchImpl: FetchLike, url: string, init?: RequestInit): Promise<T> {
+  const response = await fetchImpl(url, init);
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+    const message = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+    throw new Error(message ?? `Request failed for ${url}: ${response.status}`);
   }
 
   return (await response.json()) as T;
@@ -798,6 +820,61 @@ export function createApiClient(options: ApiClientOptions = {}) {
         }),
       );
       return res.content;
+    },
+
+    // ── My Asset ────────────────────────────────────────────────
+    // Mutations surface the API's own message: the asset rules it enforces
+    // ("danh mục còn giao dịch", "số tiền phải lớn hơn 0") are what the trader
+    // needs to read, not an HTTP status.
+    async fetchAssetSummary(): Promise<AssetSummary> {
+      return fetchJson<AssetSummary>(fetchImpl, `${baseUrl}/asset/summary`, withDefaults());
+    },
+
+    async createAssetTransaction(input: CreateAssetTransactionInput): Promise<AssetTransaction> {
+      return assetMutation<AssetTransaction>(fetchImpl, `${baseUrl}/asset/transactions`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      }));
+    },
+
+    async deleteAssetTransaction(id: string): Promise<void> {
+      await assetMutation<{ id: string }>(
+        fetchImpl,
+        `${baseUrl}/asset/transactions/${encodeURIComponent(id)}`,
+        withDefaults({ method: 'DELETE' }),
+      );
+    },
+
+    async createAssetCategory(input: { key: string; label: string }): Promise<AssetCategory> {
+      return assetMutation<AssetCategory>(fetchImpl, `${baseUrl}/asset/categories`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      }));
+    },
+
+    async updateAssetCategory(
+      id: string,
+      input: { label?: string; sortOrder?: number },
+    ): Promise<AssetCategory> {
+      return assetMutation<AssetCategory>(
+        fetchImpl,
+        `${baseUrl}/asset/categories/${encodeURIComponent(id)}`,
+        withDefaults({
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async deleteAssetCategory(id: string): Promise<void> {
+      await assetMutation<{ id: string }>(
+        fetchImpl,
+        `${baseUrl}/asset/categories/${encodeURIComponent(id)}`,
+        withDefaults({ method: 'DELETE' }),
+      );
     },
 
     async fetchTrackingCoins(): Promise<TrackingCoinRow[]> {

@@ -23,6 +23,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Dashboard summary'
   },
   {
+    href: '/my-asset',
+    label: 'My Asset',
+    description: 'Tổng vốn USDT & phân bổ theo danh mục · nạp / rút / chuyển'
+  },
+  {
     href: '/journal',
     label: 'Trading Journal',
     description: 'Nhật ký phân tích & cảm xúc hàng ngày + ảnh mô hình'

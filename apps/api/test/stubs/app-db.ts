@@ -232,3 +232,145 @@ export function createSessionRepository() {
     }
   };
 }
+
+// ── My Asset ──────────────────────────────────────────────────────────────────
+// A real in-memory ledger, not jest.fn()s: AssetService derives every balance
+// from these rows, so the maths is only worth testing against a store that
+// actually behaves like the table.
+
+type AssetCategoryRow = {
+  id: string;
+  key: string;
+  label: string;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type AssetTransactionRow = {
+  id: string;
+  type: string;
+  amountUsdt: number;
+  fromCategoryId: string | null;
+  toCategoryId: string | null;
+  note: string | null;
+  occurredAt: Date;
+  createdAt: Date;
+};
+
+const assetCategories: AssetCategoryRow[] = [];
+const assetTransactions: AssetTransactionRow[] = [];
+
+/** Reset the store between tests and optionally seed categories. */
+export function __seedAssetStore(categories: Array<{ id: string; key: string; label: string; sortOrder?: number }> = []) {
+  assetCategories.splice(0, assetCategories.length);
+  assetTransactions.splice(0, assetTransactions.length);
+  for (const c of categories) {
+    assetCategories.push({
+      id: c.id,
+      key: c.key,
+      label: c.label,
+      sortOrder: c.sortOrder ?? 0,
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+    });
+  }
+}
+
+export function __assetTransactions() {
+  return assetTransactions;
+}
+
+export function createAssetCategoryRepository() {
+  return {
+    async findAll() {
+      return [...assetCategories].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label),
+      );
+    },
+    async findById(id: string) {
+      return assetCategories.find((c) => c.id === id) ?? null;
+    },
+    async findByKey(key: string) {
+      return assetCategories.find((c) => c.key === key) ?? null;
+    },
+    async create({ key, label, sortOrder }: { key: string; label: string; sortOrder?: number }) {
+      const row: AssetCategoryRow = {
+        id: `cat-${assetCategories.length + 1}`,
+        key,
+        label,
+        sortOrder: sortOrder ?? 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      assetCategories.push(row);
+      return row;
+    },
+    async update(id: string, data: { label?: string; sortOrder?: number }) {
+      const row = assetCategories.find((c) => c.id === id);
+      if (!row) throw new Error(`no category ${id}`);
+      Object.assign(row, data, { updatedAt: new Date() });
+      return row;
+    },
+    async deleteById(id: string) {
+      const index = assetCategories.findIndex((c) => c.id === id);
+      if (index < 0) throw new Error(`no category ${id}`);
+      return assetCategories.splice(index, 1)[0];
+    },
+    async countTransactions(id: string) {
+      return assetTransactions.filter((t) => t.fromCategoryId === id || t.toCategoryId === id).length;
+    },
+  };
+}
+
+export function createAssetTransactionRepository() {
+  return {
+    async findAll(limit = 200) {
+      return [...assetTransactions]
+        .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
+        .slice(0, limit);
+    },
+    async create(input: {
+      type: string;
+      amountUsdt: number;
+      fromCategoryId?: string | null;
+      toCategoryId?: string | null;
+      note?: string | null;
+      occurredAt: Date;
+    }) {
+      const row: AssetTransactionRow = {
+        id: `tx-${assetTransactions.length + 1}`,
+        type: input.type,
+        amountUsdt: input.amountUsdt,
+        fromCategoryId: input.fromCategoryId ?? null,
+        toCategoryId: input.toCategoryId ?? null,
+        note: input.note ?? null,
+        occurredAt: input.occurredAt,
+        createdAt: new Date(),
+      };
+      assetTransactions.push(row);
+      return row;
+    },
+    async deleteById(id: string) {
+      const index = assetTransactions.findIndex((t) => t.id === id);
+      if (index < 0) throw new Error(`no transaction ${id}`);
+      return assetTransactions.splice(index, 1)[0];
+    },
+    async sumByType() {
+      const totals: Record<string, number> = {};
+      for (const t of assetTransactions) {
+        totals[t.type] = (totals[t.type] ?? 0) + t.amountUsdt;
+      }
+      return totals;
+    },
+    async sumBalances() {
+      const totals = new Map<string, number>();
+      for (const t of assetTransactions) {
+        if (t.toCategoryId) totals.set(t.toCategoryId, (totals.get(t.toCategoryId) ?? 0) + t.amountUsdt);
+        if (t.fromCategoryId)
+          totals.set(t.fromCategoryId, (totals.get(t.fromCategoryId) ?? 0) - t.amountUsdt);
+      }
+      return Array.from(totals, ([categoryId, balanceUsdt]) => ({ categoryId, balanceUsdt }));
+    },
+  };
+}
