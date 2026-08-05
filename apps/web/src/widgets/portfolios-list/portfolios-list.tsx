@@ -83,12 +83,33 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
   const [isPending, startTransition] = useTransition();
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const allCoinIds = [...new Set(Object.values(holdingsMap).flat().map((h) => h.coinId))];
     if (allCoinIds.length === 0) { setPricesLoaded(true); return; }
     fetchPrices(allCoinIds).then((p) => { setPrices(p); setPricesLoaded(true); });
   }, [holdingsMap]);
+
+  // Fires the Supertrend(10,3) D1 screener. The result only goes to Telegram —
+  // nothing is stored or rendered here beyond this status line.
+  async function handleScan() {
+    setScanning(true);
+    setScanMessage(null);
+    try {
+      const result = await createApiClient().runSupertrendScan();
+      setScanMessage(
+        result.telegramSent
+          ? `Đã gửi Telegram — ${result.bullish.length}/${result.scanned} coin bullish D1.`
+          : `Quét xong ${result.bullish.length}/${result.scanned} coin bullish, nhưng gửi Telegram thất bại.`
+      );
+    } catch {
+      setScanMessage('Scan thất bại — thử lại sau.');
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function handleConfirmDelete() {
     if (!deletePortfolioId) return;
@@ -110,9 +131,23 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
             <p>{portfolios.length === 0 ? 'No portfolios yet.' : `${portfolios.length} portfolio${portfolios.length === 1 ? '' : 's'}`}</p>
           </div>
           <div className="table-actions">
+            <button
+              className="btn btn--secondary"
+              onClick={handleScan}
+              disabled={scanning}
+              title="Quét Supertrend(10,3) D1 toàn bộ coin spot Binance và gửi list qua Telegram"
+            >
+              {scanning ? 'Scanning…' : 'Scan'}
+            </button>
             <button className="btn btn--primary" onClick={() => setCreateOpen(true)}>+ New Portfolio</button>
           </div>
         </div>
+
+        {(scanning || scanMessage) && (
+          <p className="tt-muted" style={{ margin: '0 0 0.75rem', fontSize: '0.85rem' }}>
+            {scanning ? 'Đang quét Supertrend D1 toàn sàn, mất khoảng 30–60 giây…' : scanMessage}
+          </p>
+        )}
 
         {portfolios.length > 0 && (
           <div className="tt-wrap tt-card-wrap">

@@ -915,3 +915,14 @@ export type ImageRef = {
   size?: number;
   type?: string;
 };
+
+/** Result of the manual Supertrend(10,3) D1 scan (POST /supertrend-scan/run). */
+export type SupertrendScanResult = {
+  scanned: number;
+  bullish: string[];
+  skipped: number;
+  failed: number;
+  telegramSent: boolean;
+  startedAt: string;
+  durationMs: number;
+};

@@ -68,6 +68,7 @@ import type {
   OrderJournalSnapshot,
   BinanceKline,
   ImageRef,
+  SupertrendScanResult,
 } from './types';
 
 
@@ -1561,6 +1562,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async deleteOrderJournal(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/orders/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    /** Scans every Binance USDT spot pair for a bullish D1 Supertrend and sends the list to Telegram. */
+    async runSupertrendScan(): Promise<SupertrendScanResult> {
+      return fetchJson<SupertrendScanResult>(
+        fetchImpl,
+        `${baseUrl}/supertrend-scan/run`,
+        withDefaults({ method: 'POST' }),
+      );
     },
   };
 }

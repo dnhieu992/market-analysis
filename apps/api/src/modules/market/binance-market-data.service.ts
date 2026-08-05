@@ -24,6 +24,15 @@ type BinanceKlineRangeParams = BinanceKlineParams & {
   endTime: number;
 };
 
+export type BinanceExchangeInfoSymbol = {
+  symbol: string;
+  status: string;
+  baseAsset: string;
+  quoteAsset: string;
+  isSpotTradingAllowed?: boolean;
+  permissions?: string[];
+};
+
 @Injectable()
 export class BinanceMarketDataService {
   private readonly client: AxiosInstance;
@@ -44,6 +53,16 @@ export class BinanceMarketDataService {
     });
 
     return response.data;
+  }
+
+  /** Every symbol Binance lists, with its trading status — ~2MB, weight 20. */
+  async fetchExchangeInfoSymbols(): Promise<BinanceExchangeInfoSymbol[]> {
+    const response = await this.client.get<{ symbols: BinanceExchangeInfoSymbol[] }>(
+      '/api/v3/exchangeInfo',
+      { timeout: 30_000 }
+    );
+
+    return response.data.symbols ?? [];
   }
 
   async fetchCurrentPrice(symbol: string): Promise<number> {

@@ -5,6 +5,14 @@ import type { AnalysisTimeframe } from '@app/config';
 import type { BinanceKlineDto } from './dto/binance-kline.dto';
 import { BinanceMarketDataService } from './binance-market-data.service';
 
+/** Bases that track the dollar (or a fiat) — excluded from trend scans. */
+const STABLE_BASE_ASSETS = new Set([
+  'USDC', 'FDUSD', 'TUSD', 'BUSD', 'DAI', 'USDP', 'USD1', 'PYUSD', 'USDE', 'USDS',
+  'FRAX', 'RLUSD', 'BFUSD', 'XUSD', 'VAI',
+  'EUR', 'EURI', 'AEUR', 'GBP', 'TRY', 'BRL', 'ARS', 'JPY', 'PLN', 'RON', 'ZAR',
+  'MXN', 'COP', 'CZK', 'UAH', 'NGN', 'IDRT', 'BIDR', 'RUB',
+]);
+
 @Injectable()
 export class MarketDataService {
   private readonly logger = new Logger(MarketDataService.name);
@@ -36,6 +44,25 @@ export class MarketDataService {
       `Failed to fetch market candles for ${symbol} after ${maxAttempts} attempts`,
       { cause: lastError instanceof Error ? lastError : undefined }
     );
+  }
+
+  /**
+   * Every actively trading USDT spot pair, minus stablecoin bases (USDCUSDT and
+   * friends) whose flat price makes any trend read meaningless.
+   */
+  async getSpotUsdtSymbols(): Promise<{ symbol: string; baseAsset: string }[]> {
+    const symbols = await this.binanceMarketDataService.fetchExchangeInfoSymbols();
+
+    return symbols
+      .filter((entry) => entry.status === 'TRADING')
+      .filter((entry) => entry.quoteAsset === 'USDT')
+      .filter((entry) =>
+        entry.permissions?.length
+          ? entry.permissions.includes('SPOT')
+          : entry.isSpotTradingAllowed !== false
+      )
+      .filter((entry) => !STABLE_BASE_ASSETS.has(entry.baseAsset))
+      .map((entry) => ({ symbol: entry.symbol, baseAsset: entry.baseAsset }));
   }
 
   async getCandlesInRange(
