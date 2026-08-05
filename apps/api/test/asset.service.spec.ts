@@ -9,6 +9,7 @@ import {
 const SPOT = 'cat-spot';
 const TRADING = 'cat-trading';
 const BITGET = 'cat-bitget';
+const WALLET = 'cat-wallet';
 
 async function deposit(service: AssetService, toCategoryId: string, amountUsdt: number) {
   return service.createTransaction({ type: 'DEPOSIT', amountUsdt, toCategoryId });
@@ -37,6 +38,7 @@ describe('AssetService', () => {
       { id: SPOT, key: 'spot', label: 'Spot', sortOrder: 1 },
       { id: TRADING, key: 'trading', label: 'Trading', sortOrder: 2 },
       { id: BITGET, key: 'bitget', label: 'Bitget', sortOrder: 3 },
+      { id: WALLET, key: 'wallet', label: 'Wallet', sortOrder: 5 },
     ]);
     service = build();
   });
@@ -45,7 +47,12 @@ describe('AssetService', () => {
     it('starts at zero with the seeded categories and no ledger', async () => {
       const summary = await service.getSummary();
       expect(summary.totalUsdt).toBe(0);
-      expect(summary.categories.map((c) => c.key)).toEqual(['spot', 'trading', 'bitget']);
+      expect(summary.categories.map((c) => c.key)).toEqual([
+        'spot',
+        'trading',
+        'bitget',
+        'wallet',
+      ]);
       expect(summary.categories.every((c) => c.balanceUsdt === 0)).toBe(true);
     });
 
@@ -152,10 +159,10 @@ describe('AssetService', () => {
   });
 
   describe('spot marked to market', () => {
-    it('adds unrealized profit to available and to the current value', async () => {
+    it('reports unrealized profit in current value but keeps it out of available', async () => {
       service = build({ BTCUSDT: 120 });
       await deposit(service, SPOT, 1000);
-      // 10 BTC bought for 1000 total, now worth 1200 → +200.
+      // 10 BTC bought for 1000 total, now worth 1200 → +200 on paper.
       __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 1000 }]);
 
       const { available, totalUsdt, currentValueUsdt } = await service.getSummary();
@@ -165,11 +172,11 @@ describe('AssetService', () => {
       expect(available.unrealizedSpotPnlUsdt).toBe(200);
       expect(totalUsdt).toBe(1000); // the ledger headline does not move with price
       expect(currentValueUsdt).toBe(1200);
-      // 1000 − 1000 spent + 200 profit
-      expect(available.availableUsdt).toBe(200);
+      // Paper profit cannot be deployed until the position is sold.
+      expect(available.availableUsdt).toBe(0);
     });
 
-    it('subtracts unrealized loss — the bug this replaced', async () => {
+    it('does not let an unrealized loss eat into spendable cash', async () => {
       service = build({ BTCUSDT: 80 });
       await deposit(service, SPOT, 1100);
       __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 1000 }]);
@@ -177,9 +184,8 @@ describe('AssetService', () => {
       const { available, currentValueUsdt } = await service.getSummary();
 
       expect(available.unrealizedSpotPnlUsdt).toBe(-200);
-      expect(currentValueUsdt).toBe(900);
-      // 1100 − 1000 spent − 200 loss. Subtracting cost alone would say 100.
-      expect(available.availableUsdt).toBe(-100);
+      expect(currentValueUsdt).toBe(900); // the loss shows here…
+      expect(available.availableUsdt).toBe(100); // …but 100 USDT is still in hand
     });
 
     it('values a coin with no price at cost and flags it', async () => {
@@ -253,7 +259,7 @@ describe('AssetService', () => {
       expect(available.availableUsdt).toBe(150);
     });
 
-    it('nets banked profit against an unrealized loss, matching /portfolio', async () => {
+    it('nets both halves for the PnL headline but banks only the realized half', async () => {
       service = build({ BTCUSDT: 90 });
       await deposit(service, SPOT, 1200);
       // Cost 1000, now worth 900 → −100 unrealized; +150 already booked.
@@ -263,10 +269,10 @@ describe('AssetService', () => {
       const { available, currentValueUsdt } = await service.getSummary();
 
       expect(available.unrealizedSpotPnlUsdt).toBe(-100);
-      expect(available.totalSpotPnlUsdt).toBe(50); // in profit overall
+      expect(available.totalSpotPnlUsdt).toBe(50); // in profit overall — the /portfolio figure
       expect(currentValueUsdt).toBe(1250);
-      // 1200 − 1000 spent + 50 net profit
-      expect(available.availableUsdt).toBe(250);
+      // 1200 − 1000 spent + 150 banked. The −100 is on paper, so it stays out.
+      expect(available.availableUsdt).toBe(350);
     });
 
     it('counts profit from coins sold out entirely', async () => {
@@ -292,6 +298,45 @@ describe('AssetService', () => {
 
       expect(available.totalSpotPnlUsdt).toBe(-80);
       expect(available.availableUsdt).toBe(420);
+    });
+  });
+
+  describe('cash buckets', () => {
+    it('adds the wallet balance to available in full', async () => {
+      await deposit(service, SPOT, 1000);
+      await deposit(service, WALLET, 250);
+      __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 800 }]);
+
+      const { available } = await service.getSummary();
+
+      expect(available.spotAllocationUsdt).toBe(1000);
+      expect(available.liquid.map((c) => c.key)).toEqual(['wallet']);
+      // (1000 spot − 800 in coins) + 250 wallet
+      expect(available.availableUsdt).toBe(450);
+    });
+
+    it('treats a newly added bucket as spendable cash, not as deployed', async () => {
+      await deposit(service, SPOT, 100);
+      const binance = await service.createCategory({ key: 'binance', label: 'Binance' });
+      await deposit(service, binance.id, 500);
+
+      const { available } = await service.getSummary();
+
+      expect(available.liquid.map((c) => c.key).sort()).toEqual(['binance', 'wallet']);
+      expect(available.availableUsdt).toBe(600);
+    });
+
+    it('keeps trading/bitget/mexc out of the cash list', async () => {
+      await deposit(service, SPOT, 400);
+      await deposit(service, TRADING, 300);
+      await deposit(service, BITGET, 200);
+      await deposit(service, WALLET, 50);
+
+      const { available } = await service.getSummary();
+
+      expect(available.liquid.map((c) => c.key)).toEqual(['wallet']);
+      expect(available.deployed.map((c) => c.key)).toEqual(['trading', 'bitget']);
+      expect(available.availableUsdt).toBe(450); // 400 spot + 50 wallet
     });
   });
 
@@ -349,7 +394,7 @@ describe('AssetService', () => {
     it('slug-checks the key and appends the new bucket last', async () => {
       const created = await service.createCategory({ key: 'Binance', label: 'Binance' });
       expect(created.key).toBe('binance');
-      expect(created.sortOrder).toBe(4); // highest existing sortOrder (3) + 1
+      expect(created.sortOrder).toBe(6); // highest existing sortOrder (5) + 1
       expect(created.balanceUsdt).toBe(0);
     });
 
@@ -381,7 +426,7 @@ describe('AssetService', () => {
     it('deletes a category once its ledger is clear', async () => {
       await service.deleteCategory(BITGET);
       const summary = await service.getSummary();
-      expect(summary.categories.map((c) => c.key)).toEqual(['spot', 'trading']);
+      expect(summary.categories.map((c) => c.key)).toEqual(['spot', 'trading', 'wallet']);
     });
   });
 });

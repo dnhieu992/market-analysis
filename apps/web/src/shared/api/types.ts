@@ -970,6 +970,10 @@ export type AssetAvailable = {
   totalSpotPnlUsdt: number;
   /** At least one held coin had no price and was valued at cost. */
   pricedPartially: boolean;
+  /** Balance of the spot bucket itself. */
+  spotAllocationUsdt: number;
+  /** Cash buckets — wallet and any custom bucket — counted toward available in full. */
+  liquid: AssetDeployed[];
   deployed: AssetDeployed[];
 };
 

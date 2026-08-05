@@ -53,6 +53,13 @@ export type AssetDeployedDto = {
  * page can show the arithmetic rather than an unexplained number.
  */
 export type AssetAvailableDto = {
+  /**
+   * Spendable USDT: the ledger minus what is tied up, plus profit already sold
+   * into cash. Unrealized PnL is deliberately NOT subtracted — paper gains and
+   * losses cannot be deployed until the position is closed, and letting them in
+   * would make this number twitch with every price tick while the actual cash
+   * balance sat still. Mark-to-market lives in `currentValueUsdt` instead.
+   */
   availableUsdt: number;
   /** Cost basis of coins still held on spot — money spent, not sitting idle. */
   spentOnSpotUsdt: number;
@@ -75,6 +82,14 @@ export type AssetAvailableDto = {
    * than presenting a partial number as complete.
    */
   pricedPartially: boolean;
+  /** Balance of the `spot` bucket itself — the allocation coins are bought from. */
+  spotAllocationUsdt: number;
+  /**
+   * Buckets that are neither spot nor deployed — `wallet` plus any bucket the
+   * trader adds later. Their balances are plain cash and count toward available
+   * in full, so a new category is spendable by default rather than invisible.
+   */
+  liquid: AssetDeployedDto[];
   /** The `trading` / `bitget` / `mexc` buckets, each already committed. */
   deployed: AssetDeployedDto[];
 };
@@ -91,6 +106,12 @@ export type AssetSummaryDto = {
   transactions: AssetTransactionDto[];
 };
 
+/** The spot-book terms of the breakdown — everything `valueSpot()` works out. */
+type AssetSpotValuation = Omit<
+  AssetAvailableDto,
+  'availableUsdt' | 'deployed' | 'liquid' | 'spotAllocationUsdt'
+>;
+
 /** Held coins that are USDT by definition — Binance lists no `<stable>USDT` pair for them. */
 const STABLE_COINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'FDUSD']);
 
@@ -106,6 +127,9 @@ const PRICE_CACHE_MS = 30_000;
  * were actually bought, which `spentOnSpotUsdt` measures directly.
  */
 const DEPLOYED_KEYS = ['trading', 'bitget', 'mexc'] as const;
+
+/** The bucket coins are bought from; handled by cost basis rather than in full. */
+const SPOT_KEY = 'spot';
 
 /** A slug the UI and future code can rely on: lowercase, digits, dash/underscore. */
 const KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
@@ -151,21 +175,35 @@ export class AssetService {
         ? [{ key: category.key, label: category.label, balanceUsdt: category.balanceUsdt }]
         : [];
     });
-    const deployedTotal = deployed.reduce((sum, d) => sum + d.balanceUsdt, 0);
 
-    // available = total − what was spent on spot + everything spot has earned
-    // (banked and on paper) − everything allocated elsewhere. Subtracting cost
-    // alone would call a halved position fully funded and would ignore profit
-    // already sold into USDT, which the manual ledger never records.
+    // Everything that is neither spot nor deployed is plain cash — wallet today,
+    // and whatever the trader adds tomorrow.
+    const deployedKeys = new Set<string>([...DEPLOYED_KEYS, SPOT_KEY]);
+    const liquid: AssetDeployedDto[] = categoryDtos
+      .filter((c) => !deployedKeys.has(c.key))
+      .map((c) => ({ key: c.key, label: c.label, balanceUsdt: c.balanceUsdt }));
+
+    const spotAllocationUsdt = categoryDtos.find((c) => c.key === SPOT_KEY)?.balanceUsdt ?? 0;
+
+    // available = the spot allocation not yet converted into coins, plus profit
+    // already banked, plus every cash bucket. Only the REALIZED half of the spot
+    // PnL belongs here — it is real USDT the ledger never recorded. Unrealized
+    // PnL is reported (in `currentValueUsdt`) but cannot be spent, so it is out.
+    //
+    // Algebraically identical to `total − spentOnSpot + realized − deployed`;
+    // written this way so the page can show each contributing bucket by name.
     const availableUsdt =
-      totalUsdt - spot.spentOnSpotUsdt + spot.totalSpotPnlUsdt - deployedTotal;
+      spotAllocationUsdt -
+      spot.spentOnSpotUsdt +
+      spot.realizedSpotPnlUsdt +
+      liquid.reduce((sum, c) => sum + c.balanceUsdt, 0);
 
     return {
       totalUsdt,
       totalDepositedUsdt: byType.DEPOSIT ?? 0,
       totalWithdrawnUsdt: byType.WITHDRAW ?? 0,
       currentValueUsdt: totalUsdt + spot.totalSpotPnlUsdt,
-      available: { availableUsdt, ...spot, deployed },
+      available: { availableUsdt, ...spot, spotAllocationUsdt, liquid, deployed },
       categories: categoryDtos,
       transactions: transactions.map(toTransactionDto),
     };
@@ -177,7 +215,7 @@ export class AssetService {
    * yields zeros, a failed price call values everything at cost, and a single
    * unlisted coin is valued at its own cost and flagged via `pricedPartially`.
    */
-  private async valueSpot(): Promise<Omit<AssetAvailableDto, 'availableUsdt' | 'deployed'>> {
+  private async valueSpot(): Promise<AssetSpotValuation> {
     const [positions, realizedSpotPnlUsdt] = await Promise.all([
       this.holdings.sumByCoin().catch((err) => {
         this.logger.warn(`Failed to read spot holdings: ${(err as Error).message}`);

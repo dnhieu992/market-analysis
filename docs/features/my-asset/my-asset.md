@@ -27,26 +27,35 @@ on the next fetch — no code edit, no restart.
 The page also answers **"how much can I still deploy?"**:
 
 ```
-available = total − spent buying spot + spot PnL (realized + unrealized)
-            − trading − bitget − mexc
+available = (spot allocation − cost of coins held + realized spot PnL)
+          + every cash bucket (wallet, and anything added later)
 ```
+
+Algebraically the same as `total − spent on spot + realized − trading − bitget − mexc`, but built
+up from the buckets that hold cash rather than subtracted down from the total — so **wallet and
+any bucket the trader adds appear on the page by name** instead of being buried inside a
+subtraction. A new category is spendable by default: only `trading`, `bitget` and `mexc` are
+treated as committed.
 
 `spent buying spot` is the cost basis of coins still held (`Holding.totalCost` summed across
 portfolios), not the spot bucket's allocation — money sitting unspent in that bucket is still
 available.
 
-**Both halves of the spot PnL are required**, and each fixes a different way the number lies:
+**Available is spendable cash, so only the realized half of the spot PnL enters it.** Realized PnL
+is the same all-time figure `/portfolio-pnl` shows, summed from `Holding.realizedPnl` across
+**all** rows including coins sold out to a zero balance (those rows are most of the total). That
+is real USDT sitting in the spot account which the manual ledger never recorded, so omitting it
+understates a book that has been trading profitably.
 
-- **Unrealized** (`market value − cost`, at Binance last price). Without it, a position that has
-  halved is still reported as fully funded.
-- **Realized** — the same all-time figure `/portfolio-pnl` shows, summed from `Holding.realizedPnl`
-  across **all** rows including coins sold out to a zero balance (those rows are most of the
-  total). This is real USDT sitting in the spot account that the manual ledger never recorded, so
-  omitting it understates a book that has been trading profitably.
+**Unrealized PnL is reported but never subtracted from available.** Paper gains and losses cannot
+be deployed until the position is closed; netting them in would make available twitch with every
+price tick while the actual cash balance sat still. It surfaces in two places instead: the hero's
+`currentValueUsdt` (mark-to-market) and a hint line under the available figure.
 
-Their sum is what `/portfolio` calls a holding's all-time profit. Measured on real data during
-development: unrealized −90.98 but realized +145.80, so the spot book was **+54.83 overall** while
-an unrealized-only calculation showed a loss.
+The two halves summed — `totalSpotPnlUsdt` — is what `/portfolio` calls a holding's all-time
+profit, and it drives the hero's PnL display. Measured on live data during development: unrealized
+−92.14, realized +145.80, so the spot book was **+53.67 overall** while available (cash) stood at
+**284.22**.
 
 The breakdown is rendered line by line beside the number, because an "available" figure the trader
 cannot reconcile is one they will not trust.
@@ -61,13 +70,14 @@ drift with the market. Mark-to-market appears next to it as `currentValueUsdt`
    - `totalUsdt` — the sum of every category balance,
    - `totalDepositedUsdt` / `totalWithdrawnUsdt` — lifetime totals, summed in SQL,
    - `currentValueUsdt` — the ledger total marked to market,
-   - `available` — `availableUsdt` plus every term it was derived from: `spentOnSpotUsdt`,
-     `spotMarketValueUsdt`, `unrealizedSpotPnlUsdt`, `realizedSpotPnlUsdt`, `totalSpotPnlUsdt`,
-     `pricedPartially` and `deployed[]`,
+   - `available` — `availableUsdt` plus every term it was derived from: `spotAllocationUsdt`,
+     `spentOnSpotUsdt`, `spotMarketValueUsdt`, `unrealizedSpotPnlUsdt`, `realizedSpotPnlUsdt`,
+     `totalSpotPnlUsdt`, `pricedPartially`, `liquid[]` (cash buckets) and `deployed[]`,
    - `categories` — each with its derived `balanceUsdt`,
    - `transactions` — the 200 most recent ledger rows.
-2. The page renders the total tile with **Nạp / Rút / Chuyển**, the **USDT khả dụng** tile with its
-   breakdown, an allocation **donut chart + legend**, and the ledger table.
+2. The page renders the total tile with **Nạp / Rút / Chuyển** and the mark-to-market line, the
+   **USDT khả dụng** tile with its breakdown (and an unrealized-PnL hint), an allocation
+   **donut chart + legend**, and the ledger table.
 3. The trader picks an action. The dialog asks only for what that type needs: amount, the one or
    two categories involved, a date (defaults to today) and an optional note.
 4. `POST /asset/transactions` validates the shape for the type, then appends one row.
@@ -106,9 +116,16 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 - **Every balance zero** — the donut renders nothing and shows "Chưa có số dư nào để phân bổ."
 - **Negative available** — shown in red rather than clamped. It means more is committed than the
   ledger records (e.g. spot was bought with money never entered), and hiding that would hide a
-  bookkeeping error.
+  bookkeeping error. A large unrealized loss can no longer cause this on its own.
+- **Deep unrealized loss** — available is unchanged; only `currentValueUsdt` and the hint line
+  move. The cash is still there until the position is sold.
 - **A deployed bucket was deleted** — it simply drops out of the `deployed[]` list and stops being
   subtracted; the number stays computable.
+- **A brand-new bucket** — lands in `liquid[]` and counts as available in full. Treating unknown
+  buckets as committed would silently hide money the trader just recorded.
+- **The `spot` bucket was deleted** — `spotAllocationUsdt` is 0 while the cost of held coins is
+  still subtracted, so available goes negative. That is the honest reading: coins are held against
+  an allocation that no longer exists on the books.
 - **Holdings table unreadable** — the spot terms fall back to 0 rather than failing the summary.
 - **Binance price call fails** — every coin is valued at its own cost, so unrealized PnL is 0 and
   available degrades to the cost-basis behaviour instead of erroring. `pricedPartially` goes true

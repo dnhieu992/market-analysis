@@ -118,34 +118,39 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
           <p className={`ma-available-value${available.availableUsdt < 0 ? ' is-negative' : ''}`}>
             {formatUsdt(available.availableUsdt)}
           </p>
+          <p className="ma-hint">
+            Tiền mặt thật — chưa tính lãi/lỗ chưa chốt{' '}
+            <span className={available.unrealizedSpotPnlUsdt < 0 ? 'ma-pnl is-negative' : 'ma-pnl'}>
+              ({available.unrealizedSpotPnlUsdt >= 0 ? '+' : ''}
+              {formatUsdt(available.unrealizedSpotPnlUsdt)})
+            </span>
+          </p>
         </div>
+        {/* Built up from the buckets that actually hold cash, rather than the total
+            minus everything else — so wallet and any bucket added later appear by
+            name instead of being buried inside a subtraction. */}
         <ul className="ma-available-breakdown">
           <li>
-            <span>Tổng tài sản</span>
-            <span className="ma-num">{formatUsdt(totalUsdt)}</span>
+            <span>Spot được cấp</span>
+            <span className="ma-num">{formatUsdt(available.spotAllocationUsdt)}</span>
           </li>
           <li>
-            <span>− Đã mua spot</span>
+            <span>− Vốn coin đang giữ</span>
             <span className="ma-num">{formatUsdt(available.spentOnSpotUsdt)}</span>
           </li>
+          {/* Only the banked half. Unrealized PnL is real information but it is
+              not spendable, so it is reported in the hero rather than netted off
+              a number that answers "how much can I put into a trade now?". */}
           <li>
-            <span>{available.unrealizedSpotPnlUsdt >= 0 ? '+' : '−'} Lãi/lỗ spot chưa chốt</span>
-            <span
-              className={`ma-num${available.unrealizedSpotPnlUsdt < 0 ? ' is-negative' : ''}`}
-            >
-              {formatUsdt(Math.abs(available.unrealizedSpotPnlUsdt))}
-            </span>
-          </li>
-          <li>
-            <span>{available.realizedSpotPnlUsdt >= 0 ? '+' : '−'} Lãi/lỗ spot đã chốt</span>
+            <span>{available.realizedSpotPnlUsdt >= 0 ? '+' : '−'} Lãi spot đã chốt</span>
             <span className={`ma-num${available.realizedSpotPnlUsdt < 0 ? ' is-negative' : ''}`}>
               {formatUsdt(Math.abs(available.realizedSpotPnlUsdt))}
             </span>
           </li>
-          {available.deployed.map((d) => (
-            <li key={d.key}>
-              <span>− Phân bổ {d.label}</span>
-              <span className="ma-num">{formatUsdt(d.balanceUsdt)}</span>
+          {available.liquid.map((c) => (
+            <li key={c.key}>
+              <span>+ {c.label}</span>
+              <span className="ma-num">{formatUsdt(c.balanceUsdt)}</span>
             </li>
           ))}
         </ul>
