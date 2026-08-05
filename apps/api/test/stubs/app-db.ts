@@ -258,6 +258,21 @@ type AssetTransactionRow = {
   createdAt: Date;
 };
 
+let spotCostBasis = 0;
+
+/** Cost basis of coins held on spot, as AssetService reads it via @app/db. */
+export function __setSpotCostBasis(value: number) {
+  spotCostBasis = value;
+}
+
+export function createHoldingRepository() {
+  return {
+    async sumTotalCost() {
+      return spotCostBasis;
+    },
+  };
+}
+
 const assetCategories: AssetCategoryRow[] = [];
 const assetTransactions: AssetTransactionRow[] = [];
 
@@ -265,6 +280,7 @@ const assetTransactions: AssetTransactionRow[] = [];
 export function __seedAssetStore(categories: Array<{ id: string; key: string; label: string; sortOrder?: number }> = []) {
   assetCategories.splice(0, assetCategories.length);
   assetTransactions.splice(0, assetTransactions.length);
+  spotCostBasis = 0;
   for (const c of categories) {
     assetCategories.push({
       id: c.id,

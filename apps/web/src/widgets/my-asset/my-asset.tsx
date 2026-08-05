@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { AssetSummary, AssetTransactionType } from '@web/shared/api/types';
 
+import { AllocationPie } from './allocation-pie';
 import { AssetTransactionDialog } from './asset-transaction-dialog';
 import { AddCategoryDialog } from './add-category-dialog';
 
@@ -64,7 +65,7 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
     }
   }
 
-  const { totalUsdt, totalDepositedUsdt, totalWithdrawnUsdt } = summary;
+  const { totalUsdt, totalDepositedUsdt, totalWithdrawnUsdt, available } = summary;
   // Everything the trader put in that is still on the books, minus what came back out.
   const netFlow = totalDepositedUsdt - totalWithdrawnUsdt;
 
@@ -92,6 +93,33 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
         </div>
       </section>
 
+      {/* The arithmetic is spelled out rather than just its result — an "available"
+          number the trader can't reconcile is one they won't trust. */}
+      <section className="panel ma-panel ma-available">
+        <div>
+          <p className="metric-label">USDT khả dụng</p>
+          <p className={`ma-available-value${available.availableUsdt < 0 ? ' is-negative' : ''}`}>
+            {formatUsdt(available.availableUsdt)}
+          </p>
+        </div>
+        <ul className="ma-available-breakdown">
+          <li>
+            <span>Tổng tài sản</span>
+            <span className="ma-num">{formatUsdt(totalUsdt)}</span>
+          </li>
+          <li>
+            <span>− Đã mua spot</span>
+            <span className="ma-num">{formatUsdt(available.spentOnSpotUsdt)}</span>
+          </li>
+          {available.deployed.map((d) => (
+            <li key={d.key}>
+              <span>− Phân bổ {d.label}</span>
+              <span className="ma-num">{formatUsdt(d.balanceUsdt)}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {error ? <p className="ma-error">{error}</p> : null}
 
       <section className="panel ma-panel">
@@ -109,23 +137,7 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
         {summary.categories.length === 0 ? (
           <p className="ma-empty">Chưa có danh mục nào.</p>
         ) : (
-          <div className="ma-category-grid">
-            {summary.categories.map((category) => {
-              const share = totalUsdt > 0 ? (category.balanceUsdt / totalUsdt) * 100 : 0;
-              return (
-                <article key={category.id} className="ma-category-card">
-                  <p className="ma-category-label">{category.label}</p>
-                  <p className="ma-category-value">{formatUsdt(category.balanceUsdt)}</p>
-                  <div className="ma-category-bar">
-                    {/* A bucket can go negative if the trader logs a withdrawal it never
-                        funded — clamp the bar so it never renders backwards. */}
-                    <span style={{ width: `${Math.max(0, Math.min(100, share))}%` }} />
-                  </div>
-                  <p className="ma-category-share">{share.toFixed(1)}% tổng tài sản</p>
-                </article>
-              );
-            })}
-          </div>
+          <AllocationPie categories={summary.categories} />
         )}
       </section>
 

@@ -5,7 +5,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 
 **Force-close:** mỗi dòng có nút **Đóng** để đóng vị thế theo **giá market** ngay (reduce-only) qua `POST /bitget/positions/close` — dùng `BitgetTradeClient.closePosition()` (client Bitget dùng chung, đặt tại chính module `bitget`). Có xác nhận trước khi đóng; nếu sàn đã flat thì trả 409.
 
-**Số dư tài khoản:** tile **Số dư tài khoản** (equity = số dư ví + PnL chưa thực hiện) lấy từ `GET /api/v2/mix/account/accounts` (marginCoin USDT). Ngay dưới con số là **% thay đổi so với vốn gốc** — `(equity − vốn gốc) ÷ vốn gốc × 100`, xanh/đỏ theo dấu, kèm chú thích "so với vốn $X". Vốn gốc là hằng số `INITIAL_CAPITAL_USD` trong `BitgetService` (mặc định **$100**, override bằng env `BITGET_INITIAL_CAPITAL_USD`) — **phải cập nhật khi nạp thêm vốn**, nếu không % sẽ vô nghĩa. Fetch song song với positions, non-fatal (lỗi → `null` → hiển thị "—", không làm trắng bảng). Tile **PnL chưa thực hiện** hiện **% dựa trên số dư tài khoản** (`totalUnrealizedPnlUsd ÷ accountEquity`) khi ẩn value, và số USD khi hiện value.
+**Số dư tài khoản:** tile **Số dư tài khoản** (equity = số dư ví + PnL chưa thực hiện) lấy từ `GET /api/v2/mix/account/accounts` (marginCoin USDT). Ngay dưới con số là **% thay đổi so với vốn gốc** — `(equity − vốn gốc) ÷ vốn gốc × 100`, xanh/đỏ theo dấu, kèm chú thích "so với vốn $X". Vốn gốc lấy từ **số dư danh mục `bitget` trên [/my-asset](../my-asset/my-asset.md)** — tổng mọi khoản vào trừ mọi khoản ra của bucket đó, nên nó **tự cập nhật** khi nạp/chuyển vốn, không phải sửa code hay env nữa. `BITGET_INITIAL_CAPITAL_USD` (mặc định **$100**) chỉ còn là fallback cho trường hợp danh mục `bitget` bị xoá khỏi /my-asset. Fetch song song với positions, non-fatal (lỗi → `null` → hiển thị "—", không làm trắng bảng). Tile **PnL chưa thực hiện** hiện **% dựa trên số dư tài khoản** (`totalUnrealizedPnlUsd ÷ accountEquity`) khi ẩn value, và số USD khi hiện value.
 
 **Ẩn/hiện value:** toggle **👁 Hiện value / 🙈 Ẩn value** ở góc phải trên bảng áp dụng cho **số dư tài khoản** và **PnL**: khi tắt, tile "Số dư tài khoản" hiện `••••••` cho **số tiền USD**, còn dòng **% so với vốn gốc** thì **luôn hiện** (theo yêu cầu của user — lưu ý: biết % + vốn gốc là suy ra được số dư), và PnL (tile + cột từng dòng) chỉ hiện **%** (ROE / % trên equity); khi bật hiện số USD đầy đủ. Lựa chọn lưu ở `localStorage` (`bitget:pnl-show-value`), mặc định **ẩn**. Nút toggle hiện bất cứ khi nào đã cấu hình API (kể cả khi không có vị thế nào) để luôn xem lại được số dư. Tile **Tổng ký quỹ** luôn hiện số USD.
 
@@ -42,7 +42,9 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - **`marginSize = 0`** → `roePct` trả 0 thay vì chia cho 0.
 - **Không lấy được equity / vốn gốc ≤ 0** → `equityChangePct` trả `null`, dòng % hiển thị "—" thay vì NaN.
 - **SSR fallback** (`EMPTY_POSITIONS` khi API lỗi) đặt `initialCapitalUsd: 0` + `equityChangePct: null` nên tile hiện "—" cho tới lần refresh client đầu tiên.
-- **Nạp/rút vốn** → hằng số vốn gốc KHÔNG tự đổi; phải sửa `INITIAL_CAPITAL_USD` (hoặc env `BITGET_INITIAL_CAPITAL_USD`) rồi restart `market-api`, nếu không % lệch.
+- **Nạp/rút vốn** → ghi một giao dịch trên /my-asset (nạp thẳng vào `bitget`, hoặc chuyển từ bucket khác sang) là vốn gốc tự đổi ngay lần fetch sau; không cần sửa env hay restart `market-api`.
+- **Danh mục `bitget` bị xoá khỏi /my-asset** → rơi về `BITGET_INITIAL_CAPITAL_USD` (mặc định $100). Một ledger cộng lại đúng bằng 0 thì vẫn là 0 (→ % hiển thị "—"), KHÔNG rơi về fallback.
+- **Lỗi đọc DB khi lấy vốn** → log `warn` rồi dùng fallback; bảng vị thế không bị trắng.
 - Bảng cuộn ngang trong khung riêng (`.bg-table-wrap` `overflow-x: auto`) để không tràn body trên mobile; tile xếp 1 cột dưới 720px.
 - **WS rớt kết nối** → `onclose` tự reconnect sau 3s; badge chuyển "offline"; bảng vẫn hiện giá REST 15s nên không bao giờ trắng dữ liệu.
 - **Không có vị thế** → hook không mở WS (mảng symbol rỗng), badge "offline".
@@ -61,7 +63,8 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 
 ## Related Files (FE / BE / Worker)
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — client Bitget dùng chung (ký v2): `getAllPositions()`, `getPosition()`, `getPositionSize()`, `closePosition()`, `getAccountBalance()`, `placePositionTpsl()`, `getPendingTpslOrders()`, `cancelPlanOrder()` + type `BitgetRawPosition` (kèm `takeProfit`/`stopLoss`), `BitgetPlanOrder`.
-- `apps/api/src/modules/bitget/bitget.service.ts` — `BitgetService`: gọi client, map + tính notional/ROE + tổng hợp; `INITIAL_CAPITAL_USD` + `equityChangePct()` (% so với vốn gốc); `closePosition()` force-close market; `setTpsl()` + `cleanupTpslOrders()` + `writeSystemLog()`.
+- `apps/api/src/modules/bitget/bitget.service.ts` — `BitgetService`: gọi client, map + tính notional/ROE + tổng hợp; `capitalUsd()` đọc vốn từ danh mục `bitget` trên /my-asset + `equityChangePct()` (% so với vốn gốc); `closePosition()` force-close market; `setTpsl()` + `cleanupTpslOrders()` + `writeSystemLog()`.
+- `packages/db/src/repositories/asset.repository.ts` — `balanceByKey('bitget')`, nguồn của vốn gốc.
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/positions`, `POST /bitget/positions/close`, `POST /bitget/positions/tpsl`.
 - `apps/api/src/modules/bitget/dto/close-position.dto.ts` — validate `symbol` + `holdSide`.
 - `apps/api/src/modules/bitget/dto/set-tpsl.dto.ts` — validate `symbol`, `holdSide`, `takeProfitPrice`/`stopLossPrice` (nullable = xoá mức).

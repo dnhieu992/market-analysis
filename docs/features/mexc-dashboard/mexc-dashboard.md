@@ -78,4 +78,5 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - `packages/db/prisma/migrations/20260728120000_add_mexc_tables/migration.sql`
 - `packages/db/prisma/migrations/20260729150000_add_mexc_watchlist_symbols/migration.sql`
 - `packages/db/src/repositories/mexc-*.repository.ts`
-- `.env.example` — `MEXC_API_KEY`, `MEXC_API_SECRET`, `MEXC_API_BASE_URL`, `MEXC_INITIAL_CAPITAL_USD`.
+- `packages/db/src/repositories/asset.repository.ts` — `balanceByKey('mexc')`: vốn gốc của MEXC lấy từ số dư danh mục `mexc` trên [/my-asset](../my-asset/my-asset.md) (tổng vào − tổng ra), nên nó tự cập nhật khi nạp/chuyển vốn. `MEXC_INITIAL_CAPITAL_USD` chỉ còn là fallback khi danh mục `mexc` bị xoá.
+- `.env.example` — `MEXC_API_KEY`, `MEXC_API_SECRET`, `MEXC_API_BASE_URL`, `MEXC_INITIAL_CAPITAL_USD` (fallback).

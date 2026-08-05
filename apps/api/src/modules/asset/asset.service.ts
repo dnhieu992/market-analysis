@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import {
   createAssetCategoryRepository,
   createAssetTransactionRepository,
+  createHoldingRepository,
 } from '@app/db';
 
 import type { CreateAssetCategoryDto } from './dto/create-asset-category.dto';
@@ -31,14 +32,41 @@ export type AssetTransactionDto = {
   createdAt: string;
 };
 
+/** One bucket whose balance counts as capital already committed, not spendable. */
+export type AssetDeployedDto = {
+  key: string;
+  label: string;
+  balanceUsdt: number;
+};
+
+/**
+ * The "what can I still deploy?" breakdown, returned alongside the totals so the
+ * page can show the arithmetic rather than an unexplained number.
+ */
+export type AssetAvailableDto = {
+  availableUsdt: number;
+  /** Cost basis of coins still held on spot — money spent, not sitting idle. */
+  spentOnSpotUsdt: number;
+  /** The `trading` / `bitget` / `mexc` buckets, each already committed. */
+  deployed: AssetDeployedDto[];
+};
+
 export type AssetSummaryDto = {
   /** Sum of every bucket = total deposited − total withdrawn. Currency is always USDT. */
   totalUsdt: number;
   totalDepositedUsdt: number;
   totalWithdrawnUsdt: number;
+  available: AssetAvailableDto;
   categories: AssetCategoryDto[];
   transactions: AssetTransactionDto[];
 };
+
+/**
+ * Buckets treated as "already committed" when working out what is available.
+ * Spot is deliberately absent: its allocation is only spent to the extent coins
+ * were actually bought, which `spentOnSpotUsdt` measures directly.
+ */
+const DEPLOYED_KEYS = ['trading', 'bitget', 'mexc'] as const;
 
 /** A slug the UI and future code can rely on: lowercase, digits, dash/underscore. */
 const KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
@@ -47,14 +75,18 @@ const KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 export class AssetService {
   private readonly categories = createAssetCategoryRepository();
   private readonly transactions = createAssetTransactionRepository();
+  private readonly holdings = createHoldingRepository();
 
   /** Everything /my-asset renders in one round trip. */
   async getSummary(): Promise<AssetSummaryDto> {
-    const [categories, balances, byType, transactions] = await Promise.all([
+    const [categories, balances, byType, transactions, spentOnSpotUsdt] = await Promise.all([
       this.categories.findAll(),
       this.transactions.sumBalances(),
       this.transactions.sumByType(),
       this.transactions.findAll(LEDGER_LIMIT),
+      // Non-fatal: an unusable holdings table must not blank the whole page, it
+      // just means nothing is known to be spent on spot yet.
+      this.holdings.sumTotalCost().catch(() => 0),
     ]);
 
     const balanceById = new Map(balances.map((b) => [b.categoryId, b.balanceUsdt]));
@@ -66,10 +98,27 @@ export class AssetService {
       balanceUsdt: balanceById.get(c.id) ?? 0,
     }));
 
+    const totalUsdt = categoryDtos.reduce((sum, c) => sum + c.balanceUsdt, 0);
+
+    // available = total − spent buying spot − everything allocated to trading,
+    // bitget and mexc. A deployed bucket the trader deleted simply drops out.
+    const deployed: AssetDeployedDto[] = DEPLOYED_KEYS.flatMap((key) => {
+      const category = categoryDtos.find((c) => c.key === key);
+      return category
+        ? [{ key: category.key, label: category.label, balanceUsdt: category.balanceUsdt }]
+        : [];
+    });
+    const deployedTotal = deployed.reduce((sum, d) => sum + d.balanceUsdt, 0);
+
     return {
-      totalUsdt: categoryDtos.reduce((sum, c) => sum + c.balanceUsdt, 0),
+      totalUsdt,
       totalDepositedUsdt: byType.DEPOSIT ?? 0,
       totalWithdrawnUsdt: byType.WITHDRAW ?? 0,
+      available: {
+        availableUsdt: totalUsdt - spentOnSpotUsdt - deployedTotal,
+        spentOnSpotUsdt,
+        deployed,
+      },
       categories: categoryDtos,
       transactions: transactions.map(toTransactionDto),
     };

@@ -1,7 +1,8 @@
 import { AssetService } from '../src/modules/asset/asset.service';
-import { __seedAssetStore } from './stubs/app-db';
+import { __seedAssetStore, __setSpotCostBasis } from './stubs/app-db';
 
 const SPOT = 'cat-spot';
+const TRADING = 'cat-trading';
 const BITGET = 'cat-bitget';
 
 async function deposit(service: AssetService, toCategoryId: string, amountUsdt: number) {
@@ -14,6 +15,7 @@ describe('AssetService', () => {
   beforeEach(() => {
     __seedAssetStore([
       { id: SPOT, key: 'spot', label: 'Spot', sortOrder: 1 },
+      { id: TRADING, key: 'trading', label: 'Trading', sortOrder: 2 },
       { id: BITGET, key: 'bitget', label: 'Bitget', sortOrder: 3 },
     ]);
     service = new AssetService();
@@ -23,7 +25,7 @@ describe('AssetService', () => {
     it('starts at zero with the seeded categories and no ledger', async () => {
       const summary = await service.getSummary();
       expect(summary.totalUsdt).toBe(0);
-      expect(summary.categories.map((c) => c.key)).toEqual(['spot', 'bitget']);
+      expect(summary.categories.map((c) => c.key)).toEqual(['spot', 'trading', 'bitget']);
       expect(summary.categories.every((c) => c.balanceUsdt === 0)).toBe(true);
     });
 
@@ -70,6 +72,62 @@ describe('AssetService', () => {
       const summary = await service.getSummary();
       expect(summary.totalUsdt).toBe(0);
       expect(summary.transactions).toHaveLength(0);
+    });
+  });
+
+  describe('availableUsdt', () => {
+    it('subtracts spot spend and every deployed bucket from the total', async () => {
+      await deposit(service, SPOT, 1000);
+      await deposit(service, TRADING, 300);
+      await deposit(service, BITGET, 200);
+      __setSpotCostBasis(600); // 600 of the spot allocation is already in coins
+
+      const { available, totalUsdt } = await service.getSummary();
+
+      expect(totalUsdt).toBe(1500);
+      expect(available.spentOnSpotUsdt).toBe(600);
+      expect(available.deployed.map((d) => d.key)).toEqual(['trading', 'bitget']);
+      // 1500 − 600 spot spend − 300 trading − 200 bitget
+      expect(available.availableUsdt).toBe(400);
+    });
+
+    it('counts the whole balance as available when nothing is deployed', async () => {
+      await deposit(service, SPOT, 750);
+      const { available } = await service.getSummary();
+      expect(available.availableUsdt).toBe(750);
+      expect(available.spentOnSpotUsdt).toBe(0);
+    });
+
+    it('drops a deployed bucket the trader deleted instead of failing', async () => {
+      await deposit(service, SPOT, 500);
+      await service.deleteCategory(TRADING);
+
+      const { available } = await service.getSummary();
+      expect(available.deployed.map((d) => d.key)).toEqual(['bitget']);
+      expect(available.availableUsdt).toBe(500);
+    });
+
+    it('goes negative when more is committed than the books hold', async () => {
+      await deposit(service, TRADING, 100);
+      __setSpotCostBasis(400); // bought spot with money the ledger never recorded
+
+      const { available } = await service.getSummary();
+      expect(available.availableUsdt).toBe(-400);
+    });
+
+    it('reports a transfer into a deployed bucket as committed, not available', async () => {
+      await deposit(service, SPOT, 1000);
+      await service.createTransaction({
+        type: 'TRANSFER',
+        amountUsdt: 250,
+        fromCategoryId: SPOT,
+        toCategoryId: BITGET,
+      });
+
+      const { available, totalUsdt } = await service.getSummary();
+      expect(totalUsdt).toBe(1000);
+      expect(available.deployed.find((d) => d.key === 'bitget')?.balanceUsdt).toBe(250);
+      expect(available.availableUsdt).toBe(750);
     });
   });
 
@@ -159,7 +217,7 @@ describe('AssetService', () => {
     it('deletes a category once its ledger is clear', async () => {
       await service.deleteCategory(BITGET);
       const summary = await service.getSummary();
-      expect(summary.categories.map((c) => c.key)).toEqual(['spot']);
+      expect(summary.categories.map((c) => c.key)).toEqual(['spot', 'trading']);
     });
   });
 });

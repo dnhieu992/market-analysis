@@ -6,7 +6,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { summarizeMexcClosed, type MexcClosedSummary } from '@app/core';
-import { createMexcTradeJournalRepository, createMexcTradeRepository } from '@app/db';
+import {
+  createAssetCategoryRepository,
+  createMexcTradeJournalRepository,
+  createMexcTradeRepository,
+} from '@app/db';
 
 import {
   MexcTradeClient,
@@ -15,13 +19,27 @@ import {
   type MexcStopOrder,
 } from './mexc-trade.client';
 
+/** The /my-asset bucket that holds the MEXC futures capital. */
+const CAPITAL_CATEGORY_KEY = 'mexc';
+
 /**
- * Capital originally put into the MEXC futures wallet, in USDT. The dashboard
- * shows account equity as a % of this, so it is the trader's "vốn gốc" — bump it
- * (or set `MEXC_INITIAL_CAPITAL_USD`) whenever more capital is deposited, or the
- * percentage silently becomes meaningless.
+ * Fallback "vốn gốc" for when the `mexc` category has been deleted from
+ * /my-asset. Capital normally comes from that bucket's ledger balance (in − out),
+ * so it tracks deposits and withdrawals on its own — this constant only keeps
+ * the old env override working for an install with no asset categories set up.
  */
-const INITIAL_CAPITAL_USD = Number(process.env.MEXC_INITIAL_CAPITAL_USD ?? 100);
+const FALLBACK_CAPITAL_USD = Number(process.env.MEXC_INITIAL_CAPITAL_USD ?? 100);
+
+/**
+ * Equity vs the capital allocated to the exchange, in % — null when either number
+ * is unusable. A capital of 0 (no transfers in yet) yields null rather than a
+ * division by zero, so the tile shows "—" instead of Infinity.
+ */
+function equityChangePct(equity: number | undefined, capitalUsd: number): number | null {
+  if (equity == null || !Number.isFinite(equity)) return null;
+  if (!Number.isFinite(capitalUsd) || capitalUsd <= 0) return null;
+  return ((equity - capitalUsd) / capitalUsd) * 100;
+}
 
 /** Canonical trade-session key — MUST match the worker/web (`symbol-holdSide-openedAt(ISO)`). */
 function tradeKeyOf(symbol: string, holdSide: string, openedAtMs: number): string {
@@ -108,9 +126,11 @@ export class MexcService {
   private readonly client = new MexcTradeClient();
   private readonly tradeRepo = createMexcTradeRepository();
   private readonly journalRepo = createMexcTradeJournalRepository();
+  private readonly assetCategoryRepo = createAssetCategoryRepository();
 
   async getOpenPositions(): Promise<MexcPositionsResult> {
     const fetchedAt = new Date().toISOString();
+    const initialCapitalUsd = await this.capitalUsd();
 
     if (!this.client.isConfigured()) {
       return {
@@ -119,7 +139,7 @@ export class MexcService {
         totalUnrealizedPnlUsd: 0,
         totalMarginUsd: 0,
         accountEquityUsd: null,
-        initialCapitalUsd: INITIAL_CAPITAL_USD,
+        initialCapitalUsd,
         equityChangePct: null,
         fetchedAt,
       };
@@ -161,10 +181,27 @@ export class MexcService {
       totalUnrealizedPnlUsd,
       totalMarginUsd,
       accountEquityUsd: balance?.accountEquity ?? null,
-      initialCapitalUsd: INITIAL_CAPITAL_USD,
-      equityChangePct: this.equityChangePct(balance?.accountEquity),
+      initialCapitalUsd,
+      equityChangePct: equityChangePct(balance?.accountEquity, initialCapitalUsd),
       fetchedAt,
     };
+  }
+
+  /**
+   * Capital allocated to MEXC = everything transferred/deposited into the `mexc`
+   * bucket on /my-asset minus everything taken out. Falls back to the env
+   * constant only when that category is missing entirely; a ledger that
+   * legitimately nets to 0 stays 0.
+   */
+  private async capitalUsd(): Promise<number> {
+    try {
+      const balance = await this.assetCategoryRepo.balanceByKey(CAPITAL_CATEGORY_KEY);
+      return balance ?? FALLBACK_CAPITAL_USD;
+    } catch (err) {
+      // Non-fatal, same as the balance fetch: a DB hiccup must not blank the table.
+      this.logger.warn(`Failed to read MEXC capital from /my-asset: ${(err as Error).message}`);
+      return FALLBACK_CAPITAL_USD;
+    }
   }
 
   /**
@@ -611,13 +648,6 @@ export class MexcService {
         },
       })
       .catch((err) => this.logger.warn(`Failed to write system journal log: ${(err as Error).message}`));
-  }
-
-  /** Equity vs the initial capital, in % — null when either number is unusable. */
-  private equityChangePct(equity: number | undefined): number | null {
-    if (equity == null || !Number.isFinite(equity)) return null;
-    if (!Number.isFinite(INITIAL_CAPITAL_USD) || INITIAL_CAPITAL_USD <= 0) return null;
-    return ((equity - INITIAL_CAPITAL_USD) / INITIAL_CAPITAL_USD) * 100;
   }
 
   /**

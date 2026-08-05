@@ -27,6 +27,15 @@ export function createHoldingRepository(client = prisma) {
         orderBy: { coinId: 'asc' }
       });
     },
+    /**
+     * Cost basis of every coin still held, across all portfolios — i.e. the USDT
+     * already spent buying spot and not yet freed by a sell. /my-asset subtracts
+     * this from the total to work out what is still available to deploy.
+     */
+    async sumTotalCost(): Promise<number> {
+      const { _sum } = await client.holding.aggregate({ _sum: { totalCost: true } });
+      return Number(_sum.totalCost ?? 0);
+    },
     update(portfolioId: string, coinId: string, data: Prisma.HoldingUncheckedUpdateInput) {
       return client.holding.update({
         where: { portfolioId_coinId: { portfolioId, coinId } },

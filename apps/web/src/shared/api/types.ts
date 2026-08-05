@@ -952,10 +952,25 @@ export type AssetTransaction = {
   createdAt: string;
 };
 
+/** A bucket whose balance is already committed and so not spendable. */
+export type AssetDeployed = {
+  key: string;
+  label: string;
+  balanceUsdt: number;
+};
+
+/** available = total − spent buying spot − trading − bitget − mexc. */
+export type AssetAvailable = {
+  availableUsdt: number;
+  spentOnSpotUsdt: number;
+  deployed: AssetDeployed[];
+};
+
 export type AssetSummary = {
   totalUsdt: number;
   totalDepositedUsdt: number;
   totalWithdrawnUsdt: number;
+  available: AssetAvailable;
   categories: AssetCategory[];
   transactions: AssetTransaction[];
 };

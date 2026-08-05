@@ -42,6 +42,33 @@ export function createAssetCategoryRepository(client = prisma) {
       return client.assetCategory.findUnique({ where: { key } });
     },
 
+    /**
+     * Net USDT in one bucket (everything in − everything out), for callers that
+     * need a single category and not the whole page. This is what /bitget and
+     * /mexc read as their "vốn gốc" — it replaces the old hardcoded env constant,
+     * so the baseline moves the moment capital is transferred in or out.
+     *
+     * Returns `null` when the category does not exist, which the caller must
+     * distinguish from a real 0 balance.
+     */
+    async balanceByKey(key: string): Promise<number | null> {
+      const category = await client.assetCategory.findUnique({ where: { key } });
+      if (!category) return null;
+
+      const [incoming, outgoing] = await Promise.all([
+        client.assetTransaction.aggregate({
+          where: { toCategoryId: category.id },
+          _sum: { amountUsdt: true },
+        }),
+        client.assetTransaction.aggregate({
+          where: { fromCategoryId: category.id },
+          _sum: { amountUsdt: true },
+        }),
+      ]);
+
+      return Number(incoming._sum.amountUsdt ?? 0) - Number(outgoing._sum.amountUsdt ?? 0);
+    },
+
     create({ key, label, sortOrder }: AssetCategoryInput) {
       return client.assetCategory.create({
         data: { key, label, sortOrder: sortOrder ?? 0 },
