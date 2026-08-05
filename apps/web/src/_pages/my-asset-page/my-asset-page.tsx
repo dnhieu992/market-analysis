@@ -13,6 +13,8 @@ const EMPTY_SUMMARY: AssetSummary = {
     spentOnSpotUsdt: 0,
     spotMarketValueUsdt: 0,
     unrealizedSpotPnlUsdt: 0,
+    realizedSpotPnlUsdt: 0,
+    totalSpotPnlUsdt: 0,
     pricedPartially: false,
     deployed: [],
   },

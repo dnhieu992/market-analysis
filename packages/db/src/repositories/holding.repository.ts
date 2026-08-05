@@ -37,6 +37,20 @@ export function createHoldingRepository(client = prisma) {
       return Number(_sum.totalCost ?? 0);
     },
     /**
+     * Profit already banked on spot, across every portfolio — the "All-time
+     * Realized P&L" that /portfolio-pnl shows. Deliberately spans ALL rows,
+     * including coins sold out to a zero balance: those keep their realized PnL
+     * and are a large part of the total.
+     *
+     * Agrees with /portfolio-pnl's own figure, which replays every
+     * `CoinTransaction` sell instead of reading this column, to within a cent of
+     * Decimal rounding.
+     */
+    async sumRealizedPnl(): Promise<number> {
+      const { _sum } = await client.holding.aggregate({ _sum: { realizedPnl: true } });
+      return Number(_sum.realizedPnl ?? 0);
+    },
+    /**
      * One row per coin, amounts and cost summed across every portfolio. /my-asset
      * needs this (not just the cost total) to value the spot position at market
      * and turn the difference into unrealized PnL.

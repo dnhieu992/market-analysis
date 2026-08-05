@@ -68,7 +68,9 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
   const { totalUsdt, totalDepositedUsdt, totalWithdrawnUsdt, currentValueUsdt, available } = summary;
   // Everything the trader put in that is still on the books, minus what came back out.
   const netFlow = totalDepositedUsdt - totalWithdrawnUsdt;
-  const pnl = available.unrealizedSpotPnlUsdt;
+  // Headline PnL is the whole spot result — banked plus on paper — the same
+  // "all-time profit" /portfolio and /portfolio-pnl report.
+  const pnl = available.totalSpotPnlUsdt;
   const pnlPct = totalUsdt > 0 ? (pnl / totalUsdt) * 100 : 0;
 
   return (
@@ -127,9 +129,17 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
             <span className="ma-num">{formatUsdt(available.spentOnSpotUsdt)}</span>
           </li>
           <li>
-            <span>{pnl >= 0 ? '+' : '−'} Lãi/lỗ spot</span>
-            <span className={`ma-num${pnl < 0 ? ' is-negative' : ''}`}>
-              {formatUsdt(Math.abs(pnl))}
+            <span>{available.unrealizedSpotPnlUsdt >= 0 ? '+' : '−'} Lãi/lỗ spot chưa chốt</span>
+            <span
+              className={`ma-num${available.unrealizedSpotPnlUsdt < 0 ? ' is-negative' : ''}`}
+            >
+              {formatUsdt(Math.abs(available.unrealizedSpotPnlUsdt))}
+            </span>
+          </li>
+          <li>
+            <span>{available.realizedSpotPnlUsdt >= 0 ? '+' : '−'} Lãi/lỗ spot đã chốt</span>
+            <span className={`ma-num${available.realizedSpotPnlUsdt < 0 ? ' is-negative' : ''}`}>
+              {formatUsdt(Math.abs(available.realizedSpotPnlUsdt))}
             </span>
           </li>
           {available.deployed.map((d) => (

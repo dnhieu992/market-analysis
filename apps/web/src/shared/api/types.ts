@@ -959,12 +959,15 @@ export type AssetDeployed = {
   balanceUsdt: number;
 };
 
-/** available = total − spent on spot + unrealized spot PnL − trading − bitget − mexc. */
+/** available = total − spent on spot + spot PnL (realized + unrealized) − trading − bitget − mexc. */
 export type AssetAvailable = {
   availableUsdt: number;
   spentOnSpotUsdt: number;
   spotMarketValueUsdt: number;
   unrealizedSpotPnlUsdt: number;
+  /** All-time realized P&L, the same figure /portfolio-pnl shows. */
+  realizedSpotPnlUsdt: number;
+  totalSpotPnlUsdt: number;
   /** At least one held coin had no price and was valued at cost. */
   pricedPartially: boolean;
   deployed: AssetDeployed[];

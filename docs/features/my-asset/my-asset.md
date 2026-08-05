@@ -27,15 +27,26 @@ on the next fetch — no code edit, no restart.
 The page also answers **"how much can I still deploy?"**:
 
 ```
-available = total − spent buying spot + unrealized spot PnL − trading − bitget − mexc
+available = total − spent buying spot + spot PnL (realized + unrealized)
+            − trading − bitget − mexc
 ```
 
 `spent buying spot` is the cost basis of coins still held (`Holding.totalCost` summed across
 portfolios), not the spot bucket's allocation — money sitting unspent in that bucket is still
-available. The **unrealized PnL term is what makes the number honest**: subtracting cost alone
-would report a spot position that has halved as still fully funded. The spot book is valued at
-Binance last price, and the difference from cost flows straight into available — profit raises it,
-loss lowers it.
+available.
+
+**Both halves of the spot PnL are required**, and each fixes a different way the number lies:
+
+- **Unrealized** (`market value − cost`, at Binance last price). Without it, a position that has
+  halved is still reported as fully funded.
+- **Realized** — the same all-time figure `/portfolio-pnl` shows, summed from `Holding.realizedPnl`
+  across **all** rows including coins sold out to a zero balance (those rows are most of the
+  total). This is real USDT sitting in the spot account that the manual ledger never recorded, so
+  omitting it understates a book that has been trading profitably.
+
+Their sum is what `/portfolio` calls a holding's all-time profit. Measured on real data during
+development: unrealized −90.98 but realized +145.80, so the spot book was **+54.83 overall** while
+an unrealized-only calculation showed a loss.
 
 The breakdown is rendered line by line beside the number, because an "available" figure the trader
 cannot reconcile is one they will not trust.
@@ -51,7 +62,8 @@ drift with the market. Mark-to-market appears next to it as `currentValueUsdt`
    - `totalDepositedUsdt` / `totalWithdrawnUsdt` — lifetime totals, summed in SQL,
    - `currentValueUsdt` — the ledger total marked to market,
    - `available` — `availableUsdt` plus every term it was derived from: `spentOnSpotUsdt`,
-     `spotMarketValueUsdt`, `unrealizedSpotPnlUsdt`, `pricedPartially` and `deployed[]`,
+     `spotMarketValueUsdt`, `unrealizedSpotPnlUsdt`, `realizedSpotPnlUsdt`, `totalSpotPnlUsdt`,
+     `pricedPartially` and `deployed[]`,
    - `categories` — each with its derived `balanceUsdt`,
    - `transactions` — the 200 most recent ledger rows.
 2. The page renders the total tile with **Nạp / Rút / Chuyển**, the **USDT khả dụng** tile with its
@@ -71,6 +83,11 @@ Spot valuation: `Holding` rows are grouped by coin (`sumByCoin()`), priced in on
 `/api/v3/ticker/price` call, and summed as `amount × price`. Prices are cached 30s keyed on the
 symbol set, so a burst of saves — each of which refetches the summary — costs one call, while
 buying a new coin still invalidates the cache immediately.
+
+Realized PnL comes from `sumRealizedPnl()`, one aggregate over the whole `Holding` table.
+`/portfolio-pnl` computes the same figure a different way — replaying every `CoinTransaction` sell
+as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of Decimal rounding
+(145.80 vs 145.79 when checked against live data).
 
 ## Edge Cases
 
@@ -101,8 +118,11 @@ buying a new coin still invalidates the cache immediately.
   `pricedPartially` flags it.
 - **Stablecoin holdings** (USDT/USDC/BUSD/DAI/TUSD/FDUSD) — valued 1:1 without a price lookup;
   Binance lists no `USDTUSDT` pair, so asking would falsely mark them unpriced.
-- **Fully sold-out coin** — `sumByCoin()` drops zero-amount rows, so a closed position contributes
-  neither value nor PnL.
+- **Fully sold-out coin** — `sumByCoin()` drops zero-amount rows so it contributes no market
+  value, but its **realized PnL still counts**: `sumRealizedPnl()` deliberately spans every row.
+  Filtering those out was the original bug — it silently discarded most of the banked profit.
+- **Nothing held at all** — market value and unrealized PnL are 0, but realized PnL from past
+  sells is still added, so available reflects profit taken before closing everything out.
 - **Deleting a category that still has history** — rejected with 409 and the count of blocking rows.
   The FK is `onDelete: Restrict`, so the database enforces this even if the check is bypassed.
 - **Duplicate category key** — rejected with 409. Keys are slugified from the label
@@ -149,8 +169,8 @@ buying a new coin still invalidates the cache immediately.
   price read (pulls the full ticker list and filters locally: Binance 400s a `symbols=[…]` batch
   containing any unlisted pair)
 - `apps/api/src/modules/asset/asset.module.ts` — registers `BinanceMarketDataService` for injection
-- `apps/api/test/asset.service.spec.ts` — balance derivation, `availableUsdt`, spot mark-to-market
-  and every validation rule (28 cases)
+- `apps/api/test/asset.service.spec.ts` — balance derivation, `availableUsdt`, spot
+  mark-to-market, realized PnL and every validation rule (32 cases)
 - `apps/api/test/stubs/app-db.ts` — in-memory asset ledger used by that spec
 
 **DB**
@@ -160,8 +180,10 @@ buying a new coin still invalidates the cache immediately.
 - `packages/db/src/repositories/asset.repository.ts` — `createAssetCategoryRepository`
   (incl. `balanceByKey`, read by /bitget and /mexc for their capital),
   `createAssetTransactionRepository` (incl. `sumBalances`, `sumByType`)
-- `packages/db/src/repositories/holding.repository.ts` — `sumTotalCost()` (spot-spend term) and
-  `sumByCoin()` (per-coin amounts, for market valuation)
+- `packages/db/src/repositories/holding.repository.ts` — `sumTotalCost()` (spot-spend term),
+  `sumByCoin()` (per-coin amounts, for market valuation) and `sumRealizedPnl()` (banked profit)
+- `apps/api/src/modules/portfolio/portfolio.service.ts` — `getPnlCalendar()`, the /portfolio-pnl
+  figure this page's realized term is cross-checked against
 
 **Consumers of this page's data**
 - `apps/api/src/modules/bitget/bitget.service.ts` — `capitalUsd()` reads the `bitget` bucket

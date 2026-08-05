@@ -275,6 +275,13 @@ export function __setSpotCostBasis(value: number) {
   spotPositions = value === 0 ? [] : [{ coinId: 'BTC', totalAmount: value, totalCost: value }];
 }
 
+let spotRealizedPnl = 0;
+
+/** Profit already banked on spot — /portfolio-pnl's "All-time Realized P&L". */
+export function __setSpotRealizedPnl(value: number) {
+  spotRealizedPnl = value;
+}
+
 export function createHoldingRepository() {
   return {
     async sumTotalCost() {
@@ -282,6 +289,9 @@ export function createHoldingRepository() {
     },
     async sumByCoin() {
       return spotPositions.filter((p) => p.totalAmount > 0);
+    },
+    async sumRealizedPnl() {
+      return spotRealizedPnl;
     },
   };
 }
@@ -294,6 +304,7 @@ export function __seedAssetStore(categories: Array<{ id: string; key: string; la
   assetCategories.splice(0, assetCategories.length);
   assetTransactions.splice(0, assetTransactions.length);
   spotPositions = [];
+  spotRealizedPnl = 0;
   for (const c of categories) {
     assetCategories.push({
       id: c.id,

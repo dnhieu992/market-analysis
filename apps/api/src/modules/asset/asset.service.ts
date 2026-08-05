@@ -58,8 +58,17 @@ export type AssetAvailableDto = {
   spentOnSpotUsdt: number;
   /** What those same coins are worth right now at Binance last price. */
   spotMarketValueUsdt: number;
-  /** `spotMarketValueUsdt − spentOnSpotUsdt`. Adds to available when in profit. */
+  /** `spotMarketValueUsdt − spentOnSpotUsdt` — profit still on paper. */
   unrealizedSpotPnlUsdt: number;
+  /**
+   * Profit already banked by selling — the "All-time Realized P&L" on
+   * /portfolio-pnl. It is real USDT sitting in the spot account that the manual
+   * ledger never recorded, so it has to be added back or available understates
+   * a book that has been trading profitably.
+   */
+  realizedSpotPnlUsdt: number;
+  /** `unrealized + realized` — what /portfolio calls the coin's all-time profit. */
+  totalSpotPnlUsdt: number;
   /**
    * True when at least one held coin had no usable price and was valued at its
    * cost instead, so the PnL above understates reality. The page says so rather
@@ -75,7 +84,7 @@ export type AssetSummaryDto = {
   totalUsdt: number;
   totalDepositedUsdt: number;
   totalWithdrawnUsdt: number;
-  /** `totalUsdt` marked to market: the ledger plus unrealized spot PnL. */
+  /** `totalUsdt` marked to market: the ledger plus realized and unrealized spot PnL. */
   currentValueUsdt: number;
   available: AssetAvailableDto;
   categories: AssetCategoryDto[];
@@ -144,18 +153,18 @@ export class AssetService {
     });
     const deployedTotal = deployed.reduce((sum, d) => sum + d.balanceUsdt, 0);
 
-    // available = total − what was spent on spot + what that spot is now worth
-    // more (or less) than it cost − everything allocated elsewhere. Subtracting
-    // only the cost would report a position that has halved as still fully
-    // funded, so the unrealized PnL has to be part of the number.
+    // available = total − what was spent on spot + everything spot has earned
+    // (banked and on paper) − everything allocated elsewhere. Subtracting cost
+    // alone would call a halved position fully funded and would ignore profit
+    // already sold into USDT, which the manual ledger never records.
     const availableUsdt =
-      totalUsdt - spot.spentOnSpotUsdt + spot.unrealizedSpotPnlUsdt - deployedTotal;
+      totalUsdt - spot.spentOnSpotUsdt + spot.totalSpotPnlUsdt - deployedTotal;
 
     return {
       totalUsdt,
       totalDepositedUsdt: byType.DEPOSIT ?? 0,
       totalWithdrawnUsdt: byType.WITHDRAW ?? 0,
-      currentValueUsdt: totalUsdt + spot.unrealizedSpotPnlUsdt,
+      currentValueUsdt: totalUsdt + spot.totalSpotPnlUsdt,
       available: { availableUsdt, ...spot, deployed },
       categories: categoryDtos,
       transactions: transactions.map(toTransactionDto),
@@ -169,17 +178,25 @@ export class AssetService {
    * unlisted coin is valued at its own cost and flagged via `pricedPartially`.
    */
   private async valueSpot(): Promise<Omit<AssetAvailableDto, 'availableUsdt' | 'deployed'>> {
-    const positions = await this.holdings.sumByCoin().catch((err) => {
-      this.logger.warn(`Failed to read spot holdings: ${(err as Error).message}`);
-      return [] as Array<{ coinId: string; totalAmount: number; totalCost: number }>;
-    });
+    const [positions, realizedSpotPnlUsdt] = await Promise.all([
+      this.holdings.sumByCoin().catch((err) => {
+        this.logger.warn(`Failed to read spot holdings: ${(err as Error).message}`);
+        return [] as Array<{ coinId: string; totalAmount: number; totalCost: number }>;
+      }),
+      // Spans sold-out coins too, so profit taken on a position that no longer
+      // exists still counts. Those rows are most of the realized total.
+      this.holdings.sumRealizedPnl().catch(() => 0),
+    ]);
 
     const spentOnSpotUsdt = positions.reduce((sum, p) => sum + p.totalCost, 0);
     if (positions.length === 0) {
+      // Nothing held, but past sells still banked real USDT.
       return {
         spentOnSpotUsdt: 0,
         spotMarketValueUsdt: 0,
         unrealizedSpotPnlUsdt: 0,
+        realizedSpotPnlUsdt,
+        totalSpotPnlUsdt: realizedSpotPnlUsdt,
         pricedPartially: false,
       };
     }
@@ -209,10 +226,14 @@ export class AssetService {
       spotMarketValueUsdt += position.totalAmount * price;
     }
 
+    const unrealizedSpotPnlUsdt = spotMarketValueUsdt - spentOnSpotUsdt;
+
     return {
       spentOnSpotUsdt,
       spotMarketValueUsdt,
-      unrealizedSpotPnlUsdt: spotMarketValueUsdt - spentOnSpotUsdt,
+      unrealizedSpotPnlUsdt,
+      realizedSpotPnlUsdt,
+      totalSpotPnlUsdt: unrealizedSpotPnlUsdt + realizedSpotPnlUsdt,
       pricedPartially,
     };
   }

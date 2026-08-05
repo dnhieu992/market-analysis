@@ -1,5 +1,10 @@
 import { AssetService } from '../src/modules/asset/asset.service';
-import { __seedAssetStore, __setSpotCostBasis, __setSpotPositions } from './stubs/app-db';
+import {
+  __seedAssetStore,
+  __setSpotCostBasis,
+  __setSpotPositions,
+  __setSpotRealizedPnl,
+} from './stubs/app-db';
 
 const SPOT = 'cat-spot';
 const TRADING = 'cat-trading';
@@ -229,6 +234,64 @@ describe('AssetService', () => {
       expect(available.pricedPartially).toBe(false);
       expect(currentValueUsdt).toBe(400);
       expect(available.availableUsdt).toBe(400);
+    });
+  });
+
+  describe('realized spot PnL', () => {
+    it('adds banked profit to available — the /portfolio-pnl figure', async () => {
+      service = build({ BTCUSDT: 100 });
+      await deposit(service, SPOT, 1000);
+      __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 1000 }]);
+      __setSpotRealizedPnl(150);
+
+      const { available, currentValueUsdt } = await service.getSummary();
+
+      expect(available.unrealizedSpotPnlUsdt).toBe(0);
+      expect(available.realizedSpotPnlUsdt).toBe(150);
+      expect(available.totalSpotPnlUsdt).toBe(150);
+      expect(currentValueUsdt).toBe(1150);
+      expect(available.availableUsdt).toBe(150);
+    });
+
+    it('nets banked profit against an unrealized loss, matching /portfolio', async () => {
+      service = build({ BTCUSDT: 90 });
+      await deposit(service, SPOT, 1200);
+      // Cost 1000, now worth 900 → −100 unrealized; +150 already booked.
+      __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 1000 }]);
+      __setSpotRealizedPnl(150);
+
+      const { available, currentValueUsdt } = await service.getSummary();
+
+      expect(available.unrealizedSpotPnlUsdt).toBe(-100);
+      expect(available.totalSpotPnlUsdt).toBe(50); // in profit overall
+      expect(currentValueUsdt).toBe(1250);
+      // 1200 − 1000 spent + 50 net profit
+      expect(available.availableUsdt).toBe(250);
+    });
+
+    it('counts profit from coins sold out entirely', async () => {
+      service = build();
+      await deposit(service, SPOT, 500);
+      __setSpotPositions([]); // everything sold
+      __setSpotRealizedPnl(75);
+
+      const { available, currentValueUsdt } = await service.getSummary();
+
+      expect(available.spentOnSpotUsdt).toBe(0);
+      expect(available.realizedSpotPnlUsdt).toBe(75);
+      expect(currentValueUsdt).toBe(575);
+      expect(available.availableUsdt).toBe(575);
+    });
+
+    it('subtracts realized losses', async () => {
+      service = build();
+      await deposit(service, SPOT, 500);
+      __setSpotRealizedPnl(-80);
+
+      const { available } = await service.getSummary();
+
+      expect(available.totalSpotPnlUsdt).toBe(-80);
+      expect(available.availableUsdt).toBe(420);
     });
   });
 
