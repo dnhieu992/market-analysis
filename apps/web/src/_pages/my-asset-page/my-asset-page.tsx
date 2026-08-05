@@ -7,7 +7,15 @@ const EMPTY_SUMMARY: AssetSummary = {
   totalUsdt: 0,
   totalDepositedUsdt: 0,
   totalWithdrawnUsdt: 0,
-  available: { availableUsdt: 0, spentOnSpotUsdt: 0, deployed: [] },
+  currentValueUsdt: 0,
+  available: {
+    availableUsdt: 0,
+    spentOnSpotUsdt: 0,
+    spotMarketValueUsdt: 0,
+    unrealizedSpotPnlUsdt: 0,
+    pricedPartially: false,
+    deployed: [],
+  },
   categories: [],
   transactions: [],
 };

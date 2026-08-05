@@ -65,19 +65,34 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
     }
   }
 
-  const { totalUsdt, totalDepositedUsdt, totalWithdrawnUsdt, available } = summary;
+  const { totalUsdt, totalDepositedUsdt, totalWithdrawnUsdt, currentValueUsdt, available } = summary;
   // Everything the trader put in that is still on the books, minus what came back out.
   const netFlow = totalDepositedUsdt - totalWithdrawnUsdt;
+  const pnl = available.unrealizedSpotPnlUsdt;
+  const pnlPct = totalUsdt > 0 ? (pnl / totalUsdt) * 100 : 0;
 
   return (
     <main className="dashboard-shell">
       <section className="ma-hero panel">
         <div>
           <p className="metric-label">Tổng tài sản</p>
+          {/* The headline stays the ledger figure — it is what Nạp/Rút move and it
+              must not drift with the market. Mark-to-market sits beside it. */}
           <p className="ma-total">{formatUsdt(totalUsdt)}</p>
           <p className="ma-hero-detail">
             Đã nạp {formatUsdt(totalDepositedUsdt)} · Đã rút {formatUsdt(totalWithdrawnUsdt)} · Ròng{' '}
             {formatUsdt(netFlow)}
+          </p>
+          <p className="ma-hero-detail">
+            Giá trị hiện tại <strong>{formatUsdt(currentValueUsdt)}</strong>{' '}
+            <span className={pnl < 0 ? 'ma-pnl is-negative' : 'ma-pnl'}>
+              ({pnl >= 0 ? '+' : ''}
+              {formatUsdt(pnl)} · {pnl >= 0 ? '+' : ''}
+              {pnlPct.toFixed(2)}%)
+            </span>
+            {available.pricedPartially ? (
+              <span className="ma-hint-inline"> · một số coin không có giá, tính theo giá vốn</span>
+            ) : null}
           </p>
         </div>
         <div className="ma-hero-actions">
@@ -110,6 +125,12 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
           <li>
             <span>− Đã mua spot</span>
             <span className="ma-num">{formatUsdt(available.spentOnSpotUsdt)}</span>
+          </li>
+          <li>
+            <span>{pnl >= 0 ? '+' : '−'} Lãi/lỗ spot</span>
+            <span className={`ma-num${pnl < 0 ? ' is-negative' : ''}`}>
+              {formatUsdt(Math.abs(pnl))}
+            </span>
           </li>
           {available.deployed.map((d) => (
             <li key={d.key}>

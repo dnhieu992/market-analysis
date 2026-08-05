@@ -27,21 +27,31 @@ on the next fetch — no code edit, no restart.
 The page also answers **"how much can I still deploy?"**:
 
 ```
-available = total − spent buying spot − trading − bitget − mexc
+available = total − spent buying spot + unrealized spot PnL − trading − bitget − mexc
 ```
 
-`spent buying spot` is the cost basis of coins still held (the sum of `Holding.totalCost` across
-portfolios), not the spot bucket's allocation — money sitting unspent in the spot bucket is still
-available. The breakdown is rendered line by line beside the number, because an "available" figure
-the trader cannot reconcile is one they will not trust.
+`spent buying spot` is the cost basis of coins still held (`Holding.totalCost` summed across
+portfolios), not the spot bucket's allocation — money sitting unspent in that bucket is still
+available. The **unrealized PnL term is what makes the number honest**: subtracting cost alone
+would report a spot position that has halved as still fully funded. The spot book is valued at
+Binance last price, and the difference from cost flows straight into available — profit raises it,
+loss lowers it.
+
+The breakdown is rendered line by line beside the number, because an "available" figure the trader
+cannot reconcile is one they will not trust.
+
+The headline **Tổng tài sản stays the ledger figure** — it is what Nạp/Rút move, and it must not
+drift with the market. Mark-to-market appears next to it as `currentValueUsdt`
+(`totalUsdt + unrealized spot PnL`) with the PnL and its %.
 
 ## Main Flow
 
 1. `GET /asset/summary` (server component, on page load) returns in one round trip:
    - `totalUsdt` — the sum of every category balance,
    - `totalDepositedUsdt` / `totalWithdrawnUsdt` — lifetime totals, summed in SQL,
-   - `available` — `availableUsdt` plus the `spentOnSpotUsdt` and `deployed[]` terms it was
-     derived from,
+   - `currentValueUsdt` — the ledger total marked to market,
+   - `available` — `availableUsdt` plus every term it was derived from: `spentOnSpotUsdt`,
+     `spotMarketValueUsdt`, `unrealizedSpotPnlUsdt`, `pricedPartially` and `deployed[]`,
    - `categories` — each with its derived `balanceUsdt`,
    - `transactions` — the 200 most recent ledger rows.
 2. The page renders the total tile with **Nạp / Rút / Chuyển**, the **USDT khả dụng** tile with its
@@ -56,6 +66,11 @@ the trader cannot reconcile is one they will not trust.
 Balance maths, per category: `sum(amount where toCategoryId = c) − sum(amount where fromCategoryId = c)`.
 Both sides are `groupBy` aggregates in MySQL, so the page stays correct once the ledger grows past
 the 200-row display slice.
+
+Spot valuation: `Holding` rows are grouped by coin (`sumByCoin()`), priced in one Binance
+`/api/v3/ticker/price` call, and summed as `amount × price`. Prices are cached 30s keyed on the
+symbol set, so a burst of saves — each of which refetches the summary — costs one call, while
+buying a new coin still invalidates the cache immediately.
 
 ## Edge Cases
 
@@ -77,8 +92,17 @@ the 200-row display slice.
   bookkeeping error.
 - **A deployed bucket was deleted** — it simply drops out of the `deployed[]` list and stops being
   subtracted; the number stays computable.
-- **Holdings table unreadable** — `spentOnSpotUsdt` falls back to 0 rather than failing the whole
-  summary.
+- **Holdings table unreadable** — the spot terms fall back to 0 rather than failing the summary.
+- **Binance price call fails** — every coin is valued at its own cost, so unrealized PnL is 0 and
+  available degrades to the cost-basis behaviour instead of erroring. `pricedPartially` goes true
+  and the page says so.
+- **A held coin Binance does not list** — valued at cost, contributing 0 PnL, rather than being
+  dropped (which would silently inflate available) or zeroed (which would wipe the position).
+  `pricedPartially` flags it.
+- **Stablecoin holdings** (USDT/USDC/BUSD/DAI/TUSD/FDUSD) — valued 1:1 without a price lookup;
+  Binance lists no `USDTUSDT` pair, so asking would falsely mark them unpriced.
+- **Fully sold-out coin** — `sumByCoin()` drops zero-amount rows, so a closed position contributes
+  neither value nor PnL.
 - **Deleting a category that still has history** — rejected with 409 and the count of blocking rows.
   The FK is `onDelete: Restrict`, so the database enforces this even if the check is bypassed.
 - **Duplicate category key** — rejected with 409. Keys are slugified from the label
@@ -98,7 +122,8 @@ the 200-row display slice.
 **Web (FE)**
 - `apps/web/src/app/my-asset/page.tsx` — route, thin re-export
 - `apps/web/src/_pages/my-asset-page/my-asset-page.tsx` — server component; fetches the summary
-- `apps/web/src/widgets/my-asset/my-asset.tsx` — total tile, available tile + breakdown, ledger table
+- `apps/web/src/widgets/my-asset/my-asset.tsx` — total tile (+ current value / PnL line), available
+  tile + breakdown, ledger table
 - `apps/web/src/widgets/my-asset/asset-transaction-dialog.tsx` — Nạp / Rút / Chuyển form
 - `apps/web/src/widgets/my-asset/add-category-dialog.tsx` — add a bucket, with label→key slugify
 - `apps/web/src/widgets/my-asset/allocation-pie.tsx` — recharts donut + legend; `buildSlices()` does
@@ -120,8 +145,12 @@ the 200-row display slice.
 - `apps/api/src/modules/asset/dto/create-asset-category.dto.ts`
 - `apps/api/src/modules/asset/dto/update-asset-category.dto.ts`
 - `apps/api/src/app.module.ts` — registers `AssetModule`
-- `apps/api/test/asset.service.spec.ts` — balance derivation, `availableUsdt`, and every validation
-  rule (22 cases)
+- `apps/api/src/modules/market/binance-market-data.service.ts` — `fetchCurrentPrices()`, the batch
+  price read (pulls the full ticker list and filters locally: Binance 400s a `symbols=[…]` batch
+  containing any unlisted pair)
+- `apps/api/src/modules/asset/asset.module.ts` — registers `BinanceMarketDataService` for injection
+- `apps/api/test/asset.service.spec.ts` — balance derivation, `availableUsdt`, spot mark-to-market
+  and every validation rule (28 cases)
 - `apps/api/test/stubs/app-db.ts` — in-memory asset ledger used by that spec
 
 **DB**
@@ -131,7 +160,8 @@ the 200-row display slice.
 - `packages/db/src/repositories/asset.repository.ts` — `createAssetCategoryRepository`
   (incl. `balanceByKey`, read by /bitget and /mexc for their capital),
   `createAssetTransactionRepository` (incl. `sumBalances`, `sumByType`)
-- `packages/db/src/repositories/holding.repository.ts` — `sumTotalCost()`, the spot-spend term
+- `packages/db/src/repositories/holding.repository.ts` — `sumTotalCost()` (spot-spend term) and
+  `sumByCoin()` (per-coin amounts, for market valuation)
 
 **Consumers of this page's data**
 - `apps/api/src/modules/bitget/bitget.service.ts` — `capitalUsd()` reads the `bitget` bucket

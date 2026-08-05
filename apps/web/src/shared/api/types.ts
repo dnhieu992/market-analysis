@@ -959,10 +959,14 @@ export type AssetDeployed = {
   balanceUsdt: number;
 };
 
-/** available = total − spent buying spot − trading − bitget − mexc. */
+/** available = total − spent on spot + unrealized spot PnL − trading − bitget − mexc. */
 export type AssetAvailable = {
   availableUsdt: number;
   spentOnSpotUsdt: number;
+  spotMarketValueUsdt: number;
+  unrealizedSpotPnlUsdt: number;
+  /** At least one held coin had no price and was valued at cost. */
+  pricedPartially: boolean;
   deployed: AssetDeployed[];
 };
 
@@ -970,6 +974,8 @@ export type AssetSummary = {
   totalUsdt: number;
   totalDepositedUsdt: number;
   totalWithdrawnUsdt: number;
+  /** The ledger total marked to market (total + unrealized spot PnL). */
+  currentValueUsdt: number;
   available: AssetAvailable;
   categories: AssetCategory[];
   transactions: AssetTransaction[];

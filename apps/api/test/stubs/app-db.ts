@@ -258,17 +258,30 @@ type AssetTransactionRow = {
   createdAt: Date;
 };
 
-let spotCostBasis = 0;
+type SpotPosition = { coinId: string; totalAmount: number; totalCost: number };
 
-/** Cost basis of coins held on spot, as AssetService reads it via @app/db. */
+let spotPositions: SpotPosition[] = [];
+
+/**
+ * The spot book AssetService values at market. Amounts and costs are per coin so
+ * a test can set a real price and check the resulting unrealized PnL.
+ */
+export function __setSpotPositions(positions: SpotPosition[]) {
+  spotPositions = positions;
+}
+
+/** Shorthand for tests that only care about the cost total, priced 1:1 at cost. */
 export function __setSpotCostBasis(value: number) {
-  spotCostBasis = value;
+  spotPositions = value === 0 ? [] : [{ coinId: 'BTC', totalAmount: value, totalCost: value }];
 }
 
 export function createHoldingRepository() {
   return {
     async sumTotalCost() {
-      return spotCostBasis;
+      return spotPositions.reduce((sum, p) => sum + p.totalCost, 0);
+    },
+    async sumByCoin() {
+      return spotPositions.filter((p) => p.totalAmount > 0);
     },
   };
 }
@@ -280,7 +293,7 @@ const assetTransactions: AssetTransactionRow[] = [];
 export function __seedAssetStore(categories: Array<{ id: string; key: string; label: string; sortOrder?: number }> = []) {
   assetCategories.splice(0, assetCategories.length);
   assetTransactions.splice(0, assetTransactions.length);
-  spotCostBasis = 0;
+  spotPositions = [];
   for (const c of categories) {
     assetCategories.push({
       id: c.id,

@@ -1,9 +1,18 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   createAssetCategoryRepository,
   createAssetTransactionRepository,
   createHoldingRepository,
 } from '@app/db';
+
+import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 import type { CreateAssetCategoryDto } from './dto/create-asset-category.dto';
 import type { CreateAssetTransactionDto } from './dto/create-asset-transaction.dto';
@@ -47,6 +56,16 @@ export type AssetAvailableDto = {
   availableUsdt: number;
   /** Cost basis of coins still held on spot — money spent, not sitting idle. */
   spentOnSpotUsdt: number;
+  /** What those same coins are worth right now at Binance last price. */
+  spotMarketValueUsdt: number;
+  /** `spotMarketValueUsdt − spentOnSpotUsdt`. Adds to available when in profit. */
+  unrealizedSpotPnlUsdt: number;
+  /**
+   * True when at least one held coin had no usable price and was valued at its
+   * cost instead, so the PnL above understates reality. The page says so rather
+   * than presenting a partial number as complete.
+   */
+  pricedPartially: boolean;
   /** The `trading` / `bitget` / `mexc` buckets, each already committed. */
   deployed: AssetDeployedDto[];
 };
@@ -56,10 +75,21 @@ export type AssetSummaryDto = {
   totalUsdt: number;
   totalDepositedUsdt: number;
   totalWithdrawnUsdt: number;
+  /** `totalUsdt` marked to market: the ledger plus unrealized spot PnL. */
+  currentValueUsdt: number;
   available: AssetAvailableDto;
   categories: AssetCategoryDto[];
   transactions: AssetTransactionDto[];
 };
+
+/** Held coins that are USDT by definition — Binance lists no `<stable>USDT` pair for them. */
+const STABLE_COINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'FDUSD']);
+
+/**
+ * Prices move far slower than the trader clicks. Caching them briefly keeps a
+ * burst of saves (each one refetches the summary) down to a single Binance call.
+ */
+const PRICE_CACHE_MS = 30_000;
 
 /**
  * Buckets treated as "already committed" when working out what is available.
@@ -73,20 +103,25 @@ const KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
 @Injectable()
 export class AssetService {
+  private readonly logger = new Logger(AssetService.name);
   private readonly categories = createAssetCategoryRepository();
   private readonly transactions = createAssetTransactionRepository();
   private readonly holdings = createHoldingRepository();
+  private priceCache: { key: string; at: number; prices: Record<string, number> } | null = null;
+
+  constructor(
+    @Inject(BinanceMarketDataService)
+    private readonly market: BinanceMarketDataService,
+  ) {}
 
   /** Everything /my-asset renders in one round trip. */
   async getSummary(): Promise<AssetSummaryDto> {
-    const [categories, balances, byType, transactions, spentOnSpotUsdt] = await Promise.all([
+    const [categories, balances, byType, transactions, spot] = await Promise.all([
       this.categories.findAll(),
       this.transactions.sumBalances(),
       this.transactions.sumByType(),
       this.transactions.findAll(LEDGER_LIMIT),
-      // Non-fatal: an unusable holdings table must not blank the whole page, it
-      // just means nothing is known to be spent on spot yet.
-      this.holdings.sumTotalCost().catch(() => 0),
+      this.valueSpot(),
     ]);
 
     const balanceById = new Map(balances.map((b) => [b.categoryId, b.balanceUsdt]));
@@ -100,8 +135,7 @@ export class AssetService {
 
     const totalUsdt = categoryDtos.reduce((sum, c) => sum + c.balanceUsdt, 0);
 
-    // available = total − spent buying spot − everything allocated to trading,
-    // bitget and mexc. A deployed bucket the trader deleted simply drops out.
+    // A deployed bucket the trader deleted simply drops out of the subtraction.
     const deployed: AssetDeployedDto[] = DEPLOYED_KEYS.flatMap((key) => {
       const category = categoryDtos.find((c) => c.key === key);
       return category
@@ -110,18 +144,99 @@ export class AssetService {
     });
     const deployedTotal = deployed.reduce((sum, d) => sum + d.balanceUsdt, 0);
 
+    // available = total − what was spent on spot + what that spot is now worth
+    // more (or less) than it cost − everything allocated elsewhere. Subtracting
+    // only the cost would report a position that has halved as still fully
+    // funded, so the unrealized PnL has to be part of the number.
+    const availableUsdt =
+      totalUsdt - spot.spentOnSpotUsdt + spot.unrealizedSpotPnlUsdt - deployedTotal;
+
     return {
       totalUsdt,
       totalDepositedUsdt: byType.DEPOSIT ?? 0,
       totalWithdrawnUsdt: byType.WITHDRAW ?? 0,
-      available: {
-        availableUsdt: totalUsdt - spentOnSpotUsdt - deployedTotal,
-        spentOnSpotUsdt,
-        deployed,
-      },
+      currentValueUsdt: totalUsdt + spot.unrealizedSpotPnlUsdt,
+      available: { availableUsdt, ...spot, deployed },
       categories: categoryDtos,
       transactions: transactions.map(toTransactionDto),
     };
+  }
+
+  /**
+   * Value the spot book at Binance last price. Every failure mode degrades to
+   * "no PnL known" rather than breaking the page: an unreadable holdings table
+   * yields zeros, a failed price call values everything at cost, and a single
+   * unlisted coin is valued at its own cost and flagged via `pricedPartially`.
+   */
+  private async valueSpot(): Promise<Omit<AssetAvailableDto, 'availableUsdt' | 'deployed'>> {
+    const positions = await this.holdings.sumByCoin().catch((err) => {
+      this.logger.warn(`Failed to read spot holdings: ${(err as Error).message}`);
+      return [] as Array<{ coinId: string; totalAmount: number; totalCost: number }>;
+    });
+
+    const spentOnSpotUsdt = positions.reduce((sum, p) => sum + p.totalCost, 0);
+    if (positions.length === 0) {
+      return {
+        spentOnSpotUsdt: 0,
+        spotMarketValueUsdt: 0,
+        unrealizedSpotPnlUsdt: 0,
+        pricedPartially: false,
+      };
+    }
+
+    const priceable = positions.filter((p) => !STABLE_COINS.has(p.coinId.toUpperCase()));
+    const prices = await this.prices(priceable.map((p) => `${p.coinId.toUpperCase()}USDT`));
+
+    let spotMarketValueUsdt = 0;
+    let pricedPartially = false;
+
+    for (const position of positions) {
+      const coin = position.coinId.toUpperCase();
+      if (STABLE_COINS.has(coin)) {
+        spotMarketValueUsdt += position.totalAmount;
+        continue;
+      }
+
+      const price = prices[`${coin}USDT`];
+      if (price == null) {
+        // Value at cost so one unlisted coin contributes 0 PnL instead of
+        // wiping its whole position out of the total.
+        spotMarketValueUsdt += position.totalCost;
+        pricedPartially = true;
+        continue;
+      }
+
+      spotMarketValueUsdt += position.totalAmount * price;
+    }
+
+    return {
+      spentOnSpotUsdt,
+      spotMarketValueUsdt,
+      unrealizedSpotPnlUsdt: spotMarketValueUsdt - spentOnSpotUsdt,
+      pricedPartially,
+    };
+  }
+
+  /** Binance last prices, cached briefly. A failed call returns no prices, never throws. */
+  private async prices(symbols: string[]): Promise<Record<string, number>> {
+    if (symbols.length === 0) return {};
+
+    // Key on the symbol set, not just time: buying a new coin must not read a
+    // cached map that predates it and report the position as unpriced.
+    const key = [...symbols].sort().join(',');
+    const now = Date.now();
+    if (this.priceCache && this.priceCache.key === key && now - this.priceCache.at < PRICE_CACHE_MS) {
+      return this.priceCache.prices;
+    }
+
+    try {
+      const prices = await this.market.fetchCurrentPrices(symbols);
+      this.priceCache = { key, at: now, prices };
+      return prices;
+    } catch (err) {
+      this.logger.warn(`Failed to fetch spot prices: ${(err as Error).message}`);
+      return {};
+    }
   }
 
   async createCategory(input: CreateAssetCategoryDto): Promise<AssetCategoryDto> {

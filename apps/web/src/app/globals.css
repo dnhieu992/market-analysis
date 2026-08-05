@@ -10486,6 +10486,21 @@ a.metric-card--link:hover {
   font-weight: 600;
 }
 
+.ma-available-breakdown .ma-num.is-negative,
+.ma-pnl.is-negative {
+  color: #9b2c2c;
+}
+
+.ma-pnl {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ma-hint-inline {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .ma-table-wrap {
   overflow-x: auto;
 }

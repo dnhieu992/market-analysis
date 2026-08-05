@@ -70,6 +70,29 @@ export class BinanceMarketDataService {
     return parseFloat(res.data.price);
   }
 
+  /**
+   * Last price for many symbols in one call, keyed by the symbol asked for.
+   * Symbols Binance does not list are simply absent from the result rather than
+   * failing the batch — the caller decides how to value them.
+   */
+  async fetchCurrentPrices(symbols: string[]): Promise<Record<string, number>> {
+    if (symbols.length === 0) return {};
+
+    const res = await this.client.get<{ symbol: string; price: string }[]>('/api/v3/ticker/price');
+    const wanted = new Set(symbols);
+    const prices: Record<string, number> = {};
+
+    // Binance 400s the whole batch if any symbol in `symbols=[...]` is unlisted,
+    // so pull the full ticker list once and filter locally instead.
+    for (const row of res.data ?? []) {
+      if (!wanted.has(row.symbol)) continue;
+      const price = parseFloat(row.price);
+      if (Number.isFinite(price) && price > 0) prices[row.symbol] = price;
+    }
+
+    return prices;
+  }
+
   async fetchKlinesInRange({
     symbol,
     timeframe,

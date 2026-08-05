@@ -1,5 +1,5 @@
 import { AssetService } from '../src/modules/asset/asset.service';
-import { __seedAssetStore, __setSpotCostBasis } from './stubs/app-db';
+import { __seedAssetStore, __setSpotCostBasis, __setSpotPositions } from './stubs/app-db';
 
 const SPOT = 'cat-spot';
 const TRADING = 'cat-trading';
@@ -7,6 +7,21 @@ const BITGET = 'cat-bitget';
 
 async function deposit(service: AssetService, toCategoryId: string, amountUsdt: number) {
   return service.createTransaction({ type: 'DEPOSIT', amountUsdt, toCategoryId });
+}
+
+/** Stands in for Binance. `prices` is keyed by pair, e.g. { BTCUSDT: 50000 }. */
+function marketStub(prices: Record<string, number> = {}, fail = false) {
+  return {
+    async fetchCurrentPrices() {
+      if (fail) throw new Error('binance down');
+      return prices;
+    },
+  } as never;
+}
+
+/** A fresh service per case — the price cache is per-instance. */
+function build(prices: Record<string, number> = {}, fail = false) {
+  return new AssetService(marketStub(prices, fail));
 }
 
 describe('AssetService', () => {
@@ -18,7 +33,7 @@ describe('AssetService', () => {
       { id: TRADING, key: 'trading', label: 'Trading', sortOrder: 2 },
       { id: BITGET, key: 'bitget', label: 'Bitget', sortOrder: 3 },
     ]);
-    service = new AssetService();
+    service = build();
   });
 
   describe('getSummary', () => {
@@ -128,6 +143,92 @@ describe('AssetService', () => {
       expect(totalUsdt).toBe(1000);
       expect(available.deployed.find((d) => d.key === 'bitget')?.balanceUsdt).toBe(250);
       expect(available.availableUsdt).toBe(750);
+    });
+  });
+
+  describe('spot marked to market', () => {
+    it('adds unrealized profit to available and to the current value', async () => {
+      service = build({ BTCUSDT: 120 });
+      await deposit(service, SPOT, 1000);
+      // 10 BTC bought for 1000 total, now worth 1200 → +200.
+      __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 1000 }]);
+
+      const { available, totalUsdt, currentValueUsdt } = await service.getSummary();
+
+      expect(available.spentOnSpotUsdt).toBe(1000);
+      expect(available.spotMarketValueUsdt).toBe(1200);
+      expect(available.unrealizedSpotPnlUsdt).toBe(200);
+      expect(totalUsdt).toBe(1000); // the ledger headline does not move with price
+      expect(currentValueUsdt).toBe(1200);
+      // 1000 − 1000 spent + 200 profit
+      expect(available.availableUsdt).toBe(200);
+    });
+
+    it('subtracts unrealized loss — the bug this replaced', async () => {
+      service = build({ BTCUSDT: 80 });
+      await deposit(service, SPOT, 1100);
+      __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 1000 }]);
+
+      const { available, currentValueUsdt } = await service.getSummary();
+
+      expect(available.unrealizedSpotPnlUsdt).toBe(-200);
+      expect(currentValueUsdt).toBe(900);
+      // 1100 − 1000 spent − 200 loss. Subtracting cost alone would say 100.
+      expect(available.availableUsdt).toBe(-100);
+    });
+
+    it('values a coin with no price at cost and flags it', async () => {
+      service = build({ BTCUSDT: 120 }); // no price for FOO
+      await deposit(service, SPOT, 1000);
+      __setSpotPositions([
+        { coinId: 'BTC', totalAmount: 10, totalCost: 1000 },
+        { coinId: 'FOO', totalAmount: 50, totalCost: 500 },
+      ]);
+
+      const { available } = await service.getSummary();
+
+      expect(available.pricedPartially).toBe(true);
+      expect(available.spentOnSpotUsdt).toBe(1500);
+      expect(available.spotMarketValueUsdt).toBe(1700); // 1200 BTC + 500 FOO at cost
+      expect(available.unrealizedSpotPnlUsdt).toBe(200); // FOO contributes nothing
+    });
+
+    it('treats stablecoin holdings as 1:1 without asking for a price', async () => {
+      service = build({}, true); // even a dead Binance must not break this
+      await deposit(service, SPOT, 500);
+      __setSpotPositions([{ coinId: 'USDC', totalAmount: 300, totalCost: 300 }]);
+
+      const { available } = await service.getSummary();
+
+      expect(available.spotMarketValueUsdt).toBe(300);
+      expect(available.unrealizedSpotPnlUsdt).toBe(0);
+      expect(available.pricedPartially).toBe(false);
+      expect(available.availableUsdt).toBe(200);
+    });
+
+    it('falls back to cost when the price call fails, never throwing', async () => {
+      service = build({}, true);
+      await deposit(service, SPOT, 1000);
+      __setSpotPositions([{ coinId: 'BTC', totalAmount: 10, totalCost: 800 }]);
+
+      const { available } = await service.getSummary();
+
+      expect(available.unrealizedSpotPnlUsdt).toBe(0);
+      expect(available.pricedPartially).toBe(true);
+      expect(available.availableUsdt).toBe(200);
+    });
+
+    it('reports zero PnL and no partial flag when nothing is held', async () => {
+      service = build({ BTCUSDT: 120 });
+      await deposit(service, SPOT, 400);
+
+      const { available, currentValueUsdt } = await service.getSummary();
+
+      expect(available.spotMarketValueUsdt).toBe(0);
+      expect(available.unrealizedSpotPnlUsdt).toBe(0);
+      expect(available.pricedPartially).toBe(false);
+      expect(currentValueUsdt).toBe(400);
+      expect(available.availableUsdt).toBe(400);
     });
   });
 

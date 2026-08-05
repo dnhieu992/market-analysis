@@ -36,6 +36,26 @@ export function createHoldingRepository(client = prisma) {
       const { _sum } = await client.holding.aggregate({ _sum: { totalCost: true } });
       return Number(_sum.totalCost ?? 0);
     },
+    /**
+     * One row per coin, amounts and cost summed across every portfolio. /my-asset
+     * needs this (not just the cost total) to value the spot position at market
+     * and turn the difference into unrealized PnL.
+     */
+    async sumByCoin(): Promise<Array<{ coinId: string; totalAmount: number; totalCost: number }>> {
+      const rows = await client.holding.groupBy({
+        by: ['coinId'],
+        _sum: { totalAmount: true, totalCost: true }
+      });
+
+      return rows
+        .map((r) => ({
+          coinId: r.coinId,
+          totalAmount: Number(r._sum.totalAmount ?? 0),
+          totalCost: Number(r._sum.totalCost ?? 0)
+        }))
+        // A fully sold-out coin keeps a zero-amount row; it holds no value.
+        .filter((r) => r.totalAmount > 0);
+    },
     update(portfolioId: string, coinId: string, data: Prisma.HoldingUncheckedUpdateInput) {
       return client.holding.update({
         where: { portfolioId_coinId: { portfolioId, coinId } },
