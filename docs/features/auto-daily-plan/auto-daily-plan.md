@@ -1,5 +1,26 @@
 # Feature: Auto Daily Plan
 
+> **DISABLED 2026-08-05 — nothing below runs any more.**
+>
+> The trader asked to stop the daily plan Telegram push. Since the `/daily-plan`
+> page and its API were already removed (2026-08-04), that Telegram message was
+> the feature's only consumer — keeping the job alive would have burned a Claude
+> Vision call per symbol per day to write `DailyAnalysis` rows nobody reads.
+>
+> What was unwired:
+> - `SchedulerService.sendDailySignals()` no longer calls the daily plan; the
+>   00:30 UTC cron now only runs the **daily long signal** (a separate feature,
+>   still active — see `docs/features/daily-long-signal/`).
+> - `SchedulerService.runDailyAnalysisForSymbols()` deleted, along with the
+>   `VisualAnalysisService` / `TelegramService` injections and the
+>   `VisualAnalysisModule` / `TelegramModule` imports in `SchedulerModule`.
+> - The `WORKER_SEND_DAILY_ON_BOOT` boot hook in `apps/worker/src/main.ts` is
+>   gone; the env var is now inert.
+>
+> `VisualAnalysisService`, `ChartService` and the `DailyAnalysis` table are all
+> left intact. Re-enabling means re-injecting the service and calling it from
+> the cron again — the description below still documents how it worked.
+
 ## Overview
 
 The auto daily plan feature runs once per day and sends a multi-timeframe trading analysis for each tracked symbol to Telegram. It generates candlestick chart images for each active timeframe, sends them all to Claude Vision with a Vietnamese prompt, and delivers both the charts and the AI analysis text to the user. The result is also persisted to the database (`DailyAnalysis`).
@@ -74,7 +95,7 @@ Worker boot or 00:30 UTC cron
 
 | Variable | Required | Description |
 |---|---|---|
-| `WORKER_SEND_DAILY_ON_BOOT` | No | Set to `true` to trigger analysis immediately on worker startup |
+| `WORKER_SEND_DAILY_ON_BOOT` | No | ~~Set to `true` to trigger analysis immediately on worker startup~~ — **inert since 2026-08-05**, the boot hook was removed |
 | `CLAUDE_API_KEY` | Yes | Anthropic API key for Claude Vision calls |
 | `TELEGRAM_BOT_TOKEN` | Yes | Telegram bot token for sending messages |
 | `TELEGRAM_CHAT_ID` | Yes | Telegram chat ID to send analysis to |

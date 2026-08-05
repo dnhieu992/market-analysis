@@ -7,8 +7,6 @@ import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
-import { TelegramService } from '../telegram/telegram.service';
-import { VisualAnalysisService } from '../visual-analysis/visual-analysis.service';
 
 @Injectable()
 export class SchedulerService {
@@ -17,8 +15,6 @@ export class SchedulerService {
 
   constructor(
     private readonly analysisOrchestratorService: AnalysisOrchestratorService,
-    private readonly visualAnalysisService: VisualAnalysisService,
-    private readonly telegramService: TelegramService,
     private readonly swingSignalService: SwingSignalService,
     private readonly dailySignalService: DailySignalService,
     private readonly bitgetHistoryService: BitgetHistoryService,
@@ -38,10 +34,16 @@ export class SchedulerService {
   }
 
   // Runs every day at 00:30 UTC (07:30 local time UTC+7)
+  //
+  // The auto daily plan (charts + Claude Vision analysis pushed to Telegram)
+  // was dropped from this job on 2026-08-05 at the trader's request. Its only
+  // consumer was that Telegram message — the /daily-plan page and its API went
+  // away on 2026-08-04 — so generating it cost a vision call per symbol for
+  // rows nobody reads. `VisualAnalysisService` is left in place, unwired, if it
+  // is ever wanted back.
   @Cron('30 0 * * *', { timeZone: 'UTC' })
   async sendDailySignals() {
     this.logger.log('Running daily signal job');
-    await this.runDailyAnalysisForSymbols(this.trackedSymbols);
     await this.dailySignalService.checkAndSend();
   }
 
@@ -117,30 +119,4 @@ export class SchedulerService {
     await this.swingSignalService.checkAll();
   }
 
-  async runDailyAnalysisForSymbols(symbols: string[]) {
-    for (const symbol of symbols) {
-      try {
-        const { charts, analysisText } = await this.visualAnalysisService.analyze(symbol);
-
-        for (const chart of charts) {
-          const photoResult = await this.telegramService.sendPhoto(chart.buffer, chart.caption);
-          this.logger.log(`sendPhoto result for ${symbol} ${chart.caption}: ${JSON.stringify(photoResult)}`);
-        }
-
-        const msgResult = await this.telegramService.sendAnalysisMessage({
-          content: analysisText,
-          messageType: 'daily-plan'
-        });
-        this.logger.log(`sendAnalysisMessage result for ${symbol}: ${JSON.stringify(msgResult)}`);
-
-        this.logger.log(`Daily analysis sent for ${symbol}`);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : 'unknown error';
-        const status = (error as { response?: { status?: number; data?: unknown } }).response?.status;
-        const data = (error as { response?: { status?: number; data?: unknown } }).response?.data;
-        this.logger.error(`Daily analysis failed for ${symbol}: ${msg}`);
-        if (status !== undefined) this.logger.error(`HTTP ${status} — response: ${JSON.stringify(data)}`);
-      }
-    }
-  }
 }
