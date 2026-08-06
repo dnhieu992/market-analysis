@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
       "Bash(pnpm:*)",
       "Bash(npx jest:*)",
       "Bash(node:*)",
@@ -182,7 +184,31 @@
       "Bash(MYSQL_PWD='Pass@word1!' mysql *)",
       "Bash(MYSQL_PWD=Pass@word1! mysql -h 127.0.0.1 -u market_user -e 'insert into sessions \\(id,userId,tokenHash,expiresAt\\) values \\('\\\\''__TRACKED_VAR__'\\\\'','\\\\''cmnvpm8tq00009b8exi7d33dj'\\\\'','\\\\''__TRACKED_VAR__'\\\\'', date_add\\(now\\(\\), interval 5 minute\\)\\);' market_analysis)",
       "Bash(command -v mysqldump)",
-      "Bash(echo \"API-EXIT=$?\")"
+      "Bash(echo \"API-EXIT=$?\")",
+      "Bash(command -v docker)",
+      "WebFetch(domain:mexcdevelop.github.io)",
+      "WebFetch(domain:www.mexc.com)",
+      "Bash(sed -E 's/=\\(.{4}\\).*/=\\\\1… \\(set\\)/')",
+      "Bash(pm2 env *)",
+      "Bash(swapon --show)",
+      "Bash(ps aux *)",
+      "Bash(dmesg -T)",
+      "Bash(journalctl -k --since \"7 days ago\")",
+      "Bash(docker stats *)",
+      "Bash(systemctl list-units *)",
+      "Bash(bash -n deploy.sh)",
+      "Bash(sed -i \"/tracked-setups\\\\/tracked-setups.module/d; /daily-analysis\\\\/daily-analysis.module/d; /^    TrackedSetupsModule,$/d; /^    DailyAnalysisModule,$/d\" apps/api/src/app.module.ts)",
+      "Bash(sed -i \"/createTrackedSetupRepository/d\" packages/db/src/index.ts)",
+      "Bash(sed -i \"/^export const createTrackedSetupRepository = noopRepository;$/d\" apps/worker/test/stubs/app-db.ts)",
+      "Bash(sed -i \"/setup-tracking\\\\/setup-tracking.module/d; s/SwingSignalModule, SetupTrackingModule, BitgetHistoryModule/SwingSignalModule, BitgetHistoryModule/\" apps/worker/src/modules/scheduler/scheduler.module.ts)",
+      "Bash(echo \"DEPLOY_EXIT=$?\")",
+      "Bash(ps -p 4087675 -o pid,etime,cmd --no-headers)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(sed -i \"s|'../../../../root/market-analysis/packages/core/src|'/root/market-analysis/packages/core/src|g\" verify-supertrend.ts)",
+      "Bash(npx --prefix /root/market-analysis ts-node --compiler-options '{\"module\":\"commonjs\",\"target\":\"es2020\",\"esModuleInterop\":true}' verify-supertrend.ts)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(echo \"TSC_EXIT=$?\")",
+      "Skill(update-config)"
     ],
     "defaultMode": "acceptEdits"
   }
