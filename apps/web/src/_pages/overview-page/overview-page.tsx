@@ -1,5 +1,5 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
-import type { DashboardOrder } from '@web/shared/api/types';
+import type { AssetSummary, DashboardOrder } from '@web/shared/api/types';
 import { EXCHANGE_HISTORY_LIMIT } from '@web/shared/api/exchange-orders';
 import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-overview';
 
@@ -141,8 +141,14 @@ function buildOverviewCards(
 }
 
 export default async function OverviewPage() {
-  const { recentOrders, closedPnlSum, allHoldings, portfolioCount } =
-    await loadDashboardData();
+  // The asset summary is its own call: a failure there must not blank the rest
+  // of the dashboard, so the card is simply dropped when it is unavailable.
+  const [{ recentOrders, closedPnlSum, allHoldings, portfolioCount }, assetSummary] = await Promise.all([
+    loadDashboardData(),
+    createServerApiClient()
+      .fetchAssetSummary()
+      .catch(() => null as AssetSummary | null),
+  ]);
 
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
   const ethHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'ETH');
@@ -168,6 +174,7 @@ export default async function OverviewPage() {
       allHoldings={allHoldings}
       portfolioCount={portfolioCount}
       orders={recentOrders}
+      assetSummary={assetSummary}
     />
   );
 }

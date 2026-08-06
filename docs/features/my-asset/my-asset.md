@@ -144,6 +144,37 @@ all-time total that page reports. Measured on live data: capital 1,363.62 → 1,
 **Deployed PnL never enters `availableUsdt`.** That money is sitting on an exchange, not in a
 spendable cash bucket; it surfaces in `currentValueUsdt` and this panel only.
 
+### Mirrored onto the Overview dashboard
+
+The same two figures — **Tổng tài sản** and the **Phân bổ danh mục** donut — also render on `/`
+(the Overview page), directly **above** the "Total Net Worth · All Portfolios" card, so the whole
+book is visible without navigating away.
+
+`AssetSummaryCard` is a deliberate twin of that card rather than a copy of `/my-asset`'s: same
+`.ps-*` markup, same `$` formatting, same 12-colour palette, same 45/72 donut radii, same
+dot–name–percent legend, and the same **English** wording — two cards in different visual languages
+stacked on one page read as a bug. It therefore does **not** reuse `AllocationPie` (which is styled
+in `.ma-*` for the Vietnamese page); it reuses only the data functions, `buildAllocationItems()` and
+`buildSlices()`, so the slice set, the ordering, the negative-value exclusion and the overflow fold
+stay single-sourced and the two pages can never disagree on *what* is in the donut. The two labels
+those functions generate in Vietnamese ("USDT khả dụng", "Coin khác (n)", "Khác (n)") are swapped to
+English in the card — the deployed buckets are already named in English by the seed (Spot, Trading,
+Bitget, MEXC, Wallet).
+
+Right column, mirroring the sibling's eyebrow → headline → badges → P&L section → stat row:
+**Total Assets · All Accounts** (`currentValueUsdt`), two badges carrying the all-time PnL in
+dollars and percent, **Net Deposits** (net flow, linked to `/my-asset`), and Accounts / Available /
+Deployed stat boxes.
+
+The columns are **flipped** relative to the net-worth card: on desktop the donut takes the left
+column and the total takes the right. Stacked on mobile the order swaps back
+(`.ps-card--asset .ps-top-section { flex-direction: column-reverse }`) so the headline number is
+still what is read first.
+
+The two cards measure different things and are meant to sit side by side: this one is the whole
+book (spot + cash + deployed accounts), the one below it is the spot portfolio only, priced
+client-side from Binance.
+
 ## Main Flow
 
 1. `GET /asset/summary` (server component, on page load) returns in one round trip:
@@ -284,6 +315,13 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row. Currently not mounted
   by `my-asset.tsx` — kept ready to drop back in
 - `apps/web/src/widgets/my-asset/deployed-buckets.spec.ts` — 5 cases over `summarizeDeployed()`
+- `apps/web/src/widgets/asset-summary-card/asset-summary-card.tsx` — the Overview mirror of the
+  total + donut (donut left, total right), styled and worded as a twin of `HoldingsAllocationChart`;
+  reuses `buildAllocationItems()` / `buildSlices()` for the data only
+- `apps/web/src/_pages/overview-page/overview-page.tsx` — fetches the summary alongside the
+  dashboard data; a failed call drops the card instead of blanking the page
+- `apps/web/src/widgets/dashboard-overview/dashboard-overview.tsx` — mounts the card above
+  `HoldingsAllocationChart`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav item, placed directly under Overview
 - `apps/web/src/shared/api/client.ts` — `fetchAssetSummary`, `createAssetTransaction`,
   `deleteAssetTransaction`, `createAssetCategory`, `updateAssetCategory`, `deleteAssetCategory`,

@@ -1,4 +1,5 @@
-import type { DashboardOrder } from '@web/shared/api/types';
+import type { AssetSummary, DashboardOrder } from '@web/shared/api/types';
+import { AssetSummaryCard } from '@web/widgets/asset-summary-card/asset-summary-card';
 import { HoldingsAllocationChart } from '@web/widgets/holdings-allocation-chart/holdings-allocation-chart';
 import { OverviewCards } from './overview-cards';
 
@@ -22,12 +23,16 @@ type DashboardOverviewProps = Readonly<{
   allHoldings: HoldingEntry[];
   portfolioCount: number;
   orders: DashboardOrder[];
+  assetSummary: AssetSummary | null;
 }>;
 
-export function DashboardOverview({ cards, allHoldings, portfolioCount }: DashboardOverviewProps) {
+export function DashboardOverview({ cards, allHoldings, portfolioCount, assetSummary }: DashboardOverviewProps) {
   return (
     <main className="dashboard-shell">
       <OverviewCards cards={cards} />
+
+      {/* The whole book (/my-asset) first, then the spot-portfolio breakdown. */}
+      {assetSummary ? <AssetSummaryCard summary={assetSummary} /> : null}
 
       <HoldingsAllocationChart holdings={allHoldings} portfolioCount={portfolioCount} />
     </main>
