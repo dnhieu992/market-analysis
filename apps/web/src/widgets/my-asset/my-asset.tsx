@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { AssetSummary, AssetTransactionType } from '@web/shared/api/types';
 
-import { AllocationPie } from './allocation-pie';
+import { AllocationPie, buildAllocationItems } from './allocation-pie';
 import { AssetTransactionDialog } from './asset-transaction-dialog';
 import { AddCategoryDialog } from './add-category-dialog';
 import { DeployedBuckets } from './deployed-buckets';
@@ -48,6 +48,10 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
     () => new Map(summary.categories.map((c) => [c.id, c.label])),
     [summary.categories],
   );
+
+  // Coins at market + available cash + each deployed account — the parts of the
+  // hero's current value, which is what the donut divides up.
+  const allocationItems = useMemo(() => buildAllocationItems(summary), [summary]);
 
   async function refresh() {
     setSummary(await apiClient.fetchAssetSummary());
@@ -110,52 +114,6 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
         </div>
       </section>
 
-      {/* The arithmetic is spelled out rather than just its result — an "available"
-          number the trader can't reconcile is one they won't trust. */}
-      <section className="panel ma-panel ma-available">
-        <div>
-          <p className="metric-label">USDT khả dụng</p>
-          <p className={`ma-available-value${available.availableUsdt < 0 ? ' is-negative' : ''}`}>
-            {formatUsdt(available.availableUsdt)}
-          </p>
-          <p className="ma-hint">
-            Tiền mặt thật — chưa tính lãi/lỗ chưa chốt{' '}
-            <span className={available.unrealizedSpotPnlUsdt < 0 ? 'ma-pnl is-negative' : 'ma-pnl'}>
-              ({available.unrealizedSpotPnlUsdt >= 0 ? '+' : ''}
-              {formatUsdt(available.unrealizedSpotPnlUsdt)})
-            </span>
-          </p>
-        </div>
-        {/* Built up from the buckets that actually hold cash, rather than the total
-            minus everything else — so wallet and any bucket added later appear by
-            name instead of being buried inside a subtraction. */}
-        <ul className="ma-available-breakdown">
-          <li>
-            <span>Spot được cấp</span>
-            <span className="ma-num">{formatUsdt(available.spotAllocationUsdt)}</span>
-          </li>
-          <li>
-            <span>− Vốn coin đang giữ</span>
-            <span className="ma-num">{formatUsdt(available.spentOnSpotUsdt)}</span>
-          </li>
-          {/* Only the banked half. Unrealized PnL is real information but it is
-              not spendable, so it is reported in the hero rather than netted off
-              a number that answers "how much can I put into a trade now?". */}
-          <li>
-            <span>{available.realizedSpotPnlUsdt >= 0 ? '+' : '−'} Lãi spot đã chốt</span>
-            <span className={`ma-num${available.realizedSpotPnlUsdt < 0 ? ' is-negative' : ''}`}>
-              {formatUsdt(Math.abs(available.realizedSpotPnlUsdt))}
-            </span>
-          </li>
-          {available.liquid.map((c) => (
-            <li key={c.key}>
-              <span>+ {c.label}</span>
-              <span className="ma-num">{formatUsdt(c.balanceUsdt)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       {error ? <p className="ma-error">{error}</p> : null}
 
       {/* Sits above the allocation donut on purpose: the donut answers "where is
@@ -182,7 +140,7 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
         {summary.categories.length === 0 ? (
           <p className="ma-empty">Chưa có danh mục nào.</p>
         ) : (
-          <AllocationPie categories={summary.categories} />
+          <AllocationPie items={allocationItems} />
         )}
       </section>
 

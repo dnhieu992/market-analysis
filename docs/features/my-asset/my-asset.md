@@ -50,8 +50,8 @@ understates a book that has been trading profitably.
 
 **Unrealized PnL is reported but never subtracted from available.** Paper gains and losses cannot
 be deployed until the position is closed; netting them in would make available twitch with every
-price tick while the actual cash balance sat still. It surfaces in two places instead: the hero's
-`currentValueUsdt` (mark-to-market) and a hint line under the available figure.
+price tick while the actual cash balance sat still. It surfaces in the hero's `currentValueUsdt`
+(mark-to-market) instead.
 
 The two halves summed — `totalSpotPnlUsdt` — is what `/portfolio` calls a holding's all-time
 profit. It is one of the two terms behind the hero's PnL display (the other is deployed PnL, see
@@ -59,8 +59,11 @@ below). Measured on live data during development: unrealized
 −92.14, realized +145.80, so the spot book was **+53.67 overall** while available (cash) stood at
 **284.22**.
 
-The breakdown is rendered line by line beside the number, because an "available" figure the trader
-cannot reconcile is one they will not trust.
+**Available has no card of its own — it is a slice of the allocation donut.** The standalone
+"USDT khả dụng" tile and its line-by-line breakdown were removed at the trader's request: cash
+waiting to be deployed is an allocation like any other, and showing it twice split attention. The
+API still returns every term (`spotAllocationUsdt`, `spentOnSpotUsdt`, `realizedSpotPnlUsdt`,
+`liquid[]`) so the arithmetic remains auditable and a future view can render it again.
 
 The headline **Tổng tài sản is the mark-to-market figure** `currentValueUsdt`
 (`totalUsdt + spot PnL + deployed PnL`) — what is actually left after profits and losses. A single
@@ -71,8 +74,37 @@ beneath it.
 
 Everything else the hero used to carry — the deposit/withdraw/net breakdown, the ledger total, and
 the spot vs deployed split of the PnL — was removed at the trader's request as noise; the ledger
-total still drives the allocation donut and the transaction table, and the deployed half of the PnL
-is shown per bucket in **Vốn triển khai** below.
+total still drives the transaction table, and the deployed half of the PnL is shown per bucket in
+**Vốn triển khai** below.
+
+### Phân bổ danh mục — what the donut divides
+
+The donut no longer divides the **ledger**; it divides the book's **current value**, the same
+number the hero shows:
+
+```
+coins at market  +  available USDT  +  each deployed account at current value  =  currentValueUsdt
+```
+
+That identity holds by construction, since
+`available = spotAllocation − spentOnSpot + realized + liquid` and
+`deployed currentValue = capital + PnL`; substituting gives
+`totalUsdt + spot PnL + deployed PnL`.
+
+Two changes from the ledger view it replaces:
+
+- **Spot is split per coin.** "3,163 USDT in Spot" never said how much of that was BTC. **BTC** and
+  **ETH** are always named; the remaining coins fold into one **Coin khác (n)** slice — except when
+  exactly one is left over, which is named rather than hidden behind "Coin khác (1)".
+- **USDT khả dụng is a slice**, replacing the standalone card. It carries the wallet bucket and
+  every other cash bucket, so no cash disappeared when the card did.
+
+Coins are valued at Binance last price (`spotPositions[].marketValueUsdt`), deployed buckets at
+`currentValueUsdt` — so the donut agrees with the Vốn triển khai table sitting directly above it.
+
+Slices use the first eight slots of the validated categorical palette. The eight pass the CVD and
+normal-vision floors on the adjacent pairlist a donut needs; three of them sit below 3:1 contrast on
+the light surface, which the legend answers by giving every slice a text label, amount and share.
 
 ### Vốn triển khai — deployed capital, valued
 
@@ -118,15 +150,15 @@ spendable cash bucket; it surfaces in `currentValueUsdt` and this panel only.
      result and their sum,
    - `available` — `availableUsdt` plus every term it was derived from: `spotAllocationUsdt`,
      `spentOnSpotUsdt`, `spotMarketValueUsdt`, `unrealizedSpotPnlUsdt`, `realizedSpotPnlUsdt`,
-     `totalSpotPnlUsdt`, `pricedPartially`, `liquid[]` (cash buckets) and `deployed[]` (each with
+     `totalSpotPnlUsdt`, `pricedPartially`, `spotPositions[]` (each held coin: `coinId`, `amount`,
+     `costUsdt`, `marketValueUsdt`, `priced`), `liquid[]` (cash buckets) and `deployed[]` (each with
      `capitalUsdt`, `currentValueUsdt`, `realizedPnlUsdt`, `unrealizedPnlUsdt`, `pnlUsdt`,
      `pnlPct`, `source`, `pricedPartially`),
    - `categories` — each with its derived `balanceUsdt`,
    - `transactions` — the 200 most recent ledger rows.
-2. The page renders the total tile with **Nạp / Rút / Chuyển** and the mark-to-market line, the
-   **USDT khả dụng** tile with its breakdown (and an unrealized-PnL hint), the **Vốn triển khai**
-   table (placed above the donut: "how is it doing?" outranks "where is it?"), an allocation
-   **donut chart + legend**, and the ledger table.
+2. The page renders the total tile with **Nạp / Rút / Chuyển** and the vốn-ban-đầu line, the
+   **Vốn triển khai** table (placed above the donut: "how is it doing?" outranks "where is it?"),
+   the allocation **donut chart + legend**, and the ledger table.
 3. The trader picks an action. The dialog asks only for what that type needs: amount, the one or
    two categories involved, a date (defaults to today) and an optional note.
 4. `POST /asset/transactions` validates the shape for the type, then appends one row.
@@ -164,15 +196,19 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 - **Negative category balance** — allowed (the trader may log a withdrawal from a bucket they never
   funded). A negative slice is meaningless in a part-to-whole chart, so it is excluded from the
   donut and listed in the legend instead, greyed, with its real number still readable.
-- **More than 6 buckets** — the donut caps at 6 slices and folds the rest into one "Khác (n)" slice.
-  A 7th generated hue would not be distinguishable from an existing one; the legend still lists
-  every bucket individually with its amount.
+- **More than 8 allocation rows** — the donut caps at 8 slices and folds the rest into one
+  "Khác (n)" slice. A 9th generated hue would not be distinguishable from an existing one; the
+  legend still lists every row individually with its amount. Reaching the cap takes an unusual
+  book: BTC + ETH + Coin khác + cash + three deployed buckets is seven.
 - **Every balance zero** — the donut renders nothing and shows "Chưa có số dư nào để phân bổ."
-- **Negative available** — shown in red rather than clamped. It means more is committed than the
-  ledger records (e.g. spot was bought with money never entered), and hiding that would hide a
-  bookkeeping error. A large unrealized loss can no longer cause this on its own.
-- **Deep unrealized loss** — available is unchanged; only `currentValueUsdt` and the hint line
+- **Negative available** — not clamped. It drops out of the donut and appears greyed in the legend
+  with its real (negative) number. It means more is committed than the ledger records (e.g. spot was
+  bought with money never entered), and hiding that would hide a bookkeeping error. A large
+  unrealized loss can no longer cause this on its own.
+- **Deep unrealized loss** — available is unchanged; only `currentValueUsdt` and the coin slices
   move. The cash is still there until the position is sold.
+- **A coin with no price** — its slice is drawn at cost basis (`priced: false`), so the position
+  still appears at roughly the right weight instead of vanishing from the allocation.
 - **A deployed bucket was deleted** — it simply drops out of the `deployed[]` list and stops being
   subtracted; the number stays computable.
 - **Exchange API key missing or the balance call fails** — the bucket falls back to the closed
@@ -232,13 +268,14 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 **Web (FE)**
 - `apps/web/src/app/my-asset/page.tsx` — route, thin re-export
 - `apps/web/src/_pages/my-asset-page/my-asset-page.tsx` — server component; fetches the summary
-- `apps/web/src/widgets/my-asset/my-asset.tsx` — total tile (+ current value / PnL line), available
-  tile + breakdown, ledger table
+- `apps/web/src/widgets/my-asset/my-asset.tsx` — total tile (+ vốn-ban-đầu line), ledger table;
+  builds the donut's rows via `buildAllocationItems()`
 - `apps/web/src/widgets/my-asset/asset-transaction-dialog.tsx` — Nạp / Rút / Chuyển form
 - `apps/web/src/widgets/my-asset/add-category-dialog.tsx` — add a bucket, with label→key slugify
-- `apps/web/src/widgets/my-asset/allocation-pie.tsx` — recharts donut + legend; `buildSlices()` does
-  the ordering, the negative-balance exclusion and the 6-slice fold
-- `apps/web/src/widgets/my-asset/allocation-pie.spec.ts` — 6 cases over `buildSlices()`
+- `apps/web/src/widgets/my-asset/allocation-pie.tsx` — recharts donut + legend;
+  `buildAllocationItems()` composes coins + available cash + deployed accounts, `buildSlices()` does
+  the ordering, the negative-value exclusion and the 8-slice fold
+- `apps/web/src/widgets/my-asset/allocation-pie.spec.ts` — 10 cases over both functions
 - `apps/web/src/widgets/my-asset/deployed-buckets.tsx` — the **Vốn triển khai** table (vốn → giá
   trị hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row
 - `apps/web/src/widgets/my-asset/deployed-buckets.spec.ts` — 5 cases over `summarizeDeployed()`
@@ -247,7 +284,7 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   `deleteAssetTransaction`, `createAssetCategory`, `updateAssetCategory`, `deleteAssetCategory`,
   and the `assetMutation()` error-surfacing helper
 - `apps/web/src/shared/api/types.ts` — `AssetCategory`, `AssetTransaction`, `AssetSummary`,
-  `AssetAvailable`, `AssetDeployed`, `AssetDeployedValue`, `AssetDeployedSource`
+  `AssetAvailable`, `AssetSpotPosition`, `AssetDeployed`, `AssetDeployedValue`, `AssetDeployedSource`
 - `apps/web/src/app/globals.css` — `.ma-*` styles
 
 **API (BE)**
@@ -266,7 +303,8 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getAccountBalance()`, the live Bitget equity
 - `apps/api/src/modules/mexc/mexc-trade.client.ts` — `getAccountBalance()`, the live MEXC equity
 - `apps/api/test/asset.service.spec.ts` — balance derivation, `availableUsdt`, spot
-  mark-to-market, realized PnL, deployed-bucket valuation and every validation rule (43 cases)
+  mark-to-market, per-coin `spotPositions`, realized PnL, deployed-bucket valuation and every
+  validation rule (44 cases)
 - `apps/api/test/stubs/app-db.ts` — in-memory asset ledger used by that spec, plus
   `__setTradingBook()` / `__setExchangeRealizedPnl()` for the deployed cases
 

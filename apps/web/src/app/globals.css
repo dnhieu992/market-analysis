@@ -10441,52 +10441,6 @@ a.metric-card--link:hover {
   min-width: 48px;
 }
 
-/* ── Available USDT ── */
-.ma-available {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.ma-available-value {
-  margin: 8px 0 0;
-  font-size: clamp(1.6rem, 4vw, 2.2rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--accent);
-}
-
-.ma-available-value.is-negative {
-  color: #9b2c2c;
-}
-
-.ma-available-breakdown {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  min-width: 260px;
-  font-size: 0.86rem;
-  color: var(--muted);
-}
-
-.ma-available-breakdown li {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.ma-available-breakdown .ma-num {
-  font-variant-numeric: tabular-nums;
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.ma-available-breakdown .ma-num.is-negative,
 .ma-pnl.is-negative {
   color: #9b2c2c;
 }
@@ -10619,8 +10573,7 @@ a.metric-card--link:hover {
 }
 
 @media (max-width: 640px) {
-  .ma-hero,
-  .ma-available {
+  .ma-hero {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -10635,10 +10588,5 @@ a.metric-card--link:hover {
 
   .ma-donut-row {
     justify-content: center;
-  }
-
-  .ma-available-breakdown {
-    width: 100%;
-    min-width: 0;
   }
 }

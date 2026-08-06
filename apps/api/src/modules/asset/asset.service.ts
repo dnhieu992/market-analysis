@@ -91,6 +91,23 @@ export type AssetDeployedValueDto = AssetDeployedDto & {
 };
 
 /**
+ * One coin still held on spot, marked to market. The allocation donut splits the
+ * spot bucket into these instead of showing it as a single lump, because "3,163
+ * USDT in spot" says nothing about how much of it is BTC.
+ */
+export type AssetSpotPositionDto = {
+  /** Coin symbol as stored on the holding, upper-cased — `BTC`, `ETH`, … */
+  coinId: string;
+  amount: number;
+  /** Cost basis of the position. */
+  costUsdt: number;
+  /** Amount × Binance last price, or the cost basis when the coin has no price. */
+  marketValueUsdt: number;
+  /** False when the value above fell back to cost — the page can flag it. */
+  priced: boolean;
+};
+
+/**
  * The "what can I still deploy?" breakdown, returned alongside the totals so the
  * page can show the arithmetic rather than an unexplained number.
  */
@@ -124,6 +141,11 @@ export type AssetAvailableDto = {
    * than presenting a partial number as complete.
    */
   pricedPartially: boolean;
+  /**
+   * Every coin still held, valued at market and sorted largest first — what the
+   * allocation donut draws in place of a single "Spot" slice.
+   */
+  spotPositions: AssetSpotPositionDto[];
   /** Balance of the `spot` bucket itself — the allocation coins are bought from. */
   spotAllocationUsdt: number;
   /**
@@ -462,6 +484,7 @@ export class AssetService {
         realizedSpotPnlUsdt,
         totalSpotPnlUsdt: realizedSpotPnlUsdt,
         pricedPartially: false,
+        spotPositions: [],
       };
     }
 
@@ -470,11 +493,16 @@ export class AssetService {
 
     let spotMarketValueUsdt = 0;
     let pricedPartially = false;
+    const spotPositions: AssetSpotPositionDto[] = [];
 
     for (const position of positions) {
       const coin = position.coinId.toUpperCase();
+      const base = { coinId: coin, amount: position.totalAmount, costUsdt: position.totalCost };
+
       if (STABLE_COINS.has(coin)) {
+        // A stablecoin is its own value; there is no pair to price it against.
         spotMarketValueUsdt += position.totalAmount;
+        spotPositions.push({ ...base, marketValueUsdt: position.totalAmount, priced: true });
         continue;
       }
 
@@ -484,10 +512,13 @@ export class AssetService {
         // wiping its whole position out of the total.
         spotMarketValueUsdt += position.totalCost;
         pricedPartially = true;
+        spotPositions.push({ ...base, marketValueUsdt: position.totalCost, priced: false });
         continue;
       }
 
-      spotMarketValueUsdt += position.totalAmount * price;
+      const marketValueUsdt = position.totalAmount * price;
+      spotMarketValueUsdt += marketValueUsdt;
+      spotPositions.push({ ...base, marketValueUsdt, priced: true });
     }
 
     const unrealizedSpotPnlUsdt = spotMarketValueUsdt - spentOnSpotUsdt;
@@ -499,6 +530,8 @@ export class AssetService {
       realizedSpotPnlUsdt,
       totalSpotPnlUsdt: unrealizedSpotPnlUsdt + realizedSpotPnlUsdt,
       pricedPartially,
+      // Largest first: the donut and its legend read top-down by weight.
+      spotPositions: spotPositions.sort((a, b) => b.marketValueUsdt - a.marketValueUsdt),
     };
   }
 

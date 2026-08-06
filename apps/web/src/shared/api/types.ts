@@ -983,6 +983,16 @@ export type AssetDeployedValue = AssetDeployed & {
   pricedPartially: boolean;
 };
 
+/** One coin held on spot, marked to Binance last price. */
+export type AssetSpotPosition = {
+  coinId: string;
+  amount: number;
+  costUsdt: number;
+  marketValueUsdt: number;
+  /** False when the coin had no price and fell back to its cost basis. */
+  priced: boolean;
+};
+
 /** available = total − spent on spot + spot PnL (realized + unrealized) − trading − bitget − mexc. */
 export type AssetAvailable = {
   availableUsdt: number;
@@ -994,6 +1004,8 @@ export type AssetAvailable = {
   totalSpotPnlUsdt: number;
   /** At least one held coin had no price and was valued at cost. */
   pricedPartially: boolean;
+  /** Coins still held, valued at market, largest first — the spot half of the donut. */
+  spotPositions: AssetSpotPosition[];
   /** Balance of the spot bucket itself. */
   spotAllocationUsdt: number;
   /** Cash buckets — wallet and any custom bucket — counted toward available in full. */

@@ -239,6 +239,27 @@ describe('AssetService', () => {
       expect(available.unrealizedSpotPnlUsdt).toBe(200); // FOO contributes nothing
     });
 
+    it('returns every coin marked to market, largest first, for the allocation donut', async () => {
+      service = build({ BTCUSDT: 120, ETHUSDT: 4 }); // no price for FOO
+      await deposit(service, SPOT, 2000);
+      __setSpotPositions([
+        { coinId: 'ETH', totalAmount: 100, totalCost: 350 },
+        { coinId: 'BTC', totalAmount: 10, totalCost: 1000 },
+        { coinId: 'FOO', totalAmount: 50, totalCost: 500 },
+      ]);
+
+      const { available } = await service.getSummary();
+
+      expect(available.spotPositions).toEqual([
+        { coinId: 'BTC', amount: 10, costUsdt: 1000, marketValueUsdt: 1200, priced: true },
+        { coinId: 'FOO', amount: 50, costUsdt: 500, marketValueUsdt: 500, priced: false },
+        { coinId: 'ETH', amount: 100, costUsdt: 350, marketValueUsdt: 400, priced: true },
+      ]);
+      // The donut divides the same total the rest of the page reports.
+      const summed = available.spotPositions.reduce((s, p) => s + p.marketValueUsdt, 0);
+      expect(summed).toBe(available.spotMarketValueUsdt);
+    });
+
     it('treats stablecoin holdings as 1:1 without asking for a price', async () => {
       service = build({}, true); // even a dead Binance must not break this
       await deposit(service, SPOT, 500);
