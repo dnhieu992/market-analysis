@@ -92,6 +92,21 @@ export function createBitgetTradeRepository(client = prisma) {
       });
     },
 
+    /**
+     * All-time realized PnL across every closed trade the sync has mirrored.
+     * `/my-asset` falls back to this when the exchange account balance can't be
+     * read, so a missing key degrades to "profit we know about" rather than a
+     * blank bucket. Note the sync only keeps a rolling window, so this can
+     * understate a long-running account — live equity is preferred when available.
+     */
+    async sumRealizedPnl(): Promise<number> {
+      const agg = await client.bitgetTrade.aggregate({
+        where: { status: 'closed' },
+        _sum: { netProfit: true },
+      });
+      return agg._sum.netProfit ?? 0;
+    },
+
     /** Drop closed trades that closed before `date` — trims the log to the anchor. */
     async deleteClosedBefore(date: Date): Promise<number> {
       const res = await client.bitgetTrade.deleteMany({

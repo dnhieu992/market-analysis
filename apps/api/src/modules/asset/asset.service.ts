@@ -9,9 +9,14 @@ import {
 import {
   createAssetCategoryRepository,
   createAssetTransactionRepository,
+  createBitgetTradeRepository,
   createHoldingRepository,
+  createMexcTradeRepository,
+  createOrderRepository,
 } from '@app/db';
 
+import { BitgetTradeClient } from '../bitget/bitget-trade.client';
+import { MexcTradeClient } from '../mexc/mexc-trade.client';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 import type { CreateAssetCategoryDto } from './dto/create-asset-category.dto';
@@ -46,6 +51,43 @@ export type AssetDeployedDto = {
   key: string;
   label: string;
   balanceUsdt: number;
+};
+
+/** Where a deployed bucket's PnL came from — the page says so rather than implying certainty. */
+export type AssetDeployedSource =
+  /** Live account equity read from the exchange — includes fees and funding. */
+  | 'exchange'
+  /** Mirrored closed trades in our DB; the exchange call failed or has no key. */
+  | 'sync'
+  /** The manual /trades book: closed PnL plus open orders marked to Binance last price. */
+  | 'orders'
+  /** Nothing readable — the bucket falls back to showing its capital only. */
+  | 'unknown';
+
+/**
+ * A deployed bucket valued as capital + PnL rather than as the raw amount
+ * transferred in, so /my-asset answers "is this account up or down?" for
+ * Bitget, MEXC and the manual trade book the same way their own pages do.
+ */
+export type AssetDeployedValueDto = AssetDeployedDto & {
+  /** Net USDT transferred in — the cost basis the return is measured against. */
+  capitalUsdt: number;
+  /** `capitalUsdt + pnlUsdt`. Falls back to capital when PnL is unknown. */
+  currentValueUsdt: number;
+  /** Profit already banked by closed trades. */
+  realizedPnlUsdt: number;
+  /** Open-position profit still on paper. */
+  unrealizedPnlUsdt: number;
+  /** `realized + unrealized`, or null when no source could be read. */
+  pnlUsdt: number | null;
+  /** Return on capital, %. Null when PnL is unknown or capital is 0 (undefined return). */
+  pnlPct: number | null;
+  source: AssetDeployedSource;
+  /**
+   * True when the bucket holds open positions that could not be priced, so the
+   * unrealized half understates reality. Only the `orders` source can set it.
+   */
+  pricedPartially: boolean;
 };
 
 /**
@@ -90,8 +132,11 @@ export type AssetAvailableDto = {
    * in full, so a new category is spendable by default rather than invisible.
    */
   liquid: AssetDeployedDto[];
-  /** The `trading` / `bitget` / `mexc` buckets, each already committed. */
-  deployed: AssetDeployedDto[];
+  /**
+   * The `trading` / `bitget` / `mexc` buckets, each already committed — and each
+   * marked to market, so the page can show what the capital grew or shrank to.
+   */
+  deployed: AssetDeployedValueDto[];
 };
 
 export type AssetSummaryDto = {
@@ -99,8 +144,18 @@ export type AssetSummaryDto = {
   totalUsdt: number;
   totalDepositedUsdt: number;
   totalWithdrawnUsdt: number;
-  /** `totalUsdt` marked to market: the ledger plus realized and unrealized spot PnL. */
+  /**
+   * `totalUsdt` marked to market: the ledger plus spot PnL plus the PnL of every
+   * deployed bucket. This is the number that answers "what is the book worth
+   * right now?", so it has to include the exchange accounts, not just spot.
+   */
   currentValueUsdt: number;
+  /** Spot realized + unrealized — the same figure `available.totalSpotPnlUsdt` carries. */
+  totalSpotPnlUsdt: number;
+  /** Summed PnL of every deployed bucket whose value could be read; 0 when none could. */
+  totalDeployedPnlUsdt: number;
+  /** `totalSpotPnlUsdt + totalDeployedPnlUsdt` — the whole book's result. */
+  totalPnlUsdt: number;
   available: AssetAvailableDto;
   categories: AssetCategoryDto[];
   transactions: AssetTransactionDto[];
@@ -111,6 +166,23 @@ type AssetSpotValuation = Omit<
   AssetAvailableDto,
   'availableUsdt' | 'deployed' | 'liquid' | 'spotAllocationUsdt'
 >;
+
+/**
+ * The slice of the Bitget/MEXC trade clients this service uses. Both satisfy it;
+ * naming only what is read keeps the dependency honest and the stub small.
+ */
+type ExchangeBalanceClient = {
+  isConfigured(): boolean;
+  getAccountBalance(): Promise<{ accountEquity: number; unrealizedPL: number } | null>;
+};
+
+/** What one deployed-bucket valuation resolves to; null means no source could be read. */
+type DeployedPnl = {
+  realizedPnlUsdt: number;
+  unrealizedPnlUsdt: number;
+  source: Exclude<AssetDeployedSource, 'unknown'>;
+  pricedPartially: boolean;
+};
 
 /** Held coins that are USDT by definition — Binance lists no `<stable>USDT` pair for them. */
 const STABLE_COINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'FDUSD']);
@@ -140,11 +212,20 @@ export class AssetService {
   private readonly categories = createAssetCategoryRepository();
   private readonly transactions = createAssetTransactionRepository();
   private readonly holdings = createHoldingRepository();
-  private priceCache: { key: string; at: number; prices: Record<string, number> } | null = null;
+  private readonly orders = createOrderRepository();
+  private readonly bitgetTrades = createBitgetTradeRepository();
+  private readonly mexcTrades = createMexcTradeRepository();
+  private readonly priceCache = new Map<string, { price: number; at: number }>();
 
   constructor(
     @Inject(BinanceMarketDataService)
     private readonly market: BinanceMarketDataService,
+    // Injected rather than constructed inline (unlike BitgetService/MexcService,
+    // which predate this) so a test can drive the live-equity path without a key.
+    @Inject(BitgetTradeClient)
+    private readonly bitget: ExchangeBalanceClient,
+    @Inject(MexcTradeClient)
+    private readonly mexc: ExchangeBalanceClient,
   ) {}
 
   /** Everything /my-asset renders in one round trip. */
@@ -169,12 +250,14 @@ export class AssetService {
     const totalUsdt = categoryDtos.reduce((sum, c) => sum + c.balanceUsdt, 0);
 
     // A deployed bucket the trader deleted simply drops out of the subtraction.
-    const deployed: AssetDeployedDto[] = DEPLOYED_KEYS.flatMap((key) => {
-      const category = categoryDtos.find((c) => c.key === key);
-      return category
-        ? [{ key: category.key, label: category.label, balanceUsdt: category.balanceUsdt }]
-        : [];
-    });
+    // Each surviving one is valued as capital + PnL rather than as the raw amount
+    // transferred in, so the page reports the account's actual standing.
+    const deployed: AssetDeployedValueDto[] = await Promise.all(
+      DEPLOYED_KEYS.flatMap((key) => {
+        const category = categoryDtos.find((c) => c.key === key);
+        return category ? [this.valueDeployed(key, category)] : [];
+      }),
+    );
 
     // Everything that is neither spot nor deployed is plain cash — wallet today,
     // and whatever the trader adds tomorrow.
@@ -198,14 +281,157 @@ export class AssetService {
       spot.realizedSpotPnlUsdt +
       liquid.reduce((sum, c) => sum + c.balanceUsdt, 0);
 
+    // A bucket whose PnL could not be read contributes 0 rather than dragging the
+    // whole total to null — the bucket itself already says its source is unknown.
+    const totalDeployedPnlUsdt = deployed.reduce((sum, d) => sum + (d.pnlUsdt ?? 0), 0);
+
     return {
       totalUsdt,
       totalDepositedUsdt: byType.DEPOSIT ?? 0,
       totalWithdrawnUsdt: byType.WITHDRAW ?? 0,
-      currentValueUsdt: totalUsdt + spot.totalSpotPnlUsdt,
+      currentValueUsdt: totalUsdt + spot.totalSpotPnlUsdt + totalDeployedPnlUsdt,
+      totalSpotPnlUsdt: spot.totalSpotPnlUsdt,
+      totalDeployedPnlUsdt,
+      totalPnlUsdt: spot.totalSpotPnlUsdt + totalDeployedPnlUsdt,
       available: { availableUsdt, ...spot, spotAllocationUsdt, liquid, deployed },
       categories: categoryDtos,
       transactions: transactions.map(toTransactionDto),
+    };
+  }
+
+  /**
+   * Mark one deployed bucket to market. Every branch degrades rather than
+   * throws: an unreachable exchange falls back to the trades our sync already
+   * mirrored, and a bucket with no source at all reports `unknown` and shows its
+   * capital unchanged — which is exactly what the page showed before.
+   */
+  private async valueDeployed(
+    key: (typeof DEPLOYED_KEYS)[number],
+    category: AssetCategoryDto,
+  ): Promise<AssetDeployedValueDto> {
+    const capitalUsdt = category.balanceUsdt;
+    const base = { key: category.key, label: category.label, balanceUsdt: capitalUsdt, capitalUsdt };
+
+    const pnl =
+      key === 'trading'
+        ? await this.valueTradingBook()
+        : await this.valueExchange(key, capitalUsdt);
+
+    if (pnl == null) {
+      return {
+        ...base,
+        currentValueUsdt: capitalUsdt,
+        realizedPnlUsdt: 0,
+        unrealizedPnlUsdt: 0,
+        pnlUsdt: null,
+        pnlPct: null,
+        source: 'unknown',
+        pricedPartially: false,
+      };
+    }
+
+    const pnlUsdt = pnl.realizedPnlUsdt + pnl.unrealizedPnlUsdt;
+
+    return {
+      ...base,
+      currentValueUsdt: capitalUsdt + pnlUsdt,
+      realizedPnlUsdt: pnl.realizedPnlUsdt,
+      unrealizedPnlUsdt: pnl.unrealizedPnlUsdt,
+      pnlUsdt,
+      // A 0-capital bucket has no denominator — % is genuinely undefined, and
+      // reporting 0% would read as "flat" when it means "nothing was put in".
+      pnlPct: capitalUsdt > 0 ? (pnlUsdt / capitalUsdt) * 100 : null,
+      source: pnl.source,
+      pricedPartially: pnl.pricedPartially,
+    };
+  }
+
+  /**
+   * Bitget / MEXC. Live account equity is the ground truth — it already nets off
+   * fees and funding, and it is the same figure /bitget and /mexc show — so the
+   * PnL is simply `equity − capital`, split by the exchange's own unrealized
+   * number. When the account can't be read we fall back to the closed trades the
+   * worker mirrors into our DB, which knows realized profit but not open positions.
+   */
+  private async valueExchange(
+    key: 'bitget' | 'mexc',
+    capitalUsdt: number,
+  ): Promise<DeployedPnl | null> {
+    const client = key === 'bitget' ? this.bitget : this.mexc;
+
+    if (client.isConfigured()) {
+      const balance = await client.getAccountBalance().catch((err) => {
+        this.logger.warn(`Failed to read ${key} account balance: ${(err as Error).message}`);
+        return null;
+      });
+
+      if (balance && Number.isFinite(balance.accountEquity)) {
+        const unrealizedPnlUsdt = Number.isFinite(balance.unrealizedPL) ? balance.unrealizedPL : 0;
+        return {
+          // Everything equity holds beyond capital and open-position PnL is
+          // profit that has already settled into the wallet.
+          realizedPnlUsdt: balance.accountEquity - capitalUsdt - unrealizedPnlUsdt,
+          unrealizedPnlUsdt,
+          source: 'exchange',
+          pricedPartially: false,
+        };
+      }
+    }
+
+    const realizedPnlUsdt = await (key === 'bitget'
+      ? this.bitgetTrades.sumRealizedPnl()
+      : this.mexcTrades.sumRealizedPnl()
+    ).catch((err) => {
+      this.logger.warn(`Failed to read mirrored ${key} trades: ${(err as Error).message}`);
+      return null;
+    });
+
+    if (realizedPnlUsdt == null) return null;
+
+    // Open positions are invisible from the DB mirror alone, so this is the
+    // banked half only — flagged by `source: 'sync'`.
+    return { realizedPnlUsdt, unrealizedPnlUsdt: 0, source: 'sync', pricedPartially: false };
+  }
+
+  /**
+   * The `trading` bucket is the manual book on /trades: banked PnL from closed
+   * orders, plus open orders marked to Binance last price. Every broker counts —
+   * /trades reports one all-time total across them, and this must agree with it.
+   */
+  private async valueTradingBook(): Promise<DeployedPnl | null> {
+    const summary = await this.orders.allTimePnlSummary().catch((err) => {
+      this.logger.warn(`Failed to read the manual trade book: ${(err as Error).message}`);
+      return null;
+    });
+
+    if (summary == null) return null;
+
+    // An order with no size can't be marked to market; it is skipped rather than
+    // valued at 0, and flagged so the page can say the number is incomplete.
+    const sizedOpen = summary.openOrders.filter((o) => o.quantity != null && o.quantity !== 0);
+    let pricedPartially = sizedOpen.length < summary.openOrders.length;
+
+    const prices = await this.prices([...new Set(sizedOpen.map((o) => o.symbol.toUpperCase()))]);
+
+    let unrealizedPnlUsdt = 0;
+    for (const order of sizedOpen) {
+      const price = prices[order.symbol.toUpperCase()];
+      if (price == null) {
+        pricedPartially = true;
+        continue;
+      }
+      const quantity = order.quantity as number;
+      unrealizedPnlUsdt +=
+        order.side === 'short'
+          ? (order.entryPrice - price) * quantity
+          : (price - order.entryPrice) * quantity;
+    }
+
+    return {
+      realizedPnlUsdt: summary.closedPnlSum,
+      unrealizedPnlUsdt,
+      source: 'orders',
+      pricedPartially,
     };
   }
 
@@ -276,26 +502,41 @@ export class AssetService {
     };
   }
 
-  /** Binance last prices, cached briefly. A failed call returns no prices, never throws. */
+  /**
+   * Binance last prices, cached briefly. Cached per symbol rather than per call:
+   * the spot book and the manual trade book ask for different, overlapping sets
+   * within one summary, and a whole-set cache would have each evict the other.
+   * A failed call returns whatever was already cached, never throws.
+   */
   private async prices(symbols: string[]): Promise<Record<string, number>> {
     if (symbols.length === 0) return {};
 
-    // Key on the symbol set, not just time: buying a new coin must not read a
-    // cached map that predates it and report the position as unpriced.
-    const key = [...symbols].sort().join(',');
     const now = Date.now();
-    if (this.priceCache && this.priceCache.key === key && now - this.priceCache.at < PRICE_CACHE_MS) {
-      return this.priceCache.prices;
+    const wanted = [...new Set(symbols)];
+    const missing = wanted.filter((s) => {
+      const hit = this.priceCache.get(s);
+      return !hit || now - hit.at >= PRICE_CACHE_MS;
+    });
+
+    if (missing.length > 0) {
+      try {
+        const fetched = await this.market.fetchCurrentPrices(missing);
+        for (const [symbol, price] of Object.entries(fetched)) {
+          this.priceCache.set(symbol, { price, at: now });
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to fetch prices: ${(err as Error).message}`);
+      }
     }
 
-    try {
-      const prices = await this.market.fetchCurrentPrices(symbols);
-      this.priceCache = { key, at: now, prices };
-      return prices;
-    } catch (err) {
-      this.logger.warn(`Failed to fetch spot prices: ${(err as Error).message}`);
-      return {};
+    // Symbols that stayed unpriced are simply absent — every caller already
+    // treats a missing entry as "unknown price" rather than as zero.
+    const result: Record<string, number> = {};
+    for (const symbol of wanted) {
+      const hit = this.priceCache.get(symbol);
+      if (hit) result[symbol] = hit.price;
     }
+    return result;
   }
 
   async createCategory(input: CreateAssetCategoryDto): Promise<AssetCategoryDto> {

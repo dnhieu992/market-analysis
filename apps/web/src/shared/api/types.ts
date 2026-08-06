@@ -959,6 +959,30 @@ export type AssetDeployed = {
   balanceUsdt: number;
 };
 
+/**
+ * Where a deployed bucket's PnL came from. `exchange` = live account equity,
+ * `sync` = mirrored closed trades only (open positions not counted),
+ * `orders` = the manual /trades book, `unknown` = nothing readable.
+ */
+export type AssetDeployedSource = 'exchange' | 'sync' | 'orders' | 'unknown';
+
+/** A deployed bucket marked to market: what its capital is worth now, and the return on it. */
+export type AssetDeployedValue = AssetDeployed & {
+  /** Net USDT transferred in — the cost basis the return is measured against. */
+  capitalUsdt: number;
+  /** capital + PnL; equals capital when the PnL is unknown. */
+  currentValueUsdt: number;
+  realizedPnlUsdt: number;
+  unrealizedPnlUsdt: number;
+  /** null when no source could be read. */
+  pnlUsdt: number | null;
+  /** Return on capital in %; null when PnL is unknown or capital is 0. */
+  pnlPct: number | null;
+  source: AssetDeployedSource;
+  /** Open positions exist that could not be priced — the PnL understates reality. */
+  pricedPartially: boolean;
+};
+
 /** available = total − spent on spot + spot PnL (realized + unrealized) − trading − bitget − mexc. */
 export type AssetAvailable = {
   availableUsdt: number;
@@ -974,15 +998,22 @@ export type AssetAvailable = {
   spotAllocationUsdt: number;
   /** Cash buckets — wallet and any custom bucket — counted toward available in full. */
   liquid: AssetDeployed[];
-  deployed: AssetDeployed[];
+  /** Committed buckets — trading / bitget / mexc — each valued as capital + PnL. */
+  deployed: AssetDeployedValue[];
 };
 
 export type AssetSummary = {
   totalUsdt: number;
   totalDepositedUsdt: number;
   totalWithdrawnUsdt: number;
-  /** The ledger total marked to market (total + unrealized spot PnL). */
+  /** The ledger total marked to market: total + spot PnL + every deployed bucket's PnL. */
   currentValueUsdt: number;
+  /** Spot realized + unrealized. */
+  totalSpotPnlUsdt: number;
+  /** Summed PnL of the deployed buckets whose value could be read. */
+  totalDeployedPnlUsdt: number;
+  /** spot + deployed — the whole book's result. */
+  totalPnlUsdt: number;
   available: AssetAvailable;
   categories: AssetCategory[];
   transactions: AssetTransaction[];

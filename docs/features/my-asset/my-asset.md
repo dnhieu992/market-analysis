@@ -12,8 +12,9 @@ past state stays reconstructible. Three actions write to that ledger:
 - **Rút (withdraw)** — money moved off. One source category, no destination.
 - **Chuyển (transfer)** — money moved between two categories. Total is unchanged.
 
-Category balances are **manual**, by design — the page does not read live equity from Bitget or
-MEXC. It records what the trader allocated, not what the position is currently worth.
+Category balances are **manual**, by design — the ledger records what the trader allocated. What
+that allocation is now *worth* is answered separately, per bucket, by the **Vốn triển khai** panel
+(see below).
 
 The category set is data, not code: "+ Thêm danh mục" adds a new bucket (a new exchange, a new
 wallet) and it immediately appears as a transfer target.
@@ -53,16 +54,59 @@ price tick while the actual cash balance sat still. It surfaces in two places in
 `currentValueUsdt` (mark-to-market) and a hint line under the available figure.
 
 The two halves summed — `totalSpotPnlUsdt` — is what `/portfolio` calls a holding's all-time
-profit, and it drives the hero's PnL display. Measured on live data during development: unrealized
+profit. It is one of the two terms behind the hero's PnL display (the other is deployed PnL, see
+below). Measured on live data during development: unrealized
 −92.14, realized +145.80, so the spot book was **+53.67 overall** while available (cash) stood at
 **284.22**.
 
 The breakdown is rendered line by line beside the number, because an "available" figure the trader
 cannot reconcile is one they will not trust.
 
-The headline **Tổng tài sản stays the ledger figure** — it is what Nạp/Rút move, and it must not
-drift with the market. Mark-to-market appears next to it as `currentValueUsdt`
-(`totalUsdt + unrealized spot PnL`) with the PnL and its %.
+The headline **Tổng tài sản is the mark-to-market figure** `currentValueUsdt`
+(`totalUsdt + spot PnL + deployed PnL`) — what is actually left after profits and losses. A single
+line under it gives the change against **vốn ban đầu** (net flow = deposits − withdrawals):
+`pnl = currentValueUsdt − net flow`, `% = pnl ÷ net flow`. The PnL is derived from the two numbers
+on screen rather than read from `totalPnlUsdt`, so the headline always reconciles with the line
+beneath it.
+
+Everything else the hero used to carry — the deposit/withdraw/net breakdown, the ledger total, and
+the spot vs deployed split of the PnL — was removed at the trader's request as noise; the ledger
+total still drives the allocation donut and the transaction table, and the deployed half of the PnL
+is shown per bucket in **Vốn triển khai** below.
+
+### Vốn triển khai — deployed capital, valued
+
+The three committed buckets — **Trading, Bitget, MEXC** — used to show only the amount transferred
+in, which says nothing about whether that money grew or shrank. Each is now reported as
+**vốn → giá trị hiện tại**, with the PnL and the return on capital:
+
+```
+current value = capital (ledger) + realized PnL + unrealized PnL
+% = PnL ÷ capital
+```
+
+Each bucket names the **source** it was valued from, because a trader cross-checking against
+`/bitget` or `/trades` needs to know which number they are looking at before hunting a discrepancy
+that isn't one:
+
+| Source | Meaning |
+|---|---|
+| `exchange` | Live account equity from the exchange — already nets off fees and funding. Used for Bitget and MEXC. |
+| `sync` | The exchange call failed or has no key; falls back to closed trades mirrored into `bitget_trades` / `mexc_trades`. **Open positions are not counted**, so this is the banked half only. |
+| `orders` | The manual book on `/trades`: `SUM(pnl)` over closed orders plus open orders marked to Binance last price. Used for Trading. |
+| `unknown` | Nothing readable. The bucket shows its capital unchanged and prints `—` for PnL. |
+
+For an `exchange` bucket the split is derived rather than fetched separately: equity already
+contains the open-position PnL, so `unrealized = balance.unrealizedPL` and
+`realized = equity − capital − unrealized`. This makes the Bitget figure agree with `/bitget`'s own
+`equityChangePct`, which measures the same equity against the same ledger capital.
+
+The **Trading** bucket counts every broker on `/trades` (BingX, Binance, OKX, …), matching the one
+all-time total that page reports. Measured on live data: capital 1,363.62 → 1,507.95
+(realized +225.73, unrealized −81.40) = **+10.58%**.
+
+**Deployed PnL never enters `availableUsdt`.** That money is sitting on an exchange, not in a
+spendable cash bucket; it surfaces in `currentValueUsdt` and this panel only.
 
 ## Main Flow
 
@@ -70,13 +114,18 @@ drift with the market. Mark-to-market appears next to it as `currentValueUsdt`
    - `totalUsdt` — the sum of every category balance,
    - `totalDepositedUsdt` / `totalWithdrawnUsdt` — lifetime totals, summed in SQL,
    - `currentValueUsdt` — the ledger total marked to market,
+   - `totalSpotPnlUsdt` / `totalDeployedPnlUsdt` / `totalPnlUsdt` — the two halves of the book's
+     result and their sum,
    - `available` — `availableUsdt` plus every term it was derived from: `spotAllocationUsdt`,
      `spentOnSpotUsdt`, `spotMarketValueUsdt`, `unrealizedSpotPnlUsdt`, `realizedSpotPnlUsdt`,
-     `totalSpotPnlUsdt`, `pricedPartially`, `liquid[]` (cash buckets) and `deployed[]`,
+     `totalSpotPnlUsdt`, `pricedPartially`, `liquid[]` (cash buckets) and `deployed[]` (each with
+     `capitalUsdt`, `currentValueUsdt`, `realizedPnlUsdt`, `unrealizedPnlUsdt`, `pnlUsdt`,
+     `pnlPct`, `source`, `pricedPartially`),
    - `categories` — each with its derived `balanceUsdt`,
    - `transactions` — the 200 most recent ledger rows.
 2. The page renders the total tile with **Nạp / Rút / Chuyển** and the mark-to-market line, the
-   **USDT khả dụng** tile with its breakdown (and an unrealized-PnL hint), an allocation
+   **USDT khả dụng** tile with its breakdown (and an unrealized-PnL hint), the **Vốn triển khai**
+   table (placed above the donut: "how is it doing?" outranks "where is it?"), an allocation
    **donut chart + legend**, and the ledger table.
 3. The trader picks an action. The dialog asks only for what that type needs: amount, the one or
    two categories involved, a date (defaults to today) and an optional note.
@@ -89,10 +138,15 @@ Balance maths, per category: `sum(amount where toCategoryId = c) − sum(amount 
 Both sides are `groupBy` aggregates in MySQL, so the page stays correct once the ledger grows past
 the 200-row display slice.
 
+Deployed valuation runs after the balances are known (it needs each bucket's capital) and the three
+buckets are valued concurrently. Every branch degrades instead of throwing: an unreachable exchange
+drops to `sync`, an unreadable DB drops to `unknown`, and the bucket still renders.
+
 Spot valuation: `Holding` rows are grouped by coin (`sumByCoin()`), priced in one Binance
-`/api/v3/ticker/price` call, and summed as `amount × price`. Prices are cached 30s keyed on the
-symbol set, so a burst of saves — each of which refetches the summary — costs one call, while
-buying a new coin still invalidates the cache immediately.
+`/api/v3/ticker/price` call, and summed as `amount × price`. Prices are cached 30s **per symbol**
+(not per call): the spot book and the open manual orders ask for different, overlapping symbol sets
+within a single summary, and the previous whole-set cache had each evict the other, costing two
+Binance calls per page load and defeating the cache entirely.
 
 Realized PnL comes from `sumRealizedPnl()`, one aggregate over the whole `Holding` table.
 `/portfolio-pnl` computes the same figure a different way — replaying every `CoinTransaction` sell
@@ -121,6 +175,25 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   move. The cash is still there until the position is sold.
 - **A deployed bucket was deleted** — it simply drops out of the `deployed[]` list and stops being
   subtracted; the number stays computable.
+- **Exchange API key missing or the balance call fails** — the bucket falls back to the closed
+  trades already mirrored in our DB and is labelled `sync`, which is honest about excluding open
+  positions rather than silently reporting a stale-looking total as complete.
+- **Neither the exchange nor the DB can be read** — `source: 'unknown'`, `pnlUsdt: null`, and the
+  table prints `—`. "We don't know" and "it broke even" are different answers, so an unknown PnL
+  is never rendered as 0.
+- **A deployed bucket with 0 capital** — the PnL is still shown but `pnlPct` is `null`: the return
+  has no denominator, and printing 0% would read as "flat" when it means "nothing was put in".
+  The totals row divides only by the capital of buckets that could actually be valued, so an
+  unknown bucket's capital cannot dilute a measured return.
+- **An open manual order with no `quantity`, or a symbol Binance does not list** — skipped rather
+  than valued at 0, with `pricedPartially` true so the row says the number is incomplete.
+- **The mirrored-trade tables only keep a rolling window** — `sync` can therefore understate a
+  long-running account's realized total. This is why live equity is always preferred when the key
+  works.
+- **Bitget manual orders on `/trades`** — the three April `broker='BITGET'` rows predate the
+  `bitget` bucket (whose synced history starts July), so counting every broker in the Trading
+  bucket does not double-count today. A *new* manual order logged against an exchange that also
+  reports live equity would be counted twice; log those on the exchange page, not `/trades`.
 - **A brand-new bucket** — lands in `liquid[]` and counts as available in full. Treating unknown
   buckets as committed would silently hide money the trader just recorded.
 - **The `spot` bucket was deleted** — `spotAllocationUsdt` is 0 while the cost of held coins is
@@ -166,12 +239,15 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 - `apps/web/src/widgets/my-asset/allocation-pie.tsx` — recharts donut + legend; `buildSlices()` does
   the ordering, the negative-balance exclusion and the 6-slice fold
 - `apps/web/src/widgets/my-asset/allocation-pie.spec.ts` — 6 cases over `buildSlices()`
+- `apps/web/src/widgets/my-asset/deployed-buckets.tsx` — the **Vốn triển khai** table (vốn → giá
+  trị hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row
+- `apps/web/src/widgets/my-asset/deployed-buckets.spec.ts` — 5 cases over `summarizeDeployed()`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav item, placed directly under Overview
 - `apps/web/src/shared/api/client.ts` — `fetchAssetSummary`, `createAssetTransaction`,
   `deleteAssetTransaction`, `createAssetCategory`, `updateAssetCategory`, `deleteAssetCategory`,
   and the `assetMutation()` error-surfacing helper
 - `apps/web/src/shared/api/types.ts` — `AssetCategory`, `AssetTransaction`, `AssetSummary`,
-  `AssetAvailable`, `AssetDeployed`
+  `AssetAvailable`, `AssetDeployed`, `AssetDeployedValue`, `AssetDeployedSource`
 - `apps/web/src/app/globals.css` — `.ma-*` styles
 
 **API (BE)**
@@ -185,10 +261,14 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 - `apps/api/src/modules/market/binance-market-data.service.ts` — `fetchCurrentPrices()`, the batch
   price read (pulls the full ticker list and filters locally: Binance 400s a `symbols=[…]` batch
   containing any unlisted pair)
-- `apps/api/src/modules/asset/asset.module.ts` — registers `BinanceMarketDataService` for injection
+- `apps/api/src/modules/asset/asset.module.ts` — registers `BinanceMarketDataService`,
+  `BitgetTradeClient` and `MexcTradeClient` for injection
+- `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getAccountBalance()`, the live Bitget equity
+- `apps/api/src/modules/mexc/mexc-trade.client.ts` — `getAccountBalance()`, the live MEXC equity
 - `apps/api/test/asset.service.spec.ts` — balance derivation, `availableUsdt`, spot
-  mark-to-market, realized PnL and every validation rule (32 cases)
-- `apps/api/test/stubs/app-db.ts` — in-memory asset ledger used by that spec
+  mark-to-market, realized PnL, deployed-bucket valuation and every validation rule (43 cases)
+- `apps/api/test/stubs/app-db.ts` — in-memory asset ledger used by that spec, plus
+  `__setTradingBook()` / `__setExchangeRealizedPnl()` for the deployed cases
 
 **DB**
 - `packages/db/prisma/schema.prisma` — `AssetCategory`, `AssetTransaction`
@@ -199,6 +279,10 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   `createAssetTransactionRepository` (incl. `sumBalances`, `sumByType`)
 - `packages/db/src/repositories/holding.repository.ts` — `sumTotalCost()` (spot-spend term),
   `sumByCoin()` (per-coin amounts, for market valuation) and `sumRealizedPnl()` (banked profit)
+- `packages/db/src/repositories/order.repository.ts` — `allTimePnlSummary()`, the unfiltered
+  closed-PnL total + open orders that value the `trading` bucket
+- `packages/db/src/repositories/bitget-trade.repository.ts` — `sumRealizedPnl()`, the `sync` fallback
+- `packages/db/src/repositories/mexc-trade.repository.ts` — `sumRealizedPnl()`, the `sync` fallback
 - `apps/api/src/modules/portfolio/portfolio.service.ts` — `getPnlCalendar()`, the /portfolio-pnl
   figure this page's realized term is cross-checked against
 

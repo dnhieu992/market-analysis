@@ -8,6 +8,7 @@ import type { AssetSummary, AssetTransactionType } from '@web/shared/api/types';
 import { AllocationPie } from './allocation-pie';
 import { AssetTransactionDialog } from './asset-transaction-dialog';
 import { AddCategoryDialog } from './add-category-dialog';
+import { DeployedBuckets } from './deployed-buckets';
 
 const apiClient = createApiClient();
 
@@ -65,33 +66,32 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
     }
   }
 
-  const { totalUsdt, totalDepositedUsdt, totalWithdrawnUsdt, currentValueUsdt, available } = summary;
-  // Everything the trader put in that is still on the books, minus what came back out.
+  const { totalDepositedUsdt, totalWithdrawnUsdt, currentValueUsdt, available } = summary;
+  // Vốn ban đầu = everything put in that is still on the books, minus what came
+  // back out. It is the yardstick the headline is measured against.
   const netFlow = totalDepositedUsdt - totalWithdrawnUsdt;
-  // Headline PnL is the whole spot result — banked plus on paper — the same
-  // "all-time profit" /portfolio and /portfolio-pnl report.
-  const pnl = available.totalSpotPnlUsdt;
-  const pnlPct = totalUsdt > 0 ? (pnl / totalUsdt) * 100 : 0;
+  // Headline PnL is the whole book: the spot result (/portfolio's "all-time
+  // profit") plus what the deployed accounts — Bitget, MEXC, the manual trade
+  // book — have made or lost on the capital sent to them. Derived from the
+  // displayed figures so the number always reconciles with what is on screen.
+  const pnl = currentValueUsdt - netFlow;
+  const pnlPct = netFlow > 0 ? (pnl / netFlow) * 100 : 0;
 
   return (
     <main className="dashboard-shell">
       <section className="ma-hero panel">
         <div>
           <p className="metric-label">Tổng tài sản</p>
-          {/* The headline stays the ledger figure — it is what Nạp/Rút move and it
-              must not drift with the market. Mark-to-market sits beside it. */}
-          <p className="ma-total">{formatUsdt(totalUsdt)}</p>
+          {/* One number: what is actually left after profits and losses. The
+              ledger figure and the per-book split live further down the page. */}
+          <p className="ma-total">{formatUsdt(currentValueUsdt)}</p>
           <p className="ma-hero-detail">
-            Đã nạp {formatUsdt(totalDepositedUsdt)} · Đã rút {formatUsdt(totalWithdrawnUsdt)} · Ròng{' '}
-            {formatUsdt(netFlow)}
-          </p>
-          <p className="ma-hero-detail">
-            Giá trị hiện tại <strong>{formatUsdt(currentValueUsdt)}</strong>{' '}
             <span className={pnl < 0 ? 'ma-pnl is-negative' : 'ma-pnl'}>
-              ({pnl >= 0 ? '+' : ''}
-              {formatUsdt(pnl)} · {pnl >= 0 ? '+' : ''}
-              {pnlPct.toFixed(2)}%)
-            </span>
+              {pnl >= 0 ? '+' : ''}
+              {pnlPct.toFixed(2)}% ({pnl >= 0 ? '+' : ''}
+              {formatUsdt(pnl)})
+            </span>{' '}
+            so với vốn ban đầu {formatUsdt(netFlow)}
             {available.pricedPartially ? (
               <span className="ma-hint-inline"> · một số coin không có giá, tính theo giá vốn</span>
             ) : null}
@@ -157,6 +157,15 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
       </section>
 
       {error ? <p className="ma-error">{error}</p> : null}
+
+      {/* Sits above the allocation donut on purpose: the donut answers "where is
+          the money?", this answers "how is it doing?" — the more urgent question. */}
+      <section className="panel ma-panel">
+        <div className="ma-panel-header">
+          <h2>Vốn triển khai</h2>
+        </div>
+        <DeployedBuckets buckets={available.deployed} />
+      </section>
 
       <section className="panel ma-panel">
         <div className="ma-panel-header">

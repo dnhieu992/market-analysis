@@ -8,6 +8,9 @@ const EMPTY_SUMMARY: AssetSummary = {
   totalDepositedUsdt: 0,
   totalWithdrawnUsdt: 0,
   currentValueUsdt: 0,
+  totalSpotPnlUsdt: 0,
+  totalDeployedPnlUsdt: 0,
+  totalPnlUsdt: 0,
   available: {
     availableUsdt: 0,
     spentOnSpotUsdt: 0,

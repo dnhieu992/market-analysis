@@ -94,7 +94,48 @@ export function createOrderRepository() {
       }
 
       return updatedOrder;
+    },
+    async allTimePnlSummary() {
+      return tradingBook;
     }
+  };
+}
+
+/** The manual trade book /my-asset values the `trading` bucket from. */
+let tradingBook: {
+  closedPnlSum: number;
+  openOrders: Array<{ symbol: string; side: string; entryPrice: number; quantity: number | null }>;
+} = { closedPnlSum: 0, openOrders: [] };
+
+export function __setTradingBook(
+  closedPnlSum: number,
+  openOrders: Array<{ symbol: string; side: string; entryPrice: number; quantity: number | null }> = [],
+) {
+  tradingBook = { closedPnlSum, openOrders };
+}
+
+let bitgetRealizedPnl = 0;
+let mexcRealizedPnl = 0;
+
+/** Mirrored closed-trade PnL — the /my-asset fallback when an exchange can't be read. */
+export function __setExchangeRealizedPnl(bitget: number, mexc: number) {
+  bitgetRealizedPnl = bitget;
+  mexcRealizedPnl = mexc;
+}
+
+export function createBitgetTradeRepository() {
+  return {
+    async sumRealizedPnl() {
+      return bitgetRealizedPnl;
+    },
+  };
+}
+
+export function createMexcTradeRepository() {
+  return {
+    async sumRealizedPnl() {
+      return mexcRealizedPnl;
+    },
   };
 }
 

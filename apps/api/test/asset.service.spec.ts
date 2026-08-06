@@ -1,9 +1,11 @@
 import { AssetService } from '../src/modules/asset/asset.service';
 import {
   __seedAssetStore,
+  __setExchangeRealizedPnl,
   __setSpotCostBasis,
   __setSpotPositions,
   __setSpotRealizedPnl,
+  __setTradingBook,
 } from './stubs/app-db';
 
 const SPOT = 'cat-spot';
@@ -25,9 +27,36 @@ function marketStub(prices: Record<string, number> = {}, fail = false) {
   } as never;
 }
 
+/**
+ * Stands in for a Bitget/MEXC account. `equity: null` means the balance call
+ * failed; `configured: false` means there is no API key at all — both push the
+ * bucket onto the mirrored-trades fallback.
+ */
+function exchangeStub(
+  equity: number | null,
+  unrealizedPL = 0,
+  configured = true,
+) {
+  return {
+    isConfigured: () => configured,
+    async getAccountBalance() {
+      if (equity == null) throw new Error('exchange down');
+      return { accountEquity: equity, unrealizedPL };
+    },
+  } as never;
+}
+
+/** An account with no key — the default for cases that aren't about the exchanges. */
+const NO_ACCOUNT = exchangeStub(null, 0, false);
+
 /** A fresh service per case — the price cache is per-instance. */
-function build(prices: Record<string, number> = {}, fail = false) {
-  return new AssetService(marketStub(prices, fail));
+function build(
+  prices: Record<string, number> = {},
+  fail = false,
+  bitget = NO_ACCOUNT,
+  mexc = NO_ACCOUNT,
+) {
+  return new AssetService(marketStub(prices, fail), bitget, mexc);
 }
 
 describe('AssetService', () => {
@@ -40,6 +69,12 @@ describe('AssetService', () => {
       { id: BITGET, key: 'bitget', label: 'Bitget', sortOrder: 3 },
       { id: WALLET, key: 'wallet', label: 'Wallet', sortOrder: 5 },
     ]);
+    // The stub's books are module-level, so every case starts them empty rather
+    // than inheriting whatever the previous one set.
+    __setSpotPositions([]);
+    __setSpotRealizedPnl(0);
+    __setTradingBook(0);
+    __setExchangeRealizedPnl(0, 0);
     service = build();
   });
 
@@ -337,6 +372,130 @@ describe('AssetService', () => {
       expect(available.liquid.map((c) => c.key)).toEqual(['wallet']);
       expect(available.deployed.map((c) => c.key)).toEqual(['trading', 'bitget']);
       expect(available.availableUsdt).toBe(450); // 400 spot + 50 wallet
+    });
+  });
+
+  describe('deployed buckets marked to market', () => {
+    it('values an exchange bucket from live equity and splits the PnL', async () => {
+      service = build({}, false, exchangeStub(140, -10));
+      await deposit(service, BITGET, 100);
+
+      const bitget = (await service.getSummary()).available.deployed.find(
+        (d) => d.key === 'bitget',
+      );
+
+      expect(bitget?.source).toBe('exchange');
+      expect(bitget?.capitalUsdt).toBe(100);
+      expect(bitget?.currentValueUsdt).toBe(140);
+      expect(bitget?.pnlUsdt).toBe(40);
+      expect(bitget?.pnlPct).toBe(40);
+      // Equity already contains the open position's −10; the rest has settled.
+      expect(bitget?.unrealizedPnlUsdt).toBe(-10);
+      expect(bitget?.realizedPnlUsdt).toBe(50);
+    });
+
+    it('reports a losing exchange account with a negative return', async () => {
+      service = build({}, false, exchangeStub(82.5));
+      await deposit(service, BITGET, 100);
+
+      const bitget = (await service.getSummary()).available.deployed.find(
+        (d) => d.key === 'bitget',
+      );
+
+      expect(bitget?.pnlUsdt).toBe(-17.5);
+      expect(bitget?.pnlPct).toBe(-17.5);
+    });
+
+    it('falls back to mirrored closed trades when the exchange call fails', async () => {
+      __setExchangeRealizedPnl(9.04, 0);
+      service = build({}, false, exchangeStub(null));
+      await deposit(service, BITGET, 100);
+
+      const bitget = (await service.getSummary()).available.deployed.find(
+        (d) => d.key === 'bitget',
+      );
+
+      // Open positions are invisible from the mirror, so only the banked half shows.
+      expect(bitget?.source).toBe('sync');
+      expect(bitget?.pnlUsdt).toBe(9.04);
+      expect(bitget?.unrealizedPnlUsdt).toBe(0);
+    });
+
+    it('values the trading bucket from closed PnL plus open orders at market', async () => {
+      __setTradingBook(200, [
+        { symbol: 'BTCUSDT', side: 'long', entryPrice: 60000, quantity: 0.01 },
+        { symbol: 'ETHUSDT', side: 'short', entryPrice: 3000, quantity: 1 },
+      ]);
+      service = build({ BTCUSDT: 65000, ETHUSDT: 3200 });
+      await deposit(service, TRADING, 1000);
+
+      const trading = (await service.getSummary()).available.deployed.find(
+        (d) => d.key === 'trading',
+      );
+
+      expect(trading?.source).toBe('orders');
+      expect(trading?.realizedPnlUsdt).toBe(200);
+      // long +50, short −200
+      expect(trading?.unrealizedPnlUsdt).toBe(-150);
+      expect(trading?.pnlUsdt).toBe(50);
+      expect(trading?.pnlPct).toBe(5);
+      expect(trading?.currentValueUsdt).toBe(1050);
+    });
+
+    it('flags an open order it could not price instead of valuing it at zero', async () => {
+      __setTradingBook(0, [
+        { symbol: 'BTCUSDT', side: 'long', entryPrice: 60000, quantity: 0.01 },
+        { symbol: 'NOPEUSDT', side: 'long', entryPrice: 1, quantity: 100 },
+        { symbol: 'ETHUSDT', side: 'long', entryPrice: 3000, quantity: null },
+      ]);
+      service = build({ BTCUSDT: 65000 });
+      await deposit(service, TRADING, 1000);
+
+      const trading = (await service.getSummary()).available.deployed.find(
+        (d) => d.key === 'trading',
+      );
+
+      expect(trading?.unrealizedPnlUsdt).toBe(50);
+      expect(trading?.pricedPartially).toBe(true);
+    });
+
+    it('leaves the return undefined when no capital was ever sent', async () => {
+      service = build({}, false, exchangeStub(12));
+      // Nothing deposited into bitget — 12 USDT of equity against a 0 cost basis.
+      const bitget = (await service.getSummary()).available.deployed.find(
+        (d) => d.key === 'bitget',
+      );
+
+      expect(bitget?.pnlUsdt).toBe(12);
+      expect(bitget?.pnlPct).toBeNull();
+    });
+
+    it('rolls deployed PnL into the headline totals alongside spot', async () => {
+      __setTradingBook(30);
+      __setSpotRealizedPnl(20);
+      service = build({}, false, exchangeStub(110));
+      await deposit(service, SPOT, 500);
+      await deposit(service, TRADING, 100);
+      await deposit(service, BITGET, 100);
+
+      const summary = await service.getSummary();
+
+      expect(summary.totalUsdt).toBe(700);
+      expect(summary.totalSpotPnlUsdt).toBe(20);
+      expect(summary.totalDeployedPnlUsdt).toBe(40); // 30 trading + 10 bitget
+      expect(summary.totalPnlUsdt).toBe(60);
+      expect(summary.currentValueUsdt).toBe(760);
+    });
+
+    it('keeps deployed PnL out of available — it is on the exchange, not spendable', async () => {
+      service = build({}, false, exchangeStub(500));
+      await deposit(service, SPOT, 200);
+      await deposit(service, BITGET, 100);
+
+      const { available } = await service.getSummary();
+
+      expect(available.deployed.find((d) => d.key === 'bitget')?.pnlUsdt).toBe(400);
+      expect(available.availableUsdt).toBe(200);
     });
   });
 

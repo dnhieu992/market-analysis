@@ -10541,6 +10541,37 @@ a.metric-card--link:hover {
   min-width: 160px;
 }
 
+/* ── Deployed capital ── */
+/* Gains use the same accent green as .ma-pnl so one colour means one thing on
+   this page; losses carry a sign as well as the colour. */
+.ma-deployed td.ma-num {
+  color: var(--accent);
+}
+
+.ma-deployed td.ma-num.is-negative {
+  color: #9b2c2c;
+}
+
+/* Capital and current value are amounts, not results — they stay neutral so the
+   eye lands on the PnL columns. */
+.ma-deployed td.ma-num:nth-child(2),
+.ma-deployed td.ma-num:nth-child(3) {
+  color: var(--foreground);
+}
+
+.ma-deployed .ma-src {
+  white-space: normal;
+  color: var(--muted);
+  font-size: 0.78rem;
+  min-width: 180px;
+}
+
+.ma-deployed tfoot td {
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+}
+
 .ma-type {
   display: inline-block;
   padding: 3px 10px;

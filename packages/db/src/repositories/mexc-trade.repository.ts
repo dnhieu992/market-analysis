@@ -92,6 +92,19 @@ export function createMexcTradeRepository(client = prisma) {
       });
     },
 
+    /**
+     * All-time realized PnL across every closed trade the sync has mirrored —
+     * the `/my-asset` fallback when the exchange balance can't be read. See the
+     * Bitget twin for the rolling-window caveat.
+     */
+    async sumRealizedPnl(): Promise<number> {
+      const agg = await client.mexcTrade.aggregate({
+        where: { status: 'closed' },
+        _sum: { netProfit: true },
+      });
+      return agg._sum.netProfit ?? 0;
+    },
+
     /** Drop closed trades that closed before `date` — trims the log to the anchor. */
     async deleteClosedBefore(date: Date): Promise<number> {
       const res = await client.mexcTrade.deleteMany({

@@ -70,6 +70,31 @@ export function createOrderRepository(client = prisma) {
         openOrders,
       };
     },
+    /**
+     * All-time result of the manual trade book — exactly what /trades reports,
+     * with no filter applied. `/my-asset` values the `trading` bucket from this:
+     * `closedPnlSum` is money already banked, and `openOrders` carries the
+     * entry/size needed to mark the still-open positions to market.
+     */
+    async allTimePnlSummary(): Promise<{
+      closedPnlSum: number;
+      openOrders: Array<{
+        symbol: string;
+        side: string;
+        entryPrice: number;
+        quantity: number | null;
+      }>;
+    }> {
+      const [closedAgg, openOrders] = await Promise.all([
+        client.order.aggregate({ where: { status: 'closed' }, _sum: { pnl: true } }),
+        client.order.findMany({
+          where: { status: 'open' },
+          select: { symbol: true, side: true, entryPrice: true, quantity: true },
+        }),
+      ]);
+
+      return { closedPnlSum: closedAgg._sum.pnl ?? 0, openOrders };
+    },
     async listDistinctBrokers() {
       const result = await client.order.groupBy({
         by: ['broker'],
