@@ -161,15 +161,16 @@ those functions generate in Vietnamese ("USDT khả dụng", "Coin khác (n)", "
 English in the card — the deployed buckets are already named in English by the seed (Spot, Trading,
 Bitget, MEXC, Wallet).
 
-Right column, mirroring the sibling's eyebrow → headline → badges → P&L section → stat row:
-**Total Assets · All Accounts** (`currentValueUsdt`), two badges carrying the all-time PnL in
-dollars and percent, **Net Deposits** (net flow, linked to `/my-asset`), and Accounts / Available /
-Deployed stat boxes.
+The column split matches the sibling exactly — **total left, donut right**. The left column follows
+its eyebrow → headline → badges → P&L-section rhythm: **Total Assets · All Accounts**
+(`currentValueUsdt`), two badges carrying the all-time PnL in dollars and percent, and **Net
+Deposits** (net flow, linked to `/my-asset`). There is no stat row; Accounts / Available / Deployed
+tiles were dropped at the trader's request — available and each deployed account are already slices
+of the donut, so the tiles only said the same thing twice.
 
-The columns are **flipped** relative to the net-worth card: on desktop the donut takes the left
-column and the total takes the right. Stacked on mobile the order swaps back
-(`.ps-card--asset .ps-top-section { flex-direction: column-reverse }`) so the headline number is
-still what is read first.
+Each legend row carries its **dollar amount** next to the name — `BTC ($1,700)` — because a
+percentage alone does not answer "how much is in BTC right now". The amount rides inside the name
+cell so the legend keeps the sibling's dot–name–percent three-column rhythm.
 
 The two cards measure different things and are meant to sit side by side: this one is the whole
 book (spot + cash + deployed accounts), the one below it is the spot portfolio only, priced
@@ -316,7 +317,7 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   by `my-asset.tsx` — kept ready to drop back in
 - `apps/web/src/widgets/my-asset/deployed-buckets.spec.ts` — 5 cases over `summarizeDeployed()`
 - `apps/web/src/widgets/asset-summary-card/asset-summary-card.tsx` — the Overview mirror of the
-  total + donut (donut left, total right), styled and worded as a twin of `HoldingsAllocationChart`;
+  total + donut (total left, donut right), styled and worded as a twin of `HoldingsAllocationChart`;
   reuses `buildAllocationItems()` / `buildSlices()` for the data only
 - `apps/web/src/_pages/overview-page/overview-page.tsx` — fetches the summary alongside the
   dashboard data; a failed call drops the card instead of blanking the page

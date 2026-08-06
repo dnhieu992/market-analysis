@@ -778,23 +778,6 @@ a {
     gap: 8px;
     padding: 10px 0;
   }
-
-  /* The asset card puts the donut on the left for desktop; stacked, the total
-     is what should be read first, so the two columns swap order. */
-  .ps-card--asset .ps-top-section {
-    flex-direction: column-reverse;
-  }
-
-  .ps-card--asset .ps-left {
-    border-bottom: none;
-    padding-bottom: 0;
-    padding-top: 24px;
-  }
-
-  .ps-card--asset .ps-right {
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 24px;
-  }
 }
 
 .topbar {

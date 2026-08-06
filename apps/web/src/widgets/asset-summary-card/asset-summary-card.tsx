@@ -37,8 +37,8 @@ function toEnglish(label: string, key: string): string {
 /**
  * The /my-asset headline and its allocation donut, mirrored onto the overview so the whole book
  * is visible without leaving the dashboard. Deliberately built from the same `ps-*` markup,
- * palette and wording as `HoldingsAllocationChart` below it so the two read as one card family;
- * only the columns are flipped — donut left, total right.
+ * palette, column split and wording as `HoldingsAllocationChart` below it — total left, donut
+ * right — so the two read as one card family.
  *
  * The figures are derived exactly as on /my-asset — current value measured against net deposits —
  * so both pages always agree.
@@ -59,18 +59,37 @@ export function AssetSummaryCard({ summary }: Props) {
     }));
   }, [summary]);
 
-  const { totalDepositedUsdt, totalWithdrawnUsdt, currentValueUsdt, available } = summary;
+  const { totalDepositedUsdt, totalWithdrawnUsdt, currentValueUsdt } = summary;
   const netFlow = totalDepositedUsdt - totalWithdrawnUsdt;
   const pnl = currentValueUsdt - netFlow;
   const pnlPct = netFlow > 0 ? (pnl / netFlow) * 100 : 0;
   const isPositive = pnl >= 0;
 
-  const deployedValue = available.deployed.reduce((sum, b) => sum + b.currentValueUsdt, 0);
-
   return (
-    <section className="ps-card ps-card--asset">
+    <section className="ps-card">
       <div className="ps-top-section">
         <div className="ps-left">
+          <p className="ps-eyebrow">Total Assets · All Accounts</p>
+          <h2 className="ps-net-worth">{formatUsd(currentValueUsdt)}</h2>
+
+          <div className="ps-badges">
+            <span className={`ps-badge ${isPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
+              {isPositive ? '▲' : '▼'} {isPositive ? '+' : ''}{formatUsd(pnl)}
+            </span>
+            <span className={`ps-badge ${isPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
+              {isPositive ? '+' : ''}{pnlPct.toFixed(2)}% · all-time
+            </span>
+          </div>
+
+          <div className="ps-pnl-section">
+            <p className="ps-eyebrow">Net Deposits</p>
+            <Link href="/my-asset" className="ps-pnl-link">
+              <p className="ps-pnl-value">{formatUsd(netFlow)}</p>
+            </Link>
+          </div>
+        </div>
+
+        <div className="ps-right">
           <h3 className="ps-section-title">Capital Allocation</h3>
           <div className="ps-donut-row">
             <div className="ps-chart-wrap">
@@ -104,46 +123,14 @@ export function AssetSummaryCard({ summary }: Props) {
               {slices.map((slice) => (
                 <div key={slice.name} className="ps-legend-item">
                   <span className="ps-legend-dot" style={{ background: slice.color }} />
-                  <span className="ps-legend-name">{slice.name}</span>
+                  {/* The amount rides in the name so the legend keeps the sibling
+                      card's three-column rhythm instead of growing a fourth. */}
+                  <span className="ps-legend-name">
+                    {slice.name} ({formatUsd(slice.value, 0)})
+                  </span>
                   <span className="ps-legend-pct">{Math.round(slice.pct)}%</span>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="ps-right">
-          <p className="ps-eyebrow">Total Assets · All Accounts</p>
-          <h2 className="ps-net-worth">{formatUsd(currentValueUsdt)}</h2>
-
-          <div className="ps-badges">
-            <span className={`ps-badge ${isPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
-              {isPositive ? '▲' : '▼'} {isPositive ? '+' : ''}{formatUsd(pnl)}
-            </span>
-            <span className={`ps-badge ${isPositive ? 'ps-badge--up' : 'ps-badge--down'}`}>
-              {isPositive ? '+' : ''}{pnlPct.toFixed(2)}% · all-time
-            </span>
-          </div>
-
-          <div className="ps-pnl-section">
-            <p className="ps-eyebrow">Net Deposits</p>
-            <Link href="/my-asset" className="ps-pnl-link">
-              <p className="ps-pnl-value">{formatUsd(netFlow)}</p>
-            </Link>
-          </div>
-
-          <div className="ps-stat-row">
-            <div className="ps-stat-box">
-              <span className="ps-stat-label">Accounts</span>
-              <span className="ps-stat-value">{summary.categories.length}</span>
-            </div>
-            <div className="ps-stat-box">
-              <span className="ps-stat-label">Available</span>
-              <span className="ps-stat-value">{formatUsd(available.availableUsdt, 0)}</span>
-            </div>
-            <div className="ps-stat-box">
-              <span className="ps-stat-label">Deployed</span>
-              <span className="ps-stat-value">{formatUsd(deployedValue, 0)}</span>
             </div>
           </div>
         </div>
