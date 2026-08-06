@@ -2,8 +2,8 @@
 
 > **The `/my-asset` page no longer exists (removed 2026-08-06).** Its route, server component and
 > page widget were deleted; the whole feature now lives in the **asset card on the overview** (`/`),
-> which carries the total, the allocation donut and four buttons — **Nạp / Rút / Transfer /
-> History** — opening the same dialogs the page used. Nothing behind it changed: the API, the
+> which carries the total, the allocation donut and four buttons — **Deposit / Withdraw /
+> Transfer / History** — opening the same dialogs the page used. Nothing behind it changed: the API, the
 > ledger, `AssetSummary` and every rule below are untouched. Read "/my-asset" in the rest of this
 > document as "the asset ledger".
 
@@ -182,7 +182,7 @@ Each legend row carries its **dollar amount** next to the name — `BTC ($1,700)
 percentage alone does not answer "how much is in BTC right now". The amount rides inside the name
 cell so the legend keeps the sibling's dot–name–percent three-column rhythm.
 
-Under the total sit the four ledger actions: **Nạp**, **Rút**, **Transfer** open
+Under the total sit the four ledger actions: **Deposit**, **Withdraw**, **Transfer** open
 `AssetTransactionDialog` with the matching type, and **History** opens `AssetHistoryDialog` — the
 ledger table lifted out of the deleted page, with the same per-row delete. Every mutation calls
 `fetchAssetSummary()` and drops the result into the card's local state, so the headline, the badges
@@ -223,8 +223,8 @@ client-side from Binance.
 2. The card renders the total, the all-time PnL badges, net deposits, the four action buttons and
    the allocation **donut + legend**. (`deployed[]` is still fetched — the donut values its slices
    from it — but the Vốn triển khai table itself is not rendered anywhere.)
-3. The trader picks an action. Nạp / Rút / Transfer open the dialog, which asks only for what that
-   type needs: amount, the one or two categories involved, a date (defaults to today) and an
+3. The trader picks an action. Deposit / Withdraw / Transfer open the dialog, which asks only for
+   what that type needs: amount, the one or two categories involved, a date (defaults to today) and an
    optional note. History opens the ledger table instead.
 4. `POST /asset/transactions` validates the shape for the type, then appends one row.
 5. The card re-fetches the summary into local state; every balance re-derives from the ledger, and

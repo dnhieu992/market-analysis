@@ -48,7 +48,7 @@ function toEnglish(label: string, key: string): string {
  * palette, column split and wording as `HoldingsAllocationChart` below it — total left, donut
  * right — so the two read as one card family.
  *
- * With /my-asset retired this card is also the only entry point to the ledger: Nạp / Rút /
+ * With /my-asset retired this card is also the only entry point to the ledger: Deposit / Withdraw /
  * Transfer / History open the same dialogs that page used, and every mutation re-pulls the
  * summary into local state so the headline and the donut move together.
  */
@@ -104,10 +104,10 @@ export function AssetSummaryCard({ summary: initialSummary }: Props) {
 
           <div className="ps-actions">
             <button type="button" className="btn btn--primary" onClick={() => setDialog('DEPOSIT')}>
-              Nạp
+              Deposit
             </button>
             <button type="button" className="btn btn--secondary" onClick={() => setDialog('WITHDRAW')}>
-              Rút
+              Withdraw
             </button>
             <button type="button" className="btn btn--secondary" onClick={() => setDialog('TRANSFER')}>
               Transfer
