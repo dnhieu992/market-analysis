@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+
+import { DASHBOARD_POLL_MS, usePoll } from '@web/shared/lib/use-poll';
 
 type HoldingEntry = {
   coinId: string;
@@ -121,7 +123,9 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
   const [computed, setComputed] = useState<ComputedData | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
+  // Re-priced on every poll, so the net worth and the 24h badges move with the market rather
+  // than freezing at whatever the market did the moment the page was opened.
+  const reprice = useCallback(() => {
     if (holdings.length === 0) {
       setComputed({
         totalValue: 0, totalCost: 0, totalRealizedPnl: 0, change24hUsd: 0, change24hPct: 0,
@@ -132,7 +136,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
     const nonStableIds = holdings.filter((h) => !STABLE_COINS.has(h.coinId)).map((h) => h.coinId);
 
-    Promise.all([fetchPrices(nonStableIds), fetch24hTickers(nonStableIds)])
+    void Promise.all([fetchPrices(nonStableIds), fetch24hTickers(nonStableIds)])
       .then(([prices, tickers]) => {
         let cashValue = 0;
 
@@ -237,6 +241,21 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
         });
       });
   }, [holdings]);
+
+  // Keyed on content, not on array identity: the 15s server refresh hands down a new `holdings`
+  // array even when nothing moved, and re-pricing on that would double up with the poll below.
+  const signature = holdings
+    .map((h) => `${h.coinId}:${h.totalAmount}:${h.totalCost}:${h.realizedPnl}`)
+    .join('|');
+
+  const repriceRef = useRef(reprice);
+  repriceRef.current = reprice;
+
+  useEffect(() => {
+    repriceRef.current();
+  }, [signature]);
+
+  usePoll(reprice, DASHBOARD_POLL_MS);
 
   const d = computed;
   const allTimePnl = d ? (d.totalValue - d.totalCost) + d.totalRealizedPnl : 0;

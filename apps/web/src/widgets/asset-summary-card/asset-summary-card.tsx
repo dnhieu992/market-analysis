@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 import { createApiClient } from '@web/shared/api/client';
@@ -52,9 +52,16 @@ function toEnglish(label: string, key: string): string {
  * Transfer / History open the same dialogs that page used, and every mutation re-pulls the
  * summary into local state so the headline and the donut move together.
  */
-export function AssetSummaryCard({ summary: initialSummary }: Props) {
-  const [summary, setSummary] = useState(initialSummary);
+export function AssetSummaryCard({ summary: serverSummary }: Props) {
+  const [summary, setSummary] = useState(serverSummary);
   const [dialog, setDialog] = useState<OpenDialog>(null);
+
+  // The overview refreshes its server component every 15s; adopt each new summary so the card is
+  // live. Local state stays because a mutation must land immediately, without waiting for the
+  // next tick — whichever arrives last wins, and both come from the same endpoint.
+  useEffect(() => {
+    setSummary(serverSummary);
+  }, [serverSummary]);
 
   const slices = useMemo(() => {
     const items = buildAllocationItems(summary).map((item) => ({

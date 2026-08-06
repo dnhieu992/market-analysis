@@ -1,6 +1,8 @@
 import type { AssetSummary, DashboardOrder } from '@web/shared/api/types';
+import { DASHBOARD_POLL_MS } from '@web/shared/lib/use-poll';
 import { AssetSummaryCard } from '@web/widgets/asset-summary-card/asset-summary-card';
 import { HoldingsAllocationChart } from '@web/widgets/holdings-allocation-chart/holdings-allocation-chart';
+import { AutoRefresh } from './auto-refresh';
 import { OverviewCards } from './overview-cards';
 
 type OverviewCard = Readonly<{
@@ -29,6 +31,10 @@ type DashboardOverviewProps = Readonly<{
 export function DashboardOverview({ cards, allHoldings, portfolioCount, assetSummary }: DashboardOverviewProps) {
   return (
     <main className="dashboard-shell">
+      {/* Makes the whole page a live view: every server-rendered figure re-pulls on this
+          interval, and the client-side price feeds below run on the same one. */}
+      <AutoRefresh intervalMs={DASHBOARD_POLL_MS} />
+
       <OverviewCards cards={cards} />
 
       {/* The whole book (/my-asset) first, then the spot-portfolio breakdown. */}
