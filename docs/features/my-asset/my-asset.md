@@ -13,8 +13,8 @@ past state stays reconstructible. Three actions write to that ledger:
 - **Chuyển (transfer)** — money moved between two categories. Total is unchanged.
 
 Category balances are **manual**, by design — the ledger records what the trader allocated. What
-that allocation is now *worth* is answered separately, per bucket, by the **Vốn triển khai** panel
-(see below).
+that allocation is now *worth* is computed per bucket (see **Vốn triển khai** below) and reaches the
+page through the allocation donut's slices.
 
 The category set is data, not code: "+ Thêm danh mục" adds a new bucket (a new exchange, a new
 wallet) and it immediately appears as a transfer target.
@@ -74,8 +74,7 @@ beneath it.
 
 Everything else the hero used to carry — the deposit/withdraw/net breakdown, the ledger total, and
 the spot vs deployed split of the PnL — was removed at the trader's request as noise; the ledger
-total still drives the transaction table, and the deployed half of the PnL is shown per bucket in
-**Vốn triển khai** below.
+total still drives the transaction table, and each deployed account appears as its own donut slice.
 
 ### Phân bổ danh mục — what the donut divides
 
@@ -100,13 +99,18 @@ Two changes from the ledger view it replaces:
   every other cash bucket, so no cash disappeared when the card did.
 
 Coins are valued at Binance last price (`spotPositions[].marketValueUsdt`), deployed buckets at
-`currentValueUsdt` — so the donut agrees with the Vốn triển khai table sitting directly above it.
+`currentValueUsdt` — the same valuation the Vốn triển khai table reports.
 
 Slices use the first eight slots of the validated categorical palette. The eight pass the CVD and
 normal-vision floors on the adjacent pairlist a donut needs; three of them sit below 3:1 contrast on
 the light surface, which the legend answers by giving every slice a text label, amount and share.
 
 ### Vốn triển khai — deployed capital, valued
+
+**The table is not on the page right now** — the trader asked for it back out (2026-08-06), leaving
+the deployed accounts visible as donut slices only. Nothing behind it was deleted: the API still
+computes and returns `deployed[]` in full, and `DeployedBuckets` still renders it, so restoring the
+panel is one JSX block in `my-asset.tsx`.
 
 The three committed buckets — **Trading, Bitget, MEXC** — used to show only the amount transferred
 in, which says nothing about whether that money grew or shrank. Each is now reported as
@@ -157,8 +161,8 @@ spendable cash bucket; it surfaces in `currentValueUsdt` and this panel only.
    - `categories` — each with its derived `balanceUsdt`,
    - `transactions` — the 200 most recent ledger rows.
 2. The page renders the total tile with **Nạp / Rút / Chuyển** and the vốn-ban-đầu line, the
-   **Vốn triển khai** table (placed above the donut: "how is it doing?" outranks "where is it?"),
-   the allocation **donut chart + legend**, and the ledger table.
+   allocation **donut chart + legend**, and the ledger table. (`deployed[]` is still fetched — the
+   donut values its slices from it — but the Vốn triển khai table itself is currently not rendered.)
 3. The trader picks an action. The dialog asks only for what that type needs: amount, the one or
    two categories involved, a date (defaults to today) and an optional note.
 4. `POST /asset/transactions` validates the shape for the type, then appends one row.
@@ -276,8 +280,9 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   `buildAllocationItems()` composes coins + available cash + deployed accounts, `buildSlices()` does
   the ordering, the negative-value exclusion and the 8-slice fold
 - `apps/web/src/widgets/my-asset/allocation-pie.spec.ts` — 10 cases over both functions
-- `apps/web/src/widgets/my-asset/deployed-buckets.tsx` — the **Vốn triển khai** table (vốn → giá
-  trị hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row
+- `apps/web/src/widgets/my-asset/deployed-buckets.tsx` — the **Vốn triển khai** table (vốn → giá trị
+  hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row. Currently not mounted
+  by `my-asset.tsx` — kept ready to drop back in
 - `apps/web/src/widgets/my-asset/deployed-buckets.spec.ts` — 5 cases over `summarizeDeployed()`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav item, placed directly under Overview
 - `apps/web/src/shared/api/client.ts` — `fetchAssetSummary`, `createAssetTransaction`,

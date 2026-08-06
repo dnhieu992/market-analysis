@@ -8,7 +8,6 @@ import type { AssetSummary, AssetTransactionType } from '@web/shared/api/types';
 import { AllocationPie, buildAllocationItems } from './allocation-pie';
 import { AssetTransactionDialog } from './asset-transaction-dialog';
 import { AddCategoryDialog } from './add-category-dialog';
-import { DeployedBuckets } from './deployed-buckets';
 
 const apiClient = createApiClient();
 
@@ -116,15 +115,9 @@ export function MyAsset({ initialSummary }: MyAssetProps) {
 
       {error ? <p className="ma-error">{error}</p> : null}
 
-      {/* Sits above the allocation donut on purpose: the donut answers "where is
-          the money?", this answers "how is it doing?" — the more urgent question. */}
-      <section className="panel ma-panel">
-        <div className="ma-panel-header">
-          <h2>Vốn triển khai</h2>
-        </div>
-        <DeployedBuckets buckets={available.deployed} />
-      </section>
-
+      {/* The Vốn triển khai table lived here until the trader asked for it back
+          out. `DeployedBuckets` is kept intact for when it returns — the deployed
+          accounts still reach the page through the donut's slices. */}
       <section className="panel ma-panel">
         <div className="ma-panel-header">
           <h2>Phân bổ danh mục</h2>
