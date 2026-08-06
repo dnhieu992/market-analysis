@@ -1,6 +1,13 @@
 ## Description
 
-`/my-asset` is the trader's capital ledger, denominated entirely in **USDT**. It answers two
+> **The `/my-asset` page no longer exists (removed 2026-08-06).** Its route, server component and
+> page widget were deleted; the whole feature now lives in the **asset card on the overview** (`/`),
+> which carries the total, the allocation donut and four buttons — **Nạp / Rút / Transfer /
+> History** — opening the same dialogs the page used. Nothing behind it changed: the API, the
+> ledger, `AssetSummary` and every rule below are untouched. Read "/my-asset" in the rest of this
+> document as "the asset ledger".
+
+The asset ledger is the trader's capital book, denominated entirely in **USDT**. It answers two
 questions: how much money is on the books in total, and how that money is split across the
 places it can sit — Spot, Trading, Bitget, MEXC and Wallet by default.
 
@@ -101,16 +108,19 @@ Two changes from the ledger view it replaces:
 Coins are valued at Binance last price (`spotPositions[].marketValueUsdt`), deployed buckets at
 `currentValueUsdt` — the same valuation the Vốn triển khai table reports.
 
-Slices use the first eight slots of the validated categorical palette. The eight pass the CVD and
-normal-vision floors on the adjacent pairlist a donut needs; three of them sit below 3:1 contrast on
-the light surface, which the legend answers by giving every slice a text label, amount and share.
+`buildSlices()` assigns the first eight slots of the validated categorical palette. The card then
+overrides them with the overview's own 12-colour ramp so both donuts on that page speak one colour
+language; the palette stays in `buildSlices` because a slice without a colour is a half-built row
+and the function is the tested seam. Either way the legend gives every slice a text label, an
+amount and a share, so nothing depends on colour alone.
 
 ### Vốn triển khai — deployed capital, valued
 
-**The table is not on the page right now** — the trader asked for it back out (2026-08-06), leaving
-the deployed accounts visible as donut slices only. Nothing behind it was deleted: the API still
-computes and returns `deployed[]` in full, and `DeployedBuckets` still renders it, so restoring the
-panel is one JSX block in `my-asset.tsx`.
+**The table is not rendered anywhere right now** — the trader asked for it back out (2026-08-06),
+leaving the deployed accounts visible as donut slices only. Nothing behind it was deleted: the API
+still computes and returns `deployed[]` in full, and `DeployedBuckets` still renders it, so bringing
+it back is one JSX block — now in `asset-summary-card.tsx` or a dialog of its own, since the page it
+used to sit on is gone.
 
 The three committed buckets — **Trading, Bitget, MEXC** — used to show only the amount transferred
 in, which says nothing about whether that money grew or shrank. Each is now reported as
@@ -144,11 +154,11 @@ all-time total that page reports. Measured on live data: capital 1,363.62 → 1,
 **Deployed PnL never enters `availableUsdt`.** That money is sitting on an exchange, not in a
 spendable cash bucket; it surfaces in `currentValueUsdt` and this panel only.
 
-### Mirrored onto the Overview dashboard
+### The asset card on the Overview dashboard
 
-The same two figures — **Tổng tài sản** and the **Phân bổ danh mục** donut — also render on `/`
-(the Overview page), directly **above** the "Total Net Worth · All Portfolios" card, so the whole
-book is visible without navigating away.
+The total and the allocation donut render on `/` (the Overview page), directly **above** the
+"Total Net Worth · All Portfolios" card. This started as a mirror of `/my-asset` and then replaced
+it outright: the page was removed and its nav entry with it, so the card is the only way in.
 
 `AssetSummaryCard` is a deliberate twin of that card rather than a copy of `/my-asset`'s: same
 `.ps-*` markup, same `$` formatting, same 12-colour palette, same 45/72 donut radii, same
@@ -172,13 +182,31 @@ Each legend row carries its **dollar amount** next to the name — `BTC ($1,700)
 percentage alone does not answer "how much is in BTC right now". The amount rides inside the name
 cell so the legend keeps the sibling's dot–name–percent three-column rhythm.
 
+Under the total sit the four ledger actions: **Nạp**, **Rút**, **Transfer** open
+`AssetTransactionDialog` with the matching type, and **History** opens `AssetHistoryDialog` — the
+ledger table lifted out of the deleted page, with the same per-row delete. Every mutation calls
+`fetchAssetSummary()` and drops the result into the card's local state, so the headline, the badges
+and the donut all move together without a route reload.
+
+**"+ Thêm danh mục" now lives inside the History dialog.** The trader asked for four buttons, and a
+fifth top-level action for something used once a quarter would not have earned its place — but with
+the page gone this was the last remaining way to add a bucket, and a category is a ledger concern.
+Opening it swaps the History dialog for the category form and saving swaps back, so the trader
+lands where they started with the new bucket already loaded.
+
+**All three dialogs are portalled to `document.body`.** `.ps-card` sets `backdrop-filter`, which
+makes it the containing block for `position: fixed` descendants — a dialog rendered in place would
+be trapped inside the card instead of covering the viewport. This is why `AssetTransactionDialog`
+and `AddCategoryDialog` gained `createPortal` when they moved off the page, where no ancestor had
+filtered them.
+
 The two cards measure different things and are meant to sit side by side: this one is the whole
 book (spot + cash + deployed accounts), the one below it is the spot portfolio only, priced
 client-side from Binance.
 
 ## Main Flow
 
-1. `GET /asset/summary` (server component, on page load) returns in one round trip:
+1. `GET /asset/summary` (the overview's server component, on page load) returns in one round trip:
    - `totalUsdt` — the sum of every category balance,
    - `totalDepositedUsdt` / `totalWithdrawnUsdt` — lifetime totals, summed in SQL,
    - `currentValueUsdt` — the ledger total marked to market,
@@ -192,15 +220,17 @@ client-side from Binance.
      `pnlPct`, `source`, `pricedPartially`),
    - `categories` — each with its derived `balanceUsdt`,
    - `transactions` — the 200 most recent ledger rows.
-2. The page renders the total tile with **Nạp / Rút / Chuyển** and the vốn-ban-đầu line, the
-   allocation **donut chart + legend**, and the ledger table. (`deployed[]` is still fetched — the
-   donut values its slices from it — but the Vốn triển khai table itself is currently not rendered.)
-3. The trader picks an action. The dialog asks only for what that type needs: amount, the one or
-   two categories involved, a date (defaults to today) and an optional note.
+2. The card renders the total, the all-time PnL badges, net deposits, the four action buttons and
+   the allocation **donut + legend**. (`deployed[]` is still fetched — the donut values its slices
+   from it — but the Vốn triển khai table itself is not rendered anywhere.)
+3. The trader picks an action. Nạp / Rút / Transfer open the dialog, which asks only for what that
+   type needs: amount, the one or two categories involved, a date (defaults to today) and an
+   optional note. History opens the ledger table instead.
 4. `POST /asset/transactions` validates the shape for the type, then appends one row.
-5. The widget re-fetches the summary; every balance re-derives from the ledger.
-6. Deleting a ledger row (`DELETE /asset/transactions/:id`) reverts its effect on the balances —
-   there is no compensating entry, the row simply stops counting.
+5. The card re-fetches the summary into local state; every balance re-derives from the ledger, and
+   the headline, badges and donut update together.
+6. Deleting a ledger row from the History dialog (`DELETE /asset/transactions/:id`) reverts its
+   effect on the balances — there is no compensating entry, the row simply stops counting.
 
 Balance maths, per category: `sum(amount where toCategoryId = c) − sum(amount where fromCategoryId = c)`.
 Both sides are `groupBy` aggregates in MySQL, so the page stays correct once the ledger grows past
@@ -293,8 +323,17 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   bucket never breaks code that looks it up by key.
 - **Date handling** — the date input is date-only; it is submitted as noon local time so a timezone
   shift cannot move an entry to the previous day.
-- **API down on page load** — the server component falls back to an empty summary and the page
-  renders with zeros instead of crashing.
+- **API down on page load** — the summary call has its own `.catch` inside the overview's
+  loader, so the asset card is dropped entirely rather than the dashboard rendering with zeros or
+  blanking. The rest of the overview is unaffected.
+- **A dialog opened from the card** — all three are portalled to `document.body`. `.ps-card` sets
+  `backdrop-filter`, which makes it the containing block for `position: fixed` children; rendered
+  in place, the backdrop would cover only the card. This bit before, on a different card.
+- **Adding a category from the History dialog** — the History dialog closes while the form is open
+  and reopens on save or cancel, so the trader is never left on the bare dashboard wondering where
+  the ledger went. The refresh runs before the reopen, so the new bucket is already listed.
+- **Deleting the last transaction from the History dialog** — the table empties in place and shows
+  "Chưa có giao dịch nào"; the card behind it re-derives to zeros rather than going stale.
 - **API error messages** — asset mutations go through `assetMutation()` in the web client, which
   rethrows the server's own Vietnamese `message` so the dialog shows the actual rule that failed,
   not an HTTP status.
@@ -302,34 +341,41 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 ## Related Files (FE / BE / Worker)
 
 **Web (FE)**
-- `apps/web/src/app/my-asset/page.tsx` — route, thin re-export
-- `apps/web/src/_pages/my-asset-page/my-asset-page.tsx` — server component; fetches the summary
-- `apps/web/src/widgets/my-asset/my-asset.tsx` — total tile (+ vốn-ban-đầu line), ledger table;
-  builds the donut's rows via `buildAllocationItems()`
-- `apps/web/src/widgets/my-asset/asset-transaction-dialog.tsx` — Nạp / Rút / Chuyển form
-- `apps/web/src/widgets/my-asset/add-category-dialog.tsx` — add a bucket, with label→key slugify
-- `apps/web/src/widgets/my-asset/allocation-pie.tsx` — recharts donut + legend;
+- `apps/web/src/widgets/asset-summary-card/asset-summary-card.tsx` — **the whole feature's UI**:
+  total + badges + net deposits left, donut right, the four ledger buttons, and the dialog state
+  machine. Styled and worded as a twin of `HoldingsAllocationChart`; reuses
+  `buildAllocationItems()` / `buildSlices()` for the data only
+- `apps/web/src/widgets/my-asset/asset-transaction-dialog.tsx` — Nạp / Rút / Chuyển form, portalled
+- `apps/web/src/widgets/my-asset/asset-history-dialog.tsx` — the ledger table (per-row delete) plus
+  "+ Thêm danh mục"; portalled
+- `apps/web/src/widgets/my-asset/add-category-dialog.tsx` — add a bucket, with label→key slugify;
+  portalled, and returns to the History dialog on close or save
+- `apps/web/src/widgets/my-asset/allocation-pie.ts` — data only since the page went: 
   `buildAllocationItems()` composes coins + available cash + deployed accounts, `buildSlices()` does
-  the ordering, the negative-value exclusion and the 8-slice fold
+  the ordering, the negative-value exclusion and the 8-slice fold. The `AllocationPie` renderer was
+  deleted with its only caller
 - `apps/web/src/widgets/my-asset/allocation-pie.spec.ts` — 10 cases over both functions
 - `apps/web/src/widgets/my-asset/deployed-buckets.tsx` — the **Vốn triển khai** table (vốn → giá trị
-  hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row. Currently not mounted
-  by `my-asset.tsx` — kept ready to drop back in
+  hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row. Not mounted anywhere —
+  kept, with its spec, for when the panel comes back
 - `apps/web/src/widgets/my-asset/deployed-buckets.spec.ts` — 5 cases over `summarizeDeployed()`
-- `apps/web/src/widgets/asset-summary-card/asset-summary-card.tsx` — the Overview mirror of the
-  total + donut (total left, donut right), styled and worded as a twin of `HoldingsAllocationChart`;
-  reuses `buildAllocationItems()` / `buildSlices()` for the data only
 - `apps/web/src/_pages/overview-page/overview-page.tsx` — fetches the summary alongside the
   dashboard data; a failed call drops the card instead of blanking the page
 - `apps/web/src/widgets/dashboard-overview/dashboard-overview.tsx` — mounts the card above
   `HoldingsAllocationChart`
-- `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav item, placed directly under Overview
+- **Deleted 2026-08-06**: `apps/web/src/app/my-asset/page.tsx`,
+  `apps/web/src/_pages/my-asset-page/my-asset-page.tsx`,
+  `apps/web/src/widgets/my-asset/my-asset.tsx`, and the "My Asset" entry in
+  `apps/web/src/widgets/app-shell/sidebar-nav.tsx`
 - `apps/web/src/shared/api/client.ts` — `fetchAssetSummary`, `createAssetTransaction`,
   `deleteAssetTransaction`, `createAssetCategory`, `updateAssetCategory`, `deleteAssetCategory`,
   and the `assetMutation()` error-surfacing helper
 - `apps/web/src/shared/api/types.ts` — `AssetCategory`, `AssetTransaction`, `AssetSummary`,
   `AssetAvailable`, `AssetSpotPosition`, `AssetDeployed`, `AssetDeployedValue`, `AssetDeployedSource`
-- `apps/web/src/app/globals.css` — `.ma-*` styles
+- `apps/web/src/app/globals.css` — `.ps-actions` (the button row) and the surviving `.ma-*`
+  styles: the dialog form fields, the ledger table, and the type pills. The page-only blocks
+  (`.ma-hero*`, `.ma-total`, `.ma-panel`, `.ma-donut-row`, `.ma-chart-wrap`, `.ma-legend*`,
+  `.ma-pnl*`) went with the page
 
 **API (BE)**
 - `apps/api/src/modules/asset/asset.controller.ts` — `/asset/summary`, `/asset/transactions`,

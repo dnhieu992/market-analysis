@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { AssetCategory, AssetTransactionType } from '@web/shared/api/types';
@@ -71,7 +72,9 @@ export function AssetTransactionDialog({ type, categories, onClose, onSaved }: P
     }
   }
 
-  return (
+  // Portalled: the overview card that opens this sets `backdrop-filter`, which would become
+  // the containing block for the fixed backdrop and trap the dialog inside the card.
+  return createPortal(
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
@@ -155,6 +158,7 @@ export function AssetTransactionDialog({ type, categories, onClose, onSaved }: P
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

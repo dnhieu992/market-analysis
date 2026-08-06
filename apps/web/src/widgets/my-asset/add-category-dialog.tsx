@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
 
@@ -49,7 +50,8 @@ export function AddCategoryDialog({ onClose, onSaved }: Props) {
     }
   }
 
-  return (
+  // Portalled for the same reason as the transaction dialog — see its note.
+  return createPortal(
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
@@ -85,6 +87,7 @@ export function AddCategoryDialog({ onClose, onSaved }: Props) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

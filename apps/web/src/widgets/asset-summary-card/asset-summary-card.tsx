@@ -1,11 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import type { AssetSummary } from '@web/shared/api/types';
+import { createApiClient } from '@web/shared/api/client';
+import type { AssetSummary, AssetTransactionType } from '@web/shared/api/types';
 import { buildAllocationItems, buildSlices } from '@web/widgets/my-asset/allocation-pie';
+import { AssetTransactionDialog } from '@web/widgets/my-asset/asset-transaction-dialog';
+import { AssetHistoryDialog } from '@web/widgets/my-asset/asset-history-dialog';
+import { AddCategoryDialog } from '@web/widgets/my-asset/add-category-dialog';
+
+const apiClient = createApiClient();
 
 /** Same palette, in the same order, as `HoldingsAllocationChart` — the two donuts sit on the
  *  same page, so a coin must not change colour between them. */
@@ -18,6 +23,9 @@ const COLORS = [
 type Props = Readonly<{
   summary: AssetSummary;
 }>;
+
+/** Which overlay is open. The ledger actions map 1:1 onto `AssetTransactionType`. */
+type OpenDialog = AssetTransactionType | 'HISTORY' | 'CATEGORY' | null;
 
 function formatUsd(value: number, decimals = 2): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: decimals }).format(value);
@@ -40,10 +48,14 @@ function toEnglish(label: string, key: string): string {
  * palette, column split and wording as `HoldingsAllocationChart` below it — total left, donut
  * right — so the two read as one card family.
  *
- * The figures are derived exactly as on /my-asset — current value measured against net deposits —
- * so both pages always agree.
+ * With /my-asset retired this card is also the only entry point to the ledger: Nạp / Rút /
+ * Transfer / History open the same dialogs that page used, and every mutation re-pulls the
+ * summary into local state so the headline and the donut move together.
  */
-export function AssetSummaryCard({ summary }: Props) {
+export function AssetSummaryCard({ summary: initialSummary }: Props) {
+  const [summary, setSummary] = useState(initialSummary);
+  const [dialog, setDialog] = useState<OpenDialog>(null);
+
   const slices = useMemo(() => {
     const items = buildAllocationItems(summary).map((item) => ({
       ...item,
@@ -65,6 +77,10 @@ export function AssetSummaryCard({ summary }: Props) {
   const pnlPct = netFlow > 0 ? (pnl / netFlow) * 100 : 0;
   const isPositive = pnl >= 0;
 
+  async function refresh() {
+    setSummary(await apiClient.fetchAssetSummary());
+  }
+
   return (
     <section className="ps-card">
       <div className="ps-top-section">
@@ -83,9 +99,22 @@ export function AssetSummaryCard({ summary }: Props) {
 
           <div className="ps-pnl-section">
             <p className="ps-eyebrow">Net Deposits</p>
-            <Link href="/my-asset" className="ps-pnl-link">
-              <p className="ps-pnl-value">{formatUsd(netFlow)}</p>
-            </Link>
+            <p className="ps-pnl-value">{formatUsd(netFlow)}</p>
+          </div>
+
+          <div className="ps-actions">
+            <button type="button" className="btn btn--primary" onClick={() => setDialog('DEPOSIT')}>
+              Nạp
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={() => setDialog('WITHDRAW')}>
+              Rút
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={() => setDialog('TRANSFER')}>
+              Transfer
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={() => setDialog('HISTORY')}>
+              History
+            </button>
           </div>
         </div>
 
@@ -135,6 +164,40 @@ export function AssetSummaryCard({ summary }: Props) {
           </div>
         </div>
       </div>
+
+      {dialog === 'DEPOSIT' || dialog === 'WITHDRAW' || dialog === 'TRANSFER' ? (
+        <AssetTransactionDialog
+          type={dialog}
+          categories={summary.categories}
+          onClose={() => setDialog(null)}
+          onSaved={async () => {
+            setDialog(null);
+            await refresh();
+          }}
+        />
+      ) : null}
+
+      {dialog === 'HISTORY' ? (
+        <AssetHistoryDialog
+          transactions={summary.transactions}
+          categories={summary.categories}
+          onClose={() => setDialog(null)}
+          onChanged={refresh}
+          // The history dialog stays closed behind the category form; reopening it on save
+          // puts the trader back where they were, with the new bucket already loaded.
+          onAddCategory={() => setDialog('CATEGORY')}
+        />
+      ) : null}
+
+      {dialog === 'CATEGORY' ? (
+        <AddCategoryDialog
+          onClose={() => setDialog('HISTORY')}
+          onSaved={async () => {
+            await refresh();
+            setDialog('HISTORY');
+          }}
+        />
+      ) : null}
     </section>
   );
 }

@@ -927,7 +927,7 @@ export type SupertrendScanResult = {
   durationMs: number;
 };
 
-// ── My Asset (/my-asset) ──────────────────────────────────────────────────────
+// ── Asset ledger (overview asset card) ───────────────────────────────────────
 
 /** One bucket the trader's USDT is split into. `balanceUsdt` is derived from the ledger. */
 export type AssetCategory = {

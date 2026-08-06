@@ -1,14 +1,14 @@
-'use client';
-
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-
 import type { AssetSummary } from '@web/shared/api/types';
 
 /**
  * Validated categorical palette, assigned in fixed order and never cycled. Three
  * of the light-mode slots sit below 3:1 against the page surface, which is why
- * the legend carries a visible text label and amount for every slice rather than
+ * a legend built on these must carry a visible text label per slice rather than
  * leaning on colour alone.
+ *
+ * The only renderer left — `AssetSummaryCard` — overrides these with the overview's
+ * own palette so both donuts on that page match; the values stay because
+ * `buildSlices` is the tested seam and a slice without a colour is a half-built row.
  */
 const SERIES_COLORS = [
   '#2a78d6', // blue
@@ -41,13 +41,6 @@ type Slice = {
   pct: number;
   color: string;
 };
-
-function formatUsdt(value: number): string {
-  return `${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)} USDT`;
-}
 
 /**
  * What the donut divides up is the book's *current value*, not the ledger:
@@ -140,75 +133,4 @@ export function buildSlices(items: AllocationItem[]): { slices: Slice[]; pieTota
   }
 
   return { slices, pieTotal };
-}
-
-type Props = Readonly<{
-  items: AllocationItem[];
-}>;
-
-export function AllocationPie({ items }: Props) {
-  const { slices } = buildSlices(items);
-
-  if (slices.length === 0) {
-    return <p className="ma-empty">Chưa có số dư nào để phân bổ.</p>;
-  }
-
-  return (
-    <div className="ma-donut-row">
-      <div className="ma-chart-wrap">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={slices}
-              cx="50%"
-              cy="50%"
-              innerRadius={58}
-              outerRadius={92}
-              dataKey="value"
-              // A 2px surface-coloured gap between segments, per the mark spec.
-              strokeWidth={2}
-              stroke="#ffffff"
-              paddingAngle={1}
-              isAnimationActive={false}
-            >
-              {slices.map((slice) => (
-                <Cell key={slice.name} fill={slice.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(value, name) => [formatUsdt(Number(value)), String(name)]}
-              contentStyle={{
-                borderRadius: 12,
-                border: '1px solid rgba(23, 18, 13, 0.12)',
-                fontSize: '0.85rem',
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* The legend doubles as the table view: every item, with its real number. */}
-      <ul className="ma-legend">
-        {slices.map((slice) => (
-          <li key={slice.name} className="ma-legend-item">
-            <span className="ma-legend-dot" style={{ background: slice.color }} />
-            <span className="ma-legend-name">{slice.name}</span>
-            <span className="ma-legend-value">{formatUsdt(slice.value)}</span>
-            <span className="ma-legend-pct">{slice.pct.toFixed(1)}%</span>
-          </li>
-        ))}
-
-        {items
-          .filter((i) => i.valueUsdt <= 0)
-          .map((item) => (
-            <li key={item.key} className="ma-legend-item ma-legend-item--muted">
-              <span className="ma-legend-dot ma-legend-dot--empty" />
-              <span className="ma-legend-name">{item.label}</span>
-              <span className="ma-legend-value">{formatUsdt(item.valueUsdt)}</span>
-              <span className="ma-legend-pct">—</span>
-            </li>
-          ))}
-      </ul>
-    </div>
-  );
 }
