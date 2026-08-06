@@ -6,7 +6,7 @@ import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-ove
 async function loadDashboardData() {
   const client = createServerApiClient();
   try {
-    const [paginatedOrders, analysisRuns, portfolios, bitgetPnl, mexcPnl] = await Promise.all([
+    const [paginatedOrders, analysisRuns, portfolios, bitgetPnl, mexcPnl, assetSummary] = await Promise.all([
       client.fetchOrders({ pageSize: 20 }),
       client.fetchAnalysisRuns(),
       client.fetchPortfolios(),
@@ -19,6 +19,9 @@ async function loadDashboardData() {
         .fetchMexcHistory({ limit: EXCHANGE_HISTORY_LIMIT })
         .then((h) => h.summary.totalNetProfit)
         .catch(() => 0),
+      // The whole-book summary. Its own catch, so an asset-service failure drops
+      // the card rather than emptying the rest of the dashboard.
+      client.fetchAssetSummary().catch(() => null as AssetSummary | null),
     ]);
 
     // fetch holdings for all portfolios in parallel
@@ -59,6 +62,7 @@ async function loadDashboardData() {
       analysisRuns,
       allHoldings,
       portfolioCount: portfolios.length,
+      assetSummary,
     };
   } catch {
     return {
@@ -69,6 +73,7 @@ async function loadDashboardData() {
       analysisRuns: [],
       allHoldings: [],
       portfolioCount: 0,
+      assetSummary: null as AssetSummary | null,
     };
   }
 }
@@ -141,14 +146,8 @@ function buildOverviewCards(
 }
 
 export default async function OverviewPage() {
-  // The asset summary is its own call: a failure there must not blank the rest
-  // of the dashboard, so the card is simply dropped when it is unavailable.
-  const [{ recentOrders, closedPnlSum, allHoldings, portfolioCount }, assetSummary] = await Promise.all([
-    loadDashboardData(),
-    createServerApiClient()
-      .fetchAssetSummary()
-      .catch(() => null as AssetSummary | null),
-  ]);
+  const { recentOrders, closedPnlSum, allHoldings, portfolioCount, assetSummary } =
+    await loadDashboardData();
 
   const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
   const ethHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'ETH');
