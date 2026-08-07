@@ -6,21 +6,7 @@ import type { DashboardOrder, PortfolioPnlCalendar } from '@web/shared/api/types
 import { OverviewTab } from './overview-tab';
 import { PortfolioTab } from './portfolio-tab';
 import { TradingTab } from './trading-tab';
-import { MONTHS_VI, type ViewMode } from './shared';
-
-export type PnlTab = 'overview' | 'trading' | 'portfolio';
-
-const TABS: { key: PnlTab; label: string; heading: string }[] = [
-  { key: 'overview',  label: 'Tổng hợp',  heading: 'Tổng hợp P&L' },
-  { key: 'trading',   label: 'Giao dịch', heading: 'Lịch giao dịch' },
-  { key: 'portfolio', label: 'Portfolio', heading: 'Lịch P&L Portfolio' },
-];
-
-/** `?tab=` value → tab key. Unknown / missing falls back to the overview tab. */
-export function parseTab(raw: string | string[] | undefined): PnlTab {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return TABS.some((t) => t.key === value) ? (value as PnlTab) : 'overview';
-}
+import { MONTHS_VI, TABS, type PnlTab, type ViewMode } from './shared';
 
 type Props = {
   orders: DashboardOrder[];

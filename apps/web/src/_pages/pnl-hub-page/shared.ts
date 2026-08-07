@@ -24,6 +24,25 @@ const COIN_COLORS: Record<string, string> = {
 
 export type ViewMode = 'day' | 'month';
 
+/* ── tabs ──────────────────────────────────────── */
+/* Deliberately NOT in pnl-hub-page.tsx: that module is `'use client'`, and a
+   Server Component cannot call a plain function exported from a client module
+   — only render it as a component. The route page needs `parseTab`. */
+
+export type PnlTab = 'overview' | 'trading' | 'portfolio';
+
+export const TABS: { key: PnlTab; label: string; heading: string }[] = [
+  { key: 'overview',  label: 'Tổng hợp',  heading: 'Tổng hợp P&L' },
+  { key: 'trading',   label: 'Giao dịch', heading: 'Lịch giao dịch' },
+  { key: 'portfolio', label: 'Portfolio', heading: 'Lịch P&L Portfolio' },
+];
+
+/** `?tab=` value → tab key. Unknown / missing falls back to the overview tab. */
+export function parseTab(raw: string | string[] | undefined): PnlTab {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return TABS.some((t) => t.key === value) ? (value as PnlTab) : 'overview';
+}
+
 /* ── date helpers ──────────────────────────────── */
 
 export function getDaysInMonth(year: number, month: number) {

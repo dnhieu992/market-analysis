@@ -9,7 +9,7 @@
 
 The Giao dịch tab aggregates **every** closed trade the app knows about — manual `Order` rows *and* the Bitget/MEXC futures trades that live in their own tables. The Portfolio tab is a different money stream entirely (`Holding`/`CoinTransaction` sells), which is why the Tổng hợp tab reports them both separately as well as summed.
 
-`/portfolio-pnl` was the standalone portfolio calendar; it is now a permanent redirect to `/pnl-calendar?tab=portfolio` so old links and bookmarks still land in the right place.
+`/portfolio-pnl` was the standalone portfolio calendar; it is now a `redirects()` entry in `next.config.js` pointing at `/pnl-calendar?tab=portfolio`, so old links and bookmarks still land in the right place. It is **not** an `app/` page calling `redirect()` — that route has no dynamic data, so Next prerenders it static, and a build-time `redirect()` is baked into the HTML as an error page rather than served as an HTTP redirect. The config redirect is a real 307 resolved before the page ever renders (and before `middleware.ts`, so an unauthenticated hit redirects here first and then on to `/login`).
 
 Cards elsewhere in the app deep-link to the tab they summarise:
 - Overview "Total Profit / Loss" card → `?tab=trading`
@@ -40,13 +40,13 @@ Cards elsewhere in the app deep-link to the tab they summarise:
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/app/pnl-calendar/page.tsx` — server-side fetch + merge of the four sources, resolves the initial tab
-- `apps/web/src/app/portfolio-pnl/page.tsx` — redirect to `/pnl-calendar?tab=portfolio`
-- `apps/web/src/_pages/pnl-hub-page/pnl-hub-page.tsx` — tab strip, shared view-mode/month navigation, `parseTab`
+- `apps/web/next.config.js` — `redirects()`: `/portfolio-pnl` → `/pnl-calendar?tab=portfolio`
+- `apps/web/src/_pages/pnl-hub-page/pnl-hub-page.tsx` — tab strip, shared view-mode/month navigation
 - `apps/web/src/_pages/pnl-hub-page/overview-tab.tsx` — combined calendar, source split, clickable per-source summary cards
 - `apps/web/src/_pages/pnl-hub-page/trading-tab.tsx` — trading sidebar, performance stats, PnL-by-symbol
 - `apps/web/src/_pages/pnl-hub-page/portfolio-tab.tsx` — portfolio sidebar (profit/loss days, best/worst day)
 - `apps/web/src/_pages/pnl-hub-page/calendar-grid.tsx` — the day/month calendar surface shared by all three tabs
-- `apps/web/src/_pages/pnl-hub-page/shared.ts` — VI date labels, formatters, order/daily grouping helpers
+- `apps/web/src/_pages/pnl-hub-page/shared.ts` — VI date labels, formatters, order/daily grouping helpers, and the `TABS` / `parseTab` definitions. Deliberately has **no** `'use client'`: the route page is a Server Component and cannot call a plain function exported from a client module (it can only render one as a component), so `parseTab` must live outside `pnl-hub-page.tsx`.
 - `apps/web/src/app/globals.css` — `.pnl-tabs`, `.pnl-src-card`, `.pnl-split-bar` (plus the existing `.pnl-cal-*` / `.perf-*` rules)
 - `apps/web/src/shared/api/exchange-orders.ts` — `mapExchangeClosedTrades`, `EXCHANGE_HISTORY_LIMIT`
 - `apps/web/src/_pages/overview-page/overview-page.tsx` — "Total Profit / Loss" card → `?tab=trading`

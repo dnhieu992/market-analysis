@@ -1,7 +1,9 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { DashboardOrder, PortfolioPnlCalendar } from '@web/shared/api/types';
 import { EXCHANGE_HISTORY_LIMIT, mapExchangeClosedTrades } from '@web/shared/api/exchange-orders';
-import { PnlHubPage, parseTab } from '@web/pages/pnl-hub-page/pnl-hub-page';
+import { PnlHubPage } from '@web/pages/pnl-hub-page/pnl-hub-page';
+// `parseTab` must come from the non-client module — see the note in shared.ts.
+import { parseTab } from '@web/pages/pnl-hub-page/shared';
 
 type Props = {
   searchParams: Record<string, string | string[] | undefined>;
