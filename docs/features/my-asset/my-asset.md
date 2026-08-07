@@ -108,6 +108,13 @@ Two changes from the ledger view it replaces:
 Coins are valued at Binance last price (`spotPositions[].marketValueUsdt`), deployed buckets at
 `currentValueUsdt` — the same valuation the Vốn triển khai table reports.
 
+**Slice order is fixed, not ranked by size:** cash first, then the named coins (BTC, then ETH,
+driven off `NAMED_COINS` rather than the API's position order), then each deployed bucket in the
+order the API returns them (Trading, Bitget, MEXC), then the leftover coins last. The trader reads
+the legend as a fixed list, so a row must not move when a price does. `buildSlices()` preserves the
+order `buildAllocationItems()` emits; only the 8-slice overflow still looks at value, folding the
+*smallest* rows away so a large position can never be hidden for sitting late in the list.
+
 `buildSlices()` assigns the first eight slots of the validated categorical palette. The card then
 overrides them with the overview's own 12-colour ramp so both donuts on that page speak one colour
 language; the palette stays in `buildSlices` because a slice without a colour is a half-built row
@@ -166,10 +173,11 @@ dot–name–percent legend, and the same **English** wording — two cards in d
 stacked on one page read as a bug. It therefore does **not** reuse `AllocationPie` (which is styled
 in `.ma-*` for the Vietnamese page); it reuses only the data functions, `buildAllocationItems()` and
 `buildSlices()`, so the slice set, the ordering, the negative-value exclusion and the overflow fold
-stay single-sourced and the two pages can never disagree on *what* is in the donut. The two labels
+stay single-sourced and the two pages can never disagree on *what* is in the donut. The labels
 those functions generate in Vietnamese ("USDT khả dụng", "Coin khác (n)", "Khác (n)") are swapped to
-English in the card — the deployed buckets are already named in English by the seed (Spot, Trading,
-Bitget, MEXC, Wallet).
+English in the card — cash renders as plain **USDT**, so the row reads as one more ticker next to
+BTC and ETH. The deployed buckets are already named in English by the seed (Spot, Trading, Bitget,
+MEXC, Wallet).
 
 The column split matches the sibling exactly — **total left, donut right**. The left column follows
 its eyebrow → headline → badges → P&L-section rhythm: **Total Assets · All Accounts**
@@ -354,7 +362,7 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   `buildAllocationItems()` composes coins + available cash + deployed accounts, `buildSlices()` does
   the ordering, the negative-value exclusion and the 8-slice fold. The `AllocationPie` renderer was
   deleted with its only caller
-- `apps/web/src/widgets/my-asset/allocation-pie.spec.ts` — 10 cases over both functions
+- `apps/web/src/widgets/my-asset/allocation-pie.spec.ts` — 12 cases over both functions
 - `apps/web/src/widgets/my-asset/deployed-buckets.tsx` — the **Vốn triển khai** table (vốn → giá trị
   hiện tại, PnL, %, source label); `summarizeDeployed()` does the totals row. Not mounted anywhere —
   kept, with its spec, for when the panel comes back

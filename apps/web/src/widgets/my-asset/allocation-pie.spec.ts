@@ -67,7 +67,7 @@ describe('buildAllocationItems', () => {
       }),
     );
 
-    expect(items.map((i) => i.label)).toEqual(['BTC', 'ETH', 'Coin khác (2)', 'USDT khả dụng']);
+    expect(items.map((i) => i.label)).toEqual(['USDT khả dụng', 'BTC', 'ETH', 'Coin khác (2)']);
     expect(items.find((i) => i.label === 'Coin khác (2)')?.valueUsdt).toBe(300);
   });
 
@@ -76,7 +76,28 @@ describe('buildAllocationItems', () => {
       summary({ spotPositions: [position('BTC', 500), position('SOL', 250)] }),
     );
 
-    expect(items.map((i) => i.label)).toEqual(['BTC', 'SOL', 'USDT khả dụng']);
+    expect(items.map((i) => i.label)).toEqual(['USDT khả dụng', 'BTC', 'SOL']);
+  });
+
+  it('orders rows cash, named coins, deployed accounts, then the rest', () => {
+    const items = buildAllocationItems(
+      summary({
+        // ETH ahead of BTC here: the legend order must not follow the API's.
+        spotPositions: [position('ETH', 800), position('SOL', 200), position('BTC', 2000)],
+        availableUsdt: 300,
+        deployed: [deployed('trading', 500), deployed('bitget', 420), deployed('mexc', 80)],
+      }),
+    );
+
+    expect(items.map((i) => i.label)).toEqual([
+      'USDT khả dụng',
+      'BTC',
+      'ETH',
+      'TRADING',
+      'BITGET',
+      'MEXC',
+      'SOL',
+    ]);
   });
 
   it('adds every deployed bucket at its current value, not its capital', () => {
@@ -114,7 +135,7 @@ describe('buildSlices', () => {
     expect(pieTotal).toBe(0);
   });
 
-  it('orders slices largest first and shares sum to 100%', () => {
+  it('keeps the caller order and shares sum to 100%', () => {
     const { slices, pieTotal } = buildSlices([
       item('spot', 250),
       item('bitget', 500),
@@ -122,8 +143,8 @@ describe('buildSlices', () => {
     ]);
 
     expect(pieTotal).toBe(1000);
-    expect(slices.map((s) => s.name)).toEqual(['BITGET', 'SPOT', 'MEXC']);
-    expect(slices.map((s) => s.pct)).toEqual([50, 25, 25]);
+    expect(slices.map((s) => s.name)).toEqual(['SPOT', 'BITGET', 'MEXC']);
+    expect(slices.map((s) => s.pct)).toEqual([25, 50, 25]);
     expect(slices.reduce((sum, s) => sum + s.pct, 0)).toBeCloseTo(100);
   });
 
@@ -138,6 +159,20 @@ describe('buildSlices', () => {
     expect(pieTotal).toBe(800);
     expect(slices).toHaveLength(1);
     expect(slices[0]?.pct).toBe(100);
+  });
+
+  it('folds the smallest overflow away, not whatever sits last in the list', () => {
+    // Two tiny rows placed first: they must be the ones folded, and the eight kept
+    // rows must still come back in the caller's order.
+    const items = [item('tiny-a', 5), item('tiny-b', 1), ...Array.from({ length: 8 }, (_, i) => item(`c${i}`, 100))];
+
+    const { slices } = buildSlices(items);
+
+    expect(slices.map((s) => s.name)).toEqual([
+      ...Array.from({ length: 8 }, (_, i) => `C${i}`),
+      'Khác (2)',
+    ]);
+    expect(slices[8]?.value).toBe(6);
   });
 
   it('folds everything past the 8th item into one "Khác" slice', () => {

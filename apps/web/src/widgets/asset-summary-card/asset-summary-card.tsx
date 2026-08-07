@@ -37,7 +37,8 @@ function formatUsd(value: number, decimals = 2): string {
  * here rather than at the source — /my-asset keeps its own wording.
  */
 function toEnglish(label: string, key: string): string {
-  if (key === 'available') return 'Available USDT';
+  // Plain "USDT", so the cash row reads as one more ticker alongside BTC and ETH.
+  if (key === 'available') return 'USDT';
   if (key === 'coin:other') return label.replace('Coin khác', 'Other Coins');
   return label;
 }
@@ -69,8 +70,9 @@ export function AssetSummaryCard({ summary: serverSummary }: Props) {
       label: toEnglish(item.label, item.key),
     }));
 
-    // `buildSlices` carries the ordering, the negative-value exclusion and the overflow fold;
-    // only its palette is dropped, in favour of the sibling card's.
+    // `buildSlices` keeps the item order — USDT, BTC, ETH, the deployed accounts, then the
+    // leftover coins — and carries the negative-value exclusion and the overflow fold; only
+    // its palette is dropped, in favour of the sibling card's.
     return buildSlices(items).slices.map((slice, i) => ({
       ...slice,
       name: slice.name.startsWith('Khác') ? 'Other' : slice.name,

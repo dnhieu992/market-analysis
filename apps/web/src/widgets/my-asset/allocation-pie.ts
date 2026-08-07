@@ -51,18 +51,46 @@ type Slice = {
  * gone as a single slice — "3,163 USDT in spot" never said how much of it was
  * BTC — and available USDT is a slice of its own rather than a separate card,
  * because cash waiting to be deployed is an allocation like any other.
+ *
+ * Rows come out in the order the trader reads them: cash, then the coins held by
+ * name, then each deployed account, then the leftover coins. `buildSlices` keeps
+ * that order, so this function decides the legend.
  */
 export function buildAllocationItems(summary: AssetSummary): AllocationItem[] {
   const { available } = summary;
 
-  const named = available.spotPositions.filter((p) => NAMED_COINS.includes(p.coinId));
   const rest = available.spotPositions.filter((p) => !NAMED_COINS.includes(p.coinId));
 
-  const items: AllocationItem[] = named.map((p) => ({
-    key: `coin:${p.coinId}`,
-    label: p.coinId,
-    valueUsdt: p.marketValueUsdt,
-  }));
+  // Cash carries every bucket that is not spot and not deployed — wallet included —
+  // so no cash goes missing now that the standalone available card is gone.
+  const items: AllocationItem[] = [
+    {
+      key: 'available',
+      label: 'USDT khả dụng',
+      valueUsdt: available.availableUsdt,
+    },
+  ];
+
+  // Driven off NAMED_COINS, not the API's position order, so BTC always precedes ETH.
+  for (const coinId of NAMED_COINS) {
+    const position = available.spotPositions.find((p) => p.coinId === coinId);
+    if (position) {
+      items.push({
+        key: `coin:${position.coinId}`,
+        label: position.coinId,
+        valueUsdt: position.marketValueUsdt,
+      });
+    }
+  }
+
+  // Marked to market, matching what the Vốn triển khai panel reports above.
+  for (const bucket of available.deployed) {
+    items.push({
+      key: `deployed:${bucket.key}`,
+      label: bucket.label,
+      valueUsdt: bucket.currentValueUsdt,
+    });
+  }
 
   // A group of one is just that coin — naming it beats hiding it behind "Khác (1)".
   if (rest.length === 1 && rest[0]) {
@@ -79,23 +107,6 @@ export function buildAllocationItems(summary: AssetSummary): AllocationItem[] {
     });
   }
 
-  // Cash carries every bucket that is not spot and not deployed — wallet included —
-  // so no cash goes missing now that the standalone available card is gone.
-  items.push({
-    key: 'available',
-    label: 'USDT khả dụng',
-    valueUsdt: available.availableUsdt,
-  });
-
-  // Marked to market, matching what the Vốn triển khai panel reports above.
-  for (const bucket of available.deployed) {
-    items.push({
-      key: `deployed:${bucket.key}`,
-      label: bucket.label,
-      valueUsdt: bucket.currentValueUsdt,
-    });
-  }
-
   return items;
 }
 
@@ -104,15 +115,25 @@ export function buildAllocationItems(summary: AssetSummary): AllocationItem[] {
  * withdrawal was logged against money it never held; a negative slice has no
  * meaning in a part-to-whole chart, so those are dropped from the pie and shown
  * in the legend instead, where the real number can still be read.
+ *
+ * Slices keep the caller's order — the legend is meant to be read down a fixed
+ * list, not ranked by size. Only the *overflow* looks at value, so a position can
+ * never be folded away merely for sitting late in the list.
  */
 export function buildSlices(items: AllocationItem[]): { slices: Slice[]; pieTotal: number } {
-  const positive = items.filter((i) => i.valueUsdt > 0).sort((a, b) => b.valueUsdt - a.valueUsdt);
+  const positive = items.filter((i) => i.valueUsdt > 0);
 
   const pieTotal = positive.reduce((sum, i) => sum + i.valueUsdt, 0);
   if (pieTotal <= 0) return { slices: [], pieTotal: 0 };
 
-  const head = positive.slice(0, MAX_SLICES);
-  const tail = positive.slice(MAX_SLICES);
+  const largest = new Set(
+    [...positive]
+      .sort((a, b) => b.valueUsdt - a.valueUsdt)
+      .slice(0, MAX_SLICES)
+      .map((i) => i.key),
+  );
+  const head = positive.filter((i) => largest.has(i.key));
+  const tail = positive.filter((i) => !largest.has(i.key));
 
   const slices: Slice[] = head.map((item, i) => ({
     name: item.label,
