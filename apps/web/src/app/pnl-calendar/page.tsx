@@ -1,12 +1,16 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
-import type { DashboardOrder } from '@web/shared/api/types';
+import type { DashboardOrder, PortfolioPnlCalendar } from '@web/shared/api/types';
 import { EXCHANGE_HISTORY_LIMIT, mapExchangeClosedTrades } from '@web/shared/api/exchange-orders';
-import { PnlCalendarPage } from '@web/pages/pnl-calendar-page/pnl-calendar-page';
+import { PnlHubPage, parseTab } from '@web/pages/pnl-hub-page/pnl-hub-page';
 
-export default async function Page() {
+type Props = {
+  searchParams: Record<string, string | string[] | undefined>;
+};
+
+export default async function Page({ searchParams }: Props) {
   const client = createServerApiClient();
 
-  const [orders, bitgetTrades, mexcTrades] = await Promise.all([
+  const [orders, bitgetTrades, mexcTrades, portfolio] = await Promise.all([
     client
       .fetchOrders({ status: 'closed', pageSize: 1000 })
       .then((r) => r.data)
@@ -20,9 +24,18 @@ export default async function Page() {
       .fetchMexcHistory({ limit: EXCHANGE_HISTORY_LIMIT })
       .then((h) => h.trades)
       .catch(() => []),
+    client
+      .fetchPortfolioPnlCalendar()
+      .catch(() => ({ daily: [], byCoin: [] }) as PortfolioPnlCalendar),
   ]);
 
   const allOrders = [...orders, ...mapExchangeClosedTrades(bitgetTrades, mexcTrades)];
 
-  return <PnlCalendarPage orders={allOrders} />;
+  return (
+    <PnlHubPage
+      orders={allOrders}
+      portfolio={portfolio}
+      initialTab={parseTab(searchParams?.tab)}
+    />
+  );
 }

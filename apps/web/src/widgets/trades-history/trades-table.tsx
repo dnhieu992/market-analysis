@@ -305,7 +305,7 @@ function BtcPriceCard() {
 function TotalPnlCard({ closedPnlSum }: { closedPnlSum: number }) {
   const isPositive = closedPnlSum >= 0;
   return (
-    <Link href="/pnl-calendar" className="tt-pnl-card tt-pnl-card--link" target="_blank" rel="noopener noreferrer">
+    <Link href="/pnl-calendar?tab=trading" className="tt-pnl-card tt-pnl-card--link" target="_blank" rel="noopener noreferrer">
       <span className="tt-pnl-card__label">Total Profit/Loss</span>
       <span className={`tt-pnl-card__value ${isPositive ? 'tt-pnl-card__value--positive' : 'tt-pnl-card__value--negative'}`}>
         {isPositive ? '+' : ''}{formatVolume(closedPnlSum)}

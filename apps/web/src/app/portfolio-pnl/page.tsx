@@ -1,14 +1,6 @@
-import { createServerApiClient } from '@web/shared/auth/api-auth';
-import type { PortfolioPnlCalendar } from '@web/shared/api/types';
-import { PortfolioPnlPage } from '@web/pages/portfolio-pnl-page/portfolio-pnl-page';
+import { redirect } from 'next/navigation';
 
-export default async function Page() {
-  const client = createServerApiClient();
-  let data: PortfolioPnlCalendar = { daily: [], byCoin: [] };
-  try {
-    data = await client.fetchPortfolioPnlCalendar();
-  } catch {
-    // render empty calendar
-  }
-  return <PortfolioPnlPage data={data} />;
+/** Merged into the P&L hub — kept so old links/bookmarks land on the right tab. */
+export default function Page() {
+  redirect('/pnl-calendar?tab=portfolio');
 }

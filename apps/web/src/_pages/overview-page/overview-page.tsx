@@ -140,7 +140,7 @@ function buildOverviewCards(
       value: closedPnlSum === 0 ? '--' : totalPnlStr,
       detail: 'All-time realized P/L across closed trades.',
       positive: closedPnlSum === 0 ? undefined : closedPnlSum >= 0,
-      href: '/pnl-calendar'
+      href: '/pnl-calendar?tab=trading'
     }
   ];
 }
