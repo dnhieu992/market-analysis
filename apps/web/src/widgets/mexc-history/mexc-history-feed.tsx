@@ -7,7 +7,7 @@ import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import { MexcJournalDrawer, type JournalTarget } from '@web/widgets/mexc-positions/mexc-journal-drawer';
 import type { MexcClosedTrade, MexcHistoryResponse, MexcTradeChart } from '@web/shared/api/types';
 
-import { SymbolMultiSelect } from '@web/widgets/mexc/symbol-multi-select';
+import { SymbolFilterInput, matchesSymbolQuery } from '@web/widgets/mexc/symbol-filter-input';
 import { ChartIcon } from '@web/widgets/mexc/chart-icon';
 import { ChartNoteDialog, ChartNoteView } from '@web/widgets/mexc/chart-note-dialog';
 
@@ -98,8 +98,8 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
   const [journalTarget, setJournalTarget] = useState<JournalTarget | null>(null);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const [refTrade, setRefTrade] = useState<MexcClosedTrade | null>(null);
-  // Coin-name filter (empty = all coins) + pagination state.
-  const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
+  // Coin-name filter, free text (empty = all coins) + pagination state.
+  const [symbolQuery, setSymbolQuery] = useState('');
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [page, setPage] = useState(1);
   // Saved-chart count per tradeKey — the Attachments badge.
@@ -146,10 +146,14 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
     onCount?.(trades.length);
   }, [trades.length, onCount]);
 
-  // Distinct coin names present in history, for the filter select-box.
+  // Distinct coin names present in history, for the filter's match count.
   const availableSymbols = useMemo(
     () => Array.from(new Set(trades.map((t) => t.symbol))).sort(),
     [trades],
+  );
+  const matchedSymbolCount = useMemo(
+    () => availableSymbols.filter((s) => matchesSymbolQuery(s, symbolQuery)).length,
+    [availableSymbols, symbolQuery],
   );
 
   // Sort by close time descending (most recent first), then apply the coin filter.
@@ -157,15 +161,14 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
     const sorted = [...trades].sort(
       (a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime(),
     );
-    if (selectedSymbols.length === 0) return sorted;
-    const set = new Set(selectedSymbols);
-    return sorted.filter((t) => set.has(t.symbol));
-  }, [trades, selectedSymbols]);
+    if (!symbolQuery.trim()) return sorted;
+    return sorted.filter((t) => matchesSymbolQuery(t.symbol, symbolQuery));
+  }, [trades, symbolQuery]);
 
   // Reset to page 1 whenever the filter or page size changes.
   useEffect(() => {
     setPage(1);
-  }, [selectedSymbols, pageSize]);
+  }, [symbolQuery, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrades.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -243,16 +246,16 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
             <div className="bg-table-toolbar">
               <div className="bg-toolbar-filter">
                 <span className="bg-toolbar-label">Lọc coin:</span>
-                <SymbolMultiSelect
-                  symbols={availableSymbols}
-                  selected={selectedSymbols}
-                  onChange={setSelectedSymbols}
+                <SymbolFilterInput
+                  query={symbolQuery}
+                  onChange={setSymbolQuery}
+                  count={matchedSymbolCount}
                 />
-                {selectedSymbols.length > 0 && (
+                {symbolQuery.trim().length > 0 && (
                   <button
                     type="button"
                     className="bg-toolbar-clear"
-                    onClick={() => setSelectedSymbols([])}
+                    onClick={() => setSymbolQuery('')}
                     title="Xoá bộ lọc"
                   >
                     ✕ Xoá lọc

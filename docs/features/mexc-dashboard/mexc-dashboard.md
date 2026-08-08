@@ -49,7 +49,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - `apps/web/src/_pages/mexc-page/mexc-page.tsx` — Server Component, SSR 2 nguồn dữ liệu.
 - `apps/web/src/widgets/mexc/mexc-tabs.tsx` — khung 3 tab + đếm số dòng.
 - `apps/web/src/widgets/mexc/mexc-setup-feed.tsx` — tab Setup (mở lệnh, sao ưu tiên, QQE, 24h/7d/30d/90d).
-- `apps/web/src/widgets/mexc/{setup-chart-dialog,bulk-setup-dialog,add-coin-dialog,chart-note-dialog,qqe-cell,star-rating,symbol-multi-select,chart-icon}.tsx` — UI phụ trợ của tab Setup.
+- `apps/web/src/widgets/mexc/{setup-chart-dialog,bulk-setup-dialog,add-coin-dialog,chart-note-dialog,qqe-cell,star-rating,symbol-filter-input,chart-icon}.tsx` — UI phụ trợ của tab Setup (`symbol-filter-input` = ô lọc coin free text, dùng chung với tab Lịch sử).
 - `apps/web/src/widgets/mexc-positions/mexc-positions-feed.tsx` — bảng vị thế đang mở.
 - `apps/web/src/widgets/mexc-positions/{tpsl-dialog,mexc-journal-drawer}.tsx` — dialog TP/SL + drawer nhật ký.
 - `apps/web/src/widgets/mexc-positions/use-mexc-live-prices.ts` — WS giá realtime MEXC.

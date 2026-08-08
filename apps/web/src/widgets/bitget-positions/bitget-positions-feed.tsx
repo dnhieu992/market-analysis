@@ -7,7 +7,7 @@ import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/ty
 
 import { ChartIcon } from '../bitget/chart-icon';
 import { SetupChartDialog } from '../bitget/setup-chart-dialog';
-import { SymbolMultiSelect } from '../bitget/symbol-multi-select';
+import { SymbolFilterInput, matchesSymbolQuery } from '../bitget/symbol-filter-input';
 
 import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
 import { TpslDialog } from './tpsl-dialog';
@@ -75,7 +75,7 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
   // Which coin's live chart dialog is open (icon button next to the symbol).
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   // Coin-name filter (empty = all coins), same UX as the History tab.
-  const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
+  const [symbolQuery, setSymbolQuery] = useState('');
   const clientRef = useRef(createApiClient());
 
   useEffect(() => {
@@ -187,30 +187,14 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
     [rawPositions, livePrices],
   );
 
-  // Distinct coin names currently open, for the filter dropdown.
-  const availableSymbols = useMemo(
-    () => Array.from(new Set(positions.map((p) => p.symbol))).sort(),
-    [positions],
-  );
-
-  // Drop coins from the filter once they stop being open positions (closed by
-  // TP/SL between refreshes) — otherwise the table stays stuck on an empty list.
-  useEffect(() => {
-    setSelectedSymbols((prev) => {
-      if (prev.length === 0) return prev;
-      const open = new Set(availableSymbols);
-      const next = prev.filter((s) => open.has(s));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [availableSymbols]);
-
   // Rows the table shows. The tiles below stay on the unfiltered list — they are
   // account-level totals, so narrowing the coin filter must not distort them.
+  // A query that no longer matches any open coin (closed by TP/SL between
+  // refreshes) just empties the table — the text stays visible and editable.
   const visiblePositions = useMemo(() => {
-    if (selectedSymbols.length === 0) return positions;
-    const set = new Set(selectedSymbols);
-    return positions.filter((p) => set.has(p.symbol));
-  }, [positions, selectedSymbols]);
+    if (!symbolQuery.trim()) return positions;
+    return positions.filter((p) => matchesSymbolQuery(p.symbol, symbolQuery));
+  }, [positions, symbolQuery]);
 
   const totalUnrealizedPnlUsd = useMemo(
     () => positions.reduce((sum, p) => sum + p.unrealizedPnlUsd, 0),
@@ -321,16 +305,16 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
               <div className="bg-table-toolbar">
                 <div className="bg-toolbar-filter">
                   <span className="bg-toolbar-label">Lọc coin:</span>
-                  <SymbolMultiSelect
-                    symbols={availableSymbols}
-                    selected={selectedSymbols}
-                    onChange={setSelectedSymbols}
+                  <SymbolFilterInput
+                    query={symbolQuery}
+                    onChange={setSymbolQuery}
+                    count={visiblePositions.length}
                   />
-                  {selectedSymbols.length > 0 && (
+                  {symbolQuery.trim().length > 0 && (
                     <button
                       type="button"
                       className="bg-toolbar-clear"
-                      onClick={() => setSelectedSymbols([])}
+                      onClick={() => setSymbolQuery('')}
                       title="Xoá bộ lọc"
                     >
                       ✕ Xoá lọc

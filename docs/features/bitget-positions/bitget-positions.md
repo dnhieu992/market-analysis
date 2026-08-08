@@ -9,7 +9,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 
 **Ẩn/hiện value:** toggle **👁 Hiện value / 🙈 Ẩn value** ở góc phải trên bảng áp dụng cho **số dư tài khoản** và **PnL**: khi tắt, tile "Số dư tài khoản" hiện `••••••` cho **số tiền USD**, còn dòng **% so với vốn gốc** thì **luôn hiện** (theo yêu cầu của user — lưu ý: biết % + vốn gốc là suy ra được số dư), và PnL (tile + cột từng dòng) chỉ hiện **%** (ROE / % trên equity); khi bật hiện số USD đầy đủ. Lựa chọn lưu ở `localStorage` (`bitget:pnl-show-value`), mặc định **ẩn**. Nút toggle hiện bất cứ khi nào đã cấu hình API (kể cả khi không có vị thế nào) để luôn xem lại được số dư. Tile **Tổng ký quỹ** luôn hiện số USD.
 
-**Lọc theo coin:** thanh công cụ ngay trên bảng có dropdown **Lọc coin** (`SymbolMultiSelect` dùng chung với tab Lịch sử & Setup) — chọn nhiều coin bằng checkbox, bỏ chọn hết = xem tất cả; có nút **✕ Xoá lọc** khi đang lọc. Bộ lọc chỉ thu hẹp **các dòng trong bảng**; 3 tile tổng hợp (số dư / ký quỹ / uPnL) và số đếm trên nhãn tab vẫn tính trên **toàn bộ** vị thế vì đó là số liệu cấp tài khoản.
+**Lọc theo coin:** thanh công cụ ngay trên bảng có ô **Lọc coin dạng free text** (`SymbolFilterInput` dùng chung với tab Lịch sử & Setup) — gõ tên coin, khớp **substring không phân biệt hoa/thường**; nhiều từ khoá cách nhau bằng dấu phẩy/khoảng trắng thì khớp **bất kỳ** từ nào (vd `btc, eth`). Ô trống = xem tất cả; có nút **✕ Xoá lọc** và phím **Esc** để xoá nhanh, kèm số coin đang khớp. Bộ lọc chỉ thu hẹp **các dòng trong bảng**; 3 tile tổng hợp (số dư / ký quỹ / uPnL) và số đếm trên nhãn tab vẫn tính trên **toàn bộ** vị thế vì đó là số liệu cấp tài khoản.
 
 **Đặt TP/SL trên sàn:** mỗi dòng có nút **TP / SL** (ngay trước nút Đóng) hiện mức TP/SL đang live trên sàn. Bấm mở dialog để nhập giá kích hoạt; giá trị được đẩy thẳng lên Bitget dưới dạng **position TP/SL plan order** (`POST /api/v2/mix/order/place-pos-tpsl`, trigger theo **Mark Price**, đóng toàn bộ vị thế) — **sàn tự đóng lệnh khi chạm mức**, không phụ thuộc dashboard/worker có đang chạy hay không. Mức hiện tại đọc từ chính row vị thế (`takeProfit` / `stopLoss` của `all-position`). Mỗi lần đặt đều được ghi **log hệ thống** vào nhật ký lệnh (`kind: 'system'`).
 
@@ -35,7 +35,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - **Chưa cấu hình Bitget** → `configured: false`, trang hiện hướng dẫn thêm biến `.env` thay vì lỗi.
 - **Không có vị thế nào** → hiện "Không có vị thế nào đang mở."
 - **Lọc coin không khớp dòng nào** → hiện "Không có vị thế nào khớp bộ lọc coin." (thanh lọc vẫn hiện để xoá lọc).
-- **Coin đang lọc bị đóng** (TP/SL khớp giữa 2 lần refresh) → symbol đó tự bị gỡ khỏi bộ lọc, tránh bảng trống vĩnh viễn vì lọc một coin không còn mở.
+- **Coin đang lọc bị đóng** (TP/SL khớp giữa 2 lần refresh) → bảng trống và hiện thông báo không khớp; chuỗi lọc vẫn nằm nguyên trong ô để user tự sửa/xoá (khác dropdown cũ: không còn tự gỡ ngầm).
 - **Dialog TP/SL / nhật ký đang mở khi lọc đổi** → tra cứu vị thế theo danh sách **chưa lọc**, nên dialog không bị đóng oan khi user đổi bộ lọc.
 - **Lỗi gọi sàn** (mạng/chữ ký) → SSR nuốt lỗi và trả state rỗng; lần refresh phía client hiện banner đỏ "Không tải được vị thế…", không làm sập trang.
 - **`liquidationPrice` âm/không hợp lệ** (thường gặp với margin cross khi không có mức thanh lý thực) → map thành `null`, hiển thị "—".
@@ -71,7 +71,7 @@ Tab **Vị thế đang mở** trong trang gộp `/bitget` hiển thị **tất c
 - `apps/web/src/widgets/bitget-positions/tpsl-dialog.tsx` — dialog đặt TP/SL: prefill mức đang live (ô TP fallback về giá hiện tại nếu sàn chưa có TP), kiểm tra chiều theo giá hiện tại, ước tính PnL/ROE nếu chạm mức.
 - `apps/api/src/modules/bitget/bitget.module.ts` — module, đăng ký trong `apps/api/src/app.module.ts`.
 - `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx` — bảng vị thế + nút icon xem chart cạnh symbol (mở `SetupChartDialog`); báo số vị thế đang mở lên nhãn tab qua `onCount` (hiện là "Vị thế đang mở (N)").
-- `apps/web/src/widgets/bitget/symbol-multi-select.tsx` — dropdown checkbox lọc coin, dùng chung với tab Lịch sử và Setup.
+- `apps/web/src/widgets/bitget/symbol-filter-input.tsx` — ô lọc coin free text + hàm `matchesSymbolQuery`, dùng chung với tab Lịch sử và Setup.
 - `apps/web/src/widgets/bitget/chart-icon.tsx` — `ChartIcon` (icon nến monochrome) tách ra khỏi widget này 2026-07-27 để tab Setup và tab Lịch sử dùng lại y hệt.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — dialog chart dùng chung (Setup tab + Vị thế đang mở): switcher khung M30/H1/H4/D1, fetch PNG từ `GET /bitget/setup-chart`.
 - `apps/web/src/shared/api/types.ts` — type `BitgetPosition` (kèm `takeProfitPrice`/`stopLossPrice`), `BitgetPositionsResponse` (kèm `initialCapitalUsd`/`equityChangePct`), `BitgetTpslResult`.
