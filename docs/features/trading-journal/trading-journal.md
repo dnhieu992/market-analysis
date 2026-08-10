@@ -40,8 +40,14 @@ before it.
    snapshot's tags and images). **↩ Khôi phục bản này** loads the snapshot back into the editor —
    it does **not** write to the DB, so restoring is itself just another save the user must confirm.
 6. The **past-entries list** below shows every day (date, image count, first-line preview,
-   tags) — still **one item per day**, unchanged by revisions. Clicking an item opens that day in
-   the editor. **Xoá ngày này** deletes via `DELETE /journal/:id`.
+   tags) — still **one item per day**, unchanged by revisions. **Xoá ngày này** deletes via
+   `DELETE /journal/:id`.
+7. **Reading is separate from editing.** Clicking an item opens `JournalEntryDialog` — a
+   read-only modal with the day's Markdown rendered to HTML (`renderMarkdown`), its tags and its
+   charts. Editing takes a deliberate second action: **✏️ Sửa nhật ký này** in the dialog footer,
+   or the ✏️ button on the row itself. Either one loads that day into the editor (`setDate`) and
+   scrolls back up to it. Previously a single click dropped the day straight into the editor, so
+   re-reading an old entry left it one keystroke away from being rewritten.
 **Reformat** (`POST /journal/reformat`) asks **Claude Sonnet** (`claude-sonnet-4-6`, hard-coded —
 not the app's `CLAUDE_MODEL`) to clean up the raw markdown (headings, bullet lists, bold key
 levels, fix typos / HTML entities, fix broken indentation) while preserving meaning and the
@@ -89,6 +95,15 @@ panel. Two things buy that:
   pinned (not the browser's) so the SSR and client markup match.
 - **Restore is not a write** — it only repopulates the editor; the user still has to Save, which
   creates a new revision rather than rewriting history.
+- **Viewing is not a write either** — the read dialog never touches `date`, so opening an old day
+  cannot replace what is currently in the editor (or clear an unsaved draft).
+- **The open dialog follows its entry** — it is keyed by entry **id**, not by a captured object,
+  so a save that replaces the row re-renders the dialog with the new content, and deleting the
+  day closes it instead of leaving a stale copy on screen.
+- **Empty day in the dialog** — a tags/images-only entry shows "(nhật ký ngày này chưa có nội
+  dung)" rather than a blank body.
+- **Dialog must portal to `document.body`** — the journal cards would otherwise contain the
+  `position: fixed` backdrop and it would cover only the content column, not the viewport.
 - **Long entries** — the diff is O(n·m); over 1500 lines on either side it degrades to a
   whole-block replace instead of building the table.
 - **Auth** — all `/journal*` routes are behind the global `AuthGuard` (session cookie), like the
@@ -110,6 +125,9 @@ panel. Two things buy that:
 - `apps/web/src/app/journal/page.tsx` — App Router route (thin re-export)
 - `apps/web/src/_pages/journal-page/journal-page.tsx` — server page, loads entries + today's revisions
 - `apps/web/src/widgets/trading-journal/trading-journal.tsx` — client UI (editor, tags, image upload, history panel + `RevisionRow`, entry list); `save()` = reformat → upload → upsert
+- `apps/web/src/widgets/trading-journal/journal-entry-dialog.tsx` — read-only entry dialog (portalled, Esc to close, `✏️ Sửa` hands the day to the editor)
+- `apps/web/src/widgets/trading-journal/journal-format.ts` — `todayIso` / `formatDate`, shared by the widget and the dialog
+- `apps/web/src/shared/lib/markdown.ts` — `renderMarkdown`, reused to render the entry read-only
 - `apps/web/src/widgets/trading-journal/diff-lines.ts` — LCS line diff + `diffStat` (+N/−M, first added line) used by the history panel
 - `apps/web/src/widgets/trading-journal/diff-lines.spec.ts` — unit tests for the diff
 - `apps/web/src/shared/api/client.ts` — `fetchJournalEntries`, `saveJournalEntry`, `fetchJournalRevisions`, `deleteJournalEntry`, `reformatJournal` (+ reused `uploadImages`)

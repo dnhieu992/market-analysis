@@ -7,6 +7,8 @@ import { createApiClient } from '@web/shared/api/client';
 import type { TradingJournalEntry, TradingJournalRevision } from '@web/shared/api/types';
 
 import { diffLines, diffStat } from './diff-lines';
+import { JournalEntryDialog } from './journal-entry-dialog';
+import { formatDate, todayIso } from './journal-format';
 
 // Lazy-load the TipTap editor so its bundle only loads on the journal page.
 const MarkdownEditor = dynamic(
@@ -16,15 +18,6 @@ const MarkdownEditor = dynamic(
 
 /** The trader's clock — pinned so server and client render the same string (no hydration mismatch). */
 const TZ = 'Asia/Ho_Chi_Minh';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
-}
 
 /**
  * Save time as HH:mm. Entries are keyed by UTC day, so a save can land on a different local
@@ -170,6 +163,12 @@ export function TradingJournal({
   const [revisions, setRevisions] = useState<TradingJournalRevision[]>(initialRevisions);
   const [revLoading, setRevLoading] = useState(false);
   const [expandedRev, setExpandedRev] = useState<string | null>(null);
+  // Which past entry is open in the read-only dialog. Held by id, not by object,
+  // so the dialog keeps showing the fresh row after a save re-creates the entry.
+  const [viewEntryId, setViewEntryId] = useState<string | null>(null);
+
+  // Scroll target for "Sửa": the editor sits above the list, off-screen by then.
+  const editorRef = useRef<HTMLElement | null>(null);
 
   // Populate the editor from the entry for `date` the first time that date is shown.
   if (date !== loadedDate) {
@@ -187,6 +186,7 @@ export function TradingJournal({
 
   const currentEntry = entries.find((e) => e.date === date) ?? null;
   const currentEntryId = currentEntry?.id ?? null;
+  const viewEntry = entries.find((e) => e.id === viewEntryId) ?? null;
   const busy = phase !== 'idle';
   const pendingPreviews = useMemo(() => pendingFiles.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })), [pendingFiles]);
 
@@ -288,6 +288,13 @@ export function TradingJournal({
     }
   }
 
+  /** Load a past day into the editor — the only way in, now that a click just reads. */
+  function editEntry(entryDate: string) {
+    setViewEntryId(null);
+    setDate(entryDate);
+    editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   function restoreRevision(rev: TradingJournalRevision) {
     if (!confirm('Đưa bản này lên editor? Nội dung đang soạn dở sẽ bị thay thế (chưa lưu vào DB).')) return;
     setContent(rev.content);
@@ -331,7 +338,7 @@ export function TradingJournal({
       {warning && <div className="tj-warn">{warning}</div>}
 
       {/* Editor */}
-      <section className="tj-card tj-editor">
+      <section className="tj-card tj-editor" ref={editorRef}>
         <div className="tj-row tj-between">
           <label className="tj-datefield">
             <span>Ngày</span>
@@ -447,18 +454,39 @@ export function TradingJournal({
         )}
       </section>
 
-      {/* Past entries */}
+      {/* Past entries — a click reads, the pencil edits */}
       <section className="tj-card">
-        <h2 className="tj-h2">Nhật ký đã ghi ({entries.length})</h2>
+        <div className="tj-row tj-between">
+          <h2 className="tj-h2">Nhật ký đã ghi ({entries.length})</h2>
+          <span className="tj-hint">Bấm để xem, ✏️ để sửa</span>
+        </div>
         {entries.length === 0 ? (
           <p className="tj-muted">Chưa có nhật ký nào. Bắt đầu ghi cho hôm nay ở trên.</p>
         ) : (
           <ul className="tj-list">
             {entries.map((e) => (
-              <li key={e.id} className={`tj-item ${e.date === date ? 'tj-item-active' : ''}`} onClick={() => setDate(e.date)}>
+              <li
+                key={e.id}
+                className={`tj-item ${e.date === date ? 'tj-item-active' : ''}`}
+                onClick={() => setViewEntryId(e.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setViewEntryId(e.id); } }}
+              >
                 <div className="tj-item-head">
                   <b>{formatDate(e.date)}</b>
-                  {e.images.length > 0 && <span className="tj-item-imgs">🖼 {e.images.length}</span>}
+                  <span className="tj-item-meta">
+                    {e.images.length > 0 && <span className="tj-item-imgs">🖼 {e.images.length}</span>}
+                    <button
+                      type="button"
+                      className="tj-item-edit"
+                      title="Sửa nhật ký ngày này"
+                      aria-label={`Sửa nhật ký ${e.date}`}
+                      onClick={(ev) => { ev.stopPropagation(); editEntry(e.date); }}
+                    >
+                      ✏️
+                    </button>
+                  </span>
                 </div>
                 <div className="tj-item-preview">{contentPreview(e.content)}</div>
                 {e.tags.length > 0 && (
@@ -469,6 +497,14 @@ export function TradingJournal({
           </ul>
         )}
       </section>
+
+      {viewEntry && (
+        <JournalEntryDialog
+          entry={viewEntry}
+          onEdit={() => editEntry(viewEntry.date)}
+          onClose={() => setViewEntryId(null)}
+        />
+      )}
     </div>
   );
 }
