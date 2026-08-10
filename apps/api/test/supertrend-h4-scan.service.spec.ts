@@ -87,14 +87,22 @@ function makeService(
 }
 
 describe('SupertrendH4ScanService', () => {
-  it('keeps coins with a bullish 4H Supertrend and bullish QQE, drops the rest', async () => {
-    const { service } = makeService({ AAAUSDT: uptrend(), BBBUSDT: downtrend() });
+  it('reports each indicator on its own and the intersection separately', async () => {
+    const { service, sent } = makeService({ AAAUSDT: uptrend(), BBBUSDT: downtrend() });
 
     const result = await service.scan('manual');
 
-    expect(result.bullish).toEqual(['AAA']);
     expect(result.scanned).toBe(2);
+    expect(result.supertrendBullish).toEqual(['AAA']);
+    expect(result.bullish).toEqual(['AAA']);
     expect(result.flipped).toEqual([]);
+    // The steady decline is bearish on both, so it appears in no list.
+    expect(result.qqeBullish).toEqual(['AAA']);
+
+    const text = sent[0]!.text;
+    expect(text).toContain('SUPERTREND(10,3) BULLISH (1)');
+    expect(text).toContain('QQE BULLISH (1)');
+    expect(text).toContain('CẢ HAI (1)');
   });
 
   it('flags a Supertrend that flipped bearish → bullish on the last closed candle', async () => {
@@ -103,6 +111,7 @@ describe('SupertrendH4ScanService', () => {
     const result = await service.scan('manual');
 
     expect(result.flipped).toEqual(['FLIP']);
+    expect(result.supertrendBullish).toEqual(['AAA', 'FLIP']);
     expect(result.bullish).toEqual(['AAA', 'FLIP']);
     // Flips go out in bold, holders in plain text.
     expect(sent[0]!.parseMode).toBe('HTML');
@@ -134,13 +143,19 @@ describe('SupertrendH4ScanService', () => {
     expect(result.bullish).toEqual(['AAA']);
   });
 
-  it('sends the empty-list message when nothing is bullish', async () => {
+  it('keeps every section present when nothing is bullish', async () => {
     const { service, sent } = makeService({ BBBUSDT: downtrend() });
 
     const result = await service.scan('manual');
 
+    expect(result.supertrendBullish).toEqual([]);
+    expect(result.qqeBullish).toEqual([]);
     expect(result.bullish).toEqual([]);
-    expect(sent[0]!.text).toContain('Không có coin nào bullish.');
+    const text = sent[0]!.text;
+    expect(text).toContain('SUPERTREND(10,3) BULLISH (0)');
+    expect(text).toContain('QQE BULLISH (0)');
+    expect(text).toContain('CẢ HAI (0)');
+    expect(text.match(/Không có coin nào\./g)).toHaveLength(3);
   });
 
   it('refuses a second scan while one is in flight', async () => {

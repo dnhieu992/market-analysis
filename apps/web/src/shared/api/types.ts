@@ -929,10 +929,13 @@ export type SupertrendScanResult = {
 
 /**
  * Result of the 4H Supertrend(10,3) + QQE scan (POST /supertrend-scan/run-h4).
- * `flipped` is the subset of `bullish` that turned bearish → bullish on the last
+ * Each indicator is reported on its own; `bullish` is the intersection and
+ * `flipped` the coins whose Supertrend turned bearish → bullish on the last
  * closed 4H candle.
  */
 export type SupertrendH4ScanResult = SupertrendScanResult & {
+  supertrendBullish: string[];
+  qqeBullish: string[];
   flipped: string[];
 };
 

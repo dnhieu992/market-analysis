@@ -6,13 +6,17 @@ import { MarketDataService } from '../market/market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 /**
- * 4H screener over every Binance USDT spot pair: Supertrend(10,3) bullish **and**
- * QQE bullish on the last closed 4H candle.
+ * 4H screener over every Binance USDT spot pair, reading Supertrend(10,3) and
+ * QQE on the last closed 4H candle.
  *
  * The daily sibling (`SupertrendScanService`) answers "which coins are in an
- * uptrend"; this one answers "which of those also have 4H momentum right now".
+ * uptrend"; this one answers "which have 4H trend, which have 4H momentum, and
+ * which have both". Each indicator gets its own section in the report — a coin
+ * dropping off a blended list never said which of the two turned — and the
+ * intersection follows as the actual setup list.
+ *
  * Coins whose Supertrend flipped bearish → bullish on that very candle are the
- * fresh ones, so they are listed first and in bold.
+ * fresh ones, so they lead their section and print in bold.
  *
  * Like the daily scan nothing is persisted — the output is a Telegram message.
  */
@@ -46,13 +50,20 @@ const SCAN_CRON = '0 5 */4 * * *';
 /** Coins per line in the Telegram list — keeps every line far under the 4000-char chunk cut. */
 const COINS_PER_LINE = 12;
 
+/** One 4H candle, used to label the report with the slot it read. */
+const SLOT_MS = 4 * 60 * 60 * 1000;
+
 export type SupertrendH4ScanResult = {
   /** Symbols that were actually evaluated. */
   scanned: number;
-  /** Base assets with a bullish 4H Supertrend *and* bullish QQE — includes `flipped`. */
-  bullish: string[];
-  /** Subset of `bullish` whose Supertrend flipped bearish → bullish on the last closed candle. */
+  /** Base assets with a bullish 4H Supertrend, whatever QQE says. */
+  supertrendBullish: string[];
+  /** Subset of `supertrendBullish` that flipped bearish → bullish on the last closed candle. */
   flipped: string[];
+  /** Base assets with a bullish QQE, whatever Supertrend says. */
+  qqeBullish: string[];
+  /** The intersection — both indicators bullish on the same candle. */
+  bullish: string[];
   /** Skipped for too little history. */
   skipped: number;
   /** Klines that could not be fetched. */
@@ -63,8 +74,7 @@ export type SupertrendH4ScanResult = {
 };
 
 type SymbolOutcome =
-  | { kind: 'match'; baseAsset: string; flipped: boolean }
-  | { kind: 'no-match' }
+  | { kind: 'read'; baseAsset: string; supertrend: boolean; flipped: boolean; qqe: boolean }
   | { kind: 'skipped' }
   | { kind: 'failed' };
 
@@ -112,8 +122,10 @@ export class SupertrendH4ScanService {
         `4H Supertrend+QQE scan (${trigger}) started — ${symbols.length} USDT spot pairs`
       );
 
-      const bullish: string[] = [];
+      const supertrendBullish: string[] = [];
       const flipped: string[] = [];
+      const qqeBullish: string[] = [];
+      const bullish: string[] = [];
       let scanned = 0;
       let skipped = 0;
       let failed = 0;
@@ -129,19 +141,22 @@ export class SupertrendH4ScanService {
           else if (outcome.kind === 'failed') failed += 1;
           else {
             scanned += 1;
-            if (outcome.kind === 'match') {
-              bullish.push(outcome.baseAsset);
-              if (outcome.flipped) flipped.push(outcome.baseAsset);
-            }
+            if (outcome.supertrend) supertrendBullish.push(outcome.baseAsset);
+            if (outcome.flipped) flipped.push(outcome.baseAsset);
+            if (outcome.qqe) qqeBullish.push(outcome.baseAsset);
+            if (outcome.supertrend && outcome.qqe) bullish.push(outcome.baseAsset);
           }
         }
       }
 
-      bullish.sort((a, b) => a.localeCompare(b));
-      flipped.sort((a, b) => a.localeCompare(b));
+      const byName = (a: string, b: string) => a.localeCompare(b);
+      supertrendBullish.sort(byName);
+      flipped.sort(byName);
+      qqeBullish.sort(byName);
+      bullish.sort(byName);
 
       const { success } = await this.telegramService.sendMessage(
-        formatScanMessage(bullish, flipped, scanned, startedAt),
+        formatScanMessage({ supertrendBullish, flipped, qqeBullish, bullish, scanned, startedAt }),
         { parseMode: 'HTML' }
       );
       if (!success) {
@@ -151,14 +166,16 @@ export class SupertrendH4ScanService {
       const durationMs = Date.now() - start;
       this.logger.log(
         `4H Supertrend+QQE scan (${trigger}) done in ${Math.round(durationMs / 1000)}s — ` +
-          `${bullish.length} bullish (${flipped.length} flips), ${scanned} scanned, ` +
-          `${skipped} skipped, ${failed} failed`
+          `ST ${supertrendBullish.length} (${flipped.length} flips), QQE ${qqeBullish.length}, ` +
+          `both ${bullish.length}, ${scanned} scanned, ${skipped} skipped, ${failed} failed`
       );
 
       return {
         scanned,
-        bullish,
+        supertrendBullish,
         flipped,
+        qqeBullish,
+        bullish,
         skipped,
         failed,
         telegramSent: success,
@@ -184,17 +201,23 @@ export class SupertrendH4ScanService {
     const bars = calcSupertrend(closed, SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER);
     const last = bars[bars.length - 1];
     const previous = bars[bars.length - 2];
-    if (!last || !previous || Number.isNaN(last.value) || !last.bullish) return { kind: 'no-match' };
+    const supertrend = Boolean(last && previous && !Number.isNaN(last.value) && last.bullish);
 
-    const qqe = calculateQqe(
-      closed.map((candle) => candle.close),
-      QQE_RSI_PERIOD,
-      QQE_SMOOTHING,
-      QQE_FACTOR
+    // Both indicators are read on every coin, not just the ones Supertrend keeps:
+    // the report lists each side on its own before the intersection.
+    const qqe = isQqeBullish(
+      calculateQqe(
+        closed.map((candle) => candle.close),
+        QQE_RSI_PERIOD,
+        QQE_SMOOTHING,
+        QQE_FACTOR
+      ),
+      closed.length - 1
     );
-    if (!isQqeBullish(qqe, closed.length - 1)) return { kind: 'no-match' };
 
-    return { kind: 'match', baseAsset, flipped: !previous.bullish };
+    const flipped = supertrend && previous !== undefined && !previous.bullish;
+
+    return { kind: 'read', baseAsset, supertrend, flipped, qqe };
   }
 }
 
@@ -221,9 +244,15 @@ function dropUnclosedCandle(candles: Candle[]): Candle[] {
   return candles.filter((candle) => !candle.closeTime || candle.closeTime.getTime() <= now);
 }
 
-/** `2026-08-10 12:00 UTC` — the 4H slot the scan read. */
+/**
+ * The 4H candle the scan actually read, not the wall clock: floor the start time
+ * to a 4H boundary and that is the close of the last sealed candle. A manual run
+ * at 09:37 then reports the same `08:00` slot as the data it used — and the same
+ * slot the 08:05 cron reported.
+ */
 function formatSlot(startedAt: Date): string {
-  return `${startedAt.toISOString().slice(0, 10)} ${startedAt.toISOString().slice(11, 16)} UTC`;
+  const slot = new Date(Math.floor(startedAt.getTime() / SLOT_MS) * SLOT_MS).toISOString();
+  return `${slot.slice(0, 10)} ${slot.slice(11, 16)} UTC`;
 }
 
 /** Wraps the list at `COINS_PER_LINE` so a chunk split never lands inside a `<b>` tag. */
@@ -236,32 +265,57 @@ function formatCoinLines(coins: string[], bold: boolean): string {
   return lines.join('\n');
 }
 
-function formatScanMessage(
-  bullish: string[],
-  flipped: string[],
-  scanned: number,
-  startedAt: Date
-): string {
-  const header =
-    `🟢 Supertrend(10,3) + QQE H4 Bullish — ${formatSlot(startedAt)}\n` +
-    `${bullish.length}/${scanned} coins`;
+/**
+ * One message, three sections — each indicator reported on its own before the
+ * intersection, so it is obvious *why* a coin is on the list. A single blended
+ * list could not say whether a coin was missing because its trend turned or
+ * because its momentum did.
+ */
+function formatScanMessage({
+  supertrendBullish,
+  flipped,
+  qqeBullish,
+  bullish,
+  scanned,
+  startedAt,
+}: {
+  supertrendBullish: string[];
+  flipped: string[];
+  qqeBullish: string[];
+  bullish: string[];
+  scanned: number;
+  startedAt: Date;
+}): string {
+  const sections: string[] = [`🟢 Scan H4 — nến đóng ${formatSlot(startedAt)}\nQuét ${scanned} coin`];
 
-  if (bullish.length === 0) {
-    return `${header}\n\nKhông có coin nào bullish.`;
-  }
-
-  const sections: string[] = [header];
-
+  // ── Supertrend, split into fresh flips and coins already in the trend.
+  const holding = supertrendBullish.filter((coin) => !flipped.includes(coin));
+  const supertrendLines: string[] = [`━━ SUPERTREND(10,3) BULLISH (${supertrendBullish.length}) ━━`];
   if (flipped.length > 0) {
-    sections.push(
-      `🔥 Vừa đảo chiều bearish → bullish (${flipped.length}):\n${formatCoinLines(flipped, true)}`
-    );
+    supertrendLines.push(`🔥 Vừa đảo chiều bearish → bullish (${flipped.length}):`);
+    supertrendLines.push(formatCoinLines(flipped, true));
   }
-
-  const holding = bullish.filter((coin) => !flipped.includes(coin));
   if (holding.length > 0) {
-    sections.push(`Đang bullish (${holding.length}):\n${formatCoinLines(holding, false)}`);
+    supertrendLines.push(`Đang bullish (${holding.length}):`);
+    supertrendLines.push(formatCoinLines(holding, false));
   }
+  if (supertrendBullish.length === 0) supertrendLines.push('Không có coin nào.');
+  sections.push(supertrendLines.join('\n'));
+
+  // ── QQE on its own.
+  sections.push(
+    `━━ QQE BULLISH (${qqeBullish.length}) ━━\n` +
+      (qqeBullish.length > 0 ? formatCoinLines(qqeBullish, false) : 'Không có coin nào.')
+  );
+
+  // ── The intersection — the actual setups, flips first.
+  const bothFlipped = bullish.filter((coin) => flipped.includes(coin));
+  const bothRest = bullish.filter((coin) => !flipped.includes(coin));
+  const bothLines: string[] = [`━━ CẢ HAI (${bullish.length}) ━━`];
+  if (bothFlipped.length > 0) bothLines.push(`🔥 ${formatCoinLines(bothFlipped, true)}`);
+  if (bothRest.length > 0) bothLines.push(formatCoinLines(bothRest, false));
+  if (bullish.length === 0) bothLines.push('Không có coin nào.');
+  sections.push(bothLines.join('\n'));
 
   return sections.join('\n\n');
 }

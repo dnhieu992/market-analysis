@@ -121,12 +121,12 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
     if (h4.status === 'rejected') {
       lines.push('H4: scan thất bại — thử lại sau.');
     } else {
-      const { bullish, flipped, scanned, telegramSent } = h4.value;
-      const summary = `${bullish.length}/${scanned} coin bullish (${flipped.length} vừa đảo chiều)`;
+      const { supertrendBullish, qqeBullish, bullish, flipped, scanned, telegramSent } = h4.value;
+      const summary =
+        `${scanned} coin — Supertrend ${supertrendBullish.length} (${flipped.length} vừa đảo chiều), ` +
+        `QQE ${qqeBullish.length}, cả hai ${bullish.length}`;
       lines.push(
-        telegramSent
-          ? `H4 (Supertrend + QQE): đã gửi Telegram — ${summary}.`
-          : `H4 (Supertrend + QQE): quét xong ${summary}, nhưng gửi Telegram thất bại.`
+        telegramSent ? `H4: đã gửi Telegram — ${summary}.` : `H4: quét xong ${summary}, nhưng gửi Telegram thất bại.`
       );
     }
 
