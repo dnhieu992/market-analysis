@@ -73,6 +73,7 @@ import type {
   BinanceKline,
   ImageRef,
   SupertrendScanResult,
+  SupertrendH4ScanResult,
 } from './types';
 
 
@@ -1646,6 +1647,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<SupertrendScanResult>(
         fetchImpl,
         `${baseUrl}/supertrend-scan/run`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
+    /** Scans every Binance USDT spot pair for a bullish 4H Supertrend + QQE and sends the list to Telegram. */
+    async runSupertrendH4Scan(): Promise<SupertrendH4ScanResult> {
+      return fetchJson<SupertrendH4ScanResult>(
+        fetchImpl,
+        `${baseUrl}/supertrend-scan/run-h4`,
         withDefaults({ method: 'POST' }),
       );
     },

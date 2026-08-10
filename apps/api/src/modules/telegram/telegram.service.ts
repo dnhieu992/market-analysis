@@ -35,15 +35,24 @@ export class TelegramService {
     };
   }
 
-  /** Sends `text` to the configured chat, chunked at Telegram's 4096-char cap. */
-  async sendMessage(text: string): Promise<{ success: boolean }> {
+  /**
+   * Sends `text` to the configured chat, chunked at Telegram's 4096-char cap.
+   *
+   * With `parseMode` the chunker splits on newlines only, so callers using HTML
+   * must keep every tag inside a single line or a chunk boundary could cut one
+   * in half and Telegram would reject the message.
+   */
+  async sendMessage(
+    text: string,
+    options?: { parseMode?: 'HTML' | 'Markdown' }
+  ): Promise<{ success: boolean }> {
     if (!this.config.botToken || !this.config.chatId) {
       this.logger.warn('Telegram not configured — TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID missing');
       return { success: false };
     }
 
     for (const chunk of this.chunkMessage(text)) {
-      const sent = await this.sendChunk(chunk);
+      const sent = await this.sendChunk(chunk, options?.parseMode);
       if (!sent) return { success: false };
     }
 
@@ -67,11 +76,16 @@ export class TelegramService {
     return chunks;
   }
 
-  private async sendChunk(text: string): Promise<boolean> {
+  private async sendChunk(text: string, parseMode?: 'HTML' | 'Markdown'): Promise<boolean> {
     try {
       await this.httpClient.post<TelegramSendResponse>(
         `/bot${this.config.botToken}/sendMessage`,
-        { chat_id: this.config.chatId, text, disable_web_page_preview: true }
+        {
+          chat_id: this.config.chatId,
+          text,
+          disable_web_page_preview: true,
+          ...(parseMode ? { parse_mode: parseMode } : {}),
+        }
       );
       return true;
     } catch (error) {

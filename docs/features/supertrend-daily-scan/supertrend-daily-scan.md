@@ -6,7 +6,7 @@ Kết quả **không lưu DB và không hiển thị trên dashboard**. Chỉ c�
 
 Hai đường kích hoạt:
 - **Cron 00:10 UTC hàng ngày** — chạy 10 phút sau khi nến D1 đóng.
-- **Nút `Scan`** trên trang `/portfolio` (cạnh `+ New Portfolio`) — chạy thủ công, cũng chỉ gửi Telegram.
+- **Nút `Scan`** trên trang `/portfolio` (cạnh `+ New Portfolio`) — chạy thủ công, cũng chỉ gửi Telegram. Từ 2026-08-10 nút này chạy **cả** scan D1 lẫn [scan 4H Supertrend + QQE](../supertrend-h4-qqe-scan/supertrend-h4-qqe-scan.md); hai scan độc lập, mỗi cái một tin Telegram và một dòng trạng thái.
 
 ## Main Flow
 

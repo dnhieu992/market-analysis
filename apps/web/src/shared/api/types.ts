@@ -927,6 +927,15 @@ export type SupertrendScanResult = {
   durationMs: number;
 };
 
+/**
+ * Result of the 4H Supertrend(10,3) + QQE scan (POST /supertrend-scan/run-h4).
+ * `flipped` is the subset of `bullish` that turned bearish → bullish on the last
+ * closed 4H candle.
+ */
+export type SupertrendH4ScanResult = SupertrendScanResult & {
+  flipped: string[];
+};
+
 // ── Asset ledger (overview asset card) ───────────────────────────────────────
 
 /** One bucket the trader's USDT is split into. `balanceUsdt` is derived from the ledger. */

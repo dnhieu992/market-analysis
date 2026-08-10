@@ -84,7 +84,7 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [scanMessage, setScanMessage] = useState<string[] | null>(null);
 
   useEffect(() => {
     const allCoinIds = [...new Set(Object.values(holdingsMap).flat().map((h) => h.coinId))];
@@ -92,23 +92,46 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
     fetchPrices(allCoinIds).then((p) => { setPrices(p); setPricesLoaded(true); });
   }, [holdingsMap]);
 
-  // Fires the Supertrend(10,3) D1 screener. The result only goes to Telegram —
-  // nothing is stored or rendered here beyond this status line.
+  // Fires both screeners at once: Supertrend(10,3) D1 and Supertrend + QQE H4.
+  // Each result only goes to Telegram — nothing is stored or rendered here
+  // beyond these status lines. They run independently so one failing (or being
+  // blocked by its own cron) still lets the other report.
   async function handleScan() {
     setScanning(true);
     setScanMessage(null);
-    try {
-      const result = await createApiClient().runSupertrendScan();
-      setScanMessage(
-        result.telegramSent
-          ? `Đã gửi Telegram — ${result.bullish.length}/${result.scanned} coin bullish D1.`
-          : `Quét xong ${result.bullish.length}/${result.scanned} coin bullish, nhưng gửi Telegram thất bại.`
+    const api = createApiClient();
+    const [daily, h4] = await Promise.allSettled([
+      api.runSupertrendScan(),
+      api.runSupertrendH4Scan(),
+    ]);
+
+    const lines: string[] = [];
+
+    if (daily.status === 'rejected') {
+      lines.push('D1: scan thất bại — thử lại sau.');
+    } else {
+      const { bullish, scanned, telegramSent } = daily.value;
+      lines.push(
+        telegramSent
+          ? `D1: đã gửi Telegram — ${bullish.length}/${scanned} coin bullish.`
+          : `D1: quét xong ${bullish.length}/${scanned} coin bullish, nhưng gửi Telegram thất bại.`
       );
-    } catch {
-      setScanMessage('Scan thất bại — thử lại sau.');
-    } finally {
-      setScanning(false);
     }
+
+    if (h4.status === 'rejected') {
+      lines.push('H4: scan thất bại — thử lại sau.');
+    } else {
+      const { bullish, flipped, scanned, telegramSent } = h4.value;
+      const summary = `${bullish.length}/${scanned} coin bullish (${flipped.length} vừa đảo chiều)`;
+      lines.push(
+        telegramSent
+          ? `H4 (Supertrend + QQE): đã gửi Telegram — ${summary}.`
+          : `H4 (Supertrend + QQE): quét xong ${summary}, nhưng gửi Telegram thất bại.`
+      );
+    }
+
+    setScanMessage(lines);
+    setScanning(false);
   }
 
   async function handleConfirmDelete() {
@@ -135,7 +158,7 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
               className="btn btn--secondary"
               onClick={handleScan}
               disabled={scanning}
-              title="Quét Supertrend(10,3) D1 toàn bộ coin spot Binance và gửi list qua Telegram"
+              title="Quét toàn bộ coin spot Binance: Supertrend(10,3) D1 và Supertrend + QQE H4, gửi list qua Telegram"
             >
               {scanning ? 'Scanning…' : 'Scan'}
             </button>
@@ -144,9 +167,12 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
         </div>
 
         {(scanning || scanMessage) && (
-          <p className="tt-muted" style={{ margin: '0 0 0.75rem', fontSize: '0.85rem' }}>
-            {scanning ? 'Đang quét Supertrend D1 toàn sàn, mất khoảng 30–60 giây…' : scanMessage}
-          </p>
+          <div className="tt-muted" style={{ margin: '0 0 0.75rem', fontSize: '0.85rem' }}>
+            {scanning
+              ? <p style={{ margin: 0 }}>Đang quét Supertrend D1 + Supertrend/QQE H4 toàn sàn, mất khoảng 30–60 giây…</p>
+              : scanMessage?.map((line) => <p key={line} style={{ margin: 0 }}>{line}</p>)
+            }
+          </div>
         )}
 
         {portfolios.length > 0 && (
