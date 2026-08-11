@@ -2,19 +2,26 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, TrackingPriceChange, PaTrend } from '@web/shared/api/types';
+import type { TrackingCoinRow, TrackingCoinScore, TrackingPriceChange, PaTrend } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
-type SortCol = 'coin' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d';
+type SortCol = 'coin' | 'score' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d';
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
-/** 7d / 90d only move on a daily close — poll them rarely. */
+/** 7d / 30d / 90d only move on a daily close — poll them rarely. */
 const CHANGE_REFRESH_MS = 5 * 60_000;
+/** Scores read closed daily candles, so they move once a day. Same slow cadence. */
+const SCORE_REFRESH_MS = 5 * 60_000;
+
+/** Human label per rule id — the Scores tooltip explains where the point came from. */
+const RULE_LABELS: Record<string, string> = {
+  supertrendD1: 'Supertrend(10,3) D1 bullish',
+};
 
 /* ── live price hook ────────────────────────────────────────────── */
 
@@ -156,6 +163,31 @@ function fmtChange(ratio: number | null | undefined): string {
 function chgClass(ratio: number | null | undefined): string {
   if (ratio == null || !Number.isFinite(ratio)) return '';
   return ratio > 0 ? 'bg-chg--up' : ratio < 0 ? 'bg-chg--down' : '';
+}
+
+/* ── Scores cell ────────────────────────────────────────────────── */
+
+/**
+ * `passed/total` over the scoring rules — `1/1` when the coin's D1 Supertrend is
+ * bullish. Full marks read green, anything less reads muted, and hovering lists
+ * each rule so the number is never a mystery.
+ */
+function ScoreCell({ score }: { score: TrackingCoinScore | undefined }) {
+  if (!score || score.score === null) return <span className="scr-muted">—</span>;
+
+  const full = score.score === score.maxScore;
+  const title = Object.entries(score.rules)
+    .map(([id, passed]) => {
+      const mark = passed === null ? '–' : passed ? '✓' : '✕';
+      return `${mark} ${RULE_LABELS[id] ?? id}`;
+    })
+    .join('\n');
+
+  return (
+    <span className={`tc-score${full ? ' tc-score--full' : ''}`} title={title}>
+      {score.score}/{score.maxScore}
+    </span>
+  );
 }
 
 /**
@@ -451,6 +483,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   // 7d / 30d / 90d change per bare symbol, from the API (Binance daily closes).
   const [changes, setChanges] = useState<Record<string, Omit<TrackingPriceChange, 'symbol'>>>({});
+  // Rule score per bare symbol — the "Scores" column.
+  const [scores, setScores] = useState<Record<string, TrackingCoinScore>>({});
 
   useEffect(() => { setPage(1); }, [nameFilter, sort]);
 
@@ -468,10 +502,29 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           }
           return next;
         });
-      } catch { /* non-fatal: the 7d/90d columns keep their last-known values */ }
+      } catch { /* non-fatal: the change columns keep their last-known values */ }
     };
     void load();
     const id = setInterval(() => void load(), CHANGE_REFRESH_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [symbols]);
+
+  useEffect(() => {
+    if (symbols.length === 0) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const rows = await createApiClient().fetchTrackingScores(symbols);
+        if (cancelled) return;
+        setScores((prev) => {
+          const next = { ...prev };
+          for (const r of rows) next[r.symbol] = r;
+          return next;
+        });
+      } catch { /* non-fatal: the Scores column keeps its last-known values */ }
+    };
+    void load();
+    const id = setInterval(() => void load(), SCORE_REFRESH_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [symbols]);
 
@@ -507,6 +560,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const numericValue = useCallback(
     (symbol: string, col: SortCol): number | null => {
       const v =
+        col === 'score'  ? scores[symbol]?.score :
         col === 'price'  ? prices.get(symbol) :
         col === 'chg24h' ? changes24h.get(symbol) :
         col === 'chg7d'  ? changes[symbol]?.change7d :
@@ -514,7 +568,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                            changes[symbol]?.change90d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
-    [prices, changes24h, changes],
+    [scores, prices, changes24h, changes],
   );
 
   // Name/symbol search is the only filter left (2026-07-26 — the zone / quality /
@@ -623,6 +677,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </span>
                   </button>
                 </th>
+                <SortHeader label="Scores" col="score" sort={sort} onSort={cycleSort} title="Số tiêu chí coin đang thoả / tổng số tiêu chí. Hiện chỉ có 1: Supertrend(10,3) D1 bullish (nến D1 đã đóng)." />
                 <SortHeader label="Giá"   col="price"  sort={sort} onSort={cycleSort} title="Giá hiện tại (Binance, cập nhật mỗi 5 giây)" />
                 <SortHeader label="24h %" col="chg24h" sort={sort} onSort={cycleSort} title="Thay đổi 24 giờ (rolling, ticker Binance)" />
                 <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
@@ -634,7 +689,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="scr-empty">
+                  <td colSpan={8} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -661,6 +716,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                           <IconChart />
                         </button>
                       </span>
+                    </td>
+                    <td className="scr-td scr-td--num tc-td--score">
+                      <ScoreCell score={scores[coin.symbol]} />
                     </td>
                     {/* Live price — its own column since 2026-08-11 (was stacked under the ticker). */}
                     <td className="scr-td scr-td--num tc-td--price">

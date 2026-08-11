@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
+import { TrackingCoinScoreService } from './tracking-coin-score.service';
 import { TrackingCoinsService } from './tracking-coins.service';
 
 @ApiTags('Tracking Coins')
@@ -12,6 +13,8 @@ export class TrackingCoinsController {
   constructor(
     @Inject(TrackingCoinsService)
     private readonly service: TrackingCoinsService,
+    @Inject(TrackingCoinScoreService)
+    private readonly scoreService: TrackingCoinScoreService,
   ) {}
 
   @Get()
@@ -25,6 +28,13 @@ export class TrackingCoinsController {
   getPriceChanges(@Query('symbols') symbols = '') {
     const list = symbols.split(',').map((s) => s.trim()).filter(Boolean);
     return this.service.getPriceChanges(list);
+  }
+
+  @Get('scores')
+  @ApiOperation({ summary: 'Rule score per coin (passed/total) — currently D1 Supertrend only' })
+  getScores(@Query('symbols') symbols = '') {
+    const list = symbols.split(',').map((s) => s.trim()).filter(Boolean);
+    return this.scoreService.getScores(list);
   }
 
   @Post('coins')

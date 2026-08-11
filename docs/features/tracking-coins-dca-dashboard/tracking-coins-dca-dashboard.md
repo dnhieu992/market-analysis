@@ -2,7 +2,7 @@
 > **Indicator columns dropped, price + change columns added (2026-08-11).** The table no longer shows
 > QQE / Trend (PA) / UT Bot / EMA / RSI / Vol× — those cells had been frozen "—" since the scan was
 > removed. In their place: **Giá (live) + 24h / 7d / 30d / 90d change %**, every column sortable, **no
-> column sorted by default** (rows keep the watchlist order). The **Coin column is now just the ticker
+> column sorted by default** (rows keep the watchlist order), plus a **Scores** column next to Coin. The **Coin column is now just the ticker
 > and the chart button** — the coin name, the market cap and the stacked live price were removed from
 > it (price moved to its own column). Only the table UI changed — the indicator components, the detail
 > modal and every stored field are untouched. The same watchlist is now also the universe of the
@@ -54,6 +54,7 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
 | Column | Source | Refresh |
 |---|---|---|
 | Coin | ticker + chart button, nothing else | — |
+| Scores | `GET /tracking-coins/scores` → rules passed / rules total (see below) | 5 min (server caches 5 min per coin) |
 | Giá | Binance `GET /api/v3/ticker/24hr` `lastPrice`, flashes green/red on each tick | 5s |
 | 24h % | same request — the exchange's own rolling 24h window, the same reading the Bitget Setup tab shows | 5s |
 | 7d % | `GET /tracking-coins/price-changes` → current close vs the close 7 daily candles back | 5 min (server caches 5 min per coin) |
@@ -69,6 +70,27 @@ Price and 24h come from the browser rather than the API on purpose: one `/ticker
 5s returns `lastPrice` *and* the rolling change, so both columns cost a single poll. 7d/30d/90d come
 from the API instead, where a 5-minute cache is enough (they only move on a daily close) and the
 daily klines are already proxied server-side — one 95-candle fetch serves all three.
+
+## Scores column (2026-08-11)
+`passed/total` over a list of checks — `1/1` when the coin passes everything, `0/1` when it passes
+nothing, `—` when no check could be evaluated. Full marks render green, anything less stays muted, and
+the cell's tooltip lists each rule with ✓ / ✕ so the number is never a mystery.
+
+**There is exactly one rule today, on purpose:**
+
+| Rule id | Check | Points |
+|---|---|---|
+| `supertrendD1` | Supertrend(10, 3) is bullish on the last **closed** D1 candle | +1 |
+
+The rule reuses `isSupertrendBullish` from `@app/core` — the same function and the same 60-closed-candle
+minimum as the [daily Supertrend screener](../supertrend-daily-scan/supertrend-daily-scan.md), so the
+column and the Telegram scan can never disagree about a coin.
+
+Rules live in the `RULES` array in `tracking-coin-score.service.ts` and each contributes exactly one
+point. **Adding a check means appending one entry** — the denominator (`MAX_SCORE = RULES.length`), the
+per-rule breakdown in the response, and the tooltip all follow from the list. A rule returns `null`
+when it cannot judge (too little history); a coin where every rule returns `null` scores `null` and
+shows `—`, which is different from scoring `0`.
 
 Sorting by **Giá** compares raw prices across coins (BTC at $100k sorts above SHIB at $0.00001), so it
 is mostly useful for grouping by order of magnitude, not for ranking performance — that is what the
@@ -143,6 +165,11 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
   same rule applies per column (a 40-day-old listing shows 7d and 30d but not 90d).
 - **Price not yet loaded** (first paint, before the 5s poll returns) → the Giá cell shows "—" rather
   than a zero.
+- **Fewer than 60 closed daily candles** (new listing) → the `supertrendD1` rule returns `null`, the
+  coin scores `null` and the cell shows "—". A brand-new listing is never reported as `0/1`, because
+  "we cannot tell" and "it failed the check" are different answers.
+- **Score fetch fails** → the column keeps its last-known value (server falls back to the cached score,
+  client keeps the previous map); a coin never flips to `0/1` because of a network blip.
 - **Null RSI** in zone derivation defaults to 50 (treated as not-oversold → not GOM).
 - `PUT /setup` is still a **partial** update — only keys present in the body are written. It now
   carries the swing/daytrade risk fields only; `dcaPortfolioId` is rejected as unknown.
@@ -156,8 +183,9 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
   zone-derived values stay stale until the signal rebuild lands.
 
 ## Related Files (FE / BE / Worker)
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — the whole page: table (Coin / Giá /
-  24h / 7d / 30d / 90d / Actions, all sortable, unsorted by default), `useLivePrices` (price + 24h),
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — the whole page: table (Coin / Scores /
+  Giá / 24h / 7d / 30d / 90d / Actions, all sortable, unsorted by default), `ScoreCell` + `RULE_LABELS`,
+  `useLivePrices` (price + 24h),
   `CoinDetailModal`/`CoinOverview` (no tabs), `StrategyInfoDialog`, `AddCoinForm`,
   `ConfirmRemoveDialog` and the single delete action
 - `apps/web/src/_pages/tracking-coins-page/tracking-coins-page.tsx` — server page, fetches `listCoins`
@@ -166,11 +194,16 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
   `.tc-activity*`, `.tt-btn--dca/--set/--ai` rules were deleted with the features; `.dcapos-table` is
   kept because the small-cap and meme radar tables still use it)
 - `apps/web/src/shared/api/types.ts` — `TrackingCoinRow` (no `dcaPortfolioId` / `dcaPosition`),
-  `TrackingCoinSetup`, `TrackingPriceChange`
+  `TrackingCoinSetup`, `TrackingPriceChange`, `TrackingCoinScore`
 - `apps/web/src/shared/api/client.ts` — `fetchCoinKlines`, `fetchTrackingPriceChanges`,
-  `fetchTrackingCoinSetup` / `updateTrackingCoinSetup`
+  `fetchTrackingScores`, `fetchTrackingCoinSetup` / `updateTrackingCoinSetup`
 - `apps/api/src/modules/tracking-coins/tracking-coins.controller.ts` — list / add / remove / klines /
-  setup / `GET /price-changes`
+  setup / `GET /price-changes` / `GET /scores`
+- `apps/api/src/modules/tracking-coins/tracking-coin-score.service.ts` — the `RULES` list, scoring and
+  the 5-min per-coin cache
+- `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — imports `MarketModule` for
+  `MarketDataService.getCandles`
+- `packages/core/src/indicators/supertrend.ts` — `isSupertrendBullish`, shared with the D1 screener
 - `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — stored-signal read + zone
   derivation; no portfolio, transaction or holding dependency
 - `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — providers: service +

@@ -384,6 +384,18 @@ export type TrackingPriceChange = {
   change90d: number | null;
 };
 
+/**
+ * Rule score for the "Scores" column: how many checks the coin passes out of
+ * `maxScore`, plus the per-rule breakdown. `score: null` = nothing could be
+ * evaluated (no data). One rule today — D1 Supertrend(10,3) bullish.
+ */
+export type TrackingCoinScore = {
+  symbol: string;
+  score: number | null;
+  maxScore: number;
+  rules: Record<string, boolean | null>;
+};
+
 export type TrackingCoinRow = {
   id: string;
   symbol: string;

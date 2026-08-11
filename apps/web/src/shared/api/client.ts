@@ -34,6 +34,7 @@ import type {
   TradingJournalEntry,
   TradingJournalRevision,
   TrackingCoinRow,
+  TrackingCoinScore,
   TrackingPriceChange,
   TrackingCoinSetup,
   BitgetPositionsResponse,
@@ -889,6 +890,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<TrackingPriceChange[]>(
         fetchImpl,
         `${baseUrl}/tracking-coins/price-changes?symbols=${q}`,
+        withDefaults(),
+      );
+    },
+
+    async fetchTrackingScores(symbols: string[]): Promise<TrackingCoinScore[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      return fetchJson<TrackingCoinScore[]>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/scores?symbols=${q}`,
         withDefaults(),
       );
     },
