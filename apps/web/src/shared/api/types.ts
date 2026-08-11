@@ -380,6 +380,7 @@ export type BinanceKline = [number, string, string, string, string, string, ...u
 export type TrackingPriceChange = {
   symbol: string;
   change7d: number | null;
+  change30d: number | null;
   change90d: number | null;
 };
 

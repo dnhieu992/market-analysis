@@ -2,13 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, PaTrend } from '@web/shared/api/types';
+import type { TrackingCoinRow, TrackingPriceChange, PaTrend } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
-type SortCol = 'coin' | 'chg24h' | 'chg7d' | 'chg90d';
+type SortCol = 'coin' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d';
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
@@ -81,15 +81,6 @@ function useLivePrices(symbols: string[]) {
   }, [fetchPrices]);
 
   return { prices, changes24h, flash };
-}
-
-/* ── market cap formatter ───────────────────────────────────────── */
-
-function fmtMarketCap(cap: number | null): string | null {
-  if (cap == null) return null;
-  if (cap >= 1_000_000_000) return `$${(cap / 1_000_000_000).toFixed(1)}B`;
-  if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(1)}M`;
-  return `$${cap.toLocaleString()}`;
 }
 
 /* ── UT Bot badge ───────────────────────────────────────────────── */
@@ -458,8 +449,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  // 7d / 90d change per bare symbol, from the API (Binance daily closes).
-  const [changes, setChanges] = useState<Record<string, { change7d: number | null; change90d: number | null }>>({});
+  // 7d / 30d / 90d change per bare symbol, from the API (Binance daily closes).
+  const [changes, setChanges] = useState<Record<string, Omit<TrackingPriceChange, 'symbol'>>>({});
 
   useEffect(() => { setPage(1); }, [nameFilter, sort]);
 
@@ -472,7 +463,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         if (cancelled) return;
         setChanges((prev) => {
           const next = { ...prev };
-          for (const r of rows) next[r.symbol] = { change7d: r.change7d, change90d: r.change90d };
+          for (const r of rows) {
+            next[r.symbol] = { change7d: r.change7d, change30d: r.change30d, change90d: r.change90d };
+          }
           return next;
         });
       } catch { /* non-fatal: the 7d/90d columns keep their last-known values */ }
@@ -510,16 +503,18 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     });
   }, []);
 
-  /** Numeric sort value for a change column — null sinks the row to the bottom. */
-  const changeValue = useCallback(
+  /** Numeric sort value for a price/change column — null sinks the row to the bottom. */
+  const numericValue = useCallback(
     (symbol: string, col: SortCol): number | null => {
       const v =
+        col === 'price'  ? prices.get(symbol) :
         col === 'chg24h' ? changes24h.get(symbol) :
         col === 'chg7d'  ? changes[symbol]?.change7d :
+        col === 'chg30d' ? changes[symbol]?.change30d :
                            changes[symbol]?.change90d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
-    [changes24h, changes],
+    [prices, changes24h, changes],
   );
 
   // Name/symbol search is the only filter left (2026-07-26 — the zone / quality /
@@ -534,11 +529,11 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     }
     const miss = sort.dir === 'desc' ? -Infinity : Infinity;
     return [...filtered].sort((a, b) => {
-      const va = changeValue(a.symbol, sort.col) ?? miss;
-      const vb = changeValue(b.symbol, sort.col) ?? miss;
+      const va = numericValue(a.symbol, sort.col) ?? miss;
+      const vb = numericValue(b.symbol, sort.col) ?? miss;
       return sort.dir === 'desc' ? vb - va : va - vb;
     });
-  }, [coins, nameFilter, sort, changeValue]);
+  }, [coins, nameFilter, sort, numericValue]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -628,8 +623,10 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </span>
                   </button>
                 </th>
+                <SortHeader label="Giá"   col="price"  sort={sort} onSort={cycleSort} title="Giá hiện tại (Binance, cập nhật mỗi 5 giây)" />
                 <SortHeader label="24h %" col="chg24h" sort={sort} onSort={cycleSort} title="Thay đổi 24 giờ (rolling, ticker Binance)" />
                 <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
+                <SortHeader label="30d %" col="chg30d" sort={sort} onSort={cycleSort} title="Thay đổi 30 ngày (so với close 30 nến D1 trước)" />
                 <SortHeader label="90d %" col="chg90d" sort={sort} onSort={cycleSort} title="Thay đổi 90 ngày (so với close 90 nến D1 trước)" />
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
@@ -637,7 +634,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="scr-empty">
+                  <td colSpan={7} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -647,6 +644,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 </tr>
               )}
               {paginated.map((coin) => {
+                const price = prices.get(coin.symbol);
                 const chg24h = changes24h.get(coin.symbol) ?? null;
                 const chg = changes[coin.symbol];
                 return (
@@ -663,16 +661,18 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                           <IconChart />
                         </button>
                       </span>
-                      {coin.name && <span className="scr-name">{coin.name}</span>}
-                      {coin.marketCap != null && <span className="scr-name">{fmtMarketCap(coin.marketCap)}</span>}
-                      {prices.has(coin.symbol) && (
-                        <span className={`tc-live-price tc-live-price--${flash.get(coin.symbol) ?? 'idle'}`}>
-                          ${formatPrice(prices.get(coin.symbol)!)}
-                        </span>
-                      )}
+                    </td>
+                    {/* Live price — its own column since 2026-08-11 (was stacked under the ticker). */}
+                    <td className="scr-td scr-td--num tc-td--price">
+                      {price != null
+                        ? <span className={`tc-live-price tc-live-price--${flash.get(coin.symbol) ?? 'idle'}`}>
+                            ${formatPrice(price)}
+                          </span>
+                        : <span className="scr-muted">—</span>}
                     </td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg24h)}`}>{fmtChange(chg24h)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change7d)}`}>{fmtChange(chg?.change7d)}</td>
+                    <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change30d)}`}>{fmtChange(chg?.change30d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change90d)}`}>{fmtChange(chg?.change90d)}</td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">

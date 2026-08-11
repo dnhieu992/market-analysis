@@ -7192,21 +7192,21 @@ a.metric-card--link:hover {
   color: #2563eb;
 }
 
-/* ── tracking coins: live price ── */
+/* ── tracking coins: live price column ── */
+/* Flashes green/red for ~600ms on each tick, then settles back to --idle. */
 .tc-live-price {
-  display: block;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  color: var(--muted);
-  margin-top: 2px;
+  font-weight: 600;
+  color: var(--foreground);
   transition: color 0.15s;
 }
 .tc-live-price--up   { color: #16a34a; }
 .tc-live-price--down { color: #dc2626; }
-.tc-live-price--idle { color: var(--muted); }
+.tc-live-price--idle { color: var(--foreground); }
+.tc-td--price { min-width: 96px; }
 
-/* ── tracking coins: 24h / 7d / 90d change columns ── */
+/* ── tracking coins: 24h / 7d / 30d / 90d change columns ── */
 /* Colour + weight come from the shared .bg-chg--up/--down rules. */
 .tc-td--chg { min-width: 78px; }
 

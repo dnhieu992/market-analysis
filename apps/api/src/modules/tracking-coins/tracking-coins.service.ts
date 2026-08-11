@@ -12,19 +12,20 @@ type CoinSetup = {
   daytradeMinRR: number | null;
 };
 
-/** Daily candles pulled for the 7d / 90d change columns (needs ≥ 91 back + today). */
+/** Daily candles pulled for the 7d / 30d / 90d change columns (needs ≥ 91 back + today). */
 const CHANGE_KLINE_LIMIT = 95;
 /** Those changes move once a day — reuse a reading for 5 minutes. */
 const CHANGE_CACHE_TTL_MS = 5 * 60_000;
 
 /**
- * Price change as a ratio (0.0123 = +1.23%) over 7 / 90 days, each comparing the
- * current close with the close that many days back. The 24h column is not here:
- * the page reads the exchange's own rolling 24h ticker alongside the live price.
+ * Price change as a ratio (0.0123 = +1.23%) over 7 / 30 / 90 days, each comparing
+ * the current close with the close that many days back. The 24h column is not
+ * here: the page reads the exchange's own rolling 24h ticker with the live price.
  */
 export type TrackingPriceChange = {
   symbol: string;
   change7d: number | null;
+  change30d: number | null;
   change90d: number | null;
 };
 
@@ -125,13 +126,14 @@ export class TrackingCoinsService {
       const value: TrackingPriceChange = {
         symbol: bare,
         change7d: changeAgo(7),
+        change30d: changeAgo(30),
         change90d: changeAgo(90),
       };
       this.changeCache.set(bare, { at: Date.now(), value });
       return value;
     } catch {
       // Transient fetch failure: reuse the last-known reading, else blanks.
-      return cached?.value ?? { symbol: bare, change7d: null, change90d: null };
+      return cached?.value ?? { symbol: bare, change7d: null, change30d: null, change90d: null };
     }
   }
 
