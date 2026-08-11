@@ -8,12 +8,12 @@ import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/se
 type Props = { initialCoins: TrackingCoinRow[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
-type SortCol = 'coin' | 'score' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d';
+type SortCol = 'coin' | 'score' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d' | 'chg180d';
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
-/** 7d / 30d / 90d only move on a daily close — poll them rarely. */
+/** 7d / 30d / 90d / 180d only move on a daily close — poll them rarely. */
 const CHANGE_REFRESH_MS = 5 * 60_000;
 /** Scores read closed daily candles, so they move once a day. Same slow cadence. */
 const SCORE_REFRESH_MS = 5 * 60_000;
@@ -498,7 +498,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         setChanges((prev) => {
           const next = { ...prev };
           for (const r of rows) {
-            next[r.symbol] = { change7d: r.change7d, change30d: r.change30d, change90d: r.change90d };
+            const { symbol, ...rest } = r;
+            next[symbol] = rest;
           }
           return next;
         });
@@ -565,7 +566,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         col === 'chg24h' ? changes24h.get(symbol) :
         col === 'chg7d'  ? changes[symbol]?.change7d :
         col === 'chg30d' ? changes[symbol]?.change30d :
-                           changes[symbol]?.change90d;
+        col === 'chg90d' ? changes[symbol]?.change90d :
+                           changes[symbol]?.change180d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
     [scores, prices, changes24h, changes],
@@ -683,13 +685,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
                 <SortHeader label="30d %" col="chg30d" sort={sort} onSort={cycleSort} title="Thay đổi 30 ngày (so với close 30 nến D1 trước)" />
                 <SortHeader label="90d %" col="chg90d" sort={sort} onSort={cycleSort} title="Thay đổi 90 ngày (so với close 90 nến D1 trước)" />
+                <SortHeader label="180d %" col="chg180d" sort={sort} onSort={cycleSort} title="Thay đổi 180 ngày (so với close 180 nến D1 trước)" />
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="scr-empty">
+                  <td colSpan={9} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -732,6 +735,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change7d)}`}>{fmtChange(chg?.change7d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change30d)}`}>{fmtChange(chg?.change30d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change90d)}`}>{fmtChange(chg?.change90d)}</td>
+                    <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change180d)}`}>{fmtChange(chg?.change180d)}</td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>

@@ -382,6 +382,7 @@ export type TrackingPriceChange = {
   change7d: number | null;
   change30d: number | null;
   change90d: number | null;
+  change180d: number | null;
 };
 
 /**

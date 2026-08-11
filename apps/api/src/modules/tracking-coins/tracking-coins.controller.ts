@@ -24,7 +24,7 @@ export class TrackingCoinsController {
   }
 
   @Get('price-changes')
-  @ApiOperation({ summary: '7d / 30d / 90d price change per coin (Binance daily closes)' })
+  @ApiOperation({ summary: '7d / 30d / 90d / 180d price change per coin (Binance daily closes)' })
   getPriceChanges(@Query('symbols') symbols = '') {
     const list = symbols.split(',').map((s) => s.trim()).filter(Boolean);
     return this.service.getPriceChanges(list);

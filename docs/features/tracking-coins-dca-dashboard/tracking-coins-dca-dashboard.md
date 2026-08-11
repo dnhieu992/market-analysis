@@ -1,7 +1,7 @@
 ## Description
 > **Indicator columns dropped, price + change columns added (2026-08-11).** The table no longer shows
 > QQE / Trend (PA) / UT Bot / EMA / RSI / Vol× — those cells had been frozen "—" since the scan was
-> removed. In their place: **Giá (live) + 24h / 7d / 30d / 90d change %**, every column sortable, **no
+> removed. In their place: **Giá (live) + 24h / 7d / 30d / 90d / 180d change %**, every column sortable, **no
 > column sorted by default** (rows keep the watchlist order), plus a **Scores** column next to Coin. The **Coin column is now just the ticker
 > and the chart button** — the coin name, the market cap and the stacked live price were removed from
 > it (price moved to its own column). Only the table UI changed — the indicator components, the detail
@@ -60,6 +60,7 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
 | 7d % | `GET /tracking-coins/price-changes` → current close vs the close 7 daily candles back | 5 min (server caches 5 min per coin) |
 | 30d % | same endpoint, 30 daily candles back | 5 min |
 | 90d % | same endpoint, 90 daily candles back | 5 min |
+| 180d % | same endpoint, 180 daily candles back | 5 min |
 | Actions | delete | — |
 
 Every column header is a sort button cycling **desc → asc → off**; "off" returns to the watchlist
@@ -67,9 +68,9 @@ order, which is where the table starts — **nothing is sorted on load**. Only o
 time, and coins with no reading sink to the bottom.
 
 Price and 24h come from the browser rather than the API on purpose: one `/ticker/24hr` request every
-5s returns `lastPrice` *and* the rolling change, so both columns cost a single poll. 7d/30d/90d come
+5s returns `lastPrice` *and* the rolling change, so both columns cost a single poll. 7d/30d/90d/180d come
 from the API instead, where a 5-minute cache is enough (they only move on a daily close) and the
-daily klines are already proxied server-side — one 95-candle fetch serves all three.
+daily klines are already proxied server-side — one 185-candle fetch serves all four.
 
 ## Scores column (2026-08-11)
 `passed/total` over a list of checks — `1/1` when the coin passes everything, `0/1` when it passes
@@ -161,8 +162,9 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
   all three change cells show "—"; nothing else breaks.
 - **Change fetch fails** → the columns keep their last-known values (the server falls back to the
   cached reading, the client keeps the previous map) instead of blanking out.
-- **Fewer than 90 daily candles** (recent listing) → `90d %` is "—" while 24h/7d/30d still render; the
-  same rule applies per column (a 40-day-old listing shows 7d and 30d but not 90d).
+- **Fewer daily candles than a column's lookback** (recent listing) → that column shows "—" while the
+  shorter ones still render; the rule applies per column, so a 100-day-old listing shows 7d/30d/90d but
+  not 180d.
 - **Price not yet loaded** (first paint, before the 5s poll returns) → the Giá cell shows "—" rather
   than a zero.
 - **Fewer than 60 closed daily candles** (new listing) → the `supertrendD1` rule returns `null`, the
@@ -184,7 +186,8 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — the whole page: table (Coin / Scores /
-  Giá / 24h / 7d / 30d / 90d / Actions, all sortable, unsorted by default), `ScoreCell` + `RULE_LABELS`,
+  Giá / 24h / 7d / 30d / 90d / 180d / Actions, all sortable, unsorted by default), `ScoreCell` +
+  `RULE_LABELS`,
   `useLivePrices` (price + 24h),
   `CoinDetailModal`/`CoinOverview` (no tabs), `StrategyInfoDialog`, `AddCoinForm`,
   `ConfirmRemoveDialog` and the single delete action
