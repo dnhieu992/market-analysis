@@ -372,6 +372,17 @@ export type SwingStructure = 'HH_HL' | 'HH_LL' | 'LH_HL' | 'LH_LL' | 'Mixed';
 // Raw Binance kline row: [openTime, open, high, low, close, volume, closeTime, ...]
 export type BinanceKline = [number, string, string, string, string, string, ...unknown[]];
 
+/**
+ * Price change (ratio, 0.0123 = +1.23%) per tracked coin, keyed by bare symbol.
+ * The 24h column is not here — it comes from Binance's rolling 24h ticker, which
+ * the page already polls for the live price.
+ */
+export type TrackingPriceChange = {
+  symbol: string;
+  change7d: number | null;
+  change90d: number | null;
+};
+
 export type TrackingCoinRow = {
   id: string;
   symbol: string;

@@ -93,9 +93,10 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
   }, [holdingsMap]);
 
   // Fires both screeners at once: Supertrend(10,3) D1 and Supertrend + QQE H4.
-  // Each result only goes to Telegram — nothing is stored or rendered here
-  // beyond these status lines. They run independently so one failing (or being
-  // blocked by its own cron) still lets the other report.
+  // Both read the /tracking-coins watchlist (not the whole Binance spot list),
+  // so a run is a few seconds. Each result only goes to Telegram — nothing is
+  // stored or rendered here beyond these status lines. They run independently so
+  // one failing (or being blocked by its own cron) still lets the other report.
   async function handleScan() {
     setScanning(true);
     setScanMessage(null);
@@ -158,7 +159,7 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
               className="btn btn--secondary"
               onClick={handleScan}
               disabled={scanning}
-              title="Quét toàn bộ coin spot Binance: Supertrend(10,3) D1 và Supertrend + QQE H4, gửi list qua Telegram"
+              title="Quét các coin trong danh sách /tracking-coins: Supertrend(10,3) D1 và Supertrend + QQE H4, gửi list qua Telegram"
             >
               {scanning ? 'Scanning…' : 'Scan'}
             </button>
@@ -169,7 +170,7 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
         {(scanning || scanMessage) && (
           <div className="tt-muted" style={{ margin: '0 0 0.75rem', fontSize: '0.85rem' }}>
             {scanning
-              ? <p style={{ margin: 0 }}>Đang quét Supertrend D1 + Supertrend/QQE H4 toàn sàn, mất khoảng 30–60 giây…</p>
+              ? <p style={{ margin: 0 }}>Đang quét Supertrend D1 + Supertrend/QQE H4 cho các coin đang theo dõi…</p>
               : scanMessage?.map((line) => <p key={line} style={{ margin: 0 }}>{line}</p>)
             }
           </div>

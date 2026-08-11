@@ -20,6 +20,13 @@ export class TrackingCoinsController {
     return this.service.listCoins();
   }
 
+  @Get('price-changes')
+  @ApiOperation({ summary: '7d / 90d price change per coin (Binance daily closes)' })
+  getPriceChanges(@Query('symbols') symbols = '') {
+    const list = symbols.split(',').map((s) => s.trim()).filter(Boolean);
+    return this.service.getPriceChanges(list);
+  }
+
   @Post('coins')
   @ApiOperation({ summary: 'Add a coin to the tracking list' })
   addCoin(@Body() body: AddTrackingCoinDto) {

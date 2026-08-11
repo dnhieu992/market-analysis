@@ -4,9 +4,10 @@ import { isSupertrendBullish, type Candle } from '@app/core';
 
 import { MarketDataService } from '../market/market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { TrackingScanSymbolsService } from './tracking-scan-symbols.service';
 
 /**
- * Daily Supertrend(10,3) screener over every Binance USDT spot pair.
+ * Daily Supertrend(10,3) screener over the /tracking-coins watchlist.
  *
  * It is a pre-filter, not a signal: the list of coins whose D1 Supertrend is
  * bullish on the last *closed* daily candle goes to Telegram as plain names, so
@@ -26,8 +27,8 @@ const CANDLE_LIMIT = 200;
 const MIN_CLOSED_CANDLES = 60;
 
 /**
- * Symbols fetched in parallel. ~500 pairs × weight 2 stays far under Binance's
- * 6000/min IP budget; 8 at a time keeps the whole scan around 30-60s.
+ * Symbols fetched in parallel. A watchlist is a few dozen coins, so 8 at a time
+ * finishes in seconds and stays far under Binance's 6000/min IP budget.
  */
 const CONCURRENCY = 8;
 
@@ -55,7 +56,8 @@ export class SupertrendScanService {
 
   constructor(
     private readonly marketDataService: MarketDataService,
-    private readonly telegramService: TelegramService
+    private readonly telegramService: TelegramService,
+    private readonly scanSymbols: TrackingScanSymbolsService
   ) {}
 
   @Cron(SCAN_CRON, { timeZone: 'UTC' })
@@ -86,8 +88,8 @@ export class SupertrendScanService {
     const start = Date.now();
 
     try {
-      const symbols = await this.marketDataService.getSpotUsdtSymbols();
-      this.logger.log(`Supertrend scan (${trigger}) started — ${symbols.length} USDT spot pairs`);
+      const symbols = await this.scanSymbols.list();
+      this.logger.log(`Supertrend scan (${trigger}) started — ${symbols.length} watchlist coins`);
 
       const bullish: string[] = [];
       let scanned = 0;
@@ -161,7 +163,11 @@ function dropUnclosedCandle(candles: Candle[]): Candle[] {
 
 function formatScanMessage(bullish: string[], scanned: number, startedAt: Date): string {
   const day = startedAt.toISOString().slice(0, 10);
-  const header = `🟢 Supertrend(10,3) D1 Bullish — ${day} UTC\n${bullish.length}/${scanned} coins`;
+  const header = `🟢 Supertrend(10,3) D1 Bullish — ${day} UTC\n${bullish.length}/${scanned} coins theo dõi`;
+
+  if (scanned === 0) {
+    return `${header}\n\nDanh sách theo dõi đang trống — thêm coin ở trang /tracking-coins.`;
+  }
 
   if (bullish.length === 0) {
     return `${header}\n\nKhông có coin nào bullish.`;

@@ -7206,35 +7206,9 @@ a.metric-card--link:hover {
 .tc-live-price--down { color: #dc2626; }
 .tc-live-price--idle { color: var(--muted); }
 
-/* ── tracking coins: 30d % change ── */
-.tc-td--chg30 { min-width: 78px; }
-.tc-chg30 {
-  font-size: 0.85rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.tc-chg30--up   { color: #16a34a; }
-.tc-chg30--down { color: #dc2626; }
-.tc-chg30--flat { color: var(--muted); }
-
-/* ── tracking coins: stacked D1/H4 rows within an indicator column ── */
-.tc-tf-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.tc-tf-stack-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-}
-.tc-tf-stack-val {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-.tc-th--stacked { min-width: 108px; }
+/* ── tracking coins: 24h / 7d / 90d change columns ── */
+/* Colour + weight come from the shared .bg-chg--up/--down rules. */
+.tc-td--chg { min-width: 78px; }
 
 /* ── tracking coins: detail TF table ── */
 .tc-detail-tf-table {

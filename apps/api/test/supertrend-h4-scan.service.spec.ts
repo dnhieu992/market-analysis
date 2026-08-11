@@ -3,6 +3,7 @@ import type { Candle } from '@app/core';
 import { SupertrendH4ScanService } from '../src/modules/supertrend-scan/supertrend-h4-scan.service';
 import type { MarketDataService } from '../src/modules/market/market-data.service';
 import type { TelegramService } from '../src/modules/telegram/telegram.service';
+import type { TrackingScanSymbolsService } from '../src/modules/supertrend-scan/tracking-scan-symbols.service';
 
 const HOUR_4 = 4 * 60 * 60 * 1000;
 
@@ -63,12 +64,16 @@ function makeService(
 ): Stubs {
   const sent: { text: string; parseMode?: string }[] = [];
 
-  const marketDataService = {
-    getSpotUsdtSymbols: async () =>
+  // The scan reads the /tracking-coins watchlist, not the whole exchange.
+  const scanSymbols = {
+    list: async () =>
       Object.keys(candlesBySymbol).map((symbol) => ({
         symbol,
         baseAsset: symbol.replace('USDT', ''),
       })),
+  } as unknown as TrackingScanSymbolsService;
+
+  const marketDataService = {
     getCandles: async (symbol: string) => {
       const entry = candlesBySymbol[symbol];
       if (entry === 'throw' || entry === undefined) throw new Error('klines failed');
@@ -83,7 +88,10 @@ function makeService(
     },
   } as unknown as TelegramService;
 
-  return { service: new SupertrendH4ScanService(marketDataService, telegramService), sent };
+  return {
+    service: new SupertrendH4ScanService(marketDataService, telegramService, scanSymbols),
+    sent,
+  };
 }
 
 describe('SupertrendH4ScanService', () => {

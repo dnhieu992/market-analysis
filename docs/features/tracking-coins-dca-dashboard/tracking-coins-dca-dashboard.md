@@ -1,4 +1,12 @@
 ## Description
+> **Indicator columns dropped, price-change columns added (2026-08-11).** The table no longer shows
+> QQE / Trend (PA) / UT Bot / EMA / RSI / Vol× / 30d — those cells had been frozen "—" since the scan
+> was removed. In their place: **24h / 7d / 90d change %**, each column sortable, **no column sorted by
+> default** (rows keep the watchlist order). Only the table UI changed — the indicator components, the
+> detail modal and every stored field are untouched. The same watchlist is now also the universe of the
+> [D1](../supertrend-daily-scan/supertrend-daily-scan.md) and
+> [4H](../supertrend-h4-qqe-scan/supertrend-h4-qqe-scan.md) Supertrend scans.
+
 > **Portfolio link, detail tabs and row actions removed (2026-07-26, refactor step 3).** The page no
 > longer touches portfolios: the DCA position tab, the Activity logs tab, the prompt-generator drawer
 > and the ⚙ portfolio-config dialog are gone, the detail modal is a single read-only indicator sheet,
@@ -37,8 +45,26 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
    (max 50). Persisted as `dcaScore`, with `low20Pct`, on `TrackingCoinSignal`.~~ Logic kept in
    `@app/core`, no longer invoked.
 3. API `listCoins` derives the action `dcaZone` from stored `ema34Above` / `rsi` / `low20Pct`.
-4. The feed shows a **DCA** column (quality badge + zone tag) and defaults to sorting by `dcaScore` desc
-   so the safest-to-DCA coins surface first.
+4. ~~The feed shows a **DCA** column (quality badge + zone tag) and defaults to sorting by `dcaScore`
+   desc.~~ **Superseded 2026-08-11** — see "Table columns" below.
+
+## Table columns (2026-08-11)
+| Column | Source | Refresh |
+|---|---|---|
+| Coin | watchlist row + live price | price every 5s |
+| 24h % | Binance `GET /api/v3/ticker/24hr` **from the browser** — the exchange's own rolling 24h window, the same reading the Bitget Setup tab shows | 5s, same request as the live price |
+| 7d % | `GET /tracking-coins/price-changes` → current close vs the close 7 daily candles back | 5 min (server caches 5 min per coin) |
+| 90d % | same endpoint, 90 daily candles back | 5 min |
+| Actions | delete | — |
+
+Every column header is a sort button cycling **desc → asc → off**; "off" returns to the watchlist
+order, which is where the table starts — **nothing is sorted on load**. Only one column sorts at a
+time, and coins with no reading sink to the bottom.
+
+The 24h figure comes from the browser rather than the API on purpose: the page already polls Binance
+every 5s for the live price, and the 24hr ticker returns price *and* rolling change in that one
+request. 7d/90d come from the API instead, where a 5-minute cache is enough (they only move on a
+daily close) and the daily klines are already proxied server-side.
 
 ## Strategy & scoring info dialog
 The page header shows the plain title **"Tracking Coins"** (the old "· Gom đáy" suffix was
@@ -99,8 +125,13 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
 
 ## Edge Cases
 - **Micro-cap / unknown market cap** → 0 cap points → can never reach "An toàn" (high death risk).
-- **Missing signal** (never scanned) → the indicator cells show "—" and the detail modal says
-  "Chưa có dữ liệu chỉ báo cho coin này." (only the TradingView link is offered).
+- **Missing signal** (never scanned) → the detail modal says "Chưa có dữ liệu chỉ báo cho coin này."
+  (only the TradingView link is offered). Since 2026-08-11 the table itself no longer reads the signal.
+- **Coin with no Binance USDT pair** → the ticker returns nothing for it and the klines call fails →
+  all three change cells show "—"; nothing else breaks.
+- **Change fetch fails** → the columns keep their last-known values (the server falls back to the
+  cached reading, the client keeps the previous map) instead of blanking out.
+- **Fewer than 90 daily candles** (recent listing) → `90d %` is "—" while 24h/7d still render.
 - **Null RSI** in zone derivation defaults to 50 (treated as not-oversold → not GOM).
 - `PUT /setup` is still a **partial** update — only keys present in the body are written. It now
   carries the swing/daytrade risk fields only; `dcaPortfolioId` is rejected as unknown.
@@ -114,8 +145,9 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
   zone-derived values stay stale until the signal rebuild lands.
 
 ## Related Files (FE / BE / Worker)
-- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — the whole page: table + live prices +
-  QQE column, `CoinDetailModal`/`CoinOverview` (no tabs), `StrategyInfoDialog`, `AddCoinForm`,
+- `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — the whole page: table (Coin / 24h /
+  7d / 90d / Actions, all sortable, unsorted by default), `useLivePrices` (price + rolling 24h),
+  `CoinDetailModal`/`CoinOverview` (no tabs), `StrategyInfoDialog`, `AddCoinForm`,
   `ConfirmRemoveDialog` and the single delete action
 - `apps/web/src/_pages/tracking-coins-page/tracking-coins-page.tsx` — server page, fetches `listCoins`
 - `apps/web/src/app/tracking-coins/page.tsx` — route re-export
@@ -123,11 +155,11 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
   `.tc-activity*`, `.tt-btn--dca/--set/--ai` rules were deleted with the features; `.dcapos-table` is
   kept because the small-cap and meme radar tables still use it)
 - `apps/web/src/shared/api/types.ts` — `TrackingCoinRow` (no `dcaPortfolioId` / `dcaPosition`),
-  `TrackingCoinSetup`
-- `apps/web/src/shared/api/client.ts` — `fetchCoinKlines`, `fetchTrackingCoinSetup` /
-  `updateTrackingCoinSetup`
+  `TrackingCoinSetup`, `TrackingPriceChange`
+- `apps/web/src/shared/api/client.ts` — `fetchCoinKlines`, `fetchTrackingPriceChanges`,
+  `fetchTrackingCoinSetup` / `updateTrackingCoinSetup`
 - `apps/api/src/modules/tracking-coins/tracking-coins.controller.ts` — list / add / remove / klines /
-  setup only
+  setup / `GET /price-changes`
 - `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — stored-signal read + zone
   derivation; no portfolio, transaction or holding dependency
 - `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — providers: service +

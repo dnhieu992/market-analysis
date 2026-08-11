@@ -12,6 +12,22 @@ type CoinSetup = {
   daytradeMinRR: number | null;
 };
 
+/** Daily candles pulled for the 7d / 90d change columns (needs ≥ 91 back + today). */
+const CHANGE_KLINE_LIMIT = 95;
+/** Those changes move once a day — reuse a reading for 5 minutes. */
+const CHANGE_CACHE_TTL_MS = 5 * 60_000;
+
+/**
+ * Price change as a ratio (0.0123 = +1.23%) over 7 / 90 days, each comparing the
+ * current close with the close that many days back. The 24h column is not here:
+ * the page reads the exchange's own rolling 24h ticker alongside the live price.
+ */
+export type TrackingPriceChange = {
+  symbol: string;
+  change7d: number | null;
+  change90d: number | null;
+};
+
 export type TrackingCoinWithSignal = {
   id: string;
   symbol: string;
@@ -71,8 +87,53 @@ export type TrackingCoinWithSignal = {
 @Injectable()
 export class TrackingCoinsService {
   private readonly repo = createTrackingCoinsRepository();
+  private readonly changeCache = new Map<string, { at: number; value: TrackingPriceChange }>();
 
   constructor(private readonly binance: BinanceMarketDataService) {}
+
+  /**
+   * 7-day / 90-day price change per coin — the data behind the table's "7d" and
+   * "90d" columns. Cached ~5 min per coin (a daily close is all that moves them).
+   */
+  async getPriceChanges(symbols: string[]): Promise<TrackingPriceChange[]> {
+    const unique = [...new Set(symbols.map((s) => bareSymbol(s)).filter(Boolean))];
+    const out: TrackingPriceChange[] = [];
+    for (const bare of unique) {
+      out.push(await this.priceChangeFor(bare));
+    }
+    return out;
+  }
+
+  private async priceChangeFor(bare: string): Promise<TrackingPriceChange> {
+    const cached = this.changeCache.get(bare);
+    if (cached && Date.now() - cached.at < CHANGE_CACHE_TTL_MS) return cached.value;
+
+    try {
+      const klines = await this.binance.fetchKlines({
+        symbol: `${bare}USDT`,
+        timeframe: '1d' as never,
+        limit: CHANGE_KLINE_LIMIT,
+      });
+      const closes = klines.map((k) => parseFloat(k[4]));
+      const n = closes.length;
+      const current = n > 0 ? closes[n - 1]! : NaN;
+      // `d` days ago = the close `d` candles back from the current (forming) one.
+      const changeAgo = (d: number): number | null => {
+        const past = n > d ? closes[n - 1 - d] : undefined;
+        return past != null && past > 0 && Number.isFinite(current) ? (current - past) / past : null;
+      };
+      const value: TrackingPriceChange = {
+        symbol: bare,
+        change7d: changeAgo(7),
+        change90d: changeAgo(90),
+      };
+      this.changeCache.set(bare, { at: Date.now(), value });
+      return value;
+    } catch {
+      // Transient fetch failure: reuse the last-known reading, else blanks.
+      return cached?.value ?? { symbol: bare, change7d: null, change90d: null };
+    }
+  }
 
   /**
    * Proxy raw OHLCV klines from Binance (server-side, avoids browser CORS/geo
@@ -194,4 +255,9 @@ export class TrackingCoinsService {
       return [];
     }
   }
+}
+
+/** Coins are stored bare ("ADA"); accept either form and normalise to bare. */
+function bareSymbol(symbol: string): string {
+  return symbol.trim().toUpperCase().replace(/USDT$/, '');
 }

@@ -4,9 +4,10 @@ import { calcSupertrend, calculateQqe, type Candle } from '@app/core';
 
 import { MarketDataService } from '../market/market-data.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { TrackingScanSymbolsService } from './tracking-scan-symbols.service';
 
 /**
- * 4H screener over every Binance USDT spot pair, reading Supertrend(10,3) and
+ * 4H screener over the /tracking-coins watchlist, reading Supertrend(10,3) and
  * QQE on the last closed 4H candle.
  *
  * The daily sibling (`SupertrendScanService`) answers "which coins are in an
@@ -38,7 +39,7 @@ const CANDLE_LIMIT = 400;
 /** Below this many closed 4H candles both indicators still read their seed bar. */
 const MIN_CLOSED_CANDLES = 200;
 
-/** Same budget as the daily scan — ~470 pairs × weight 2 stays well under 6000/min. */
+/** Same budget as the daily scan — a watchlist of a few dozen coins, 8 at a time. */
 const CONCURRENCY = 8;
 
 /**
@@ -85,7 +86,8 @@ export class SupertrendH4ScanService {
 
   constructor(
     private readonly marketDataService: MarketDataService,
-    private readonly telegramService: TelegramService
+    private readonly telegramService: TelegramService,
+    private readonly scanSymbols: TrackingScanSymbolsService
   ) {}
 
   @Cron(SCAN_CRON, { timeZone: 'UTC' })
@@ -117,9 +119,9 @@ export class SupertrendH4ScanService {
     const start = Date.now();
 
     try {
-      const symbols = await this.marketDataService.getSpotUsdtSymbols();
+      const symbols = await this.scanSymbols.list();
       this.logger.log(
-        `4H Supertrend+QQE scan (${trigger}) started — ${symbols.length} USDT spot pairs`
+        `4H Supertrend+QQE scan (${trigger}) started — ${symbols.length} watchlist coins`
       );
 
       const supertrendBullish: string[] = [];
@@ -286,7 +288,13 @@ function formatScanMessage({
   scanned: number;
   startedAt: Date;
 }): string {
-  const sections: string[] = [`🟢 Scan H4 — nến đóng ${formatSlot(startedAt)}\nQuét ${scanned} coin`];
+  const sections: string[] = [
+    `🟢 Scan H4 — nến đóng ${formatSlot(startedAt)}\nQuét ${scanned} coin theo dõi`,
+  ];
+
+  if (scanned === 0) {
+    return `${sections[0]}\n\nDanh sách theo dõi đang trống — thêm coin ở trang /tracking-coins.`;
+  }
 
   // ── Supertrend, split into fresh flips and coins already in the trend.
   const holding = supertrendBullish.filter((coin) => !flipped.includes(coin));

@@ -1,26 +1,27 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
 import type { TrackingCoinRow, PaTrend } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
-import { QqeCell, bareQqeSymbol, type QqeMap } from '@web/widgets/bitget/qqe-cell';
 
 type Props = { initialCoins: TrackingCoinRow[] };
-type SortKey = 'mktcap' | 'rsi' | 'vol' | 'coin';
+
+/** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
+type SortCol = 'coin' | 'chg24h' | 'chg7d' | 'chg90d';
+type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
-// QQE readings only change on candle close — same slow cadence as the Bitget Setup tab.
-const QQE_REFRESH_MS = 60_000;
-/** Timeframes the QQE column reports on — the page's swing horizon, same order as the chart switcher. */
-const QQE_TFS = SWING_CHART_TIMEFRAMES;
-const QQE_TF_KEYS = QQE_TFS.map((t) => t.tf);
+/** 7d / 90d only move on a daily close — poll them rarely. */
+const CHANGE_REFRESH_MS = 5 * 60_000;
 
 /* ── live price hook ────────────────────────────────────────────── */
 
 type PriceMap = Map<string, number>;
 type PriceFlash = Map<string, 'up' | 'down'>;
+/** Rolling 24h change as a ratio (0.0123 = +1.23%), keyed by bare symbol. */
+type ChangeMap = Map<string, number>;
 
 function formatPrice(price: number): string {
   if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -29,8 +30,14 @@ function formatPrice(price: number): string {
   return price.toFixed(7);
 }
 
+/**
+ * Live price + rolling 24h change from Binance's 24hr ticker. One request serves
+ * both columns, and the 24h reading is the exchange's own rolling window — the
+ * same thing the Bitget Setup tab shows — not "change since yesterday's close".
+ */
 function useLivePrices(symbols: string[]) {
   const [prices, setPrices] = useState<PriceMap>(new Map());
+  const [changes24h, setChanges24h] = useState<ChangeMap>(new Map());
   const [flash, setFlash]   = useState<PriceFlash>(new Map());
   const prevRef = useRef<PriceMap>(new Map());
 
@@ -39,15 +46,18 @@ function useLivePrices(symbols: string[]) {
     const usdtSymbols = symbols.map(s => `${s}USDT`);
     const query = encodeURIComponent(JSON.stringify(usdtSymbols));
     try {
-      const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbols=${query}`);
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${query}`);
       if (!res.ok) return;
-      const data = await res.json() as { symbol: string; price: string }[];
+      const data = await res.json() as { symbol: string; lastPrice: string; priceChangePercent: string }[];
       const next: PriceMap = new Map();
+      const nextChanges: ChangeMap = new Map();
       const nextFlash: PriceFlash = new Map();
-      for (const { symbol, price } of data) {
+      for (const { symbol, lastPrice, priceChangePercent } of data) {
         const coin = symbol.replace(/USDT$/, '');
-        const val = parseFloat(price);
+        const val = parseFloat(lastPrice);
         next.set(coin, val);
+        const pct = parseFloat(priceChangePercent);
+        if (Number.isFinite(pct)) nextChanges.set(coin, pct / 100);
         const prev = prevRef.current.get(coin);
         if (prev !== undefined && prev !== val) {
           nextFlash.set(coin, val > prev ? 'up' : 'down');
@@ -55,6 +65,7 @@ function useLivePrices(symbols: string[]) {
       }
       prevRef.current = next;
       setPrices(next);
+      setChanges24h(nextChanges);
       setFlash(nextFlash);
       // clear flash after 600ms
       if (nextFlash.size > 0) {
@@ -69,7 +80,7 @@ function useLivePrices(symbols: string[]) {
     return () => clearInterval(id);
   }, [fetchPrices]);
 
-  return { prices, flash };
+  return { prices, changes24h, flash };
 }
 
 /* ── market cap formatter ───────────────────────────────────────── */
@@ -79,27 +90,6 @@ function fmtMarketCap(cap: number | null): string | null {
   if (cap >= 1_000_000_000) return `$${(cap / 1_000_000_000).toFixed(1)}B`;
   if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(1)}M`;
   return `$${cap.toLocaleString()}`;
-}
-
-/* ── shared: W/D1/H4 stacked layout ─────────────────────────────── */
-
-function TfStack({ w, d1, h4 }: { w: ReactNode; d1: ReactNode; h4: ReactNode }) {
-  return (
-    <div className="tc-tf-stack">
-      <div className="tc-tf-stack-row">
-        <span className="tc-tf-label">W</span>
-        <span className="tc-tf-stack-val">{w}</span>
-      </div>
-      <div className="tc-tf-stack-row">
-        <span className="tc-tf-label">D1</span>
-        <span className="tc-tf-stack-val">{d1}</span>
-      </div>
-      <div className="tc-tf-stack-row">
-        <span className="tc-tf-label">H4</span>
-        <span className="tc-tf-stack-val">{h4}</span>
-      </div>
-    </div>
-  );
 }
 
 /* ── UT Bot badge ───────────────────────────────────────────────── */
@@ -162,25 +152,43 @@ function TrendBadge({ trend }: { trend: PaTrend }) {
   return <span className={m.cls} title={m.desc}>{m.label}</span>;
 }
 
-/* ── 30d change ─────────────────────────────────────────────────── */
+/* ── change columns (24h / 7d / 90d) ────────────────────────────── */
 
-/** % change between the first and last close of the 30-day series (null when unusable). */
-function change30dPct(prices: number[]): number | null {
-  if (prices.length < 2) return null;
-  const first = prices[0]!;
-  const last = prices[prices.length - 1]!;
-  if (!Number.isFinite(first) || !Number.isFinite(last) || first === 0) return null;
-  return ((last - first) / first) * 100;
+/** Change ratio (0.0123) → signed percent string, same format as the Bitget Setup tab. */
+function fmtChange(ratio: number | null | undefined): string {
+  if (ratio == null || !Number.isFinite(ratio)) return '—';
+  const pct = ratio * 100;
+  return `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`;
 }
 
-function Change30d({ prices }: { prices: number[] }) {
-  const pct = change30dPct(prices);
-  if (pct === null) return <span className="scr-muted">—</span>;
-  const dir = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+/** Up/down colour class for a change ratio (empty when missing / flat). */
+function chgClass(ratio: number | null | undefined): string {
+  if (ratio == null || !Number.isFinite(ratio)) return '';
+  return ratio > 0 ? 'bg-chg--up' : ratio < 0 ? 'bg-chg--down' : '';
+}
+
+/**
+ * A sortable column header — cycles desc → asc → off. "Off" returns the table to
+ * the watchlist's own order, which is where it starts: no column sorts by default.
+ */
+function SortHeader({ label, col, sort, onSort, title }: {
+  label: string;
+  col: SortCol;
+  sort: Sort | null;
+  onSort: (col: SortCol) => void;
+  title: string;
+}) {
+  const dir = sort?.col === col ? sort.dir : null;
   return (
-    <span className={`tc-chg30 tc-chg30--${dir}`} title={`Thay đổi 30 ngày: ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`}>
-      {pct >= 0 ? '+' : '−'}{Math.abs(pct).toFixed(1)}%
-    </span>
+    <th
+      className="scr-th scr-th--num bg-th-sort"
+      aria-sort={dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : 'none'}
+    >
+      <button type="button" className="bg-th-sort-btn" onClick={() => onSort(col)} title={title}>
+        {label}
+        <span className="bg-th-sort-ind">{dir === 'desc' ? '▼' : dir === 'asc' ? '▲' : '↕'}</span>
+      </button>
+    </th>
   );
 }
 
@@ -438,9 +446,10 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
 export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [coins, setCoins] = useState<TrackingCoinRow[]>(initialCoins);
   const symbols = useMemo(() => coins.map(c => c.symbol), [coins]);
-  const { prices, flash } = useLivePrices(symbols);
+  const { prices, changes24h, flash } = useLivePrices(symbols);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('coin');
+  // No column sorts on load — rows keep the watchlist order until a header is clicked.
+  const [sort, setSort] = useState<Sort | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
@@ -449,28 +458,27 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
   const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  const [qqe, setQqe] = useState<QqeMap>({});
+  // 7d / 90d change per bare symbol, from the API (Binance daily closes).
+  const [changes, setChanges] = useState<Record<string, { change7d: number | null; change90d: number | null }>>({});
 
-  useEffect(() => { setPage(1); }, [nameFilter, sortKey]);
+  useEffect(() => { setPage(1); }, [nameFilter, sort]);
 
-  // QQE Signals (colinmck) per coin — the same endpoint/column the Bitget Setup tab uses,
-  // narrowed to this page's swing horizon (H4/D1/W1) so ~40 coins stay one cheap scan.
   useEffect(() => {
     if (symbols.length === 0) return;
     let cancelled = false;
     const load = async () => {
       try {
-        const rows = await createApiClient().fetchBitgetQqeSignals(symbols, QQE_TF_KEYS);
+        const rows = await createApiClient().fetchTrackingPriceChanges(symbols);
         if (cancelled) return;
-        setQqe((prev) => {
+        setChanges((prev) => {
           const next = { ...prev };
-          for (const r of rows) next[bareQqeSymbol(r.symbol)] = r.signals;
+          for (const r of rows) next[r.symbol] = { change7d: r.change7d, change90d: r.change90d };
           return next;
         });
-      } catch { /* non-fatal: the QQE column keeps its last-known badges */ }
+      } catch { /* non-fatal: the 7d/90d columns keep their last-known values */ }
     };
     void load();
-    const id = setInterval(() => void load(), QQE_REFRESH_MS);
+    const id = setInterval(() => void load(), CHANGE_REFRESH_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [symbols]);
 
@@ -487,18 +495,50 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     }
   }
 
+  /**
+   * Cycle a column's sort: desc → asc → off. "Off" drops back to the watchlist
+   * order rather than another column, and clicking a different header starts
+   * fresh at desc, so only one column ever sorts at a time.
+   */
+  const cycleSort = useCallback((col: SortCol) => {
+    // Names read best A→Z first, changes best-performer first.
+    const first: 'asc' | 'desc' = col === 'coin' ? 'asc' : 'desc';
+    const second: 'asc' | 'desc' = first === 'asc' ? 'desc' : 'asc';
+    setSort((prev) => {
+      if (!prev || prev.col !== col) return { col, dir: first };
+      return prev.dir === first ? { col, dir: second } : null;
+    });
+  }, []);
+
+  /** Numeric sort value for a change column — null sinks the row to the bottom. */
+  const changeValue = useCallback(
+    (symbol: string, col: SortCol): number | null => {
+      const v =
+        col === 'chg24h' ? changes24h.get(symbol) :
+        col === 'chg7d'  ? changes[symbol]?.change7d :
+                           changes[symbol]?.change90d;
+      return v == null || !Number.isFinite(v) ? null : v;
+    },
+    [changes24h, changes],
+  );
+
   // Name/symbol search is the only filter left (2026-07-26 — the zone / quality /
   // trend / holding chips were dropped with the signal refactor).
   const sorted = useMemo(() => {
     const q = nameFilter.trim().toUpperCase();
     const filtered = coins.filter((c) => !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q));
+    if (!sort) return filtered;
+    if (sort.col === 'coin') {
+      return [...filtered].sort((a, b) =>
+        sort.dir === 'asc' ? a.symbol.localeCompare(b.symbol) : b.symbol.localeCompare(a.symbol));
+    }
+    const miss = sort.dir === 'desc' ? -Infinity : Infinity;
     return [...filtered].sort((a, b) => {
-      if (sortKey === 'mktcap') return (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity);
-      if (sortKey === 'rsi') return (b.signal?.rsi ?? 0) - (a.signal?.rsi ?? 0);
-      if (sortKey === 'vol') return (b.signal?.volMultiplier ?? 0) - (a.signal?.volMultiplier ?? 0);
-      return a.symbol.localeCompare(b.symbol);
+      const va = changeValue(a.symbol, sort.col) ?? miss;
+      const vb = changeValue(b.symbol, sort.col) ?? miss;
+      return sort.dir === 'desc' ? vb - va : va - vb;
     });
-  }, [coins, nameFilter, sortKey]);
+  }, [coins, nameFilter, sort, changeValue]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -580,31 +620,24 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           <table className="scr-table">
             <thead>
               <tr>
-                <th className="scr-th scr-th--coin" onClick={() => setSortKey('coin')}>
-                  Coin {sortKey === 'coin' && '↑'}
+                <th className="scr-th scr-th--coin bg-th-sort" aria-sort={sort?.col === 'coin' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" className="bg-th-sort-btn" onClick={() => cycleSort('coin')} title="Sắp xếp theo tên coin">
+                    Coin
+                    <span className="bg-th-sort-ind">
+                      {sort?.col === 'coin' ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}
+                    </span>
+                  </button>
                 </th>
-                <th className="scr-th" title="Tín hiệu QQE Signals (colinmck) trên nến đã đóng — khung H4/D1/W1, xanh = Long, đỏ = Short">
-                  QQE
-                </th>
-                <th className="scr-th tc-th--stacked">Trend (PA)</th>
-                <th className="scr-th tc-th--stacked">UT Bot</th>
-                <th className="scr-th tc-th--stacked">EMA</th>
-                <th className="scr-th tc-th--stacked" onClick={() => setSortKey('rsi')}>
-                  RSI {sortKey === 'rsi' && '↓'}
-                </th>
-                <th className="scr-th tc-th--stacked" onClick={() => setSortKey('vol')}>
-                  Vol× {sortKey === 'vol' && '↓'}
-                </th>
-                <th className="scr-th scr-th--num" title="Thay đổi giá 30 ngày (close đầu → close cuối của chuỗi 30 nến D1)">
-                  30d %
-                </th>
+                <SortHeader label="24h %" col="chg24h" sort={sort} onSort={cycleSort} title="Thay đổi 24 giờ (rolling, ticker Binance)" />
+                <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
+                <SortHeader label="90d %" col="chg90d" sort={sort} onSort={cycleSort} title="Thay đổi 90 ngày (so với close 90 nến D1 trước)" />
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="scr-empty">
+                  <td colSpan={5} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -614,7 +647,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 </tr>
               )}
               {paginated.map((coin) => {
-                const sig = coin.signal;
+                const chg24h = changes24h.get(coin.symbol) ?? null;
+                const chg = changes[coin.symbol];
                 return (
                   <tr key={coin.id} className="scr-row" onClick={() => setSelectedCoin(coin)} style={{ cursor: 'pointer' }}>
                     <td className="scr-td scr-td--coin">
@@ -637,63 +671,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </span>
                       )}
                     </td>
-                    {/* QQE Signals — live flips only (same cell as the Bitget Setup tab) */}
-                    <td className="scr-td bg-qqe-cell">
-                      <QqeCell signals={qqe[bareQqeSymbol(coin.symbol)]} timeframes={QQE_TFS} />
-                    </td>
-                    {/* Trend W / D1 / H4 */}
-                    <td className="scr-td">
-                      {sig
-                        ? <TfStack
-                            w={<TrendBadge trend={sig.weekTrend} />}
-                            d1={<TrendBadge trend={sig.trend} />}
-                            h4={<TrendBadge trend={sig.h4Trend} />}
-                          />
-                        : <span className="scr-muted">—</span>}
-                    </td>
-                    {/* UT Bot W / D1 / H4 */}
-                    <td className="scr-td">
-                      {sig
-                        ? <TfStack
-                            w={<UtBotBadge bullish={sig.utBotW1Bullish} />}
-                            d1={<UtBotBadge bullish={sig.utBotD1Bullish} />}
-                            h4={<UtBotBadge bullish={sig.utBotH4Bullish} />}
-                          />
-                        : <span className="scr-muted">—</span>}
-                    </td>
-                    {/* EMA W / D1 / H4 */}
-                    <td className="scr-td">
-                      {sig
-                        ? <TfStack
-                            w={<EmaPips e34={sig.wEma34Above} e89={sig.wEma89Above} e200={sig.wEma200Above} />}
-                            d1={<EmaPips e34={sig.ema34Above} e89={sig.ema89Above} e200={sig.ema200Above} />}
-                            h4={<EmaPips e34={sig.h4Ema34Above} e89={sig.h4Ema89Above} e200={sig.h4Ema200Above} />}
-                          />
-                        : <span className="scr-muted">—</span>}
-                    </td>
-                    {/* RSI W / D1 / H4 */}
-                    <td className="scr-td">
-                      {sig
-                        ? <TfStack
-                            w={<RsiCell rsi={sig.wRsi} />}
-                            d1={<RsiCell rsi={sig.rsi} />}
-                            h4={<RsiCell rsi={sig.h4Rsi} />}
-                          />
-                        : <span className="scr-muted">—</span>}
-                    </td>
-                    {/* Vol W / D1 / H4 */}
-                    <td className="scr-td">
-                      {sig
-                        ? <TfStack
-                            w={<VolCell vol={sig.wVolMultiplier} />}
-                            d1={<VolCell vol={sig.volMultiplier} />}
-                            h4={<VolCell vol={sig.h4VolMultiplier} />}
-                          />
-                        : <span className="scr-muted">—</span>}
-                    </td>
-                    <td className="scr-td scr-td--num tc-td--chg30">
-                      <Change30d prices={sig?.sparkline ?? []} />
-                    </td>
+                    <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg24h)}`}>{fmtChange(chg24h)}</td>
+                    <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change7d)}`}>{fmtChange(chg?.change7d)}</td>
+                    <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change90d)}`}>{fmtChange(chg?.change90d)}</td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>

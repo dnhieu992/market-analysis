@@ -1,6 +1,6 @@
 ## Description
 
-Bộ lọc khung **4H**, chạy song song với [scan D1](../supertrend-daily-scan/supertrend-daily-scan.md): quét **toàn bộ cặp spot USDT của Binance** và đọc **hai indicator độc lập** trên nến 4H đã đóng gần nhất:
+Bộ lọc khung **4H**, chạy song song với [scan D1](../supertrend-daily-scan/supertrend-daily-scan.md): quét **các coin trong danh sách `/tracking-coins`** và đọc **hai indicator độc lập** trên nến 4H đã đóng gần nhất:
 
 1. **Supertrend(10, 3)** — bullish khi đường Supertrend nằm dưới giá.
 2. **QQE** (QQE Signals của colinmck, `14 / 5 / 4.238`) — bullish khi đường trailing nằm **dưới** `rsiMa`.
@@ -20,7 +20,7 @@ Hai đường kích hoạt:
 ## Main Flow
 
 1. Trigger: cron `0 5 */4 * * *` (UTC) trong `SupertrendH4ScanService`, hoặc `POST /supertrend-scan/run-h4` từ nút `Scan`.
-2. `MarketDataService.getSpotUsdtSymbols()` — cặp `status = TRADING`, `quoteAsset = USDT`, quyền `SPOT`, bỏ base stablecoin/fiat. Thực tế ≈ 470 cặp.
+2. `TrackingScanSymbolsService.list()` — đọc bảng `TrackingCoin` (danh sách theo dõi ở trang `/tracking-coins`), chuẩn hoá về symbol bare rồi ghép thành cặp Binance (`ADA` → `ADAUSDT`), khử trùng lặp. Trước 2026-08-11 bước này quét toàn bộ ≈470 cặp spot USDT.
 3. Với mỗi symbol (8 symbol song song): lấy **400 nến `4h`**, **bỏ nến đang chạy** (`closeTime > now`).
 4. Coin có dưới **200 nến 4H đã đóng** bị bỏ qua — QQE double-smooth bằng EMA 27 kỳ nên cần warm-up dài hơn nhiều so với ATR 10 kỳ.
 5. `calcSupertrend(candles, 10, 3)` → đọc **hai** bar cuối: `supertrend = last.bullish`, `flipped = last.bullish && !previous.bullish`.
@@ -28,25 +28,25 @@ Hai đường kích hoạt:
 7. Gom base asset vào 4 danh sách (`supertrendBullish`, `flipped`, `qqeBullish`, `bullish` = giao), sort A→Z, gửi **một** tin Telegram (`parse_mode: HTML`):
    ```
    🟢 Scan H4 — nến đóng 2026-08-10 12:00 UTC
-   Quét 468 coin
+   Quét 40 coin theo dõi
 
-   ━━ SUPERTREND(10,3) BULLISH (124) ━━
+   ━━ SUPERTREND(10,3) BULLISH (12) ━━
    🔥 Vừa đảo chiều bearish → bullish (3):
    ARB, LINK, SOL          ← in đậm
-   Đang bullish (121):
+   Đang bullish (9):
    AAVE, ADA, ATOM, ...
 
-   ━━ QQE BULLISH (86) ━━
+   ━━ QQE BULLISH (8) ━━
    AAVE, ARB, BNB, BTC, ...
 
-   ━━ CẢ HAI (37) ━━
+   ━━ CẢ HAI (5) ━━
    🔥 ARB, LINK, SOL       ← in đậm
-   AAVE, BNB, BTC, ...
+   AAVE, BNB, ...
    ```
    Header ghi **mốc nến đã đóng** (làm tròn xuống bội số 4H) chứ không phải giờ chạy, nên scan tay lúc 09:37 và cron lúc 08:05 cùng ghi `08:00 UTC` — đúng nến cả hai đã đọc.
 8. Trả về `{ scanned, supertrendBullish[], flipped[], qqeBullish[], bullish[], skipped, failed, telegramSent, durationMs }`. Nút `Scan` chỉ dùng con số để hiện dòng trạng thái.
 
-Lượt quét mất ~15–30 giây (nặng hơn D1 vì mỗi coin tải 400 nến thay vì 200).
+Với vài chục coin theo dõi lượt quét xong trong vài giây; vẫn nặng hơn D1 vì mỗi coin tải 400 nến thay vì 200 (bản quét toàn sàn trước đây mất ~15–30 giây).
 
 ## Edge Cases
 
@@ -56,10 +56,12 @@ Lượt quét mất ~15–30 giây (nặng hơn D1 vì mỗi coin tải 400 nế
 - **`flipped` ở nến warm-up** — bar warm-up của Supertrend có `bullish: false`, nên coin quá ít lịch sử có thể bị đọc nhầm là "vừa flip"; ngưỡng 200 nến đã chặn trường hợp này từ trước.
 - **Coin mới list** (< 200 nến 4H) — bỏ qua, đếm vào `skipped`, không báo lỗi.
 - **Một symbol lỗi klines** — bắt riêng từng symbol, đếm vào `failed`, lượt quét vẫn hoàn tất.
-- **Rate limit Binance** — 8 request song song; khi bấm `Scan` thì hai scan chạy cùng lúc ⇒ 16 request song song, ~940 × 2 weight/phút, vẫn dư so với hạn mức 6000/phút.
+- **Rate limit Binance** — 8 request song song; khi bấm `Scan` thì hai scan chạy cùng lúc ⇒ 16 request song song trên vài chục coin, dư xa so với hạn mức 6000/phút.
 - **Chunk cắt giữa thẻ HTML** — danh sách coin được xuống dòng mỗi 12 coin và `<b>` chỉ bọc trong **một dòng**; `TelegramService` cắt khúc tại ký tự xuống dòng nên không bao giờ cắt đôi thẻ. Ba mục cộng lại có thể vượt 4000 ký tự trong regime bullish (≈600 tên coin) — khi đó tin tự tách làm hai, vẫn đúng chỗ xuống dòng.
 - **Telegram lỗi / thiếu token** — không throw; `telegramSent: false`, log warn.
 - **Không coin nào thỏa** — vẫn gửi tin và vẫn in **đủ ba mục** với `(0)` + "Không có coin nào.", để một mục trống không bị đọc nhầm thành lỗi scan.
+- **Danh sách theo dõi trống** — `scanned = 0`, tin Telegram thay ba mục bằng một dòng "Danh sách theo dõi đang trống — thêm coin ở trang /tracking-coins."
+- **Coin theo dõi không có cặp USDT trên Binance** — klines lỗi, đếm vào `failed`, lượt quét vẫn hoàn tất.
 
 ## Related Files (FE / BE / Worker)
 
@@ -70,7 +72,9 @@ Lượt quét mất ~15–30 giây (nặng hơn D1 vì mỗi coin tải 400 nế
 - `apps/api/src/modules/telegram/telegram.service.ts` — thêm `sendMessage(text, { parseMode })` để in đậm bằng HTML
 - `packages/core/src/indicators/supertrend.ts` — `calcSupertrend` (đọc 2 bar cuối để phát hiện flip)
 - `packages/core/src/indicators/qqe.ts` — `calculateQqe` (`rsiMa` / `signal` / `cross`)
-- `apps/api/src/modules/market/market-data.service.ts` — `getSpotUsdtSymbols()`, `getCandles(symbol, '4h', …)`
+- `apps/api/src/modules/supertrend-scan/tracking-scan-symbols.service.ts` — nguồn symbol: danh sách `/tracking-coins` → cặp Binance (dùng chung với scan D1)
+- `apps/api/src/modules/market/market-data.service.ts` — `getCandles(symbol, '4h', …)`
+- `packages/db/src/repositories/tracking-coins.repository.ts` — `findAllCoins()`
 - `apps/web/src/widgets/portfolios-list/portfolios-list.tsx` — nút `Scan` chạy cả hai scan + hai dòng trạng thái
 - `apps/web/src/shared/api/client.ts` — `runSupertrendH4Scan()`
 - `apps/web/src/shared/api/types.ts` — `SupertrendH4ScanResult`

@@ -1,6 +1,6 @@
 ## Description
 
-Bộ lọc thô hàng ngày: quét **toàn bộ cặp spot USDT của Binance**, tính **Supertrend(10, 3)** trên khung **D1** (nến đã đóng) và gửi **danh sách tên coin đang bullish** qua Telegram. Mục đích là thu hẹp số chart phải mở tay — không phải tín hiệu vào lệnh.
+Bộ lọc thô hàng ngày: quét **các coin trong danh sách `/tracking-coins`**, tính **Supertrend(10, 3)** trên khung **D1** (nến đã đóng) và gửi **danh sách tên coin đang bullish** qua Telegram. Mục đích là thu hẹp số chart phải mở tay — không phải tín hiệu vào lệnh.
 
 Kết quả **không lưu DB và không hiển thị trên dashboard**. Chỉ có Telegram.
 
@@ -11,20 +11,20 @@ Hai đường kích hoạt:
 ## Main Flow
 
 1. Trigger: cron `0 10 0 * * *` (UTC) trong `SupertrendScanService`, hoặc `POST /supertrend-scan/run` từ nút `Scan`.
-2. `MarketDataService.getSpotUsdtSymbols()` gọi `GET /api/v3/exchangeInfo`, giữ lại cặp `status = TRADING`, `quoteAsset = USDT`, có quyền `SPOT`, bỏ các base là stablecoin/fiat (`USDC`, `FDUSD`, `FRAX`, `RLUSD`, `EUR`, …). Thực tế ≈ 470 cặp.
+2. `TrackingScanSymbolsService.list()` đọc bảng `TrackingCoin` (danh sách theo dõi ở trang `/tracking-coins`), chuẩn hoá symbol về dạng bare rồi ghép thành cặp Binance (`ADA` → `ADAUSDT`), khử trùng lặp. Trước 2026-08-11 bước này quét toàn bộ ≈470 cặp spot USDT của Binance.
 3. Với mỗi symbol (8 symbol song song): lấy 200 nến `1d`, **bỏ nến đang chạy** (`closeTime > now`).
 4. Coin có dưới 60 nến D1 đã đóng bị bỏ qua — quá ít lịch sử thì hướng Supertrend chỉ phản ánh bar khởi tạo.
 5. `isSupertrendBullish(candles, 10, 3)` từ `@app/core` — thuật toán bám sát `ta.supertrend` của Pine Script nên hướng trùng với chart TradingView.
 6. Gom base asset bullish, sort A→Z, gửi Telegram dạng:
    ```
    🟢 Supertrend(10,3) D1 Bullish — 2026-08-05 UTC
-   124/410 coins
+   12/40 coins theo dõi
 
    1INCH, AAVE, ADA, ...
    ```
 7. Trả về `{ scanned, bullish[], skipped, failed, telegramSent, durationMs }`. Nút `Scan` chỉ dùng con số để hiện một dòng trạng thái rồi thôi.
 
-Toàn bộ lượt quét mất ~12–20 giây (đo thực tế: 469 cặp, 12s, 0 lỗi).
+Với vài chục coin theo dõi, lượt quét xong trong vài giây (bản quét toàn sàn trước đây mất ~12–20 giây cho 469 cặp).
 
 ## Edge Cases
 
@@ -32,10 +32,12 @@ Toàn bộ lượt quét mất ~12–20 giây (đo thực tế: 469 cặp, 12s, 
 - **Nến chưa đóng** — luôn lọc theo `closeTime <= now`, nên chạy lúc 00:10 UTC hay giữa ngày đều đọc cùng một nến D1 đã đóng.
 - **Coin mới list** (< 60 nến D1) — bỏ qua, đếm vào `skipped`, không báo lỗi.
 - **Một symbol lỗi klines** — bắt riêng từng symbol, đếm vào `failed`, lượt quét vẫn hoàn tất.
-- **Rate limit Binance** — 8 request song song, ~470 cặp × weight 2 ≈ 940/6000 mỗi phút, dư an toàn.
+- **Rate limit Binance** — 8 request song song, vài chục cặp × weight 2, dư an toàn.
 - **Telegram lỗi / thiếu token** — không throw; `telegramSent: false`, log warn, UI báo "gửi Telegram thất bại".
 - **Danh sách quá dài** — `TelegramService` tự cắt khúc ở 4000 ký tự (list ~124 coin ≈ 800 ký tự nên hiếm khi chạm).
 - **Không coin nào bullish** — vẫn gửi tin, nội dung "Không có coin nào bullish."
+- **Danh sách theo dõi trống** — `scanned = 0`, tin Telegram nói rõ "Danh sách theo dõi đang trống — thêm coin ở trang /tracking-coins."
+- **Coin theo dõi không có cặp USDT trên Binance** — klines lỗi, đếm vào `failed`, lượt quét vẫn hoàn tất.
 
 ## Related Files (FE / BE / Worker)
 
@@ -47,8 +49,8 @@ Toàn bộ lượt quét mất ~12–20 giây (đo thực tế: 469 cặp, 12s, 
 - `apps/api/src/modules/supertrend-scan/supertrend-scan.module.ts` — module wiring
 - `apps/api/src/modules/telegram/telegram.service.ts` — gửi Telegram phía API (chunk 4000 ký tự, không throw)
 - `apps/api/src/modules/telegram/telegram.module.ts` — module wiring
-- `apps/api/src/modules/market/binance-market-data.service.ts` — `fetchExchangeInfoSymbols()`
-- `apps/api/src/modules/market/market-data.service.ts` — `getSpotUsdtSymbols()` + danh sách stablecoin loại trừ
+- `apps/api/src/modules/supertrend-scan/tracking-scan-symbols.service.ts` — nguồn symbol: danh sách `/tracking-coins` → cặp Binance
+- `packages/db/src/repositories/tracking-coins.repository.ts` — `findAllCoins()`
 - `apps/api/src/app.module.ts` — đăng ký `SupertrendScanModule`
 - `apps/web/src/widgets/portfolios-list/portfolios-list.tsx` — nút `Scan` + dòng trạng thái
 - `apps/web/src/shared/api/client.ts` — `runSupertrendScan()`
