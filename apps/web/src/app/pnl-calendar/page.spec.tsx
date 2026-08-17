@@ -38,6 +38,25 @@ const closedOrder = {
   signalId: null,
 };
 
+/** Same wire shape as a Bitget/MEXC closed trade — one mapper covers all three. */
+const okxTrade = {
+  positionId: 'okx-1',
+  tradeKey: 'SOLUSDT-long-x',
+  status: 'closed',
+  symbol: 'SOLUSDT',
+  holdSide: 'long',
+  marginMode: 'cross',
+  openAvgPrice: 100,
+  closeAvgPrice: 105,
+  size: 10,
+  netProfit: 50,
+  netProfitPct: 5,
+  totalFunding: 0,
+  feesUsd: 0,
+  openedAt: openedAt.toISOString(),
+  closedAt: closedAt.toISOString(),
+};
+
 describe('P&L hub page', () => {
   beforeEach(() => {
     mockedCreateApiClient.mockReturnValue({
@@ -51,6 +70,7 @@ describe('P&L hub page', () => {
       }),
       fetchBitgetHistory: async () => ({ trades: [] }),
       fetchMexcHistory: async () => ({ trades: [] }),
+      fetchOkxHistory: async () => ({ trades: [] }),
       fetchPortfolioPnlCalendar: async () => ({
         daily: [{ date: closedAt.toISOString().slice(0, 10), realizedPnl: 120 }],
         byCoin: [{ coinId: 'ETH', realizedPnl: 120 }],
@@ -77,6 +97,30 @@ describe('P&L hub page', () => {
     expect(portfolio).toContain('All-time Realized P&amp;L');
   });
 
+  // The overview's Total Profit / Loss card sums Bitget + MEXC + OKX; this page
+  // used to fold in only the first two, so the same book read ~0.90 lower here.
+  it('counts OKX closed trades in the trading total', async () => {
+    mockedCreateApiClient.mockReturnValue({
+      fetchOrders: async () => ({
+        data: [closedOrder],
+        total: 1,
+        page: 1,
+        pageSize: 1000,
+        closedPnlSum: 300,
+        openOrders: [],
+      }),
+      fetchBitgetHistory: async () => ({ trades: [] }),
+      fetchMexcHistory: async () => ({ trades: [] }),
+      fetchOkxHistory: async () => ({ trades: [okxTrade] }),
+      fetchPortfolioPnlCalendar: async () => ({ daily: [], byCoin: [] }),
+    } as unknown as ReturnType<typeof createApiClient>);
+
+    const markup = renderToStaticMarkup(await Page({ searchParams: {} }));
+
+    // 300 (manual order) + 50 (OKX), with no portfolio leg.
+    expect(markup).toContain('+350.00 USDT');
+  });
+
   it('falls back to the overview tab for an unknown ?tab=', async () => {
     const markup = renderToStaticMarkup(await Page({ searchParams: { tab: 'nope' } }));
 
@@ -95,6 +139,7 @@ describe('P&L hub page', () => {
       }),
       fetchBitgetHistory: async () => ({ trades: [] }),
       fetchMexcHistory: async () => ({ trades: [] }),
+      fetchOkxHistory: async () => ({ trades: [] }),
       fetchPortfolioPnlCalendar: async () => {
         throw new Error('api down');
       },
