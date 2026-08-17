@@ -208,7 +208,9 @@
       "Bash(npx --prefix /root/market-analysis ts-node --compiler-options '{\"module\":\"commonjs\",\"target\":\"es2020\",\"esModuleInterop\":true}' verify-supertrend.ts)",
       "Bash(echo \"EXIT=$?\")",
       "Bash(echo \"TSC_EXIT=$?\")",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "WebFetch(domain:www.coinglass.com)",
+      "WebFetch(domain:bingx-api.github.io)"
     ],
     "defaultMode": "acceptEdits"
   }
