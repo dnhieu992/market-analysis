@@ -1,14 +1,14 @@
 ## Description
 Tab **Lịch sử & PnL** trong trang gộp `/bitget` là **nhật ký lệnh đã đóng + realized PnL** của tài khoản Bitget USDT-M. Vì Bitget chỉ trả về lịch sử vị thế trong khoảng **~90 ngày gần nhất**, worker định kỳ **mirror** dữ liệu đó vào bảng `bitget_closed_positions` để có lịch sử vĩnh viễn (không mất khi quá 90 ngày) và thống kê tổng hợp: tổng PnL ròng, win rate, PnL trung bình/lệnh, lãi/lỗ lớn nhất.
 
-**Mốc bắt đầu (history start):** thay vì backfill toàn bộ ~90 ngày, nhật ký chỉ **bắt đầu ghi từ ngày mở vị thế đang-live sớm nhất**. Lần sync đầu, worker đọc các vị thế đang mở, lấy `cTime` nhỏ nhất làm mốc, **lưu cố định** vào `bitget_sync_state.historyStartAt` và **xoá các row đóng trước mốc đó**. Từ đó về sau chỉ ghi thêm, không backfill lịch sử cũ hơn mốc.
+**Mốc bắt đầu (history start):** thay vì backfill toàn bộ ~90 ngày, nhật ký chỉ **bắt đầu ghi từ ngày mở vị thế đang-live sớm nhất**. Lần sync đầu, worker đọc các vị thế đang mở, lấy `cTime` nhỏ nhất làm mốc, **lưu cố định** vào `bitget_sync_state.historyStartAt` và **xoá các row đóng trước mốc đó** (kèm cả journal của chúng). Tài khoản đang flat lúc golive thì mốc là **`now`** — không có vị thế nào đang mở thì cũng không có gì cũ đáng giữ. Từ đó về sau chỉ ghi thêm, không backfill lịch sử cũ hơn mốc.
 
 Read-only: trang chỉ đọc DB, không đặt/đóng lệnh. Nguồn dữ liệu là `GET /api/v2/mix/position/history-position` (vị thế đã đóng, không phải từng fill).
 
 ## Main Flow
 1. **Worker sync (nguồn ghi):** `BitgetHistoryService.sync()` chạy theo cron **mỗi 15 giây** (`SchedulerService.runBitgetHistorySync`) + một lần **catch-up khi worker khởi động** (`onModuleInit`, trễ 10s). Chu kỳ dưới 30s (ghép với web tự làm mới ~15s) đảm bảo một lệnh vừa đóng hiện trong tab lịch sử trong ~30s thay vì chờ vài phút; mỗi lần chạy nhẹ (~2 signed call, giới hạn theo watermark) và có cờ `syncing` chặn chạy chồng.
-   - **Mốc bắt đầu:** `resolveHistoryStart()` đọc `historyStartAt` đã lưu; nếu chưa có, gọi `GET /api/v2/mix/position/all-position`, lấy `cTime` nhỏ nhất của vị thế đang mở làm mốc, lưu vào `bitget_sync_state` và `deleteClosedBefore(mốc)`. Nếu tài khoản đang flat (không có vị thế) → chưa neo được, tạm fallback `now − 90 ngày`.
-   - Xác định cửa sổ: `floor = historyStart` (hoặc `now − 90 ngày` khi chưa neo); start = `max(floor, latestClosedAt − 1 ngày)` đến `now`.
+   - **Mốc bắt đầu:** `resolveHistoryStart()` đọc `historyStartAt` đã lưu; nếu chưa có, gọi `GET /api/v2/mix/position/all-position`, lấy `cTime` nhỏ nhất của vị thế đang mở làm mốc — hoặc `now` khi tài khoản flat — lưu vào `bitget_sync_state` và `deleteClosedBefore(mốc)`. Mốc luôn được neo ngay lần sync đầu, không còn nhánh fallback 90 ngày.
+   - Xác định cửa sổ: `floor = historyStart`; start = `max(floor, latestClosedAt − 1 ngày)` đến `now`.
    - Phân trang lùi theo `idLessThan` (limit 100/trang, tối đa 40 trang), ký HMAC-SHA256 bằng key tài khoản (self-contained, độc lập bot LIVE).
    - `normalizeBitgetClosed` (từ `@app/core`) map row thô → shape sạch, **lọc bỏ row đóng trước `floor`**; `repo.upsertMany` upsert theo `positionId` (idempotent, không trùng) trong một transaction.
 2. **API đọc:** `GET /bitget/history?limit&symbol` → `BitgetService.getClosedHistory()` đọc `bitget_closed_positions` (mới đóng trước), tính `netProfitPct = netProfit ÷ notional vào`, và `summarizeBitgetClosed` (từ `@app/core`) cho khối thống kê. `configured` phản ánh có credentials Bitget hay không để trang giải thích khi rỗng.
@@ -21,8 +21,8 @@ Read-only: trang chỉ đọc DB, không đặt/đóng lệnh. Nguồn dữ li�
 ## Edge Cases
 - **Chưa cấu hình Bitget** (thiếu key) → worker bỏ qua sync; API trả `configured: false`; trang hiện hướng dẫn thêm `.env` (chỉ khi chưa có lệnh nào).
 - **Chưa có dữ liệu** (trước lần sync đầu) → trang báo "Worker sẽ tự kéo lịch sử ~90 ngày trong vài phút tới".
-- **Neo mốc khi tài khoản flat** → không có vị thế đang mở nên không lấy được `cTime`; `historyStartAt` để trống, tạm fallback 90 ngày cho tới khi có vị thế mở để neo. Khi đã neo thì cố định, không đổi dù về sau mở/đóng thêm lệnh (nhật ký chỉ lớn dần, không bị cắt).
-- **Đọc vị thế mở lỗi** khi neo → `resolveHistoryStart` log warn và bỏ qua neo lần này (fallback 90 ngày), thử lại lần sync sau.
+- **Neo mốc khi tài khoản flat** → không có `cTime` để lấy nên mốc là `now`: nhật ký bắt đầu đúng từ lúc worker nhìn thấy tài khoản lần đầu. Trước 2026-08-17 nhánh này để trống mốc và fallback 90 ngày, tức là **backfill cả lệnh có trước khi bot chạy** — đúng lỗi đã xảy ra với OKX. Khi đã neo thì cố định, không đổi dù về sau mở/đóng thêm lệnh (nhật ký chỉ lớn dần, không bị cắt).
+- **Đọc vị thế mở lỗi** khi neo → cả lần sync hỏng và thử lại ở lần sau; mốc chưa được neo nên không có gì bị cắt oan.
 - **Sync chồng nhau** → cờ `syncing` chặn, cron kế tiếp bỏ qua nếu lần trước chưa xong.
 - **Row nửa vời** (thiếu `positionId`/`utime`) → `normalizeBitgetClosed` trả `null`, bị lọc bỏ, không ghi.
 - **Trade settle trễ** (funding/phí cập nhật sau khi đóng) → cửa sổ sync lùi lại 1 ngày quá watermark nên upsert refresh lại thay vì bỏ sót.

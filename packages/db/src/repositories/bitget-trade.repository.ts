@@ -107,11 +107,23 @@ export function createBitgetTradeRepository(client = prisma) {
       return agg._sum.netProfit ?? 0;
     },
 
-    /** Drop closed trades that closed before `date` — trims the log to the anchor. */
+    /**
+     * Drop closed trades that closed before `date` — trims the log to the anchor.
+     * Their journal timelines go with them: the journal is keyed by `tradeKey`
+     * with no FK, so deleting only the trades would leave unreachable rows behind.
+     */
     async deleteClosedBefore(date: Date): Promise<number> {
-      const res = await client.bitgetTrade.deleteMany({
+      const doomed = await client.bitgetTrade.findMany({
         where: { status: 'closed', closedAt: { lt: date } },
+        select: { tradeKey: true },
       });
+      if (doomed.length === 0) return 0;
+
+      const tradeKeys = doomed.map((t) => t.tradeKey);
+      const [, res] = await client.$transaction([
+        client.bitgetTradeJournal.deleteMany({ where: { tradeKey: { in: tradeKeys } } }),
+        client.bitgetTrade.deleteMany({ where: { tradeKey: { in: tradeKeys } } }),
+      ]);
       return res.count;
     },
 

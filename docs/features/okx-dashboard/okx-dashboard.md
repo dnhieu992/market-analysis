@@ -42,7 +42,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` và `/mexc` đang chạy, nên m
 - **Trùng nhịp sync**: cờ `syncing` chặn chạy chồng; `positionId` (`posId`) unique nên close là idempotent.
 - **Cập nhật TP/SL khi đã có algo order**: ưu tiên `amend-algos` để vị thế **không có khoảng trống không được bảo vệ**. Chỉ rơi về huỷ-rồi-đặt-lại khi phải **thêm hoặc bỏ hẳn một chiều** (amend chỉ đổi được giá đã có trên order), khi có >1 order live, hoặc khi amend lỗi.
 - **Algo order không mang position id**: OKX chỉ trả `(instId, posSide)`, nên TP/SL được ghép về vị thế theo symbol + chiều. Ở net mode `posSide = "net"`, chiều được suy ra từ `side` của lệnh đóng (bán = đang long).
-- **OKX chỉ lưu ~3 tháng lịch sử vị thế**: `NINETY_DAYS_MS` là sàn mặc định; sau lần sync đầu tiên có vị thế mở, mốc lịch sử được neo vào `okx_sync_state.historyStartAt` và các row cũ hơn bị dọn.
+- **Nhật ký bắt đầu từ lúc golive, không backfill**: lần sync đầu neo mốc vào `okx_sync_state.historyStartAt` — `cTime` nhỏ nhất của vị thế đang mở, hoặc **`now`** nếu tài khoản đang flat — rồi xoá mọi lệnh đóng trước mốc kèm journal của chúng. Golive 17/08/2026 với tài khoản flat: nhánh flat trước đây để mốc trống và fallback `now − 90 ngày`, nên lần sync đầu đã kéo về 5 lệnh cũ (12/06 → 16/08, tổng +0.90 USDT); nay nhánh đó neo vào `now` nên không còn backfill. OKX vẫn chỉ giữ ~3 tháng lịch sử vị thế phía sàn, đó là lý do worker mirror vào DB.
 - **Mốc ROE khi thiếu `upl` hoặc margin**: bỏ qua vị thế đó thay vì đoán — thà thiếu log còn hơn log sai.
 - **Chưa chạy thật**: tích hợp này **chưa được kiểm chứng với tài khoản OKX live** — cần `OKX_API_KEY` / `OKX_API_SECRET` / `OKX_API_PASSPHRASE` để xác nhận đầu-cuối.
 

@@ -29,7 +29,6 @@ import {
 const BASE_URL = 'https://api.bitget.com';
 const HISTORY_PATH = '/api/v2/mix/position/history-position';
 const ALL_POSITION_PATH = '/api/v2/mix/position/all-position';
-const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 40; // safety cap: 40 × 100 = 4000 trades per sync
 // Re-scan a day back of the watermark so trades that settle slightly after close
@@ -186,7 +185,7 @@ export class BitgetHistoryService implements OnModuleInit {
 
       // 2. Pull closed history and reconcile closes.
       const historyStart = await this.resolveHistoryStart(now, openPositions);
-      const floor = historyStart ? historyStart.getTime() : now - NINETY_DAYS_MS;
+      const floor = historyStart.getTime();
       const { rows: closedRows, pages } = await this.fetchClosedHistory(now, floor);
 
       let closed = 0;
@@ -528,25 +527,28 @@ export class BitgetHistoryService implements OnModuleInit {
   }
 
   /**
-   * Anchor the history-start floor once, to the open time of the earliest
-   * currently-live position. On first run (no persisted anchor yet) with open
-   * positions, persist it and purge older closed rows. Returns the effective
-   * start floor, or null when it cannot be determined (account flat).
+   * Anchor the history-start floor once, on the first run (no persisted anchor
+   * yet): to the open time of the earliest currently-live position, or to `now`
+   * when the account is flat. Persists it and purges older closed rows.
+   *
+   * A flat account used to leave the anchor unset, which dropped the window back
+   * to the 90-day fallback and backfilled trades made before the bot ever ran —
+   * exactly what happened when OKX went live on a flat account (2026-08-17). An
+   * account with nothing open has nothing worth carrying over, so the log starts
+   * the moment the sync first sees it.
    */
-  private async resolveHistoryStart(now: number, openPositions: OpenPositionRaw[]): Promise<Date | null> {
+  private async resolveHistoryStart(now: number, openPositions: OpenPositionRaw[]): Promise<Date> {
     const existing = await this.stateRepo.getHistoryStartAt();
     if (existing) return existing;
 
     const times = openPositions
       .map((p) => Number(p.cTime))
       .filter((t) => Number.isFinite(t) && t > 0);
-    if (times.length === 0) return null;
-
-    const start = new Date(Math.min(Math.min(...times), now));
+    const start = times.length > 0 ? new Date(Math.min(Math.min(...times), now)) : new Date(now);
     await this.stateRepo.setHistoryStartAt(start);
     const purged = await this.repo.deleteClosedBefore(start);
     this.logger.log(
-      `Anchored Bitget history start to ${start.toISOString()} (earliest open position); purged ${purged} older row(s)`,
+      `Anchored Bitget history start to ${start.toISOString()} (${times.length > 0 ? 'earliest open position' : 'account flat at first sync'}); purged ${purged} older row(s)`,
     );
     return start;
   }
