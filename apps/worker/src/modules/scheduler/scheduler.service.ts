@@ -5,6 +5,7 @@ import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
+import { OkxHistoryService } from '../okx-history/okx-history.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 
@@ -19,6 +20,7 @@ export class SchedulerService {
     private readonly dailySignalService: DailySignalService,
     private readonly bitgetHistoryService: BitgetHistoryService,
     private readonly mexcHistoryService: MexcHistoryService,
+    private readonly okxHistoryService: OkxHistoryService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -110,6 +112,34 @@ export class SchedulerService {
       await this.mexcHistoryService.syncMilestones();
     } catch (err) {
       this.logger.error(`MEXC milestone sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Runs every 15 seconds — the OKX twin of the two syncs above: reconcile open
+  // positions + closed history into the okx_trades lifecycle table so the /okx
+  // history tab + realized PnL are permanent, and open/close logs are written.
+  // Same cadence and overlap guard; all three syncs are independent, so an OKX
+  // outage never stalls the Bitget or MEXC one.
+  @Cron('*/15 * * * * *', { timeZone: 'UTC' })
+  async runOkxHistorySync() {
+    try {
+      const res = await this.okxHistoryService.sync();
+      if (res.opened > 0 || res.closed > 0) {
+        this.logger.log(`OKX trade sync — opened ${res.opened}, closed ${res.closed}`);
+      }
+    } catch (err) {
+      this.logger.error(`OKX trade sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Runs every minute — ROE% milestones for open OKX positions, same ratchet
+  // rules as the Bitget milestone sync.
+  @Cron('* * * * *', { timeZone: 'UTC' })
+  async runOkxMilestoneSync() {
+    try {
+      await this.okxHistoryService.syncMilestones();
+    } catch (err) {
+      this.logger.error(`OKX milestone sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

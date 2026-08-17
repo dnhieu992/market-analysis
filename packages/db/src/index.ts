@@ -64,6 +64,25 @@ export type { MexcTradeChartInput } from './repositories/mexc-trade-chart.reposi
 export { createMexcSymbolPriorityRepository } from './repositories/mexc-symbol-priority.repository';
 export type { MexcSymbolPriorityInput } from './repositories/mexc-symbol-priority.repository';
 export { createMexcWatchlistRepository } from './repositories/mexc-watchlist.repository';
+export { createOkxTradeRepository } from './repositories/okx-trade.repository';
+export type {
+  OkxTradeOpenInput,
+  OkxTradeCloseInput,
+  OkxTradeClosedInput,
+} from './repositories/okx-trade.repository';
+export { createOkxSyncStateRepository } from './repositories/okx-sync-state.repository';
+export { createOkxTradeJournalRepository } from './repositories/okx-trade-journal.repository';
+export type {
+  OkxTradeJournalInput,
+  OkxTradeJournalSnapshot,
+} from './repositories/okx-trade-journal.repository';
+export { createOkxSetupConfigRepository } from './repositories/okx-setup-config.repository';
+export type { OkxSetupConfigInput } from './repositories/okx-setup-config.repository';
+export { createOkxTradeChartRepository } from './repositories/okx-trade-chart.repository';
+export type { OkxTradeChartInput } from './repositories/okx-trade-chart.repository';
+export { createOkxSymbolPriorityRepository } from './repositories/okx-symbol-priority.repository';
+export type { OkxSymbolPriorityInput } from './repositories/okx-symbol-priority.repository';
+export { createOkxWatchlistRepository } from './repositories/okx-watchlist.repository';
 export { createOrderJournalRepository } from './repositories/order-journal.repository';
 export type {
   OrderJournalInput,

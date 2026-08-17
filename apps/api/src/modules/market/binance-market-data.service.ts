@@ -24,6 +24,17 @@ type BinanceKlineRangeParams = BinanceKlineParams & {
   endTime: number;
 };
 
+/** One row of `/api/v3/ticker/24hr` (only the fields we read; all strings). */
+export type Binance24hTicker = {
+  symbol: string;
+  lastPrice: string;
+  priceChangePercent: string;
+  highPrice: string;
+  lowPrice: string;
+  /** 24h volume denominated in the QUOTE asset (USDT here) — the usable one. */
+  quoteVolume: string;
+};
+
 export type BinanceExchangeInfoSymbol = {
   symbol: string;
   status: string;
@@ -91,6 +102,22 @@ export class BinanceMarketDataService {
     }
 
     return prices;
+  }
+
+  /**
+   * Rolling 24h stats for EVERY listed symbol in one call (weight 80, ~1MB).
+   *
+   * Deliberately unfiltered: Binance 400s the whole batch when any symbol in a
+   * `symbols=[...]` list is unlisted (same trap as `fetchCurrentPrices`), and a
+   * caller that wants both a few named coins AND market-wide breadth would
+   * otherwise need two requests. Filter locally.
+   */
+  async fetchTicker24h(): Promise<Binance24hTicker[]> {
+    const response = await this.client.get<Binance24hTicker[]>('/api/v3/ticker/24hr', {
+      timeout: 30_000
+    });
+
+    return response.data ?? [];
   }
 
   async fetchKlinesInRange({

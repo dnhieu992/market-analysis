@@ -16,6 +16,12 @@ export type {
   MexcClosedNormalized,
   MexcClosedSummary,
 } from './analysis/mexc-closed';
+export { normalizeOkxClosed, summarizeOkxClosed, okxMarginMode, fromOkxInstId } from './analysis/okx-closed';
+export type {
+  OkxClosedRaw,
+  OkxClosedNormalized,
+  OkxClosedSummary,
+} from './analysis/okx-closed';
 export { computeEntryScore } from './analysis/entry-score';
 export type { EntryScoreParams, EntryScoreResult } from './analysis/entry-score';
 export { computeDcaScore, dcaZone, dcaQualityBucket, computeDcaTimingSignal } from './analysis/dca-signal';

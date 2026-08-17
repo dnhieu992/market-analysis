@@ -6,10 +6,12 @@ import { AnalysisModule } from './modules/analysis/analysis.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { BitgetModule } from './modules/bitget/bitget.module';
 import { MexcModule } from './modules/mexc/mexc.module';
+import { OkxModule } from './modules/okx/okx.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { ChatModule } from './modules/chat/chat.module';
+import { DeepseekModule } from './modules/deepseek/deepseek.module';
 import { HealthModule } from './modules/health/health.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -55,6 +57,8 @@ import { JournalModule } from './modules/journal/journal.module';
     SupertrendScanModule,
     BitgetModule,
     MexcModule,
+    OkxModule,
+    DeepseekModule,
     JournalModule,
     AssetModule,
   ],

@@ -66,6 +66,22 @@ import type {
   MexcTradeChart,
   MexcJournalNote,
   MexcJournalSnapshot,
+  OkxPositionsResponse,
+  OkxHistoryResponse,
+  OkxOpenResult,
+  OkxTpslResult,
+  OkxSetupConfig,
+  OkxSymbolPriority,
+  OkxWatchlistSymbol,
+  OkxChartCount,
+  OkxTradeChartCount,
+  OkxQqeSignals,
+  OkxPriceChange,
+  OkxTradeChart,
+  OkxJournalNote,
+  OkxJournalSnapshot,
+  DeepseekStatus,
+  DeepseekMarketAnalysis,
   OrderJournalNote,
   OrderJournalSnapshot,
   AssetCategory,
@@ -1620,6 +1636,363 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async deleteMexcJournal(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/mexc/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    // ═══ OKX (/okx) ═════════════════════════════════════════════
+    // Same call shapes as the Bitget/MEXC methods above against the
+    // /okx routes. Deliberately a separate set: each exchange page owns
+    // its endpoints outright, so none can break another.
+    async fetchOkxPositions(): Promise<OkxPositionsResponse> {
+      return fetchJson<OkxPositionsResponse>(fetchImpl, `${baseUrl}/okx/positions`, withDefaults({}));
+    },
+
+    async closeOkxPosition(symbol: string, holdSide: 'long' | 'short'): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/positions/close`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, holdSide }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đóng lệnh thất bại (HTTP ${response.status})`);
+      }
+    },
+
+    async openOkxPosition(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      marginUsd: number;
+      leverage: number;
+    }): Promise<OkxOpenResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/positions/open`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Mở lệnh thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxOpenResult;
+    },
+
+    /**
+     * Set the exchange-side TP/SL of an open position. Both prices are always
+     * sent — `null` clears that trigger on OKX.
+     */
+    async setOkxTpsl(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      takeProfitPrice: number | null;
+      stopLossPrice: number | null;
+    }): Promise<OkxTpslResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/positions/tpsl`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đặt TP/SL thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxTpslResult;
+    },
+
+    // ── OKX Setup tab configs (per coin + side, persisted) ────
+    async fetchOkxSetupConfigs(): Promise<OkxSetupConfig[]> {
+      return fetchJson<OkxSetupConfig[]>(fetchImpl, `${baseUrl}/okx/setup`, withDefaults({}));
+    },
+
+    // Current QQE Signals state (long/short) per timeframe for the Setup tab column.
+    // `timeframes` narrows the server-side scan (omit for the default M30/1h/4h/1d).
+    async fetchOkxQqeSignals(symbols: string[], timeframes?: readonly string[]): Promise<OkxQqeSignals[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      const tfq = timeframes?.length ? `&timeframes=${encodeURIComponent(timeframes.join(','))}` : '';
+      return fetchJson<OkxQqeSignals[]>(fetchImpl, `${baseUrl}/okx/qqe-signals?symbols=${q}${tfq}`, withDefaults({}));
+    },
+
+    // 7d / 30d price change (ratio) per coin for the Setup tab columns.
+    async fetchOkxPriceChanges(symbols: string[]): Promise<OkxPriceChange[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      return fetchJson<OkxPriceChange[]>(fetchImpl, `${baseUrl}/okx/price-changes?symbols=${q}`, withDefaults({}));
+    },
+
+    async saveOkxSetupConfig(input: OkxSetupConfig): Promise<OkxSetupConfig> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/setup`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu cấu hình thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxSetupConfig;
+    },
+
+    /**
+     * Overwrite the config of many coins at once. Every listed side carries its
+     * own leverage/margin and is applied to every symbol. Returns the saved rows.
+     */
+    async saveOkxSetupConfigsBulk(input: {
+      symbols: string[];
+      sides: Array<{ holdSide: 'long' | 'short'; leverage: number; marginUsd: number }>;
+    }): Promise<OkxSetupConfig[]> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/setup/bulk`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu cấu hình hàng loạt thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxSetupConfig[];
+    },
+
+    // ── OKX Setup tab star priority (per coin, drives the default order) ────
+    async fetchOkxSymbolPriorities(): Promise<OkxSymbolPriority[]> {
+      return fetchJson<OkxSymbolPriority[]>(
+        fetchImpl,
+        `${baseUrl}/okx/setup/priority`,
+        withDefaults({}),
+      );
+    },
+
+    async saveOkxSymbolPriority(input: OkxSymbolPriority): Promise<OkxSymbolPriority> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/setup/priority`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu mức ưu tiên thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxSymbolPriority;
+    },
+
+    // ── OKX Setup tab watchlist (coins added by hand) ────
+    async fetchOkxWatchlist(): Promise<OkxWatchlistSymbol[]> {
+      return fetchJson<OkxWatchlistSymbol[]>(
+        fetchImpl,
+        `${baseUrl}/okx/setup/watchlist`,
+        withDefaults({}),
+      );
+    },
+
+    async addOkxWatchlistSymbol(symbol: string): Promise<OkxWatchlistSymbol> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/setup/watchlist`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Thêm coin thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxWatchlistSymbol;
+    },
+
+    async deleteOkxWatchlistSymbol(symbol: string): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/setup/watchlist/${encodeURIComponent(symbol)}`,
+        withDefaults({ method: 'DELETE' }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Bỏ theo dõi thất bại (HTTP ${response.status})`);
+      }
+    },
+
+    // ── OKX trade-review charts (save annotated PNG to R2 + DB) ────
+    async saveOkxTradeChart(input: {
+      tradeKey: string;
+      symbol: string;
+      timeframe: string;
+      holdSide: 'long' | 'short';
+      entryPrice: number;
+      closePrice: number;
+      pnlUsd: number;
+      openedAt: number;
+      closedAt: number;
+      note?: string | null;
+    }): Promise<OkxTradeChart> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/trade-chart/save`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu chart thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxTradeChart;
+    },
+
+    async saveOkxSetupChart(input: {
+      symbol: string;
+      timeframe: string;
+      note?: string | null;
+    }): Promise<OkxTradeChart> {
+      const response = await fetchImpl(
+        `${baseUrl}/okx/setup-chart/save`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu chart thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as OkxTradeChart;
+    },
+
+    async fetchOkxSavedTradeCharts(tradeKey: string): Promise<OkxTradeChart[]> {
+      return fetchJson<OkxTradeChart[]>(
+        fetchImpl,
+        `${baseUrl}/okx/trade-chart/saved?tradeKey=${encodeURIComponent(tradeKey)}`,
+        withDefaults({}),
+      );
+    },
+
+    async fetchOkxSavedChartsBySymbol(symbol: string): Promise<OkxTradeChart[]> {
+      return fetchJson<OkxTradeChart[]>(
+        fetchImpl,
+        `${baseUrl}/okx/trade-chart/by-symbol?symbol=${encodeURIComponent(symbol)}`,
+        withDefaults({}),
+      );
+    },
+
+    /** Saved-chart count per coin — the Setup tab's Attachments badge. */
+    async fetchOkxChartCounts(): Promise<OkxChartCount[]> {
+      return fetchJson<OkxChartCount[]>(
+        fetchImpl,
+        `${baseUrl}/okx/trade-chart/counts`,
+        withDefaults({}),
+      );
+    },
+
+    /** Saved-chart count per trade — the History tab's Attachments badge. */
+    async fetchOkxChartCountsByTrade(): Promise<OkxTradeChartCount[]> {
+      return fetchJson<OkxTradeChartCount[]>(
+        fetchImpl,
+        `${baseUrl}/okx/trade-chart/counts-by-trade`,
+        withDefaults({}),
+      );
+    },
+
+    async fetchOkxHistory(params: { limit?: number; symbol?: string } = {}): Promise<OkxHistoryResponse> {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.symbol) qs.set('symbol', params.symbol);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      return fetchJson<OkxHistoryResponse>(fetchImpl, `${baseUrl}/okx/history${suffix}`, withDefaults({}));
+    },
+
+    // ── OKX per-trade journal ────────────────────────────────
+    async fetchOkxJournal(tradeKey: string): Promise<OkxJournalNote[]> {
+      return fetchJson<OkxJournalNote[]>(
+        fetchImpl,
+        `${baseUrl}/okx/journal?tradeKey=${encodeURIComponent(tradeKey)}`,
+        withDefaults({}),
+      );
+    },
+
+    async addOkxJournal(input: {
+      tradeKey: string;
+      symbol: string;
+      holdSide: 'long' | 'short';
+      content: string;
+      images: string[];
+      snapshot?: OkxJournalSnapshot;
+    }): Promise<OkxJournalNote> {
+      return fetchJson<OkxJournalNote>(
+        fetchImpl,
+        `${baseUrl}/okx/journal`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async updateOkxJournal(id: string, input: { content: string; images: string[] }): Promise<OkxJournalNote> {
+      return fetchJson<OkxJournalNote>(
+        fetchImpl,
+        `${baseUrl}/okx/journal/${encodeURIComponent(id)}`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async deleteOkxJournal(id: string): Promise<void> {
+      await fetchImpl(`${baseUrl}/okx/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
+    },
+
+    // ═══ DeepSeek Agents (/deepseek) ════════════════════════════
+    // `runDeepseekMarketToday` is a long call by API standards: it snapshots
+    // Binance and then waits on the model, so the caller must show a pending
+    // state rather than assume it returns in a tick.
+    async fetchDeepseekStatus(): Promise<DeepseekStatus> {
+      return fetchJson<DeepseekStatus>(fetchImpl, `${baseUrl}/deepseek/status`, withDefaults({}));
+    },
+
+    async runDeepseekMarketToday(): Promise<DeepseekMarketAnalysis> {
+      const response = await fetchImpl(
+        `${baseUrl}/deepseek/agents/market-today`,
+        withDefaults({ method: 'POST' }),
+      );
+      if (!response.ok) {
+        // The API explains *why* it could not answer (no key, no balance, rate
+        // limited, Binance down) — that message is the whole point of the panel.
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const message = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(message ?? `Request failed for ${baseUrl}/deepseek/agents/market-today: ${response.status}`);
+      }
+      return (await response.json()) as DeepseekMarketAnalysis;
     },
 
     // ── /trades per-order journal ───────────────────────────────

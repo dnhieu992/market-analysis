@@ -48,6 +48,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Vị thế đang mở & lịch sử lệnh trên MEXC · uPnL, realized PnL, win rate'
   },
   {
+    href: '/okx',
+    label: 'OKX',
+    description: 'Vị thế đang mở & lịch sử lệnh trên OKX · uPnL, realized PnL, win rate'
+  },
+  {
     href: '/tracking-coins',
     label: 'Tracking Coins · Gom đáy',
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
@@ -66,6 +71,11 @@ const NAV_ITEMS: NavItem[] = [
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'
+  },
+  {
+    href: '/deepseek',
+    label: 'DeepSeek Agents',
+    description: 'Agent chạy trên DeepSeek · bản tin thị trường crypto hôm nay từ dữ liệu Binance'
   }
 ];
 
