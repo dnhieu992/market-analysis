@@ -1289,7 +1289,7 @@ export type AssetSpotPosition = {
   priced: boolean;
 };
 
-/** available = total − spent on spot + spot PnL (realized + unrealized) − trading − bitget − mexc. */
+/** available = total − spent on spot + spot PnL (realized + unrealized) − trading − bitget − mexc − okx. */
 export type AssetAvailable = {
   availableUsdt: number;
   spentOnSpotUsdt: number;
@@ -1306,7 +1306,7 @@ export type AssetAvailable = {
   spotAllocationUsdt: number;
   /** Cash buckets — wallet and any custom bucket — counted toward available in full. */
   liquid: AssetDeployed[];
-  /** Committed buckets — trading / bitget / mexc — each valued as capital + PnL. */
+  /** Committed buckets — trading / bitget / mexc / okx — each valued as capital + PnL. */
   deployed: AssetDeployedValue[];
 };
 

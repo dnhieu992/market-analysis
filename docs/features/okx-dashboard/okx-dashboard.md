@@ -80,5 +80,5 @@ Tách rời hoàn toàn là chủ ý: `/bitget` và `/mexc` đang chạy, nên m
 - `packages/db/prisma/schema.prisma` — `OkxTrade`, `OkxSyncState`, `OkxTradeJournal`, `OkxSetupConfig`, `OkxSymbolPriority`, `OkxTradeChart`, `OkxWatchlistSymbol`.
 - `packages/db/prisma/migrations/20260816120000_add_okx_tables/migration.sql`
 - `packages/db/src/repositories/okx-*.repository.ts`
-- `packages/db/src/repositories/asset.repository.ts` — `balanceByKey('okx')`: vốn gốc của OKX lấy từ số dư danh mục `okx` trên [/my-asset](../my-asset/my-asset.md) (tổng vào − tổng ra). Danh mục này **chưa được seed sẵn** — tự thêm từ UI /my-asset; khi chưa có, `OKX_INITIAL_CAPITAL_USD` là fallback.
+- `packages/db/src/repositories/asset.repository.ts` — `balanceByKey('okx')`: vốn gốc của OKX lấy từ số dư danh mục `okx` trên [/my-asset](../my-asset/my-asset.md) (tổng vào − tổng ra). Danh mục này được seed bởi migration `20260817130000_seed_okx_asset_category`; khi chưa có, `OKX_INITIAL_CAPITAL_USD` là fallback. Cùng số dư đó giờ cũng là một lát riêng trên donut Capital Allocation ở trang chủ — xem [/my-asset](../my-asset/my-asset.md).
 - `.env.example` — `OKX_API_KEY`, `OKX_API_SECRET`, `OKX_API_PASSPHRASE`, `OKX_API_BASE_URL`, `OKX_SIMULATED`, `OKX_INITIAL_CAPITAL_USD` (fallback).

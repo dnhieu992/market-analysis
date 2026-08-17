@@ -116,11 +116,13 @@ export function __setTradingBook(
 
 let bitgetRealizedPnl = 0;
 let mexcRealizedPnl = 0;
+let okxRealizedPnl = 0;
 
 /** Mirrored closed-trade PnL — the /my-asset fallback when an exchange can't be read. */
-export function __setExchangeRealizedPnl(bitget: number, mexc: number) {
+export function __setExchangeRealizedPnl(bitget: number, mexc: number, okx = 0) {
   bitgetRealizedPnl = bitget;
   mexcRealizedPnl = mexc;
+  okxRealizedPnl = okx;
 }
 
 export function createBitgetTradeRepository() {
@@ -135,6 +137,14 @@ export function createMexcTradeRepository() {
   return {
     async sumRealizedPnl() {
       return mexcRealizedPnl;
+    },
+  };
+}
+
+export function createOkxTradeRepository() {
+  return {
+    async sumRealizedPnl() {
+      return okxRealizedPnl;
     },
   };
 }
