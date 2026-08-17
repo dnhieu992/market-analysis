@@ -21,7 +21,7 @@ import {
 export type MarketAnalysisResult = {
   /** Markdown written by DeepSeek. */
   analysis: string;
-  /** Chain of thought — only present when running `deepseek-reasoner`. */
+  /** Chain of thought — only present when the model thought before answering. */
   reasoning: string | null;
   model: string;
   generatedAt: string;

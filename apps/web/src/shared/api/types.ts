@@ -1129,7 +1129,7 @@ export type DeepseekMarketSnapshot = {
 export type DeepseekMarketAnalysis = {
   /** Markdown written by DeepSeek. */
   analysis: string;
-  /** Chain of thought — only filled in by `deepseek-reasoner`. */
+  /** Chain of thought — only filled in when the model thought before answering. */
   reasoning: string | null;
   model: string;
   generatedAt: string;

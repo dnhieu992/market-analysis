@@ -10,8 +10,12 @@ DeepSeek dùng API **tương thích OpenAI** (`POST /chat/completions`, bearer t
 
 | Model (`DEEPSEEK_MODEL`) | Là gì | Ghi chú |
 |---|---|---|
-| `deepseek-chat` (mặc định) | DeepSeek-V3 | Nhanh, rẻ, đủ cho việc viết bản tin từ dữ liệu có sẵn |
-| `deepseek-reasoner` | DeepSeek-R1 | Suy luận trước khi trả lời, chậm và đắt hơn; chain-of-thought hiện trong mục "Quá trình suy luận của model" |
+| `deepseek-v4-pro` (mặc định) | DeepSeek-V4-Pro-0813 | Bản GA 13/08/2026, mạnh nhất |
+| `deepseek-v4-flash` | DeepSeek-V4-Flash-0731 | Nhanh và rẻ hơn, đủ cho việc viết bản tin từ dữ liệu có sẵn |
+
+Hai tên cũ `deepseek-chat` / `deepseek-reasoner` (V3 / R1) đã bị khai tử 24/07/2026 — vai trò "suy luận trước khi trả lời" nay nằm ở thinking mode của chính V4. Client gửi `reasoning_effort` theo `DEEPSEEK_REASONING_EFFORT`, mặc định `high` (đúng mặc định của DeepSeek), đổi được sang `low` hoặc `max`. Phần model nghĩ trả về ở `reasoning_content` và hiện trong mục "Quá trình suy luận của model".
+
+Hai điểm cần nhớ khi thinking đang bật: `temperature` / `top_p` / `presence_penalty` / `frequency_penalty` bị API bỏ qua (nhận nhưng không có tác dụng), nên `temperature: 0.3` trong client chỉ có ý nghĩa nếu sau này tắt thinking; và token nghĩ ăn chung ngân sách với câu trả lời, nên `max_tokens` để 8000 chứ không phải 2000.
 
 ## Main Flow
 1. **SSR** — `/deepseek` gọi `fetchDeepseekStatus()` để biết đã có key chưa và model nào đang dùng. Lỗi API → rơi về `{ configured: false }` để trang vẫn render kèm hướng dẫn.
@@ -36,8 +40,8 @@ DeepSeek dùng API **tương thích OpenAI** (`POST /chat/completions`, bearer t
 - **Tách theo chiều, không cắt đầu/cuối**: `topGainers` lọc `> 0`, `topLosers` lọc `< 0`. Nếu chỉ `slice(0,5)` và `slice(-5)` thì hôm nào ít cặp vượt ngưỡng, hai lát cắt sẽ chồng nhau và một coin bị báo vừa tăng mạnh nhất vừa giảm mạnh nhất.
 - **Loại stablecoin, fiat và token đòn bẩy** khỏi cả độ rộng lẫn top mover: cặp USDT/USDC là chênh lệch peg, cặp USDT/EUR là tỷ giá, token `*UP`/`*DOWN`/`*BULL`/`*BEAR` biến động theo cơ chế đòn bẩy — không phải thông tin thị trường crypto.
 - **Snapshot chỉ là Binance spot**, không phải toàn thị trường (không có vốn hoá tổng, dominance, funding, thanh lý, dòng tiền ETF, tin tức). Điều này được ghi thẳng vào system prompt để model không nói quá phạm vi dữ liệu.
-- **Thời gian chờ**: gọi Binance rồi chờ model, `deepseek-reasoner` có thể lâu — client timeout 120s, UI hiện dòng "có thể mất 10–60 giây" và disable nút trong lúc chạy.
-- **Chưa chạy thật với key**: đường dữ liệu (Binance → snapshot → prompt) đã chạy thử end-to-end với dữ liệu thật; **phần gọi model chưa được kiểm chứng** vì môi trường không có `DEEPSEEK_API_KEY`.
+- **Thời gian chờ**: gọi Binance rồi chờ model, thinking ở mức `high`/`max` có thể lâu — client timeout 120s, UI hiện dòng "có thể mất 10–60 giây" và disable nút trong lúc chạy.
+- **Chưa chạy thật với key**: đường dữ liệu (Binance → snapshot → prompt) đã chạy thử end-to-end với dữ liệu thật. Key đã có trong `.env` và xác thực OK (17/08/2026), nhưng tài khoản DeepSeek **hết số dư** — API trả `Insufficient Balance` (402), nên **phần gọi model vẫn chưa được kiểm chứng**. Nạp tiền vào tài khoản là chạy được ngay, không cần đổi code.
 
 ## Related Files (FE / BE / Worker)
 **Web**

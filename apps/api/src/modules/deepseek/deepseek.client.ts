@@ -9,22 +9,31 @@ import axios, { type AxiosInstance } from 'axios';
  * abstraction — the only real differences are the host, the model ids, and the
  * extra `reasoning_content` field the reasoner model returns.
  *
- * Models:
- *  - `deepseek-chat`     — DeepSeek-V3, the default. Fast, good enough for a
- *                          market brief written from data we hand it.
- *  - `deepseek-reasoner` — DeepSeek-R1. Thinks before answering and returns its
- *                          chain of thought in `reasoning_content`; slower and
- *                          dearer, so it is opt-in via `DEEPSEEK_MODEL`.
+ * Models (the V3-era `deepseek-chat` / `deepseek-reasoner` names were retired on
+ * 2026-07-24 and are gone — both V4 models cover their roles via thinking mode):
+ *  - `deepseek-v4-pro`   — DeepSeek-V4-Pro-0813, the default.
+ *  - `deepseek-v4-flash` — DeepSeek-V4-Flash-0731. Cheaper and faster.
+ *
+ * V4 thinks by default at `reasoning_effort: high` and that is what we keep;
+ * `DEEPSEEK_REASONING_EFFORT` can drop it to `low` or push it to `max`. Whatever
+ * it thinks comes back in `reasoning_content` and the UI shows it under "Quá
+ * trình suy luận". Note that thinking mode ignores `temperature`, `top_p`,
+ * `presence_penalty` and `frequency_penalty` — they are accepted and dropped.
  *
  * The key is read from the env at call time (not construction) so a `pm2 restart
  * --update-env` picks it up without a code change.
  */
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
-const DEFAULT_MODEL = 'deepseek-chat';
-/** A market brief is a few hundred words — this is headroom, not a target. */
-const DEFAULT_MAX_TOKENS = 2000;
-/** The reasoner can think for a while; the brief itself is never this slow. */
+const DEFAULT_MODEL = 'deepseek-v4-pro';
+/** `low` | `high` | `max` — DeepSeek's own default is `high`. */
+const DEFAULT_REASONING_EFFORT = 'high';
+/**
+ * A market brief is a few hundred words, but on V4 the thinking tokens draw on
+ * the same budget — too tight a cap and the answer comes back empty.
+ */
+const DEFAULT_MAX_TOKENS = 8000;
+/** Thinking can take a while; the brief itself is never this slow. */
 const REQUEST_TIMEOUT_MS = 120_000;
 
 export type DeepseekMessage = {
@@ -35,7 +44,7 @@ export type DeepseekMessage = {
 export type DeepseekReply = {
   /** The answer itself. */
   content: string;
-  /** Chain of thought — only `deepseek-reasoner` fills this in. */
+  /** Chain of thought — only filled in when the model thought before answering. */
   reasoning: string | null;
   model: string;
   usage: { promptTokens: number; completionTokens: number; totalTokens: number } | null;
@@ -67,6 +76,10 @@ export class DeepseekClient {
     return process.env.DEEPSEEK_MODEL ?? DEFAULT_MODEL;
   }
 
+  private get reasoningEffort(): string {
+    return process.env.DEEPSEEK_REASONING_EFFORT ?? DEFAULT_REASONING_EFFORT;
+  }
+
   isConfigured(): boolean {
     return Boolean(this.apiKey);
   }
@@ -95,6 +108,7 @@ export class DeepseekClient {
         // stays low — this is summarisation, not ideation.
         temperature: opts.temperature ?? 0.3,
         max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
+        reasoning_effort: this.reasoningEffort,
       },
       { headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' } },
     );
