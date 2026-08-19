@@ -97,3 +97,8 @@ export type {
   AssetTransactionInput,
   AssetCategoryBalance,
 } from './repositories/asset.repository';
+export { createBtcDaytradeAnalysisRepository } from './repositories/btc-daytrade-analysis.repository';
+export type {
+  BtcDaytradeAnalysisInput,
+  BtcDaytradeAnalysisListItem,
+} from './repositories/btc-daytrade-analysis.repository';

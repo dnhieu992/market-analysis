@@ -465,3 +465,36 @@ export function createAssetTransactionRepository() {
     },
   };
 }
+
+/**
+ * In-memory stand-in for the BTC day-trade daily log. Mirrors the real
+ * repository's contract: one row per date, re-upserting the same date
+ * overwrites it and bumps `runCount`.
+ */
+const btcDaytradeRows: Array<Record<string, unknown>> = [];
+
+export function createBtcDaytradeAnalysisRepository() {
+  return {
+    async upsertByDate(input: Record<string, unknown>) {
+      const key = (input.date as Date).toISOString();
+      const existing = btcDaytradeRows.find((row) => (row.date as Date).toISOString() === key);
+      if (existing) {
+        Object.assign(existing, input, { runCount: (existing.runCount as number) + 1 });
+        return existing;
+      }
+      const row = { id: `btc-daytrade-${key}`, runCount: 1, ...input };
+      btcDaytradeRows.push(row);
+      return row;
+    },
+    async findByDate(date: Date) {
+      return (
+        btcDaytradeRows.find((row) => (row.date as Date).toISOString() === date.toISOString()) ?? null
+      );
+    },
+    async listRecent(limit = 30) {
+      return [...btcDaytradeRows]
+        .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime())
+        .slice(0, limit);
+    }
+  };
+}

@@ -1074,8 +1074,9 @@ export type OkxJournalNote = {
 };
 
 // ─── DeepSeek Agents (/deepseek) ─────────────────────────────────────────────
-// The market snapshot is returned alongside the prose on purpose: the agent is
-// told to use only these numbers, so showing them lets the trader check it.
+// The multi-timeframe snapshot is returned alongside the setup on purpose: the
+// agent is told to use only these numbers, so showing them lets the trader check
+// every claim — and the warnings are the API's own verification of the geometry.
 
 /** Whether the API has a DeepSeek key, and which model the agents would use. */
 export type DeepseekStatus = {
@@ -1083,58 +1084,157 @@ export type DeepseekStatus = {
   model: string;
 };
 
-/** One coin's rolling-24h stats, as fed to the agent. */
-export type DeepseekMarketTicker = {
+export type DeepseekTradeDirection = 'LONG' | 'SHORT' | 'NO_TRADE';
+export type DeepseekConfidence = 'high' | 'medium' | 'low';
+export type DeepseekTimeframeBias = 'bullish' | 'bearish' | 'neutral';
+/** Market structure read off the pivot sequence — the indicator-free trend read. */
+export type DeepseekStructure = 'uptrend' | 'downtrend' | 'range';
+/** Higher high / lower high / higher low / lower low. */
+export type DeepseekPivotLabel = 'HH' | 'LH' | 'HL' | 'LL';
+
+/** One swing point, labelled against the previous pivot of the same kind. */
+export type DeepseekPivot = {
+  time: string;
+  price: number;
+  kind: 'high' | 'low';
+  label: DeepseekPivotLabel;
+};
+
+/** A line through the last two pivot lows (`support`) or highs (`resistance`). */
+export type DeepseekTrendLine = {
+  kind: 'support' | 'resistance';
+  from: { time: string; price: number };
+  to: { time: string; price: number };
+  /** Where the line sits at the current bar. */
+  priceNow: number;
+  slopePerBar: number;
+  touches: number;
+  /** Live price vs the line, in percent. Positive = price above the line. */
+  distancePct: number;
+  /** True once a candle has CLOSED through it. */
+  broken: boolean;
+};
+
+export type DeepseekFibLevel = { ratio: number; price: number };
+
+/** Fibonacci on the most recent impulse leg of a timeframe. */
+export type DeepseekFib = {
+  legDirection: 'up' | 'down';
+  from: { time: string; price: number };
+  to: { time: string; price: number };
+  legSizePct: number;
+  retracements: DeepseekFibLevel[];
+  extensions: DeepseekFibLevel[];
+  /** 0% = at the end of the leg, 100% = the leg is fully retraced. */
+  retracedPct: number;
+  nearest: DeepseekFibLevel | null;
+};
+
+/** One candle as fed to the agent. */
+export type DeepseekCandle = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+/** Everything one timeframe contributes to the top-down read. */
+export type DeepseekTimeframeReport = {
+  timeframe: string;
+  label: string;
+  /** What this timeframe is for, e.g. "Xu hướng chính (swing)". */
+  role: string;
+  /** Close time of the last CLOSED candle — every number below is as of this. */
+  closedAt: string;
+  close: number;
+  changePct: number;
+  /** Deterministic structure read, computed by the API, not the model. */
+  structure: DeepseekStructure;
+  /** The pivot labels it was read from, e.g. "HH + HL". */
+  structureNote: string;
+  /** Most recent pivots, oldest first. */
+  pivots: DeepseekPivot[];
+  swingHigh: number;
+  swingLow: number;
+  swingRangePct: number;
+  supports: number[];
+  resistances: number[];
+  trendLines: DeepseekTrendLine[];
+  /** Null when the latest leg is too small to draw a fib on. */
+  fib: DeepseekFib | null;
+  recentCandles: DeepseekCandle[];
+  /** Plain average volume the raw candle volumes are read against. */
+  avgVolume: number;
+};
+
+/** The BTC data the day-trading agent was given. */
+export type DeepseekBtcSnapshot = {
   symbol: string;
-  /** Symbol without the USDT suffix. */
-  coin: string;
-  price: number;
-  change24hPct: number;
-  high24h: number;
-  low24h: number;
-  /** 24h volume in USDT. */
-  volumeUsd: number;
-};
-
-/** BTC/ETH across 24h / 7d / 30d — the multi-day context in the brief. */
-export type DeepseekTrendAnchor = {
-  coin: string;
-  price: number;
-  change24hPct: number;
-  change7dPct: number | null;
-  change30dPct: number | null;
-};
-
-/** How much of the market is up vs down on the day. */
-export type DeepseekMarketBreadth = {
-  pairs: number;
-  advancing: number;
-  declining: number;
-  unchanged: number;
-  /** advancing ÷ (advancing + declining), in percent. */
-  advancingPct: number;
-  totalVolumeUsd: number;
-};
-
-export type DeepseekMarketSnapshot = {
   capturedAt: string;
-  majors: DeepseekMarketTicker[];
-  anchors: DeepseekTrendAnchor[];
-  breadth: DeepseekMarketBreadth;
-  topGainers: DeepseekMarketTicker[];
-  topLosers: DeepseekMarketTicker[];
+  price: number;
+  change24hPct: number | null;
+  high24h: number | null;
+  low24h: number | null;
+  /** The 15m candle still forming — shown labelled, never treated as confirmed. */
+  forming: DeepseekCandle | null;
+  timeframes: DeepseekTimeframeReport[];
 };
 
-/** Result of the "Market Today" agent run. */
-export type DeepseekMarketAnalysis = {
-  /** Markdown written by DeepSeek. */
+/** The setup itself, parsed out of the model's JSON block and re-checked by the API. */
+export type DeepseekDaytradeSignal = {
+  direction: DeepseekTradeDirection;
+  confidence: DeepseekConfidence | null;
+  entryFrom: number | null;
+  entryTo: number | null;
+  stopLoss: number | null;
+  takeProfits: number[];
+  /** Risk/reward as the model claimed it. */
+  riskRewardModel: number | null;
+  /** Risk/reward recomputed by the API from entry mid / SL / TP1 — the one to trust. */
+  riskReward: number | null;
+  riskPct: number | null;
+  timeframeBias: Partial<Record<string, DeepseekTimeframeBias>>;
+  invalidation: string | null;
+  summary: string | null;
+  /** Hard checks that failed. Empty means the geometry is sane. */
+  warnings: string[];
+};
+
+/**
+ * Result of the BTC day-trading agent run — and the shape a stored day reads
+ * back as, so the UI renders a fresh run and yesterday's log the same way.
+ */
+export type DeepseekBtcDaytrade = {
+  /** Vietnam calendar day this analysis is filed under, `YYYY-MM-DD`. */
+  date: string;
+  /** Markdown written by DeepSeek, with the JSON block stripped out. */
   analysis: string;
+  /** Null when the model's JSON block was missing or unparseable. */
+  signal: DeepseekDaytradeSignal | null;
   /** Chain of thought — only filled in when the model thought before answering. */
   reasoning: string | null;
   model: string;
   generatedAt: string;
-  snapshot: DeepseekMarketSnapshot;
+  snapshot: DeepseekBtcSnapshot;
   usage: { promptTokens: number; completionTokens: number; totalTokens: number } | null;
+  /** Public URL of the 4H + 15m chart PNG. Null when R2 is off or rendering failed. */
+  chartUrl: string | null;
+  /** How many times Analyze has been pressed on this day — each run overwrites the row. */
+  runCount: number;
+};
+
+/** One row of the daily log strip — no snapshot, no markdown. */
+export type DeepseekBtcDaytradeHistoryItem = {
+  date: string;
+  direction: DeepseekTradeDirection;
+  confidence: DeepseekConfidence | null;
+  riskReward: number | null;
+  summary: string | null;
+  chartUrl: string | null;
+  runCount: number;
+  generatedAt: string;
 };
 
 /** Price/PnL snapshot captured when a /trades order note was written. */

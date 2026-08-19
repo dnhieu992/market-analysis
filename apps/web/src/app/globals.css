@@ -10666,6 +10666,211 @@ a.metric-card--link:hover {
   border-top: 1px solid var(--border);
 }
 
+/* The setup card — the answer the page exists for, so it leads the result. */
+.ds-signal {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.ds-signal--long { border-left-color: #1f9d57; background: rgba(31, 157, 87, 0.05); }
+.ds-signal--short { border-left-color: #d33a2c; background: rgba(211, 58, 44, 0.05); }
+.ds-signal--none { border-left-color: var(--muted); }
+
+.ds-signal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.ds-signal-dir {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ds-signal--long .ds-signal-dir { color: #1f9d57; }
+.ds-signal--short .ds-signal-dir { color: #d33a2c; }
+.ds-signal--none .ds-signal-dir { color: var(--muted); }
+
+.ds-signal-conf {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.ds-signal-summary {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--foreground);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.ds-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.ds-signal-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.ds-signal-cell span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.ds-signal-cell strong {
+  font-size: 0.98rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-signal-cell small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.ds-bias-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.ds-bias {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.ds-bias--up { color: #1f9d57; border-color: rgba(31, 157, 87, 0.4); }
+.ds-bias--down { color: #d33a2c; border-color: rgba(211, 58, 44, 0.4); }
+.ds-bias--flat { color: var(--muted); }
+
+.ds-signal-invalidation {
+  margin: 12px 0 0;
+  color: var(--foreground);
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+
+/* Hard checks the API ran on the model's own prices — amber, not fatal. */
+.ds-warnings {
+  margin: 12px 0 0;
+  padding: 10px 12px 10px 28px;
+  border: 1px solid #f0dcb0;
+  border-radius: 8px;
+  background: #fdf8ec;
+  color: #8a5b00;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.ds-warnings li {
+  margin: 2px 0;
+}
+
+/* ── Daily log strip: one chip per stored day ─────────────────────────── */
+.ds-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+
+.ds-history-label {
+  margin-right: 4px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ds-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ds-history-item:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.ds-history-item:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.ds-history-item strong {
+  font-size: 0.82rem;
+}
+
+.ds-history-item small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.ds-history-item.is-active {
+  border-color: var(--accent, #1f6feb);
+  box-shadow: 0 0 0 1px var(--accent, #1f6feb) inset;
+}
+
+.ds-history-item--long strong { color: #1f9d57; }
+.ds-history-item--short strong { color: #d33a2c; }
+
+.ds-record-meta {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* ── Attached chart ───────────────────────────────────────────────────── */
+.ds-chart {
+  margin: 14px 0 0;
+}
+
+.ds-chart img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.ds-chart figcaption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
 .ds-analysis {
   color: var(--foreground);
   font-size: 0.9rem;

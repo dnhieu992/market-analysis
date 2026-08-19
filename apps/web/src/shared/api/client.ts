@@ -81,7 +81,8 @@ import type {
   OkxJournalNote,
   OkxJournalSnapshot,
   DeepseekStatus,
-  DeepseekMarketAnalysis,
+  DeepseekBtcDaytrade,
+  DeepseekBtcDaytradeHistoryItem,
   OrderJournalNote,
   OrderJournalSnapshot,
   AssetCategory,
@@ -1973,16 +1974,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     // ═══ DeepSeek Agents (/deepseek) ════════════════════════════
-    // `runDeepseekMarketToday` is a long call by API standards: it snapshots
-    // Binance and then waits on the model, so the caller must show a pending
-    // state rather than assume it returns in a tick.
+    // `runDeepseekBtcDaytrade` is a long call by API standards: it snapshots four
+    // timeframes from Binance and then waits on the model, so the caller must
+    // show a pending state rather than assume it returns in a tick.
     async fetchDeepseekStatus(): Promise<DeepseekStatus> {
       return fetchJson<DeepseekStatus>(fetchImpl, `${baseUrl}/deepseek/status`, withDefaults({}));
     },
 
-    async runDeepseekMarketToday(): Promise<DeepseekMarketAnalysis> {
+    async runDeepseekBtcDaytrade(): Promise<DeepseekBtcDaytrade> {
       const response = await fetchImpl(
-        `${baseUrl}/deepseek/agents/market-today`,
+        `${baseUrl}/deepseek/agents/btc-daytrade`,
         withDefaults({ method: 'POST' }),
       );
       if (!response.ok) {
@@ -1990,9 +1991,35 @@ export function createApiClient(options: ApiClientOptions = {}) {
         // limited, Binance down) — that message is the whole point of the panel.
         const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
         const message = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
-        throw new Error(message ?? `Request failed for ${baseUrl}/deepseek/agents/market-today: ${response.status}`);
+        throw new Error(message ?? `Request failed for ${baseUrl}/deepseek/agents/btc-daytrade: ${response.status}`);
       }
-      return (await response.json()) as DeepseekMarketAnalysis;
+      return (await response.json()) as DeepseekBtcDaytrade;
+    },
+
+    /** Today's stored analysis (Vietnam calendar day), or null before the first run. */
+    async fetchDeepseekBtcDaytradeToday(): Promise<DeepseekBtcDaytrade | null> {
+      return fetchJson<DeepseekBtcDaytrade | null>(
+        fetchImpl,
+        `${baseUrl}/deepseek/agents/btc-daytrade/today`,
+        withDefaults({}),
+      );
+    },
+
+    async fetchDeepseekBtcDaytradeHistory(limit = 30): Promise<DeepseekBtcDaytradeHistoryItem[]> {
+      return fetchJson<DeepseekBtcDaytradeHistoryItem[]>(
+        fetchImpl,
+        `${baseUrl}/deepseek/agents/btc-daytrade/history?limit=${limit}`,
+        withDefaults({}),
+      );
+    },
+
+    /** One stored day by its `YYYY-MM-DD` key. */
+    async fetchDeepseekBtcDaytradeByDate(date: string): Promise<DeepseekBtcDaytrade | null> {
+      return fetchJson<DeepseekBtcDaytrade | null>(
+        fetchImpl,
+        `${baseUrl}/deepseek/agents/btc-daytrade/${date}`,
+        withDefaults({}),
+      );
     },
 
     // ── /trades per-order journal ───────────────────────────────

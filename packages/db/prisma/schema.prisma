@@ -973,3 +973,45 @@ model AssetTransaction {
   @@index([toCategoryId])
   @@map("asset_transactions")
 }
+
+/// One BTC day-trading analysis per calendar day.
+///
+/// `date` is the day in **Asia/Ho_Chi_Minh (UTC+7)**, stored as a DATE at UTC
+/// midnight — the trader reads "hôm nay" in local time, and an analysis run at
+/// 01:00 Vietnam time belongs to that day, not to the previous UTC one.
+///
+/// Pressing Analyze again on the same day OVERWRITES this row (`runCount` counts
+/// how many times it has been re-run) — the page is a daily log, not a feed of
+/// every button press.
+model BtcDaytradeAnalysis {
+  id             String   @id @default(cuid())
+  date           DateTime @unique @db.Date
+  direction      String   @db.VarChar(10) // LONG | SHORT | NO_TRADE
+  confidence     String?  @db.VarChar(10)
+  entryFrom      Float?
+  entryTo        Float?
+  stopLoss       Float?
+  takeProfitsJson String? @db.Text // JSON array of numbers
+  riskReward     Float? // recomputed by the API, not the model's claim
+  riskPct        Float?
+  timeframeBiasJson String? @db.Text // JSON object keyed by timeframe
+  invalidation   String?  @db.Text
+  summary        String?  @db.Text
+  warningsJson   String?  @db.Text // JSON array of the hard-check failures
+  analysis       String   @db.LongText // markdown, JSON block already stripped
+  reasoning      String?  @db.LongText
+  model          String   @db.VarChar(60)
+  price          Float // live price when the snapshot was taken
+  snapshotJson   String   @db.LongText // the exact data handed to the model
+  usageJson      String?  @db.Text
+  chartUrl       String?  @db.Text // public R2 URL of the PNG
+  chartObjectKey String?  @db.VarChar(255) // R2 object key (stable per day, overwritten)
+  capturedAt     DateTime
+  generatedAt    DateTime
+  runCount       Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([date(sort: Desc)])
+  @@map("btc_daytrade_analyses")
+}

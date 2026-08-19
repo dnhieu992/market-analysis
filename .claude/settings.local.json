@@ -212,7 +212,8 @@
       "WebFetch(domain:www.coinglass.com)",
       "WebFetch(domain:bingx-api.github.io)",
       "WebFetch(domain:api-docs.deepseek.com)",
-      "Bash(ip -4 addr show scope global)"
+      "Bash(ip -4 addr show scope global)",
+      "Bash(timeout 300 npx --no-install jest --config apps/api/jest.config.cjs --rootDir apps/api test/health.e2e-spec.ts)"
     ],
     "defaultMode": "acceptEdits"
   }
