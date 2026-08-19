@@ -108,12 +108,13 @@ Two changes from the ledger view it replaces:
 Coins are valued at Binance last price (`spotPositions[].marketValueUsdt`), deployed buckets at
 `currentValueUsdt` — the same valuation the Vốn triển khai table reports.
 
-**Slice order is fixed, not ranked by size:** cash first, then the named coins (BTC, then ETH,
-driven off `NAMED_COINS` rather than the API's position order), then each deployed bucket in the
-order the API returns them (Trading, Bitget, MEXC, OKX), then the leftover coins last. The trader
-reads the legend as a fixed list, so a row must not move when a price does. `buildSlices()` preserves the
-order `buildAllocationItems()` emits; only the 8-slice overflow still looks at value, folding the
-*smallest* rows away so a large position can never be hidden for sitting late in the list.
+**`buildSlices()` emits a fixed order, not ranked by size:** cash first, then the named coins (BTC,
+then ETH, driven off `NAMED_COINS` rather than the API's position order), then each deployed bucket
+in the order the API returns them (Trading, Bitget, MEXC, OKX), then the leftover coins last. It
+preserves the order `buildAllocationItems()` emits; only the 8-slice overflow still looks at value,
+folding the *smallest* rows away so a large position can never be hidden for sitting late in the
+list. The Overview card re-sorts this output descending by value (see below) — the function itself
+stays order-preserving so the ranking is one caller's presentation choice, not baked into the data.
 
 `buildSlices()` assigns the first eight slots of the validated categorical palette. The card then
 overrides them with the overview's own 12-colour ramp so both donuts on that page speak one colour
@@ -172,8 +173,8 @@ it outright: the page was removed and its nav entry with it, so the card is the 
 dot–name–percent legend, and the same **English** wording — two cards in different visual languages
 stacked on one page read as a bug. It therefore does **not** reuse `AllocationPie` (which is styled
 in `.ma-*` for the Vietnamese page); it reuses only the data functions, `buildAllocationItems()` and
-`buildSlices()`, so the slice set, the ordering, the negative-value exclusion and the overflow fold
-stay single-sourced and the two pages can never disagree on *what* is in the donut. The labels
+`buildSlices()`, so the slice set, the negative-value exclusion and the overflow fold stay
+single-sourced and the two pages can never disagree on *what* is in the donut. The labels
 those functions generate in Vietnamese ("USDT khả dụng", "Coin khác (n)", "Khác (n)") are swapped to
 English in the card — cash renders as plain **USDT**, so the row reads as one more ticker next to
 BTC and ETH. The deployed buckets are already named in English by the seed (Spot, Trading, Bitget,
@@ -185,6 +186,13 @@ its eyebrow → headline → badges → P&L-section rhythm: **Total Assets · Al
 Deposits** (net flow, linked to `/my-asset`). There is no stat row; Accounts / Available / Deployed
 tiles were dropped at the trader's request — available and each deployed account are already slices
 of the donut, so the tiles only said the same thing twice.
+
+**Slices are ranked largest first** (2026-08-19, at the trader's request), so the legend reads as a
+size ranking and the eye lands on the biggest exposure first. This overrides `buildSlices()`'s fixed
+order for this card only, and it is the trade-off the fixed order was protecting against: a row can
+now change position when a price moves. The folded **Other (n)** bucket stays pinned last regardless
+of its value — it is a remainder, not a holding, so ranking it against named rows would read as a
+real position. The 12-colour ramp is applied *after* the sort, so colours run in rank order too.
 
 Each legend row carries its **dollar amount** next to the name — `BTC ($1,700)` — because a
 percentage alone does not answer "how much is in BTC right now". The amount rides inside the name

@@ -70,12 +70,21 @@ export function AssetSummaryCard({ summary: serverSummary }: Props) {
       label: toEnglish(item.label, item.key),
     }));
 
-    // `buildSlices` keeps the item order — USDT, BTC, ETH, the deployed accounts, then the
-    // leftover coins — and carries the negative-value exclusion and the overflow fold; only
-    // its palette is dropped, in favour of the sibling card's.
-    return buildSlices(items).slices.map((slice, i) => ({
+    // `buildSlices` carries the negative-value exclusion and the overflow fold; its item order
+    // (USDT, BTC, ETH, the deployed accounts, then the leftover coins) and its palette are both
+    // dropped — this card ranks by size, largest first, and uses the sibling card's colours.
+    const built = buildSlices(items).slices.map((slice) => ({
       ...slice,
       name: slice.name.startsWith('Khác') ? 'Other' : slice.name,
+    }));
+
+    // The folded bucket stays pinned last even when it outweighs a named slice: it is a
+    // remainder, not a holding, so ranking it against the others would read as a real position.
+    const other = built.filter((slice) => slice.name === 'Other');
+    const ranked = built.filter((slice) => slice.name !== 'Other').sort((a, b) => b.value - a.value);
+
+    return [...ranked, ...other].map((slice, i) => ({
+      ...slice,
       color: COLORS[i % COLORS.length] as string,
     }));
   }, [summary]);
