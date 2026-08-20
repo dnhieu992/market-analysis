@@ -48,9 +48,6 @@ export const createBitgetSyncStateRepository = noopRepository;
 export const createMexcTradeRepository = noopRepository;
 export const createMexcTradeJournalRepository = noopRepository;
 export const createMexcSyncStateRepository = noopRepository;
-export const createOkxTradeRepository = noopRepository;
-export const createOkxTradeJournalRepository = noopRepository;
-export const createOkxSyncStateRepository = noopRepository;
 
 export function createDailyAnalysisRepository() {
   return {

@@ -9,7 +9,8 @@
 
 The asset ledger is the trader's capital book, denominated entirely in **USDT**. It answers two
 questions: how much money is on the books in total, and how that money is split across the
-places it can sit — Spot, Trading, Bitget, MEXC, OKX and Wallet by default.
+places it can sit — Spot, Trading, Bitget, MEXC and Wallet by default. (An `okx` bucket existed
+between 2026-08-17 and 2026-08-20; it was deleted with the /okx page, having never been funded.)
 
 Balances are never stored. Every number on the page is summed from an append-only ledger
 (`asset_transactions`), so the total and the per-category figures can never drift apart, and any
@@ -26,10 +27,10 @@ page through the allocation donut's slices.
 The category set is data, not code: "+ Thêm danh mục" adds a new bucket (a new exchange, a new
 wallet) and it immediately appears as a transfer target.
 
-**This page is now the source of truth for exchange capital.** `/bitget`, `/mexc` and `/okx` read
-their "vốn gốc" (the baseline their equity-change % is measured against) from the `bitget`, `mexc`
-and `okx` bucket balances here, replacing the old hardcoded `BITGET_INITIAL_CAPITAL_USD` /
-`MEXC_INITIAL_CAPITAL_USD` / `OKX_INITIAL_CAPITAL_USD` env constants. Move capital on this page
+**This page is now the source of truth for exchange capital.** `/bitget` and `/mexc` read
+their "vốn gốc" (the baseline their equity-change % is measured against) from the `bitget` and
+`mexc` bucket balances here, replacing the old hardcoded `BITGET_INITIAL_CAPITAL_USD` /
+`MEXC_INITIAL_CAPITAL_USD` env constants. Move capital on this page
 and those percentages follow on the next fetch — no code edit, no restart.
 
 The page also answers **"how much can I still deploy?"**:
@@ -39,10 +40,10 @@ available = (spot allocation − cost of coins held + realized spot PnL)
           + every cash bucket (wallet, and anything added later)
 ```
 
-Algebraically the same as `total − spent on spot + realized − trading − bitget − mexc − okx`, but built
+Algebraically the same as `total − spent on spot + realized − trading − bitget − mexc`, but built
 up from the buckets that hold cash rather than subtracted down from the total — so **wallet and
 any bucket the trader adds appear on the page by name** instead of being buried inside a
-subtraction. A new category is spendable by default: only `trading`, `bitget`, `mexc` and `okx`
+subtraction. A new category is spendable by default: only `trading`, `bitget` and `mexc`
 are treated as committed (`DEPLOYED_KEYS` in `asset.service.ts`).
 
 `spent buying spot` is the cost basis of coins still held (`Holding.totalCost` summed across
@@ -110,7 +111,7 @@ Coins are valued at Binance last price (`spotPositions[].marketValueUsdt`), depl
 
 **`buildSlices()` emits a fixed order, not ranked by size:** cash first, then the named coins (BTC,
 then ETH, driven off `NAMED_COINS` rather than the API's position order), then each deployed bucket
-in the order the API returns them (Trading, Bitget, MEXC, OKX), then the leftover coins last. It
+in the order the API returns them (Trading, Bitget, MEXC), then the leftover coins last. It
 preserves the order `buildAllocationItems()` emits; only the 8-slice overflow still looks at value,
 folding the *smallest* rows away so a large position can never be hidden for sitting late in the
 list. The Overview card re-sorts this output descending by value (see below) — the function itself
@@ -130,7 +131,7 @@ still computes and returns `deployed[]` in full, and `DeployedBuckets` still ren
 it back is one JSX block — now in `asset-summary-card.tsx` or a dialog of its own, since the page it
 used to sit on is gone.
 
-The four committed buckets — **Trading, Bitget, MEXC, OKX** — used to show only the amount
+The three committed buckets — **Trading, Bitget, MEXC** — used to show only the amount
 transferred in, which says nothing about whether that money grew or shrank. Each is now reported as
 **vốn → giá trị hiện tại**, with the PnL and the return on capital:
 
@@ -145,8 +146,8 @@ that isn't one:
 
 | Source | Meaning |
 |---|---|
-| `exchange` | Live account equity from the exchange — already nets off fees and funding. Used for Bitget, MEXC and OKX. |
-| `sync` | The exchange call failed or has no key; falls back to closed trades mirrored into `bitget_trades` / `mexc_trades` / `okx_trades`. **Open positions are not counted**, so this is the banked half only. |
+| `exchange` | Live account equity from the exchange — already nets off fees and funding. Used for Bitget and MEXC. |
+| `sync` | The exchange call failed or has no key; falls back to closed trades mirrored into `bitget_trades` / `mexc_trades`. **Open positions are not counted**, so this is the banked half only. |
 | `orders` | The manual book on `/trades`: `SUM(pnl)` over closed orders plus open orders marked to Binance last price. Used for Trading. |
 | `unknown` | Nothing readable. The bucket shows its capital unchanged and prints `—` for PnL. |
 
@@ -155,7 +156,7 @@ contains the open-position PnL, so `unrealized = balance.unrealizedPL` and
 `realized = equity − capital − unrealized`. This makes the Bitget figure agree with `/bitget`'s own
 `equityChangePct`, which measures the same equity against the same ledger capital.
 
-The **Trading** bucket counts every broker on `/trades` (BingX, Binance, OKX, …), matching the one
+The **Trading** bucket counts every broker on `/trades` (BingX, Binance, …), matching the one
 all-time total that page reports. Measured on live data: capital 1,363.62 → 1,507.95
 (realized +225.73, unrealized −81.40) = **+10.58%**.
 
@@ -178,7 +179,7 @@ single-sourced and the two pages can never disagree on *what* is in the donut. T
 those functions generate in Vietnamese ("USDT khả dụng", "Coin khác (n)", "Khác (n)") are swapped to
 English in the card — cash renders as plain **USDT**, so the row reads as one more ticker next to
 BTC and ETH. The deployed buckets are already named in English by the seed (Spot, Trading, Bitget,
-MEXC, OKX, Wallet).
+MEXC, Wallet).
 
 The column split matches the sibling exactly — **total left, donut right**. The left column follows
 its eyebrow → headline → badges → P&L-section rhythm: **Total Assets · All Accounts**
@@ -314,12 +315,6 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   reports live equity would be counted twice; log those on the exchange page, not `/trades`.
 - **A brand-new bucket** — lands in `liquid[]` and counts as available in full. Treating unknown
   buckets as committed would silently hide money the trader just recorded.
-- **An exchange bucket missing from `DEPLOYED_KEYS`** — this is what happened to OKX
-  (fixed 2026-08-17). The `okx` category existed and the trader transferred into it, but because
-  the key was not listed the balance took the "brand-new bucket" path above: it was counted as cash
-  and folded into the USDT slice, so no OKX slice ever appeared on the donut and its equity was
-  never marked to market. Adding an exchange to the book is therefore two edits — the key here and
-  its client in `asset.module.ts` — not just a new category row.
 - **The `spot` bucket was deleted** — `spotAllocationUsdt` is 0 while the cost of held coins is
   still subtracted, so available goes negative. That is the honest reading: coins are held against
   an allocation that no longer exists on the books.
@@ -411,14 +406,12 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   price read (pulls the full ticker list and filters locally: Binance 400s a `symbols=[…]` batch
   containing any unlisted pair)
 - `apps/api/src/modules/asset/asset.module.ts` — registers `BinanceMarketDataService`,
-  `BitgetTradeClient`, `MexcTradeClient` and `OkxTradeClient` for injection
+  `BitgetTradeClient` and `MexcTradeClient` for injection
 - `apps/api/src/modules/bitget/bitget-trade.client.ts` — `getAccountBalance()`, the live Bitget equity
 - `apps/api/src/modules/mexc/mexc-trade.client.ts` — `getAccountBalance()`, the live MEXC equity
-- `apps/api/src/modules/okx/okx-trade.client.ts` — `getAccountBalance()`, the live OKX equity (USDT
-  trading account)
 - `apps/api/test/asset.service.spec.ts` — balance derivation, `availableUsdt`, spot
   mark-to-market, per-coin `spotPositions`, realized PnL, deployed-bucket valuation and every
-  validation rule (47 cases, incl. the OKX bucket)
+  validation rule (44 cases)
 - `apps/api/test/stubs/app-db.ts` — in-memory asset ledger used by that spec, plus
   `__setTradingBook()` / `__setExchangeRealizedPnl()` for the deployed cases
 
@@ -426,10 +419,8 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
 - `packages/db/prisma/schema.prisma` — `AssetCategory`, `AssetTransaction`
 - `packages/db/prisma/migrations/20260805120000_add_asset_tracking/migration.sql` — tables, FKs,
   and the seed for the five default categories
-- `packages/db/prisma/migrations/20260817130000_seed_okx_asset_category/migration.sql` — seeds the
-  `okx` bucket (idempotent; it predated only as a hand-created row on the server)
 - `packages/db/src/repositories/asset.repository.ts` — `createAssetCategoryRepository`
-  (incl. `balanceByKey`, read by /bitget, /mexc and /okx for their capital),
+  (incl. `balanceByKey`, read by /bitget and /mexc for their capital),
   `createAssetTransactionRepository` (incl. `sumBalances`, `sumByType`)
 - `packages/db/src/repositories/holding.repository.ts` — `sumTotalCost()` (spot-spend term),
   `sumByCoin()` (per-coin amounts, for market valuation) and `sumRealizedPnl()` (banked profit)
@@ -437,7 +428,6 @@ as `(sellPrice − avgCost) × amount` — and the two agree to within a cent of
   closed-PnL total + open orders that value the `trading` bucket
 - `packages/db/src/repositories/bitget-trade.repository.ts` — `sumRealizedPnl()`, the `sync` fallback
 - `packages/db/src/repositories/mexc-trade.repository.ts` — `sumRealizedPnl()`, the `sync` fallback
-- `packages/db/src/repositories/okx-trade.repository.ts` — `sumRealizedPnl()`, the `sync` fallback
 - `apps/api/src/modules/portfolio/portfolio.service.ts` — `getPnlCalendar()`, the /portfolio-pnl
   figure this page's realized term is cross-checked against
 

@@ -12,21 +12,17 @@ const ACCUMULATION_PORTFOLIO_ID =
 async function loadDashboardData() {
   const client = createServerApiClient();
   try {
-    const [paginatedOrders, analysisRuns, portfolios, bitgetPnl, mexcPnl, okxPnl, assetSummary] = await Promise.all([
+    const [paginatedOrders, analysisRuns, portfolios, bitgetPnl, mexcPnl, assetSummary] = await Promise.all([
       client.fetchOrders({ pageSize: 20 }),
       client.fetchAnalysisRuns(),
       client.fetchPortfolios(),
-      // Bitget/MEXC/OKX trades are not `Order` rows — fold their realized PnL in by hand.
+      // Bitget/MEXC trades are not `Order` rows — fold their realized PnL in by hand.
       client
         .fetchBitgetHistory({ limit: EXCHANGE_HISTORY_LIMIT })
         .then((h) => h.summary.totalNetProfit)
         .catch(() => 0),
       client
         .fetchMexcHistory({ limit: EXCHANGE_HISTORY_LIMIT })
-        .then((h) => h.summary.totalNetProfit)
-        .catch(() => 0),
-      client
-        .fetchOkxHistory({ limit: EXCHANGE_HISTORY_LIMIT })
         .then((h) => h.summary.totalNetProfit)
         .catch(() => 0),
       // The whole-book summary. Its own catch, so an asset-service failure drops
@@ -79,7 +75,7 @@ async function loadDashboardData() {
       recentOrders: paginatedOrders.data,
       openOrderCount: paginatedOrders.openOrders.length,
       closedOrderCount: paginatedOrders.total - paginatedOrders.openOrders.length,
-      closedPnlSum: paginatedOrders.closedPnlSum + bitgetPnl + mexcPnl + okxPnl,
+      closedPnlSum: paginatedOrders.closedPnlSum + bitgetPnl + mexcPnl,
       analysisRuns,
       allHoldings,
       portfolioCount: portfolios.length,

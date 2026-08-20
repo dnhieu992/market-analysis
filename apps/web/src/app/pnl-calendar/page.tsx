@@ -12,14 +12,14 @@ type Props = {
 export default async function Page({ searchParams }: Props) {
   const client = createServerApiClient();
 
-  const [orders, bitgetTrades, mexcTrades, okxTrades, portfolio] = await Promise.all([
+  const [orders, bitgetTrades, mexcTrades, portfolio] = await Promise.all([
     client
       .fetchOrders({ status: 'closed', pageSize: 1000 })
       .then((r) => r.data)
       .catch(() => [] as DashboardOrder[]),
-    // Bitget/MEXC/OKX closed trades are not `Order` rows — fold them into the
-    // calendar. All three must be here: the overview's Total Profit / Loss card
-    // sums the same three, and leaving one out makes the two pages disagree.
+    // Bitget/MEXC closed trades are not `Order` rows — fold them into the
+    // calendar. Both must be here: the overview's Total Profit / Loss card
+    // sums the same two, and leaving one out makes the two pages disagree.
     client
       .fetchBitgetHistory({ limit: EXCHANGE_HISTORY_LIMIT })
       .then((h) => h.trades)
@@ -29,15 +29,11 @@ export default async function Page({ searchParams }: Props) {
       .then((h) => h.trades)
       .catch(() => []),
     client
-      .fetchOkxHistory({ limit: EXCHANGE_HISTORY_LIMIT })
-      .then((h) => h.trades)
-      .catch(() => []),
-    client
       .fetchPortfolioPnlCalendar()
       .catch(() => ({ daily: [], byCoin: [] }) as PortfolioPnlCalendar),
   ]);
 
-  const allOrders = [...orders, ...mapExchangeClosedTrades(bitgetTrades, mexcTrades, okxTrades)];
+  const allOrders = [...orders, ...mapExchangeClosedTrades(bitgetTrades, mexcTrades)];
 
   return (
     <PnlHubPage

@@ -879,200 +879,6 @@ export type MexcJournalNote = {
 };
 
 
-// ─── OKX USDT-perpetual swaps (/okx) ─────────────────────────────────────────
-// Same wire shapes as the Bitget/MEXC blocks above, kept as their own types so
-// the three exchange integrations can diverge without one breaking the others.
-
-export type OkxPosition = {
-  symbol: string;
-  holdSide: 'long' | 'short';
-  marginMode: string;
-  leverage: number;
-  size: number;
-  entryPrice: number;
-  markPrice: number;
-  liquidationPrice: number | null;
-  breakEvenPrice: number | null;
-  marginUsd: number;
-  notionalUsd: number;
-  unrealizedPnlUsd: number;
-  roePct: number;
-  realizedPnlUsd: number;
-  /** Position take-profit trigger set on the exchange, null when none is set. */
-  takeProfitPrice: number | null;
-  /** Position stop-loss trigger set on the exchange, null when none is set. */
-  stopLossPrice: number | null;
-  /** When the position was opened (OKX cTime). Anchors the trade-journal tradeKey. */
-  openedAt: string | null;
-  updatedAt: string | null;
-};
-
-export type OkxPositionsResponse = {
-  configured: boolean;
-  positions: OkxPosition[];
-  totalUnrealizedPnlUsd: number;
-  totalMarginUsd: number;
-  accountEquityUsd: number | null;
-  /** Capital the account started from, USDT — the baseline for `equityChangePct`. */
-  initialCapitalUsd: number;
-  /** Equity vs initial capital, in % (+/-). Null when equity is unavailable. */
-  equityChangePct: number | null;
-  fetchedAt: string;
-};
-
-export type OkxClosedTrade = {
-  positionId: string;
-  /** Stable trade-session key — lets the history tab open the trade's journal. */
-  tradeKey: string;
-  status: 'closed';
-  symbol: string;
-  holdSide: 'long' | 'short';
-  marginMode: string;
-  openAvgPrice: number;
-  closeAvgPrice: number;
-  size: number;
-  netProfit: number;
-  netProfitPct: number;
-  totalFunding: number;
-  feesUsd: number;
-  openedAt: string;
-  closedAt: string;
-};
-
-export type OkxTradeChart = {
-  id: string;
-  tradeKey: string;
-  symbol: string;
-  timeframe: string;
-  url: string;
-  objectKey: string;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type OkxClosedSummary = {
-  trades: number;
-  wins: number;
-  losses: number;
-  winRatePct: number;
-  totalNetProfit: number;
-  avgNetProfit: number;
-  bestNetProfit: number;
-  worstNetProfit: number;
-  totalVolumeUsd: number;
-};
-
-export type OkxHistoryResponse = {
-  configured: boolean;
-  trades: OkxClosedTrade[];
-  summary: OkxClosedSummary;
-  fetchedAt: string;
-};
-
-/** Per-coin, per-side manual-open config edited in the Setup dialog (persisted in the DB). */
-export type OkxSetupConfig = {
-  symbol: string;
-  holdSide: 'long' | 'short';
-  leverage: number;
-  marginUsd: number;
-};
-
-/** Manual 0–5 star rating a coin carries in the Setup tab (drives its default order). */
-export type OkxSymbolPriority = {
-  symbol: string;
-  priority: number;
-};
-
-/** A coin the trader added to the Setup tab by hand (on top of the built-in list). */
-export type OkxWatchlistSymbol = {
-  symbol: string;
-  createdAt: string;
-};
-
-/** How many saved charts one coin references — the Setup Attachments badge. */
-export type OkxChartCount = {
-  symbol: string;
-  count: number;
-};
-
-/** How many saved charts one trade references — the History Attachments badge. */
-export type OkxTradeChartCount = {
-  tradeKey: string;
-  count: number;
-};
-
-/** colinmck QQE Signals state on one timeframe's last closed candle. */
-export type OkxQqeTfSignal = {
-  state: 'long' | 'short';
-  barsSince: number | null;
-  freshCross: boolean;
-};
-
-/** Per-coin QQE state keyed by timeframe ('M30' | '1h' | '4h' | '1d'). */
-export type OkxQqeSignals = {
-  symbol: string;
-  signals: Record<string, OkxQqeTfSignal | null>;
-};
-
-/**
- * Price change (ratio, 0.0123 = +1.23%) per coin, keyed by bare symbol — each
- * field compares the current close with the close N days ago.
- */
-export type OkxPriceChange = {
-  symbol: string;
-  change7d: number | null;
-  change30d: number | null;
-  change90d: number | null;
-};
-
-export type OkxOpenResult = {
-  opened: true;
-  /** 'new' = fresh position, 'add' = volume added to an already-open one. */
-  mode: 'new' | 'add';
-  symbol: string;
-  holdSide: 'long' | 'short';
-  /** Size just placed (the added amount when scaling in). */
-  size: number;
-  /** Total position size after this order. */
-  totalSize: number;
-  entryPrice: number;
-  leverage: number;
-  marginUsd: number;
-};
-
-/** Result of syncing a position's TP/SL to OKX (prices as accepted by the exchange). */
-export type OkxTpslResult = {
-  ok: true;
-  symbol: string;
-  holdSide: 'long' | 'short';
-  takeProfitPrice: number | null;
-  stopLossPrice: number | null;
-};
-
-/** Price/PnL snapshot captured when a trade note was written. */
-export type OkxJournalSnapshot = {
-  markPrice?: number;
-  entryPrice?: number;
-  roePct?: number;
-  unrealizedPnlUsd?: number;
-};
-
-/** One manual note in a OKX trade session's log timeline. */
-export type OkxJournalNote = {
-  id: string;
-  tradeKey: string;
-  /** "manual" (trader note) or "system" (auto open/close event — read-only). */
-  kind: 'manual' | 'system';
-  symbol: string;
-  holdSide: 'long' | 'short';
-  content: string;
-  images: string[];
-  snapshot: OkxJournalSnapshot | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 // ─── DeepSeek Agents (/deepseek) ─────────────────────────────────────────────
 // The multi-timeframe snapshot is returned alongside the setup on purpose: the
 // agent is told to use only these numbers, so showing them lets the trader check
@@ -1389,7 +1195,7 @@ export type AssetSpotPosition = {
   priced: boolean;
 };
 
-/** available = total − spent on spot + spot PnL (realized + unrealized) − trading − bitget − mexc − okx. */
+/** available = total − spent on spot + spot PnL (realized + unrealized) − trading − bitget − mexc. */
 export type AssetAvailable = {
   availableUsdt: number;
   spentOnSpotUsdt: number;
@@ -1406,7 +1212,7 @@ export type AssetAvailable = {
   spotAllocationUsdt: number;
   /** Cash buckets — wallet and any custom bucket — counted toward available in full. */
   liquid: AssetDeployed[];
-  /** Committed buckets — trading / bitget / mexc / okx — each valued as capital + PnL. */
+  /** Committed buckets — trading / bitget / mexc — each valued as capital + PnL. */
   deployed: AssetDeployedValue[];
 };
 

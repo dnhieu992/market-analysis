@@ -6,7 +6,6 @@ import { AnalysisModule } from './modules/analysis/analysis.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { BitgetModule } from './modules/bitget/bitget.module';
 import { MexcModule } from './modules/mexc/mexc.module';
-import { OkxModule } from './modules/okx/okx.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
@@ -57,7 +56,6 @@ import { JournalModule } from './modules/journal/journal.module';
     SupertrendScanModule,
     BitgetModule,
     MexcModule,
-    OkxModule,
     DeepseekModule,
     JournalModule,
     AssetModule,

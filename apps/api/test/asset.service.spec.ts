@@ -12,7 +12,6 @@ const SPOT = 'cat-spot';
 const TRADING = 'cat-trading';
 const BITGET = 'cat-bitget';
 const WALLET = 'cat-wallet';
-const OKX = 'cat-okx';
 
 async function deposit(service: AssetService, toCategoryId: string, amountUsdt: number) {
   return service.createTransaction({ type: 'DEPOSIT', amountUsdt, toCategoryId });
@@ -29,7 +28,7 @@ function marketStub(prices: Record<string, number> = {}, fail = false) {
 }
 
 /**
- * Stands in for a Bitget/MEXC/OKX account. `equity: null` means the balance call
+ * Stands in for a Bitget/MEXC account. `equity: null` means the balance call
  * failed; `configured: false` means there is no API key at all — both push the
  * bucket onto the mirrored-trades fallback.
  */
@@ -56,9 +55,8 @@ function build(
   fail = false,
   bitget = NO_ACCOUNT,
   mexc = NO_ACCOUNT,
-  okx = NO_ACCOUNT,
 ) {
-  return new AssetService(marketStub(prices, fail), bitget, mexc, okx);
+  return new AssetService(marketStub(prices, fail), bitget, mexc);
 }
 
 describe('AssetService', () => {
@@ -519,71 +517,6 @@ describe('AssetService', () => {
 
       expect(available.deployed.find((d) => d.key === 'bitget')?.pnlUsdt).toBe(400);
       expect(available.availableUsdt).toBe(200);
-    });
-  });
-
-  /**
-   * OKX joined the book after Bitget and MEXC. Until it was added to the deployed
-   * keys its balance fell through to the cash list, which folded it into available
-   * USDT — so a transfer into OKX simply grew the USDT slice of the allocation
-   * donut instead of appearing as its own OKX slice.
-   */
-  describe('okx bucket', () => {
-    /** The default seed has no OKX row; these cases need one. */
-    function seedWithOkx() {
-      __seedAssetStore([
-        { id: SPOT, key: 'spot', label: 'Spot', sortOrder: 1 },
-        { id: TRADING, key: 'trading', label: 'Trading', sortOrder: 2 },
-        { id: BITGET, key: 'bitget', label: 'Bitget', sortOrder: 3 },
-        { id: WALLET, key: 'wallet', label: 'Wallet', sortOrder: 5 },
-        { id: OKX, key: 'okx', label: 'OKX', sortOrder: 6 },
-      ]);
-    }
-
-    it('reports a transfer into OKX as deployed, not as spendable cash', async () => {
-      seedWithOkx();
-      await deposit(service, SPOT, 1000);
-      await service.createTransaction({
-        type: 'TRANSFER',
-        amountUsdt: 300,
-        fromCategoryId: SPOT,
-        toCategoryId: OKX,
-      });
-
-      const { available } = await service.getSummary();
-
-      expect(available.liquid.map((c) => c.key)).toEqual(['wallet']);
-      // Its own row in the donut — the whole point of the bucket.
-      expect(available.deployed.map((d) => d.key)).toEqual(['trading', 'bitget', 'okx']);
-      expect(available.deployed.find((d) => d.key === 'okx')?.balanceUsdt).toBe(300);
-      expect(available.availableUsdt).toBe(700);
-    });
-
-    it('values the OKX bucket from live equity like the other exchanges', async () => {
-      seedWithOkx();
-      service = build({}, false, NO_ACCOUNT, NO_ACCOUNT, exchangeStub(130, 5));
-      await deposit(service, OKX, 100);
-
-      const okx = (await service.getSummary()).available.deployed.find((d) => d.key === 'okx');
-
-      expect(okx?.source).toBe('exchange');
-      expect(okx?.currentValueUsdt).toBe(130);
-      expect(okx?.pnlUsdt).toBe(30);
-      expect(okx?.unrealizedPnlUsdt).toBe(5);
-      expect(okx?.realizedPnlUsdt).toBe(25);
-    });
-
-    it('falls back to mirrored OKX trades when the account cannot be read', async () => {
-      seedWithOkx();
-      __setExchangeRealizedPnl(0, 0, 12.5);
-      service = build({}, false, NO_ACCOUNT, NO_ACCOUNT, exchangeStub(null));
-      await deposit(service, OKX, 100);
-
-      const okx = (await service.getSummary()).available.deployed.find((d) => d.key === 'okx');
-
-      expect(okx?.source).toBe('sync');
-      expect(okx?.pnlUsdt).toBe(12.5);
-      expect(okx?.unrealizedPnlUsdt).toBe(0);
     });
   });
 

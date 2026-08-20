@@ -48,11 +48,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Vị thế đang mở & lịch sử lệnh trên MEXC · uPnL, realized PnL, win rate'
   },
   {
-    href: '/okx',
-    label: 'OKX',
-    description: 'Vị thế đang mở & lịch sử lệnh trên OKX · uPnL, realized PnL, win rate'
-  },
-  {
     href: '/tracking-coins',
     label: 'Tracking Coins · Gom đáy',
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'

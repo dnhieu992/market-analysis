@@ -12,13 +12,11 @@ import {
   createBitgetTradeRepository,
   createHoldingRepository,
   createMexcTradeRepository,
-  createOkxTradeRepository,
   createOrderRepository,
 } from '@app/db';
 
 import { BitgetTradeClient } from '../bitget/bitget-trade.client';
 import { MexcTradeClient } from '../mexc/mexc-trade.client';
-import { OkxTradeClient } from '../okx/okx-trade.client';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 
 import type { CreateAssetCategoryDto } from './dto/create-asset-category.dto';
@@ -157,7 +155,7 @@ export type AssetAvailableDto = {
    */
   liquid: AssetDeployedDto[];
   /**
-   * The `trading` / `bitget` / `mexc` / `okx` buckets, each already committed — and each
+   * The `trading` / `bitget` / `mexc` buckets, each already committed — and each
    * marked to market, so the page can show what the capital grew or shrank to.
    */
   deployed: AssetDeployedValueDto[];
@@ -222,7 +220,7 @@ const PRICE_CACHE_MS = 30_000;
  * Spot is deliberately absent: its allocation is only spent to the extent coins
  * were actually bought, which `spentOnSpotUsdt` measures directly.
  */
-const DEPLOYED_KEYS = ['trading', 'bitget', 'mexc', 'okx'] as const;
+const DEPLOYED_KEYS = ['trading', 'bitget', 'mexc'] as const;
 
 /** The deployed buckets that are a live exchange account; the rest is the manual book. */
 type ExchangeKey = Exclude<(typeof DEPLOYED_KEYS)[number], 'trading'>;
@@ -242,7 +240,6 @@ export class AssetService {
   private readonly orders = createOrderRepository();
   private readonly bitgetTrades = createBitgetTradeRepository();
   private readonly mexcTrades = createMexcTradeRepository();
-  private readonly okxTrades = createOkxTradeRepository();
   private readonly priceCache = new Map<string, { price: number; at: number }>();
 
   constructor(
@@ -254,8 +251,6 @@ export class AssetService {
     private readonly bitget: ExchangeBalanceClient,
     @Inject(MexcTradeClient)
     private readonly mexc: ExchangeBalanceClient,
-    @Inject(OkxTradeClient)
-    private readonly okx: ExchangeBalanceClient,
   ) {}
 
   /** Everything /my-asset renders in one round trip. */
@@ -377,8 +372,8 @@ export class AssetService {
   }
 
   /**
-   * Bitget / MEXC / OKX. Live account equity is the ground truth — it already
-   * nets off fees and funding, and it is the same figure /bitget, /mexc and /okx
+   * Bitget / MEXC. Live account equity is the ground truth — it already
+   * nets off fees and funding, and it is the same figure /bitget and /mexc
    * show — so the PnL is simply `equity − capital`, split by the exchange's own
    * unrealized number. When the account can't be read we fall back to the closed
    * trades the worker mirrors into our DB, which knows realized profit but not
@@ -390,7 +385,6 @@ export class AssetService {
     const source = {
       bitget: { client: this.bitget, trades: this.bitgetTrades },
       mexc: { client: this.mexc, trades: this.mexcTrades },
-      okx: { client: this.okx, trades: this.okxTrades },
     }[key];
     const { client } = source;
 
