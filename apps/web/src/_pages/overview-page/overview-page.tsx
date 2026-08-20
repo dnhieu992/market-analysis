@@ -3,6 +3,12 @@ import type { AssetSummary, DashboardOrder } from '@web/shared/api/types';
 import { EXCHANGE_HISTORY_LIMIT } from '@web/shared/api/exchange-orders';
 import { DashboardOverview } from '@web/widgets/dashboard-overview/dashboard-overview';
 
+// The BTC/ETH Accumulated cards track the long-term DCA plan only — the
+// "BTC&ETH(70%)" portfolio. Coins held in the short-term trading portfolios must
+// not inflate the accumulation progress. Override with NEXT_PUBLIC_ACCUMULATION_PORTFOLIO_ID.
+const ACCUMULATION_PORTFOLIO_ID =
+  process.env.NEXT_PUBLIC_ACCUMULATION_PORTFOLIO_ID ?? '1cf1569e-2f47-4125-b004-cd27f9521a3a';
+
 async function loadDashboardData() {
   const client = createServerApiClient();
   try {
@@ -58,7 +64,18 @@ async function loadDashboardData() {
       portfolioId: v.portfolioId,
     }));
 
+    // Accumulation cards read a single portfolio, so no cross-portfolio merge here.
+    const accumulationIndex = portfolios.findIndex((p) => p.id === ACCUMULATION_PORTFOLIO_ID);
+    const accumulationHoldings = (accumulationIndex >= 0 ? holdingsByPortfolio[accumulationIndex] ?? [] : []).map((h) => ({
+      coinId: h.coinId,
+      totalAmount: h.totalAmount,
+      totalCost: h.totalInvested,
+      avgCost: h.totalAmount > 0 ? h.totalInvested / h.totalAmount : 0,
+      portfolioId: ACCUMULATION_PORTFOLIO_ID,
+    }));
+
     return {
+      accumulationHoldings,
       recentOrders: paginatedOrders.data,
       openOrderCount: paginatedOrders.openOrders.length,
       closedOrderCount: paginatedOrders.total - paginatedOrders.openOrders.length,
@@ -76,6 +93,13 @@ async function loadDashboardData() {
       closedPnlSum: 0,
       analysisRuns: [],
       allHoldings: [],
+      accumulationHoldings: [] as {
+        coinId: string;
+        totalAmount: number;
+        totalCost: number;
+        avgCost: number;
+        portfolioId: string;
+      }[],
       portfolioCount: 0,
       assetSummary: null as AssetSummary | null,
     };
@@ -150,11 +174,11 @@ function buildOverviewCards(
 }
 
 export default async function OverviewPage() {
-  const { recentOrders, closedPnlSum, allHoldings, portfolioCount, assetSummary } =
+  const { recentOrders, closedPnlSum, allHoldings, accumulationHoldings, portfolioCount, assetSummary } =
     await loadDashboardData();
 
-  const btcHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
-  const ethHolding = allHoldings.find((h) => h.coinId.toUpperCase() === 'ETH');
+  const btcHolding = accumulationHoldings.find((h) => h.coinId.toUpperCase() === 'BTC');
+  const ethHolding = accumulationHoldings.find((h) => h.coinId.toUpperCase() === 'ETH');
 
   const btcHref = btcHolding ? `/portfolio/${btcHolding.portfolioId}/${btcHolding.coinId}` : undefined;
   const ethHref = ethHolding ? `/portfolio/${ethHolding.portfolioId}/${ethHolding.coinId}` : undefined;
