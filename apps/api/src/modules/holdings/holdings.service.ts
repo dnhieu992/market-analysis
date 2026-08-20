@@ -7,6 +7,12 @@ import { HOLDING_REPOSITORY } from '../database/database.providers';
 
 type HoldingRepository = ReturnType<typeof import('@app/db').createHoldingRepository>;
 
+/** Marks the sell/buy pair a partial transfer books, so the UI can exclude it from trade stats. */
+export const TRANSFER_NOTE_PREFIX = '[transfer]';
+
+/** Amounts are stored as Decimal(20,8); tolerate float error below the last stored digit. */
+const AMOUNT_EPSILON = 1e-8;
+
 export type HoldingWithPnl = {
   id: string;
   portfolioId: string;
@@ -108,19 +114,53 @@ export class HoldingsService {
   }
 
   /**
-   * Move an entire coin position from one portfolio to another.
-   * Reassigns every transaction of that coin (including soft-deleted rows and any
-   * mirrored DCA layers) to the target portfolio, then recalculates holdings on both
-   * sides. Cost basis, realized PnL and full history are preserved; if the target
-   * already holds the coin the positions are merged on recalculation.
+   * Move a coin position from one portfolio to another.
+   *
+   * With no `amount` (or an amount covering the whole holding) this reassigns every
+   * transaction of that coin — including soft-deleted rows — to the target portfolio,
+   * so cost basis, realized PnL and full history are preserved.
+   *
+   * With a smaller `amount` the history cannot follow, so the move is booked as a pair
+   * of transactions priced at the source's average cost: a sell out of the source and a
+   * buy into the target. Priced at avgCost the sell realizes exactly zero PnL, and the
+   * target inherits the same cost basis — the units change books without inventing a trade.
+   *
+   * Either way, if the target already holds the coin the positions merge on recalculation.
    */
   async transferCoin(
     sourcePortfolioId: string,
     coinId: string,
-    targetPortfolioId: string
-  ): Promise<{ coinId: string; moved: number }> {
+    targetPortfolioId: string,
+    amount?: number
+  ): Promise<{ coinId: string; moved: number; amount?: number }> {
     if (sourcePortfolioId === targetPortfolioId) {
       throw new BadRequestException('Source and target portfolios must be different');
+    }
+
+    if (amount != null) {
+      const holding = await this.holdingRepository.findByPortfolioAndCoin(sourcePortfolioId, coinId);
+
+      if (!holding) {
+        throw new NotFoundException(`No ${coinId} holding found in the source portfolio`);
+      }
+
+      const available = Number(holding.totalAmount);
+
+      if (amount <= 0) {
+        throw new BadRequestException('Transfer amount must be greater than zero');
+      }
+
+      // Float math on an 8-decimal column: anything within a satoshi of the full
+      // holding is a full transfer, not a partial one that leaves dust behind.
+      if (amount < available - AMOUNT_EPSILON) {
+        return this.transferPartial(sourcePortfolioId, coinId, targetPortfolioId, amount, Number(holding.avgCost));
+      }
+
+      if (amount > available + AMOUNT_EPSILON) {
+        throw new BadRequestException(
+          `Cannot transfer ${amount} ${coinId}: only ${available} available in the source portfolio`
+        );
+      }
     }
 
     const txs = await prisma.coinTransaction.findMany({
@@ -143,6 +183,63 @@ export class HoldingsService {
     await this.recalculate(targetPortfolioId, coinId);
 
     return { coinId, moved: ids.length };
+  }
+
+  /**
+   * Book a partial move as a zero-PnL sell/buy pair at `avgCost`. Both rows carry the
+   * `[transfer]` note prefix so the UI can tell them apart from real trades — the sold /
+   * remaining ratio reads the prefix to keep a transfer out of its "sold" bucket.
+   */
+  private async transferPartial(
+    sourcePortfolioId: string,
+    coinId: string,
+    targetPortfolioId: string,
+    amount: number,
+    avgCost: number
+  ): Promise<{ coinId: string; moved: number; amount: number }> {
+    const portfolios = await prisma.portfolio.findMany({
+      where: { id: { in: [sourcePortfolioId, targetPortfolioId] } },
+      select: { id: true, name: true }
+    });
+    const nameOf = (id: string) => portfolios.find((p) => p.id === id)?.name ?? 'another portfolio';
+
+    const transactedAt = new Date();
+    const price = new Decimal(avgCost);
+    const totalValue = new Decimal(amount * avgCost);
+
+    await prisma.coinTransaction.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          portfolioId: sourcePortfolioId,
+          coinId,
+          type: 'sell',
+          price,
+          amount: new Decimal(amount),
+          totalValue,
+          fee: new Decimal(0),
+          note: `${TRANSFER_NOTE_PREFIX} Moved to ${nameOf(targetPortfolioId)}`,
+          transactedAt
+        },
+        {
+          id: randomUUID(),
+          portfolioId: targetPortfolioId,
+          coinId,
+          type: 'buy',
+          price,
+          amount: new Decimal(amount),
+          totalValue,
+          fee: new Decimal(0),
+          note: `${TRANSFER_NOTE_PREFIX} Moved from ${nameOf(sourcePortfolioId)}`,
+          transactedAt
+        }
+      ]
+    });
+
+    await this.recalculate(sourcePortfolioId, coinId);
+    await this.recalculate(targetPortfolioId, coinId);
+
+    return { coinId, moved: 2, amount };
   }
 
   async recalculate(portfolioId: string, coinId?: string): Promise<void> {

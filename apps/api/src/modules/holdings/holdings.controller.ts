@@ -58,7 +58,9 @@ export class HoldingsController {
 
   @Post(':coinId/transfer')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Move a coin position (all its transactions) to another portfolio' })
+  @ApiOperation({
+    summary: 'Move a coin position to another portfolio — all of it, or a chosen quantity'
+  })
   async transfer(
     @Param('portfolioId') portfolioId: string,
     @Param('coinId') coinId: string,
@@ -68,6 +70,6 @@ export class HoldingsController {
     // Verify the caller owns BOTH the source and the destination portfolio.
     await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
     await this.portfolioService.getPortfolio(body.targetPortfolioId, req.authUser!.id);
-    return this.holdingsService.transferCoin(portfolioId, coinId, body.targetPortfolioId);
+    return this.holdingsService.transferCoin(portfolioId, coinId, body.targetPortfolioId, body.amount);
   }
 }

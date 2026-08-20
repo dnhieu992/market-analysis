@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { formatCryptoPrice } from '@web/shared/lib/format';
+import { isTransferTransaction } from '@web/shared/lib/transfer';
 
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import { createApiClient } from '@web/shared/api/client';
@@ -23,6 +24,9 @@ function buildSoldRatioByCoin(transactions: CoinTransaction[]): Record<string, S
   for (const tx of transactions) {
     const entry = totals[tx.coinId] ?? (totals[tx.coinId] = { totalBought: 0, totalSold: 0 });
     if (tx.type === 'buy') entry.totalBought += tx.amount;
+    // A transfer out is a move to another portfolio, not a sale — it leaves the book
+    // rather than counting as sold. Its incoming leg is a plain buy on the other side.
+    else if (isTransferTransaction(tx)) entry.totalBought -= tx.amount;
     else entry.totalSold += tx.amount;
   }
   const result: Record<string, SoldRatio> = {};

@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
 import { createApiClient } from '@web/shared/api/client';
 import { formatCryptoPrice } from '@web/shared/lib/format';
+import { isTransferTransaction } from '@web/shared/lib/transfer';
 import type { CoinTransaction, Holding, Portfolio } from '@web/shared/api/types';
 import { ChartIcon } from '@web/widgets/bitget/chart-icon';
 import { SetupChartDialog } from '@web/widgets/bitget/setup-chart-dialog';
@@ -19,6 +20,9 @@ type PortfolioCoinDetailProps = Readonly<{
 }>;
 
 const TX_PAGE_SIZE = 10;
+
+/** Quantities are stored to 8 decimals; treat anything closer than that as equal. */
+const TRANSFER_EPSILON = 1e-8;
 
 /** Compact page list with ellipsis, e.g. [1, '...', 4, 5, 6, '...', 12]. */
 function getPageNumbers(current: number, total: number): (number | '...')[] {
@@ -194,14 +198,18 @@ function EditTransactionModal({ tx, portfolioId, onClose, onSaved }: {
 function TransferCoinModal({
   portfolioId,
   coinId,
+  available,
   onClose
 }: {
   portfolioId: string;
   coinId: string;
+  /** Current quantity held in the source portfolio — the ceiling on a partial transfer. */
+  available: number;
   onClose: () => void;
 }) {
   const [portfolios, setPortfolios] = useState<Portfolio[] | null>(null);
   const [targetId, setTargetId] = useState('');
+  const [amountInput, setAmountInput] = useState(available > 0 ? String(available) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -212,14 +220,26 @@ function TransferCoinModal({
       .catch(() => setError('Failed to load portfolios'));
   }, [portfolioId]);
 
+  const amount = Number(amountInput);
+  const amountValid = amountInput.trim() !== '' && Number.isFinite(amount) && amount > 0 && amount <= available + TRANSFER_EPSILON;
+  // A closed position (nothing left to move) can still be transferred for its history.
+  const isHistoryOnly = available <= 0;
+  const isFullTransfer = isHistoryOnly || amount >= available - TRANSFER_EPSILON;
+
   async function handleTransfer() {
-    if (!targetId) return;
+    if (!targetId || (!isHistoryOnly && !amountValid)) return;
     setSaving(true);
     setError(null);
     try {
-      await createApiClient().transferHolding(portfolioId, coinId, targetId);
-      // The coin now lives in the target portfolio — navigate there.
-      window.location.href = `/portfolio/${targetId}/${coinId}`;
+      // Full move reassigns the history; a partial one books a sell/buy pair at avg cost.
+      await createApiClient().transferHolding(portfolioId, coinId, targetId, isFullTransfer ? undefined : amount);
+      if (isFullTransfer) {
+        // The coin now lives in the target portfolio — navigate there.
+        window.location.href = `/portfolio/${targetId}/${coinId}`;
+      } else {
+        // Part of the position stayed here; reload so the reduced quantity shows.
+        window.location.reload();
+      }
     } catch {
       setError('Transfer failed. Please try again.');
       setSaving(false);
@@ -235,8 +255,8 @@ function TransferCoinModal({
         </div>
         <div className="dialog-body">
           <p className="tt-muted" style={{ marginTop: 0 }}>
-            Move the entire {coinId} position — all of its transactions and cost basis — into another
-            portfolio. If the destination already holds {coinId}, the positions are merged.
+            Move {coinId} into another portfolio at its current average cost — no profit or loss is
+            realized. If the destination already holds {coinId}, the positions are merged.
           </p>
           <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>
             Destination portfolio
@@ -255,10 +275,72 @@ function TransferCoinModal({
           {portfolios && portfolios.length === 0 && (
             <p className="tt-muted" style={{ fontSize: '0.85rem' }}>You have no other portfolio to transfer into.</p>
           )}
+
+          {isHistoryOnly ? (
+            <p className="tt-muted" style={{ fontSize: '0.85rem', marginTop: '0.9rem' }}>
+              This position is closed — its transaction history moves across in full.
+            </p>
+          ) : (
+            <>
+              <label
+                htmlFor="transfer-amount"
+                style={{ display: 'block', fontSize: '0.85rem', color: 'var(--muted)', margin: '0.9rem 0 0.4rem' }}
+              >
+                Quantity to transfer · available {formatCrypto(available, coinId)}
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  id="transfer-amount"
+                  type="number"
+                  step="any"
+                  min="0"
+                  max={available}
+                  value={amountInput}
+                  onChange={(e) => setAmountInput(e.target.value)}
+                  disabled={saving}
+                  style={{ flex: 1, padding: '0.6rem', borderRadius: 8, background: 'var(--panel-bg, rgba(255,255,255,0.04))', color: 'inherit', border: '1px solid var(--border)' }}
+                />
+                <button
+                  className="btn btn--secondary"
+                  type="button"
+                  onClick={() => setAmountInput(String(available))}
+                  disabled={saving}
+                >
+                  Max
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
+                {[25, 50, 75].map((pct) => (
+                  <button
+                    key={pct}
+                    className="btn btn--secondary"
+                    type="button"
+                    style={{ flex: 1, padding: '0.35rem', fontSize: '0.8rem' }}
+                    onClick={() => setAmountInput(String((available * pct) / 100))}
+                    disabled={saving}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+              <p className="tt-muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                {!amountValid && amountInput.trim() !== ''
+                  ? `Enter a quantity between 0 and ${formatCrypto(available, coinId)}.`
+                  : isFullTransfer
+                    ? 'Moving the whole position — its transaction history moves with it.'
+                    : `${formatCrypto(available - amount, coinId)} stays in this portfolio. The moved units are booked as a transfer pair at average cost, not as a trade.`}
+              </p>
+            </>
+          )}
+
           {error && <p style={{ color: '#ef4444', fontSize: '0.85rem' }}>{error}</p>}
           <div className="dialog-confirm-actions" style={{ marginTop: '1rem' }}>
             <button className="btn btn--secondary" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="btn btn--primary" onClick={handleTransfer} disabled={!targetId || saving}>
+            <button
+              className="btn btn--primary"
+              onClick={handleTransfer}
+              disabled={!targetId || saving || (!isHistoryOnly && !amountValid)}
+            >
               {saving ? 'Transferring…' : 'Transfer'}
             </button>
           </div>
@@ -323,8 +405,15 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
   const isAvgPricePctPositive = avgPricePct != null && avgPricePct >= 0;
 
   // Sold vs remaining, out of every unit ever bought since the coin was first added.
-  const totalSoldAmount = transactions.filter((tx) => tx.type === 'sell').reduce((sum, tx) => sum + tx.amount, 0);
-  const totalBoughtAmount = transactions.filter((tx) => tx.type === 'buy').reduce((sum, tx) => sum + tx.amount, 0);
+  // A transfer is a move between books, not a sale: its outgoing leg shrinks the units
+  // this portfolio ever held rather than counting as sold, so the bar keeps measuring trading.
+  const totalSoldAmount = transactions
+    .filter((tx) => tx.type === 'sell' && !isTransferTransaction(tx))
+    .reduce((sum, tx) => sum + tx.amount, 0);
+  const totalBoughtAmount = transactions.reduce((sum, tx) => {
+    if (tx.type === 'buy') return sum + tx.amount;
+    return isTransferTransaction(tx) ? sum - tx.amount : sum;
+  }, 0);
   const soldPct = totalBoughtAmount > 0 ? Math.min(100, Math.max(0, (totalSoldAmount / totalBoughtAmount) * 100)) : 0;
   const remainingPct = 100 - soldPct;
 
@@ -475,6 +564,11 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                   const isBuy = tx.type === 'buy';
                   const amountSign = isBuy ? '+' : '-';
                   const amountColor = isBuy ? '#22c55e' : '#ef4444';
+                  // A transfer leg is stored as a buy/sell so the replay stays simple, but
+                  // calling it "Sell" in the log would read as a trade that never happened.
+                  const typeLabel = isTransferTransaction(tx)
+                    ? (isBuy ? 'Transfer in' : 'Transfer out')
+                    : tx.type;
                   return (
                     <tr key={tx.id}>
                       {/* Type + date */}
@@ -482,7 +576,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <TypeAvatar type={tx.type} />
                           <div>
-                            <div style={{ fontWeight: 500, textTransform: 'capitalize' }}>{tx.type}</div>
+                            <div style={{ fontWeight: 500, textTransform: 'capitalize' }}>{typeLabel}</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{formatDateTime(tx.transactedAt)}</div>
                           </div>
                         </div>
@@ -609,7 +703,12 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
 
       {/* Transfer coin dialog */}
       {transferOpen && (
-        <TransferCoinModal portfolioId={portfolioId} coinId={coinId} onClose={() => setTransferOpen(false)} />
+        <TransferCoinModal
+          portfolioId={portfolioId}
+          coinId={coinId}
+          available={totalAmount}
+          onClose={() => setTransferOpen(false)}
+        />
       )}
 
       {/* AI Chat Drawer */}
