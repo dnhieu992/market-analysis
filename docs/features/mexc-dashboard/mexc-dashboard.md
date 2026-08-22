@@ -18,7 +18,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 
 ## Main Flow
 1. **SSR** — `/mexc` gọi `fetchMexcPositions()` + `fetchMexcHistory({limit:200})`; lỗi thì rơi về snapshot rỗng để trang vẫn render.
-2. **Tab Vị thế** — `MexcPositionsFeed` refresh REST mỗi 15s, xen giữa là giá realtime từ WS công khai `wss://contract.mexc.com/edge` (`sub.ticker` từng symbol, ping JSON 20s). uPnL/ROE/notional được tính lại client-side theo giá live. Tile **PnL chưa thực hiện** giống hệt Bitget: dòng USD (ẩn theo toggle value) + dòng **% luôn hiện**, tính trên **vốn + PnL đã chốt** = `accountEquity − uPnL của snapshot` — xem [bitget-positions](../bitget-positions/bitget-positions.md).
+2. **Tab Vị thế** — `MexcPositionsFeed` refresh REST mỗi 15s, xen giữa là giá realtime từ WS công khai `wss://contract.mexc.com/edge` (`sub.ticker` từng symbol, ping JSON 20s). uPnL/ROE/notional được tính lại client-side theo giá live. Tile **PnL chưa thực hiện** giống hệt Bitget: dòng USD (ẩn theo toggle value) + dòng **% luôn hiện**, tính trên **vốn + PnL đã chốt** = `accountEquity − uPnL của snapshot` — xem [bitget-positions](../bitget-positions/bitget-positions.md). Cạnh nó là tile **Giá BTC** (`BtcPriceTile` dùng chung): giá lấy từ chính WS MEXC (`BTCUSDT` luôn nằm trong danh sách subscribe, wire là `BTC_USDT`), % là **rolling 1h** từ klines 1m qua proxy Binance của API.
 3. **Đóng lệnh** — `POST /mexc/positions/close` → đọc vị thế, lấy giá market, gửi `order/create` chiều đóng (`side` 4 = close long / 2 = close short) với `positionId` và toàn bộ `holdVol`.
 4. **TP/SL** — `POST /mexc/positions/tpsl` → validate hướng giá, rồi tuỳ trạng thái hiện tại: chưa có lệnh TP/SL → `stoporder/place` (trigger theo **Fair Price**, đóng toàn bộ vị thế); đã có → **sửa giá ngay trên lệnh đang live** (`stoporder/change_price`, fallback `change_plan_price`); xoá cả hai chiều → chỉ huỷ lệnh cũ. Ghi 1 log `system` vào nhật ký lệnh.
 5. **Mở lệnh (tab Setup)** — `POST /mexc/positions/open` → `vol = margin × leverage ÷ giá ÷ contractSize`, làm tròn xuống theo `volScale`; đặt đòn bẩy khi đang flat, rồi `order/create` market cross. Bảng Setup có **cả hai cột LONG và SHORT**, mỗi hướng một nút mở lệnh và một cấu hình (đòn bẩy / margin) riêng.
@@ -52,7 +52,8 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - `apps/web/src/widgets/mexc/{setup-chart-dialog,bulk-setup-dialog,add-coin-dialog,chart-note-dialog,qqe-cell,star-rating,symbol-filter-input,chart-icon}.tsx` — UI phụ trợ của tab Setup (`symbol-filter-input` = ô lọc coin free text, dùng chung với tab Lịch sử).
 - `apps/web/src/widgets/mexc-positions/mexc-positions-feed.tsx` — bảng vị thế đang mở.
 - `apps/web/src/widgets/mexc-positions/{tpsl-dialog,mexc-journal-drawer}.tsx` — dialog TP/SL + drawer nhật ký.
-- `apps/web/src/widgets/mexc-positions/use-mexc-live-prices.ts` — WS giá realtime MEXC.
+- `apps/web/src/widgets/mexc-positions/use-mexc-live-prices.ts` — WS giá realtime MEXC (subscribe thêm `BTCUSDT` cho tile Giá BTC).
+- `apps/web/src/widgets/btc-price-tile/btc-price-tile.tsx` — tile Giá BTC dùng chung với `/bitget`.
 - `apps/web/src/widgets/mexc-history/mexc-history-feed.tsx` — tab Lịch sử & PnL.
 - `apps/web/src/shared/api/types.ts` — khối type `Mexc*`.
 - `apps/web/src/shared/api/client.ts` — khối method `*Mexc*` gọi `/mexc/*`.

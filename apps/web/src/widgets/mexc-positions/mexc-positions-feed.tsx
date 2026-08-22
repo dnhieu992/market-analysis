@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { MexcPosition, MexcPositionsResponse } from '@web/shared/api/types';
 
+import { BtcPriceTile } from '../btc-price-tile/btc-price-tile';
 import { ChartIcon } from '../mexc/chart-icon';
 import { SetupChartDialog } from '../mexc/setup-chart-dialog';
 
@@ -14,6 +15,7 @@ import { useMexcLivePrices } from './use-mexc-live-prices';
 
 const REFRESH_MS = 15_000;
 const SHOW_VALUE_KEY = 'mexc:pnl-show-value';
+const BTC_SYMBOL = 'BTCUSDT';
 
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -166,8 +168,10 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
 
   // Live mark prices straight from MEXC's public WS; recompute uPnL/ROE/notional
   // client-side so the table tracks price between the 15s authoritative refreshes.
+  // BTCUSDT rides along on the same socket for the BTC tile, so the page keeps a
+  // live feed (and a lit LIVE badge) even with no position open.
   const { prices: livePrices, live } = useMexcLivePrices(
-    useMemo(() => rawPositions.map((p) => p.symbol), [rawPositions]),
+    useMemo(() => [BTC_SYMBOL, ...rawPositions.map((p) => p.symbol)], [rawPositions]),
   );
 
   const positions = useMemo(
@@ -307,6 +311,7 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
                 </span>
               </span>
             </div>
+            <BtcPriceTile priceUsd={livePrices[BTC_SYMBOL] ?? null} />
           </div>
 
           {positions.length === 0 ? (

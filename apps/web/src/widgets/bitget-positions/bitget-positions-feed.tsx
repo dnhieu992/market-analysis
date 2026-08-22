@@ -8,6 +8,7 @@ import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/ty
 import { ChartIcon } from '../bitget/chart-icon';
 import { SetupChartDialog } from '../bitget/setup-chart-dialog';
 import { SymbolFilterInput, matchesSymbolQuery } from '../bitget/symbol-filter-input';
+import { BtcPriceTile } from '../btc-price-tile/btc-price-tile';
 
 import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
 import { TpslDialog } from './tpsl-dialog';
@@ -15,6 +16,7 @@ import { useBitgetLivePrices } from './use-bitget-live-prices';
 
 const REFRESH_MS = 15_000;
 const SHOW_VALUE_KEY = 'bitget:pnl-show-value';
+const BTC_SYMBOL = 'BTCUSDT';
 
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -169,8 +171,10 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
 
   // Live mark prices straight from Bitget's public WS; recompute uPnL/ROE/notional
   // client-side so the table tracks price between the 15s authoritative refreshes.
+  // BTCUSDT rides along on the same socket for the BTC tile, so the page keeps a
+  // live feed (and a lit LIVE badge) even with no position open.
   const { prices: livePrices, live } = useBitgetLivePrices(
-    useMemo(() => rawPositions.map((p) => p.symbol), [rawPositions]),
+    useMemo(() => [BTC_SYMBOL, ...rawPositions.map((p) => p.symbol)], [rawPositions]),
   );
 
   const positions = useMemo(
@@ -319,6 +323,7 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
                 </span>
               </span>
             </div>
+            <BtcPriceTile priceUsd={livePrices[BTC_SYMBOL] ?? null} />
           </div>
 
           {positions.length === 0 ? (
