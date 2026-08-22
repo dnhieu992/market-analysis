@@ -155,7 +155,14 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
     return () => clearInterval(id);
   }, [refresh]);
 
-  const { configured, positions: rawPositions, accountEquityUsd, initialCapitalUsd, equityChangePct } = data;
+  const {
+    configured,
+    positions: rawPositions,
+    accountEquityUsd,
+    initialCapitalUsd,
+    equityChangePct,
+    totalUnrealizedPnlUsd: snapshotUnrealizedPnlUsd,
+  } = data;
 
   // Live mark prices straight from MEXC's public WS; recompute uPnL/ROE/notional
   // client-side so the table tracks price between the 15s authoritative refreshes.
@@ -189,10 +196,18 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
     [positions],
   );
   const totalMarginUsd = useMemo(() => positions.reduce((sum, p) => sum + p.marginUsd, 0), [positions]);
-  // Unrealized PnL as a % of total account equity (the "Số dư tài khoản" tile).
-  const pnlPctOfEquity =
-    accountEquityUsd != null && accountEquityUsd > 0
-      ? (totalUnrealizedPnlUsd / accountEquityUsd) * 100
+  // Số tiền đang có = vốn + PnL đã chốt: account equity with the floating PnL of the
+  // open positions stripped back out. Both terms come from the same server snapshot,
+  // so live prices moving `totalUnrealizedPnlUsd` don't drift the base underneath it.
+  const settledBalanceUsd =
+    accountEquityUsd != null && Number.isFinite(accountEquityUsd)
+      ? accountEquityUsd - snapshotUnrealizedPnlUsd
+      : null;
+  // Unrealized PnL as a % of that settled balance — the money actually on the table
+  // right now, not the initial capital the account started from.
+  const pnlPctOfBalance =
+    settledBalanceUsd != null && settledBalanceUsd > 0
+      ? (totalUnrealizedPnlUsd / settledBalanceUsd) * 100
       : null;
 
   // The live position whose journal is open. Falls back to the last-known object
@@ -280,8 +295,16 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">PnL chưa thực hiện</span>
+              {/* USD hides behind the same privacy toggle as the balance; the % vs
+                  "vốn + đã chốt" stays visible either way. */}
               <span className={`bg-tile-value ${pnlClass(totalUnrealizedPnlUsd)}`}>
-                {showValue ? fmtUsd(totalUnrealizedPnlUsd) : fmtPct(pnlPctOfEquity)}
+                {showValue ? fmtUsd(totalUnrealizedPnlUsd) : <span className="bg-tile-hidden">••••••</span>}
+              </span>
+              <span className={`bg-tile-change ${pnlClass(pnlPctOfBalance ?? 0)}`}>
+                {fmtPct(pnlPctOfBalance)}{' '}
+                <span className="bg-tile-change-note">
+                  so với vốn + đã chốt{showValue ? ` ${fmtUsdPlain(settledBalanceUsd)}` : ''}
+                </span>
               </span>
             </div>
           </div>
