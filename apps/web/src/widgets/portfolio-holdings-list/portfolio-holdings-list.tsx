@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { formatCryptoPrice } from '@web/shared/lib/format';
 import { isTransferTransaction } from '@web/shared/lib/transfer';
@@ -276,7 +277,7 @@ function EditNoteModal({ portfolioId, coinId, current, onClose, onSaved }: {
     }
   }
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
@@ -306,7 +307,8 @@ function EditNoteModal({ portfolioId, coinId, current, onClose, onSaved }: {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -507,7 +509,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
         </div>
       )}
 
-      {addOpen && (
+      {addOpen && createPortal(
         <div className="dialog-backdrop" onClick={() => setAddOpen(false)}>
           <div className="dialog" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
@@ -522,7 +524,8 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </article>
     {editNote && (
