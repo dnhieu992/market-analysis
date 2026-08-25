@@ -10273,25 +10273,21 @@ a.metric-card--link:hover {
 }
 .bg-toolbar-clear:hover { color: var(--foreground); text-decoration: underline; }
 
-/* Free-text coin filter */
-.bg-sfilter { display: inline-flex; align-items: center; gap: 8px; }
-.bg-sfilter-input {
-  min-width: 170px;
-  padding: 6px 10px;
+/* Coin filter: multi-select chips */
+.bg-schips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bg-schip {
+  padding: 5px 11px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--surface);
   color: var(--foreground);
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
 }
-.bg-sfilter-input::placeholder { color: var(--muted); font-weight: 500; }
-.bg-sfilter-input:hover { border-color: var(--accent); }
-.bg-sfilter-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-}
+.bg-schip:hover { border-color: var(--accent); }
+.bg-schip--on { background: var(--accent, #4f46e5); border-color: var(--accent, #4f46e5); color: #fff; }
 .bg-sfilter-count { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 
 /* Pagination bar */

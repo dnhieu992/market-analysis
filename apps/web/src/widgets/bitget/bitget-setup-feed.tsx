@@ -23,7 +23,7 @@ import {
   tfLabelOf,
 } from './setup-chart-dialog';
 import { QqeCell, bareQqeSymbol as bareSymbol, type QqeMap } from './qqe-cell';
-import { SymbolFilterInput, matchesSymbolQuery } from './symbol-filter-input';
+import { SymbolChipFilter, matchesSymbolSelection } from './symbol-filter-input';
 import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
 import { CoinSetupDialog, type CoinSetupInput } from './coin-setup-dialog';
 import { ChartNoteView } from './chart-note-dialog';
@@ -186,8 +186,16 @@ export function BitgetSetupFeed({
   // Column sort: opens on priority desc; clicking a header cycles desc → asc →
   // off (pinned/watchlist order). Only one column sorts at a time.
   const [sort, setSort] = useState<{ col: SortCol; dir: 'desc' | 'asc' } | null>(DEFAULT_SORT);
-  // Coin-name filter (empty = all coins), same UX as the History tab.
-  const [symbolQuery, setSymbolQuery] = useState('');
+  // Coin-name filter (empty selection = all coins), chip multi-select.
+  const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
+  const toggleSymbol = useCallback((symbol: string) => {
+    setSelectedSymbols((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
+  }, []);
 
   // Hydrate saved configs from the DB (survives reloads, shared across devices).
   useEffect(() => {
@@ -342,8 +350,8 @@ export function BitgetSetupFeed({
   // re-orders by that column (coins without a reading sink last). Ties keep the
   // pinned/watchlist order — Array.sort is stable.
   const displaySymbols = useMemo(() => {
-    const q = symbolQuery.trim();
-    const base = q ? symbols.filter((s) => matchesSymbolQuery(s, q)) : symbols;
+    const base =
+      selectedSymbols.size === 0 ? symbols : symbols.filter((s) => matchesSymbolSelection(s, selectedSymbols));
     if (!sort) return base;
     const miss = sort.dir === 'desc' ? -Infinity : Infinity;
     return [...base].sort((a, b) => {
@@ -351,7 +359,7 @@ export function BitgetSetupFeed({
       const vb = sortValue(b, sort.col) ?? miss;
       return sort.dir === 'desc' ? vb - va : va - vb;
     });
-  }, [symbols, symbolQuery, sort, sortValue]);
+  }, [symbols, selectedSymbols, sort, sortValue]);
 
   // Cycle a column's sort: desc → asc → off. "Off" falls back to the star
   // priority order (the tab's default) rather than the raw pinned order — the
@@ -623,16 +631,17 @@ export function BitgetSetupFeed({
         <div className="bg-table-toolbar">
           <div className="bg-toolbar-filter">
             <span className="bg-toolbar-label">Lọc coin:</span>
-            <SymbolFilterInput
-              query={symbolQuery}
-              onChange={setSymbolQuery}
+            <SymbolChipFilter
+              symbols={symbols}
+              selected={selectedSymbols}
+              onToggle={toggleSymbol}
               count={displaySymbols.length}
             />
-            {symbolQuery.trim().length > 0 && (
+            {selectedSymbols.size > 0 && (
               <button
                 type="button"
                 className="bg-toolbar-clear"
-                onClick={() => setSymbolQuery('')}
+                onClick={() => setSelectedSymbols(new Set())}
                 title="Xoá bộ lọc"
               >
                 ✕ Xoá lọc
@@ -868,7 +877,7 @@ export function BitgetSetupFeed({
       {bulkOpen && (
         <BulkSetupDialog
           symbols={symbols}
-          initialSymbols={symbolQuery.trim() ? displaySymbols : []}
+          initialSymbols={selectedSymbols.size > 0 ? displaySymbols : []}
           configs={configs}
           saving={bulkSaving}
           onSave={(input) => void saveBulkConfig(input)}

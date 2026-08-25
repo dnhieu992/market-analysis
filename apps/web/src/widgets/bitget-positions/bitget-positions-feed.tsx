@@ -7,7 +7,7 @@ import type { BitgetPosition, BitgetPositionsResponse } from '@web/shared/api/ty
 
 import { ChartIcon } from '../bitget/chart-icon';
 import { SetupChartDialog } from '../bitget/setup-chart-dialog';
-import { SymbolFilterInput, matchesSymbolQuery } from '../bitget/symbol-filter-input';
+import { SymbolChipFilter, matchesSymbolSelection } from '../bitget/symbol-filter-input';
 import { BtcPriceTile } from '../btc-price-tile/btc-price-tile';
 
 import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
@@ -76,8 +76,16 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
   const [journalKey, setJournalKey] = useState<{ symbol: string; holdSide: 'long' | 'short' } | null>(null);
   // Which coin's live chart dialog is open (icon button next to the symbol).
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  // Coin-name filter (empty = all coins), same UX as the History tab.
-  const [symbolQuery, setSymbolQuery] = useState('');
+  // Coin-name filter (empty selection = all coins), chip multi-select.
+  const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
+  const toggleSymbol = useCallback((symbol: string) => {
+    setSelectedSymbols((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
+  }, []);
   const clientRef = useRef(createApiClient());
 
   useEffect(() => {
@@ -203,9 +211,15 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
   // A query that no longer matches any open coin (closed by TP/SL between
   // refreshes) just empties the table — the text stays visible and editable.
   const visiblePositions = useMemo(() => {
-    if (!symbolQuery.trim()) return positions;
-    return positions.filter((p) => matchesSymbolQuery(p.symbol, symbolQuery));
-  }, [positions, symbolQuery]);
+    if (selectedSymbols.size === 0) return positions;
+    return positions.filter((p) => matchesSymbolSelection(p.symbol, selectedSymbols));
+  }, [positions, selectedSymbols]);
+
+  // Distinct coin names present among open positions, for the chip row.
+  const availableSymbols = useMemo(
+    () => Array.from(new Set(positions.map((p) => p.symbol))).sort(),
+    [positions],
+  );
 
   const totalUnrealizedPnlUsd = useMemo(
     () => positions.reduce((sum, p) => sum + p.unrealizedPnlUsd, 0),
@@ -333,16 +347,17 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
               <div className="bg-table-toolbar">
                 <div className="bg-toolbar-filter">
                   <span className="bg-toolbar-label">Lọc coin:</span>
-                  <SymbolFilterInput
-                    query={symbolQuery}
-                    onChange={setSymbolQuery}
+                  <SymbolChipFilter
+                    symbols={availableSymbols}
+                    selected={selectedSymbols}
+                    onToggle={toggleSymbol}
                     count={visiblePositions.length}
                   />
-                  {symbolQuery.trim().length > 0 && (
+                  {selectedSymbols.size > 0 && (
                     <button
                       type="button"
                       className="bg-toolbar-clear"
-                      onClick={() => setSymbolQuery('')}
+                      onClick={() => setSelectedSymbols(new Set())}
                       title="Xoá bộ lọc"
                     >
                       ✕ Xoá lọc
