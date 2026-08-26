@@ -39,7 +39,7 @@ export class JournalController {
   }
 
   @Post('reformat')
-  @ApiOperation({ summary: 'Reformat raw journal markdown via Claude Haiku' })
+  @ApiOperation({ summary: 'Reformat raw journal markdown via Claude Sonnet (title + section grouping + bold key facts)' })
   reformat(@Body() body: ReformatJournalDto) {
     return this.service.reformat(body.content);
   }

@@ -24,7 +24,7 @@ before it.
    as chips (Enter / comma). Images are picked from disk and previewed locally as "mới" (not yet
    uploaded).
 4. **Save** (`Cập nhật` / `Lưu nhật ký`) — one button that formats *then* persists:
-   1. If the text changed since the last save, it goes to `POST /journal/reformat` (Claude Haiku)
+   1. If the text changed since the last save, it goes to `POST /journal/reformat` (Claude Sonnet)
       and the cleaned markdown replaces the editor content. The button reads `✨ Đang format…`.
       A tags/images-only save skips this step entirely.
    2. Any newly-picked files are uploaded to Cloudflare R2 via `POST /upload/images` (returns
@@ -49,18 +49,24 @@ before it.
    scrolls back up to it. Previously a single click dropped the day straight into the editor, so
    re-reading an old entry left it one keystroke away from being rewritten.
 **Reformat** (`POST /journal/reformat`) asks **Claude Sonnet** (`claude-sonnet-4-6`, hard-coded —
-not the app's `CLAUDE_MODEL`) to clean up the raw markdown (headings, bullet lists, bold key
-levels, fix typos / HTML entities, fix broken indentation) while preserving meaning and the
-Vietnamese voice. It used to be a separate **✨ Format lại** button the user pressed before
-saving; it is now step 1 of Save and has no button of its own.
+not the app's `CLAUDE_MODEL`) to turn the raw markdown into a structured note: a one-line `#`
+title summarizing the day's theme, the body grouped into `##` sections chosen from **Diễn biến
+thị trường / Phân tích / Hành động / Kế hoạch** (only the ones that actually have matching
+content — no forced/empty sections), bullet lists, bold on the important facts (price levels,
+%, indicator values, and decisions — not just price), typo/HTML-entity fixes, and broken-indent
+fixes — while preserving meaning and the Vietnamese voice. It used to be a separate
+**✨ Format lại** button the user pressed before saving; it is now step 1 of Save and has no
+button of its own.
 
 Because it runs on the whole day's text at every save, the format must be a **fixed point** —
-already-clean text has to come back verbatim, or Haiku/Sonnet would re-word the 09:00 paragraphs
-and the 14:30 revision diff would show lines the trader never touched, defeating the history
-panel. Two things buy that:
-- The `##` grouping rule has a hard threshold (**≥3 lines → always** add headings). The old
-  "khi phù hợp" wording was non-deterministic: the first pass often skipped headings and a later
-  pass added them, restructuring text written hours earlier.
+already-clean text (title, sections, bold included) has to come back verbatim, or the model
+would re-word the 09:00 paragraphs and the 14:30 revision diff would show lines the trader never
+touched, defeating the history panel. Two things buy that:
+- The `##` grouping/title rule has a single hard exception (**only skip them when the whole
+  entry is one short thought**) instead of a line-count threshold. The old "≥3 lines → always"
+  wording still let the model skip headings on real multi-line entries in practice (observed:
+  several 4-9 line entries saved with zero `##` headings); a single unambiguous exception removed
+  that drift.
 - The model is **Sonnet, not Haiku**. Measured on a real entry: Haiku 4.5 changed 1-3 of 5 lines
   on a second pass even with the idempotency rule; Sonnet 4.6 converged on the first pass and
   returned it byte-identical on the second, keeping 6/6 morning lines verbatim when an afternoon
@@ -115,7 +121,7 @@ panel. Two things buy that:
 - `packages/db/prisma/migrations/20260717120000_add_trading_journal_revisions/migration.sql` — creates `trading_journal_revisions` + backfills one revision per existing day
 - `packages/db/src/repositories/trading-journal.repository.ts` — `createTradingJournalRepository` (findAll/findByDate/findRevisionsByEntryId/upsertByDate — snapshots in a transaction, skips unchanged saves/deleteById)
 - `packages/db/src/index.ts` — exports the repository + `TradingJournalUpsert`
-- `apps/api/src/modules/journal/journal.service.ts` — CRUD + DTO mapping (Json → string[], date-only handling) + `listRevisions()` + `reformat()` (Claude Haiku call)
+- `apps/api/src/modules/journal/journal.service.ts` — CRUD + DTO mapping (Json → string[], date-only handling) + `listRevisions()` + `reformat()` (Claude Sonnet call: title + section grouping + bold)
 - `apps/api/src/modules/journal/journal.controller.ts` — `GET /journal`, `GET /journal/:date`, `GET /journal/:id/revisions`, `POST /journal`, `POST /journal/reformat`, `DELETE /journal/:id`
 - `apps/api/src/modules/journal/dto/upsert-journal.dto.ts` — validated upsert body
 - `apps/api/src/modules/journal/dto/reformat-journal.dto.ts` — validated reformat body (`{ content }`)

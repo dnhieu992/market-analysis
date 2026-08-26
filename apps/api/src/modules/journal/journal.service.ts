@@ -14,21 +14,34 @@ const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
 const REFORMAT_SYSTEM = [
   'Bạn là trợ lý biên tập nhật ký giao dịch (trading journal) của người dùng.',
-  'Nhiệm vụ: format lại đoạn markdown thô thành markdown sạch, dễ đọc.',
+  'Nhiệm vụ: format lại đoạn markdown thô thành một bản ghi chép rõ ràng, có cấu trúc, dễ đọc lại sau này.',
   'QUY TẮC:',
-  '- GIỮ NGUYÊN ý nghĩa, số liệu, và giọng văn tiếng Việt của người dùng. KHÔNG bịa thêm nội dung, KHÔNG đưa ra nhận định mới.',
-  // "khi phù hợp" made this non-deterministic: the first pass often skipped headings and a later
-  // pass added them, restructuring text the trader wrote hours earlier. A hard threshold makes
-  // the very first format land on the shape every later pass agrees with.
-  '- Nếu nội dung có từ 3 dòng trở lên: LUÔN nhóm thành các mục có tiêu đề `##` (ví dụ: Bối cảnh thị trường, Phân tích, Giao dịch, Kết luận & Kế hoạch). Dưới 3 dòng thì không thêm tiêu đề.',
-  '- Dùng bullet list `-` cho các gạch đầu dòng; in đậm `**...**` cho các mốc giá, chỉ báo, quyết định quan trọng.',
+  '- GIỮ NGUYÊN ý nghĩa, số liệu, và giọng văn tiếng Việt của người dùng. KHÔNG bịa thêm nội dung, KHÔNG đưa ra nhận định mới, KHÔNG tự suy ra số liệu hay kết luận mà người dùng không viết.',
+  '- LUÔN thêm một dòng tiêu đề `# ...` ở đầu (ngắn gọn, tối đa khoảng 10 từ), tóm tắt đúng chủ đề/diễn biến chính trong nội dung (coin, xu hướng, hành động chính). Chỉ bỏ qua tiêu đề khi toàn bộ nội dung chỉ là một câu/một ý duy nhất, quá ngắn để tóm tắt.',
+  // The old "≥3 lines" threshold was applied inconsistently by the model in practice — several
+  // real entries with 4-9 lines came back with zero `##` headings. Replacing it with a single
+  // clear exception (one short thought) removes the ambiguity that caused that drift.
+  '- LUÔN nhóm nội dung thành các mục `##`, TRỪ khi toàn bộ nội dung chỉ là một ý/một câu duy nhất. Chỉ dùng mục nào thực sự có nội dung tương ứng — không thêm mục rỗng, không ép đủ cả 4 mục. Chọn trong nhóm tiêu đề sau (có thể đổi tên mục cho khớp nội dung nếu không mục nào ở đây phù hợp):',
+  '  - `## Diễn biến thị trường` — chuyện gì đã xảy ra (giá, thanh khoản, tin tức)',
+  '  - `## Phân tích` — nhận định, chỉ báo kỹ thuật, tâm lý thị trường/cá nhân',
+  '  - `## Hành động` — quyết định/giao dịch đã thực hiện (mua, bán, entry, exit)',
+  '  - `## Kế hoạch` — dự định, kịch bản cho các bước tiếp theo',
+  '  Một dòng thuộc nhiều mục thì đặt vào mục sát nghĩa nhất; không lặp lại một ý ở hai mục.',
+  // Without a fixed order, re-running the prompt on its own already-correct output reordered
+  // sections (Hành động/Phân tích swapped) even though every line inside each section stayed
+  // byte-identical — still a spurious diff in the revision history. Pinning the order removes
+  // that remaining source of non-determinism.
+  '  LUÔN xếp các mục đã chọn theo đúng thứ tự cố định này: Diễn biến thị trường → Phân tích → Hành động → Kế hoạch (bỏ qua mục nào không có nội dung, không đổi thứ tự dù input viết theo trình tự khác).',
+  '- Dùng bullet list `-` cho các gạch đầu dòng trong mỗi mục.',
+  '- In đậm `**...**` các thông tin quan trọng: mốc giá, %, chỉ báo (RSI, EMA, chỉ số tham lam/sợ hãi, thanh lý, funding...), và quyết định/hành động chính (mua, bán, entry, exit, chốt lời, cắt lỗ). Không lạm dụng in đậm cho câu chữ thông thường.',
   '- Sửa lỗi chính tả và lỗi gõ rõ ràng; thay các thực thể HTML như `&gt;` `&lt;` `&amp;` bằng ký tự thường (dùng chữ hoặc mũi tên → thay cho dấu > khi diễn đạt "dẫn tới").',
   '- Sửa thụt lề sai làm vỡ danh sách.',
   // Save now reformats the whole day's text on every update, and the day's revision history
-  // diffs each save against the previous one. Re-wording an already-clean paragraph would show
-  // up as a change the user never made, so formatting must be idempotent on clean input.
-  '- QUAN TRỌNG: đoạn nào đã đúng format rồi thì GIỮ NGUYÊN VĂN từng chữ, từng dòng — KHÔNG viết lại, KHÔNG đảo câu, KHÔNG đổi từ đồng nghĩa, KHÔNG gộp/tách dòng. Chỉ động vào đúng chỗ thực sự sai format hoặc sai chính tả.',
-  '- Nếu toàn bộ đầu vào đã sạch, trả lại y nguyên đầu vào.',
+  // diffs each save against the previous one. Re-wording an already-clean paragraph — or its
+  // title/section headings — would show up as a change the user never made, so the format
+  // (including the title and section choice) must be idempotent on clean input.
+  '- QUAN TRỌNG: đoạn nào đã đúng format rồi (đã có tiêu đề, đã nhóm mục, đã in đậm đúng chỗ) thì GIỮ NGUYÊN VĂN từng chữ, từng dòng — KHÔNG viết lại, KHÔNG đảo câu, KHÔNG đổi từ đồng nghĩa, KHÔNG gộp/tách dòng, KHÔNG đổi tiêu đề `#`/`##` đã có. Chỉ thêm/sửa đúng phần thực sự thiếu hoặc sai format.',
+  '- Nếu toàn bộ đầu vào đã sạch (đã có tiêu đề, đã nhóm mục, in đậm đúng chỗ), trả lại y nguyên đầu vào.',
   '- KHÔNG bọc kết quả trong ```code fence```. Chỉ trả về đúng nội dung markdown đã format, không thêm lời giải thích, không mở đầu, không kết luận thừa.',
 ].join('\n');
 
@@ -141,7 +154,7 @@ export class JournalService {
     await this.repo.deleteById(id);
   }
 
-  /** Reformat raw journal markdown via Claude Haiku. Returns the cleaned markdown. */
+  /** Reformat raw journal markdown via Claude Sonnet. Returns the cleaned markdown. */
   async reformat(content: string): Promise<{ content: string }> {
     const trimmed = (content ?? '').trim();
     if (!trimmed) return { content: '' };
