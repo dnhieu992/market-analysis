@@ -9,7 +9,7 @@ function stripUsdt(symbol: string): string {
 
 /**
  * Coin-name filter: a row of chips, one per coin, labeled by bare coin name
- * (USDT suffix stripped) and sorted alphabetically Z→A. No chip selected means
+ * (USDT suffix stripped) and sorted alphabetically A→Z. No chip selected means
  * "all coins" — clicking a chip narrows the table to that coin (on top of any
  * other selected chips); clicking it again removes it from the selection.
  * Shared by the Bitget Positions, History and Setup tabs. Styling:
@@ -21,7 +21,7 @@ export function SymbolChipFilter({
   onToggle,
   count,
 }: {
-  /** All coins available to filter (order irrelevant — chips render Z→A by bare name). */
+  /** All coins available to filter (order irrelevant — chips render A→Z by bare name). */
   symbols: string[];
   /** Currently selected coins — empty means "all coins" match. */
   selected: Set<string>;
@@ -30,7 +30,7 @@ export function SymbolChipFilter({
   count?: number;
 }) {
   const ordered = useMemo(
-    () => [...symbols].sort((a, b) => stripUsdt(b).localeCompare(stripUsdt(a))),
+    () => [...symbols].sort((a, b) => stripUsdt(a).localeCompare(stripUsdt(b))),
     [symbols],
   );
 
