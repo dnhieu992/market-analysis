@@ -8,6 +8,7 @@ import type { MexcPosition, MexcPositionsResponse } from '@web/shared/api/types'
 import { BtcPriceTile } from '../btc-price-tile/btc-price-tile';
 import { ChartIcon } from '../mexc/chart-icon';
 import { SetupChartDialog } from '../mexc/setup-chart-dialog';
+import { SymbolChipFilter, matchesSymbolSelection } from '../mexc/symbol-filter-input';
 
 import { MexcJournalDrawer, tradeKeyOf } from './mexc-journal-drawer';
 import { TpslDialog } from './tpsl-dialog';
@@ -75,6 +76,16 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
   const [journalKey, setJournalKey] = useState<{ symbol: string; holdSide: 'long' | 'short' } | null>(null);
   // Which coin's live chart dialog is open (icon button next to the symbol).
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  // Coin-name filter (empty selection = all coins), chip multi-select.
+  const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
+  const toggleSymbol = useCallback((symbol: string) => {
+    setSelectedSymbols((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
+  }, []);
   const clientRef = useRef(createApiClient());
 
   useEffect(() => {
@@ -193,6 +204,19 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
         // Sort by PnL % (ROE) descending — biggest winners first.
         .sort((a, b) => b.roePct - a.roePct),
     [rawPositions, livePrices],
+  );
+
+  // Rows the table shows. The tiles below stay on the unfiltered list — they are
+  // account-level totals, so narrowing the coin filter must not distort them.
+  const visiblePositions = useMemo(() => {
+    if (selectedSymbols.size === 0) return positions;
+    return positions.filter((p) => matchesSymbolSelection(p.symbol, selectedSymbols));
+  }, [positions, selectedSymbols]);
+
+  // Distinct coin names present among open positions, for the chip row.
+  const availableSymbols = useMemo(
+    () => Array.from(new Set(positions.map((p) => p.symbol))).sort(),
+    [positions],
   );
 
   const totalUnrealizedPnlUsd = useMemo(
@@ -318,6 +342,30 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
             <div className="bg-alert">Không có vị thế nào đang mở.</div>
           ) : (
             <>
+              <div className="bg-table-toolbar">
+                <div className="bg-toolbar-filter">
+                  <span className="bg-toolbar-label">Lọc coin:</span>
+                  <SymbolChipFilter
+                    symbols={availableSymbols}
+                    selected={selectedSymbols}
+                    onToggle={toggleSymbol}
+                    count={visiblePositions.length}
+                  />
+                  {selectedSymbols.size > 0 && (
+                    <button
+                      type="button"
+                      className="bg-toolbar-clear"
+                      onClick={() => setSelectedSymbols(new Set())}
+                      title="Xoá bộ lọc"
+                    >
+                      ✕ Xoá lọc
+                    </button>
+                  )}
+                </div>
+              </div>
+              {visiblePositions.length === 0 ? (
+                <div className="bg-alert">Không có vị thế nào khớp bộ lọc coin.</div>
+              ) : (
               <div className="bg-table-wrap">
                 <table className="bg-table">
                   <thead>
@@ -340,7 +388,7 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
                     </tr>
                   </thead>
                   <tbody>
-                    {positions.map((p) => (
+                    {visiblePositions.map((p) => (
                       <PositionRow
                         key={`${p.symbol}-${p.holdSide}`}
                         p={p}
@@ -356,6 +404,7 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
                   </tbody>
                 </table>
               </div>
+              )}
             </>
           )}
         </>

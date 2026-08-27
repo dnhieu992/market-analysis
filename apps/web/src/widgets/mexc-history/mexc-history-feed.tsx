@@ -7,7 +7,7 @@ import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import { MexcJournalDrawer, type JournalTarget } from '@web/widgets/mexc-positions/mexc-journal-drawer';
 import type { MexcClosedTrade, MexcHistoryResponse, MexcTradeChart } from '@web/shared/api/types';
 
-import { SymbolFilterInput, matchesSymbolQuery } from '@web/widgets/mexc/symbol-filter-input';
+import { SymbolChipFilter, matchesSymbolSelection } from '@web/widgets/mexc/symbol-filter-input';
 import { ChartIcon } from '@web/widgets/mexc/chart-icon';
 import { ChartNoteDialog, ChartNoteView } from '@web/widgets/mexc/chart-note-dialog';
 
@@ -98,8 +98,16 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
   const [journalTarget, setJournalTarget] = useState<JournalTarget | null>(null);
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const [refTrade, setRefTrade] = useState<MexcClosedTrade | null>(null);
-  // Coin-name filter, free text (empty = all coins) + pagination state.
-  const [symbolQuery, setSymbolQuery] = useState('');
+  // Coin-name filter, chip multi-select (empty selection = all coins) + pagination state.
+  const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
+  const toggleSymbol = useCallback((symbol: string) => {
+    setSelectedSymbols((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
+  }, []);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [page, setPage] = useState(1);
   // Saved-chart count per tradeKey — the Attachments badge.
@@ -146,14 +154,10 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
     onCount?.(trades.length);
   }, [trades.length, onCount]);
 
-  // Distinct coin names present in history, for the filter's match count.
+  // Distinct coin names present in history, for the chip row.
   const availableSymbols = useMemo(
     () => Array.from(new Set(trades.map((t) => t.symbol))).sort(),
     [trades],
-  );
-  const matchedSymbolCount = useMemo(
-    () => availableSymbols.filter((s) => matchesSymbolQuery(s, symbolQuery)).length,
-    [availableSymbols, symbolQuery],
   );
 
   // Sort by close time descending (most recent first), then apply the coin filter.
@@ -161,14 +165,14 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
     const sorted = [...trades].sort(
       (a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime(),
     );
-    if (!symbolQuery.trim()) return sorted;
-    return sorted.filter((t) => matchesSymbolQuery(t.symbol, symbolQuery));
-  }, [trades, symbolQuery]);
+    if (selectedSymbols.size === 0) return sorted;
+    return sorted.filter((t) => matchesSymbolSelection(t.symbol, selectedSymbols));
+  }, [trades, selectedSymbols]);
 
   // Reset to page 1 whenever the filter or page size changes.
   useEffect(() => {
     setPage(1);
-  }, [symbolQuery, pageSize]);
+  }, [selectedSymbols, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrades.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -246,16 +250,17 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
             <div className="bg-table-toolbar">
               <div className="bg-toolbar-filter">
                 <span className="bg-toolbar-label">Lọc coin:</span>
-                <SymbolFilterInput
-                  query={symbolQuery}
-                  onChange={setSymbolQuery}
-                  count={matchedSymbolCount}
+                <SymbolChipFilter
+                  symbols={availableSymbols}
+                  selected={selectedSymbols}
+                  onToggle={toggleSymbol}
+                  count={filteredTrades.length}
                 />
-                {symbolQuery.trim().length > 0 && (
+                {selectedSymbols.size > 0 && (
                   <button
                     type="button"
                     className="bg-toolbar-clear"
-                    onClick={() => setSymbolQuery('')}
+                    onClick={() => setSelectedSymbols(new Set())}
                     title="Xoá bộ lọc"
                   >
                     ✕ Xoá lọc
