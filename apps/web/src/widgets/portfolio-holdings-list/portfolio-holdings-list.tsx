@@ -250,6 +250,146 @@ function SortToggle({ sortBy, onChange }: { sortBy: SortKey; onChange: (k: SortK
   );
 }
 
+/** One full buy→sell-to-zero round trip for a coin, built from its raw transaction ledger. */
+type Cycle = {
+  startAt: string;
+  endAt: string | null; // null = position still open (not fully sold)
+  avgBuyPrice: number;
+  avgSellPrice: number | null;
+  totalBuyAmount: number;
+  totalSellAmount: number;
+  pnl: number | null; // null while the cycle is still open
+};
+
+const ZERO_EPSILON = 1e-8;
+
+function buildCyclesForCoin(transactions: CoinTransaction[]): Cycle[] {
+  const sorted = [...transactions]
+    .filter((tx) => !tx.deletedAt)
+    .sort((a, b) => new Date(a.transactedAt).getTime() - new Date(b.transactedAt).getTime());
+
+  const cycles: Cycle[] = [];
+  let amount = 0;
+  let startAt: string | null = null;
+  let buyAmount = 0, buyValue = 0, buyFee = 0;
+  let sellAmount = 0, sellValue = 0, sellFee = 0;
+
+  const reset = () => {
+    amount = 0;
+    startAt = null;
+    buyAmount = 0; buyValue = 0; buyFee = 0;
+    sellAmount = 0; sellValue = 0; sellFee = 0;
+  };
+
+  for (const tx of sorted) {
+    if (startAt === null && tx.type === 'buy') startAt = tx.transactedAt;
+    if (tx.type === 'buy') {
+      amount += tx.amount;
+      buyAmount += tx.amount;
+      buyValue += tx.totalValue;
+      buyFee += tx.fee;
+    } else {
+      amount -= tx.amount;
+      sellAmount += tx.amount;
+      sellValue += tx.totalValue;
+      sellFee += tx.fee;
+    }
+
+    if (startAt !== null && amount <= ZERO_EPSILON) {
+      cycles.push({
+        startAt,
+        endAt: tx.transactedAt,
+        avgBuyPrice: buyAmount > 0 ? buyValue / buyAmount : 0,
+        avgSellPrice: sellAmount > 0 ? sellValue / sellAmount : null,
+        totalBuyAmount: buyAmount,
+        totalSellAmount: sellAmount,
+        pnl: sellValue - buyValue - buyFee - sellFee,
+      });
+      reset();
+    }
+  }
+
+  // Still holding — the current, not-yet-closed cycle.
+  if (startAt !== null && amount > ZERO_EPSILON) {
+    cycles.push({
+      startAt,
+      endAt: null,
+      avgBuyPrice: buyAmount > 0 ? buyValue / buyAmount : 0,
+      avgSellPrice: sellAmount > 0 ? sellValue / sellAmount : null,
+      totalBuyAmount: buyAmount,
+      totalSellAmount: sellAmount,
+      pnl: null,
+    });
+  }
+
+  return cycles.reverse();
+}
+
+function formatDateTime(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(iso));
+}
+
+function CoinHistoryModal({ coinId, transactions, onClose }: {
+  coinId: string;
+  transactions: CoinTransaction[];
+  onClose: () => void;
+}) {
+  const cycles = useMemo(
+    () => buildCyclesForCoin(transactions.filter((tx) => tx.coinId === coinId)),
+    [transactions, coinId],
+  );
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">History — {coinId}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body">
+          {cycles.length === 0 ? (
+            <p className="tt-muted">Chưa có giao dịch nào cho {coinId}.</p>
+          ) : (
+            <div className="tt-wrap tt-card-wrap">
+              <table className="tt tt-card">
+                <thead>
+                  <tr>
+                    <th>Bắt đầu mua</th>
+                    <th>Bán hết lúc</th>
+                    <th>Giá mua TB</th>
+                    <th>Giá bán TB</th>
+                    <th>P/L (USDT)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cycles.map((c, i) => (
+                    <tr key={i}>
+                      <td data-label="Bắt đầu mua">{formatDateTime(c.startAt)}</td>
+                      <td data-label="Bán hết lúc">
+                        {c.endAt ? formatDateTime(c.endAt) : <span className="tt-muted">Đang mở</span>}
+                      </td>
+                      <td data-label="Giá mua TB">{formatCryptoPrice(c.avgBuyPrice)}</td>
+                      <td data-label="Giá bán TB">
+                        {c.avgSellPrice != null ? formatCryptoPrice(c.avgSellPrice) : <span className="tt-muted">—</span>}
+                      </td>
+                      <td data-label="P/L (USDT)">
+                        {c.pnl != null ? <PnlCell value={c.pnl} /> : <span className="tt-muted">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 type EditNoteState = { coinId: string; current: string | null };
 
 function EditNoteModal({ portfolioId, coinId, current, onClose, onSaved }: {
@@ -324,6 +464,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
     Object.fromEntries(holdings.map((h) => [h.coinId, h.note]))
   );
   const [editNote, setEditNote] = useState<EditNoteState | null>(null);
+  const [historyCoin, setHistoryCoin] = useState<string | null>(null);
   const soldRatioByCoin = useMemo(() => buildSoldRatioByCoin(transactions), [transactions]);
 
   useEffect(() => {
@@ -433,13 +574,22 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
                         <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
                           <strong>{h.coinId}</strong>
                         </Link>
-                        <button
-                          title={note ? 'Edit note' : 'Add note'}
-                          onClick={() => setEditNote({ coinId: h.coinId, current: note })}
-                          className={`holding-note-btn${note ? ' holding-note-btn--active' : ''}`}
-                        >
-                          ✎ {note ? 'Note' : 'Add note'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                          <button
+                            title={note ? 'Edit note' : 'Add note'}
+                            onClick={() => setEditNote({ coinId: h.coinId, current: note })}
+                            className={`holding-note-btn${note ? ' holding-note-btn--active' : ''}`}
+                          >
+                            ✎ {note ? 'Note' : 'Add note'}
+                          </button>
+                          <button
+                            title="History"
+                            onClick={() => setHistoryCoin(h.coinId)}
+                            className="holding-note-btn"
+                          >
+                            🕘 History
+                          </button>
+                        </div>
                       </div>
                     </td>
                     <td data-label="Current Price">
@@ -535,6 +685,13 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
         current={editNote.current}
         onClose={() => setEditNote(null)}
         onSaved={(coinId, note) => setNotes((prev) => ({ ...prev, [coinId]: note }))}
+      />
+    )}
+    {historyCoin && (
+      <CoinHistoryModal
+        coinId={historyCoin}
+        transactions={transactions}
+        onClose={() => setHistoryCoin(null)}
       />
     )}
     </>
