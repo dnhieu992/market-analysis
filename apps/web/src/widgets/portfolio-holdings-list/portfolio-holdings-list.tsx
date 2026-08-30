@@ -258,6 +258,7 @@ type Cycle = {
   avgSellPrice: number | null;
   totalBuyAmount: number;
   totalSellAmount: number;
+  investedUsdt: number; // total USDT put into buys this cycle
   pnl: number | null; // null while the cycle is still open
 };
 
@@ -303,6 +304,7 @@ function buildCyclesForCoin(transactions: CoinTransaction[]): Cycle[] {
         avgSellPrice: sellAmount > 0 ? sellValue / sellAmount : null,
         totalBuyAmount: buyAmount,
         totalSellAmount: sellAmount,
+        investedUsdt: buyValue,
         pnl: sellValue - buyValue - buyFee - sellFee,
       });
       reset();
@@ -318,6 +320,7 @@ function buildCyclesForCoin(transactions: CoinTransaction[]): Cycle[] {
       avgSellPrice: sellAmount > 0 ? sellValue / sellAmount : null,
       totalBuyAmount: buyAmount,
       totalSellAmount: sellAmount,
+      investedUsdt: buyValue,
       pnl: null,
     });
   }
@@ -360,6 +363,7 @@ function CoinHistoryModal({ coinId, transactions, onClose }: {
                     <th>Bán hết lúc</th>
                     <th>Giá mua TB</th>
                     <th>Giá bán TB</th>
+                    <th>Đã đầu tư (USDT)</th>
                     <th>P/L (USDT)</th>
                   </tr>
                 </thead>
@@ -374,6 +378,7 @@ function CoinHistoryModal({ coinId, transactions, onClose }: {
                       <td data-label="Giá bán TB">
                         {c.avgSellPrice != null ? formatCryptoPrice(c.avgSellPrice) : <span className="tt-muted">—</span>}
                       </td>
+                      <td data-label="Đã đầu tư (USDT)">{formatUsd(c.investedUsdt)}</td>
                       <td data-label="P/L (USDT)">
                         {c.pnl != null ? <PnlCell value={c.pnl} /> : <span className="tt-muted">—</span>}
                       </td>
