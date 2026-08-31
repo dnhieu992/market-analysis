@@ -4,11 +4,12 @@ import type { StrategyBacktestSetup, StrategyBacktestStatus } from '@web/shared/
 const SCORED: StrategyBacktestStatus[] = ['TP_HIT', 'SL_HIT', 'CLOSED'];
 
 /**
- * Setups the trader took off the board: cancelled before filling, or called INVALID
- * because the reasoning stopped holding. Neither produced a result the analysis can be
- * judged on, so both are dropped from every ratio below — including the denominators.
+ * Setups the trader called off because the reasoning stopped holding. They never
+ * produced a result the analysis can be judged on, so they are dropped from every
+ * ratio below — including the denominators. They stay on the board regardless:
+ * nothing here is ever deleted.
  */
-const DROPPED: StrategyBacktestStatus[] = ['CANCELLED', 'INVALID'];
+const DROPPED: StrategyBacktestStatus[] = ['INVALID'];
 
 export type SetupStats = {
   /** Every setup ever written down, cancelled ones included. */
@@ -23,7 +24,7 @@ export type SetupStats = {
   losses: number;
   /** Null until at least one setup has been scored. */
   winRate: number | null;
-  /** Setups called off — cancelled or marked invalid. Excluded from every ratio. */
+  /** Setups called off as invalid. Excluded from every ratio. */
   dropped: number;
   /** Share of the still-counted setups that actually filled. Null with no sample. */
   fillRate: number | null;

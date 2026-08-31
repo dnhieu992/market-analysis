@@ -14,7 +14,9 @@ from memory. Today only `BTCUSDT` is tracked; the table and the scan job already
 
 The data lives in its own table (`strategy_backtest_setups`) with no relation to
 `Order`/`Signal`/`TrackingCoin` — deliberately, so this history is never touched by the
-automated pipelines.
+automated pipelines. **Nothing is ever deleted**: a setup the trader calls off becomes
+`INVALID` (with an optional reason) and stays on the board, because the plans that were
+abandoned are part of what there is to learn from later.
 
 ## Main Flow
 1. The trader opens `/strategy-backtest` and fills in the form: LONG/SHORT, Swing/Scalping,
@@ -37,9 +39,10 @@ automated pipelines.
 6. The page polls `GET /strategy-backtest` every 60s. The API returns the setups plus the
    live price, and computes `plannedRr`, `distanceToEntryPct` (PENDING) and
    `unrealizedPct` / `unrealizedR` (ENTERED) on the fly — none of those are stored.
-7. Anything the job cannot decide is the trader's call: cancel a setup that has not filled,
-   close a filled one by hand at the live price (`CLOSED`), or mark either kind `INVALID`
-   when the reasoning behind it stops holding.
+7. Anything the job cannot decide is the trader's call: close a filled setup by hand at the
+   live price (`CLOSED`), or mark a waiting or running one `INVALID` when the reasoning
+   behind it stops holding. The Invalid button opens a dialog for an optional reason, which
+   is then shown on the card.
 
 ## Edge Cases
 - **A candle that trades through both the stop and the target is scored as the stop.** Intra-
@@ -63,10 +66,14 @@ automated pipelines.
   with a Vietnamese message the dialog shows verbatim.
 - **`INVALID` stops the tracking, immediately.** The status is simply not in
   `STRATEGY_BACKTEST_OPEN_STATUSES`, so the very next scan pass no longer loads the setup —
-  there is no separate flag to keep in sync. It applies to a filled setup too, unlike cancel.
+  there is no separate flag to keep in sync. It applies to a setup that has already filled,
+  not only to one still waiting, and it is the only way off the board.
+- **There is no delete and no cancel.** Both the `DELETE` route and the cancel action were
+  removed on purpose; a plan the trader wrote stays readable forever. The reason field is
+  optional — an invalid setup with no explanation is still recorded as invalid.
 - **Stats exclude what they should.** Win rate and R are computed only over setups that filled
-  *and* finished; a cancelled or invalidated setup never produced a verdict to score, and an
-  open one has not resolved. Both are dropped from the denominators too, not just the numerator.
+  *and* finished; an invalidated setup never produced a verdict to score, and an open one has
+  not resolved. Invalid setups are dropped from the denominators too, not just the numerator.
   A break-even close counts as a loss, not a win.
 - **Screenshots are create-only.** They are attached when the setup is written and shown as a
   thumbnail strip on the card (click for a lightbox); there is no edit path for them yet.
@@ -78,7 +85,7 @@ automated pipelines.
 **Web**
 - `apps/web/src/app/strategy-backtest/page.tsx` — route, thin re-export
 - `apps/web/src/_pages/strategy-backtest-page/strategy-backtest-page.tsx` — Server Component, loads the board
-- `apps/web/src/widgets/strategy-backtest/strategy-backtest-board.tsx` — client widget: form (type toggle + image upload), filters, cards, screenshot lightbox, 60s polling
+- `apps/web/src/widgets/strategy-backtest/strategy-backtest-board.tsx` — client widget: form (type toggle + image upload), filters, cards, screenshot lightbox, invalid-reason dialog, 60s polling
 - `apps/web/src/shared/ui/image-upload/image-upload.tsx` — reused screenshot picker
 - `apps/web/src/widgets/strategy-backtest/setup-stats.ts` — pure scorecard math (win rate, R, fill rate)
 - `apps/web/src/widgets/strategy-backtest/setup-stats.spec.ts` — its tests
@@ -88,8 +95,8 @@ automated pipelines.
 - `apps/web/src/app/globals.css` — `.sbt-*` styles
 
 **API**
-- `apps/api/src/modules/strategy-backtest/strategy-backtest.controller.ts` — `GET /`, `POST /`, `PATCH /:id`, `POST /:id/cancel`, `POST /:id/invalidate`, `POST /:id/close`, `DELETE /:id`
-- `apps/api/src/modules/strategy-backtest/strategy-backtest.service.ts` — validation, live-price enrichment, manual close
+- `apps/api/src/modules/strategy-backtest/strategy-backtest.controller.ts` — `GET /`, `POST /`, `PATCH /:id`, `POST /:id/invalidate`, `POST /:id/close` (no `DELETE` on purpose)
+- `apps/api/src/modules/strategy-backtest/strategy-backtest.service.ts` — validation, live-price enrichment, manual close, invalidate-with-reason
 - `apps/api/src/modules/strategy-backtest/dto/*.ts` — `class-validator` DTOs
 - `apps/api/src/app.module.ts` — module registration
 
@@ -104,4 +111,5 @@ automated pipelines.
 - `packages/db/prisma/schema.prisma` — `StrategyBacktestSetup`
 - `packages/db/prisma/migrations/20260831120000_add_strategy_backtest_setups/migration.sql`
 - `packages/db/prisma/migrations/20260831160000_add_setup_type_and_images/migration.sql` — `setupType` + `images`
+- `packages/db/prisma/migrations/20260831180000_add_setup_invalid_reason/migration.sql` — `invalidReason`
 - `packages/db/src/repositories/strategy-backtest.repository.ts`

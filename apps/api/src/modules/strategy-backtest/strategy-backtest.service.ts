@@ -11,6 +11,7 @@ import { createStrategyBacktestRepository } from '@app/db';
 import { MarketDataService } from '../market/market-data.service';
 import type { CloseSetupDto } from './dto/close-setup.dto';
 import type { CreateSetupDto } from './dto/create-setup.dto';
+import type { InvalidateSetupDto } from './dto/invalidate-setup.dto';
 import type { UpdateSetupDto } from './dto/update-setup.dto';
 
 const DEFAULT_SYMBOL = 'BTCUSDT';
@@ -29,6 +30,7 @@ export type StrategyBacktestSetupDto = {
   note: string | null;
   images: string[];
   status: string;
+  invalidReason: string | null;
   triggeredAt: string | null;
   closedAt: string | null;
   exitPrice: number | null;
@@ -126,35 +128,23 @@ export class StrategyBacktestService {
     return this.toDto(updated, await this.fetchPrice(updated.symbol));
   }
 
-  /** Pull a still-unfilled limit off the board. Never applied to a filled setup. */
-  async cancel(id: string): Promise<StrategyBacktestSetupDto> {
-    const row = await this.requireSetup(id);
-    if (row.status !== EDITABLE_STATUS) {
-      throw new BadRequestException('Chỉ huỷ được lệnh đang chờ khớp.');
-    }
-
-    const updated = await this.repository.update(id, {
-      status: 'CANCELLED',
-      closedAt: new Date(),
-    });
-
-    return this.toDto(updated, await this.fetchPrice(updated.symbol));
-  }
-
   /**
-   * Call a setup off. Unlike cancel this also applies to a setup that already filled —
-   * it is the trader saying "the reasoning behind this one no longer holds". The setup
-   * leaves the scan job's open list immediately and is left out of the scorecard, so a
-   * setup abandoned mid-flight never counts as either a win or a loss.
+   * Call a setup off — the trader saying "the reasoning behind this one no longer holds".
+   * It applies to a setup that has already filled, not just a waiting one, and it is the
+   * only way off the board: nothing here is ever deleted, so an abandoned plan stays
+   * visible with its reason. The setup leaves the scan job's open list immediately and is
+   * left out of the scorecard, so it never counts as either a win or a loss.
    */
-  async invalidate(id: string): Promise<StrategyBacktestSetupDto> {
+  async invalidate(id: string, dto: InvalidateSetupDto): Promise<StrategyBacktestSetupDto> {
     const row = await this.requireSetup(id);
     if (row.status !== 'PENDING' && row.status !== 'ENTERED') {
       throw new BadRequestException('Chỉ đánh dấu invalid được lệnh đang chờ khớp hoặc đang chạy.');
     }
 
+    const reason = dto.reason?.trim();
     const updated = await this.repository.update(id, {
       status: 'INVALID',
+      invalidReason: reason ? reason : null,
       closedAt: new Date(),
     });
 
@@ -192,12 +182,6 @@ export class StrategyBacktestService {
     return this.toDto(updated, livePrice);
   }
 
-  async remove(id: string): Promise<{ id: string }> {
-    await this.requireSetup(id);
-    await this.repository.remove(id);
-    return { id };
-  }
-
   private async requireSetup(id: string): Promise<SetupRow> {
     const row = await this.repository.findById(id);
     if (!row) throw new NotFoundException(`Không tìm thấy setup ${id}`);
@@ -232,6 +216,7 @@ export class StrategyBacktestService {
       note: row.note,
       images: toStringArray(row.images),
       status: row.status,
+      invalidReason: row.invalidReason,
       triggeredAt: row.triggeredAt?.toISOString() ?? null,
       closedAt: row.closedAt?.toISOString() ?? null,
       exitPrice: row.exitPrice,

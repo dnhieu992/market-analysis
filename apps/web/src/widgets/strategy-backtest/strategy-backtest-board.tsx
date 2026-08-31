@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
 import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
@@ -24,7 +25,6 @@ const STATUS_LABEL: Record<StrategyBacktestStatus, string> = {
   TP_HIT: 'Chạm TP',
   SL_HIT: 'Dính SL',
   CLOSED: 'Đóng tay',
-  CANCELLED: 'Đã huỷ',
   INVALID: 'Invalid',
 };
 
@@ -39,7 +39,6 @@ const STATUS_MODIFIER: Record<StrategyBacktestStatus, string> = {
   TP_HIT: 'win',
   SL_HIT: 'loss',
   CLOSED: 'closed',
-  CANCELLED: 'dead',
   INVALID: 'dead',
 };
 
@@ -316,6 +315,89 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
   );
 }
 
+/**
+ * Asks for the reason before calling a setup off. Portalled to document.body — the
+ * setup card is a `card`-style surface, and a fixed overlay rendered inside one gets
+ * trapped by its stacking context.
+ */
+function InvalidDialog({
+  setup,
+  busy,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  setup: StrategyBacktestSetup;
+  busy: boolean;
+  error: string | null;
+  onConfirm: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--compact" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">
+            Đánh dấu invalid — {setup.direction === 'LONG' ? 'Long' : 'Short'} {setup.symbol}
+          </span>
+          <button className="dialog-close" onClick={onClose} aria-label="Đóng">
+            ✕
+          </button>
+        </div>
+
+        <div className="dialog-body">
+          <p className="dialog-confirm-text">
+            Lệnh sẽ ngừng được theo dõi và không tính vào thống kê, nhưng vẫn nằm trên bảng để
+            xem lại sau.
+          </p>
+
+          <div className="sbt-field">
+            <label className="sbt-label" htmlFor={`sbt-reason-${setup.id}`}>
+              Lý do (không bắt buộc)
+            </label>
+            <textarea
+              id={`sbt-reason-${setup.id}`}
+              className="sbt-input sbt-textarea"
+              rows={3}
+              autoFocus
+              placeholder="vd. cấu trúc gãy, tin ra khác kịch bản, vào nhầm vùng…"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+
+          {error ? <p className="sbt-error">{error}</p> : null}
+
+          <div className="dialog-confirm-actions">
+            <button type="button" className="sbt-btn" onClick={onClose} disabled={busy}>
+              Thôi
+            </button>
+            <button
+              type="button"
+              className="sbt-btn sbt-btn--warn"
+              disabled={busy}
+              onClick={() => onConfirm(reason)}
+            >
+              {busy ? 'Đang lưu…' : 'Đánh dấu invalid'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function SetupCard({
   setup,
   onChanged,
@@ -325,7 +407,7 @@ function SetupCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [invalidating, setInvalidating] = useState(false);
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -333,6 +415,8 @@ function SetupCard({
     try {
       await action();
       onChanged(await apiClient.fetchStrategyBacktestBoard());
+      // Only closes on success — a failed call keeps the dialog open with its message.
+      setInvalidating(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Thao tác thất bại');
     } finally {
@@ -404,21 +488,17 @@ function SetupCard({
         {setup.lastCheckedAt ? <span>Quét lúc {fmtTime(setup.lastCheckedAt)}</span> : null}
       </div>
 
+      {setup.invalidReason ? (
+        <p className="sbt-invalid-reason">
+          <strong>Lý do invalid:</strong> {setup.invalidReason}
+        </p>
+      ) : null}
+
       {setup.note ? <p className="sbt-note">{setup.note}</p> : null}
 
       <SetupImages urls={setup.images} />
 
       <footer className="sbt-actions">
-        {isPending ? (
-          <button
-            type="button"
-            className="sbt-btn"
-            disabled={busy}
-            onClick={() => void run(() => apiClient.cancelStrategyBacktestSetup(setup.id))}
-          >
-            Huỷ lệnh
-          </button>
-        ) : null}
         {isOpen ? (
           <button
             type="button"
@@ -435,33 +515,33 @@ function SetupCard({
             className="sbt-btn sbt-btn--warn"
             disabled={busy}
             title="Setup không còn hợp lệ — ngừng theo dõi và không tính vào thống kê"
-            onClick={() => void run(() => apiClient.invalidateStrategyBacktestSetup(setup.id))}
+            onClick={() => {
+              setError(null);
+              setInvalidating(true);
+            }}
           >
             Invalid
           </button>
         ) : null}
-        {confirmingDelete ? (
-          <>
-            <button
-              type="button"
-              className="sbt-btn sbt-btn--danger"
-              disabled={busy}
-              onClick={() => void run(() => apiClient.deleteStrategyBacktestSetup(setup.id))}
-            >
-              Xoá hẳn
-            </button>
-            <button type="button" className="sbt-btn" onClick={() => setConfirmingDelete(false)}>
-              Thôi
-            </button>
-          </>
-        ) : (
-          <button type="button" className="sbt-btn sbt-btn--ghost" onClick={() => setConfirmingDelete(true)}>
-            Xoá
-          </button>
-        )}
       </footer>
 
-      {error ? <p className="sbt-error">{error}</p> : null}
+      {/* The card's own error line; while the dialog is open its message shows in there. */}
+      {error && !invalidating ? <p className="sbt-error">{error}</p> : null}
+
+      {invalidating ? (
+        <InvalidDialog
+          setup={setup}
+          busy={busy}
+          error={error}
+          onClose={() => {
+            setInvalidating(false);
+            setError(null);
+          }}
+          onConfirm={(reason) =>
+            void run(() => apiClient.invalidateStrategyBacktestSetup(setup.id, reason))
+          }
+        />
+      ) : null}
     </article>
   );
 }

@@ -1776,22 +1776,22 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    /** Call a setup off — it leaves the scan job and the scorecard. */
+    /**
+     * Call a setup off with an optional reason — it leaves the scan job and the
+     * scorecard but stays on the board. There is no delete counterpart on purpose.
+     */
     async invalidateStrategyBacktestSetup(
       id: string,
+      reason?: string,
     ): Promise<StrategyBacktestBoard['setups'][number]> {
       return mutationJson(
         fetchImpl,
         `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}/invalidate`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    async cancelStrategyBacktestSetup(id: string): Promise<StrategyBacktestBoard['setups'][number]> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}/cancel`,
-        withDefaults({ method: 'POST' }),
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reason?.trim() ? { reason: reason.trim() } : {}),
+        }),
       );
     },
 
@@ -1808,14 +1808,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(exitPrice != null ? { exitPrice } : {}),
         }),
-      );
-    },
-
-    async deleteStrategyBacktestSetup(id: string): Promise<void> {
-      await mutationJson<{ id: string }>(
-        fetchImpl,
-        `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}`,
-        withDefaults({ method: 'DELETE' }),
       );
     },
   };

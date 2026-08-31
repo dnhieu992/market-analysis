@@ -11136,7 +11136,6 @@ a.metric-card--link:hover {
 .sbt-btn:hover:not(:disabled) { border-color: var(--accent); }
 .sbt-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .sbt-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.sbt-btn--danger { background: #d33a2c; border-color: #d33a2c; color: #fff; }
 .sbt-btn--ghost { color: var(--muted); }
 .sbt-btn--warn { border-color: #c89b08; color: #9a7b08; }
 
@@ -11217,6 +11216,17 @@ a.metric-card--link:hover {
   color: var(--muted);
 }
 .sbt-distance strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
+.sbt-invalid-reason {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  background: rgba(200, 155, 8, 0.08);
+  border-left: 3px solid #c89b08;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.sbt-invalid-reason strong { color: #9a7b08; }
+
 .sbt-note {
   margin: 12px 0 0;
   padding: 10px 12px;

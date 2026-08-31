@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CloseSetupDto } from './dto/close-setup.dto';
 import { CreateSetupDto } from './dto/create-setup.dto';
+import { InvalidateSetupDto } from './dto/invalidate-setup.dto';
 import { UpdateSetupDto } from './dto/update-setup.dto';
 import { StrategyBacktestService } from './strategy-backtest.service';
 
@@ -33,27 +34,17 @@ export class StrategyBacktestController {
     return this.service.update(id, body);
   }
 
-  @Post(':id/cancel')
-  @ApiOperation({ summary: 'Cancel a setup that has not filled yet' })
-  cancel(@Param('id') id: string) {
-    return this.service.cancel(id);
-  }
-
+  // The only way a setup leaves the board. There is deliberately no DELETE route:
+  // the trader keeps every plan ever written, abandoned ones included.
   @Post(':id/invalidate')
-  @ApiOperation({ summary: 'Call a setup off — it stops being tracked and is left out of the stats' })
-  invalidate(@Param('id') id: string) {
-    return this.service.invalidate(id);
+  @ApiOperation({ summary: 'Call a setup off with an optional reason — it stops being tracked and is left out of the stats' })
+  invalidate(@Param('id') id: string, @Body() body: InvalidateSetupDto) {
+    return this.service.invalidate(id, body);
   }
 
   @Post(':id/close')
   @ApiOperation({ summary: 'Close a filled setup by hand at a given (or the live) price' })
   close(@Param('id') id: string, @Body() body: CloseSetupDto) {
     return this.service.close(id, body);
-  }
-
-  @Delete(':id')
-  @ApiOperation({ summary: 'Delete a setup and its result permanently' })
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
   }
 }

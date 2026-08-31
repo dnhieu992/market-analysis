@@ -17,6 +17,7 @@ function setup(
     note: null,
     images: [],
     status,
+    invalidReason: null,
     triggeredAt: null,
     closedAt: null,
     exitPrice: null,
@@ -62,19 +63,17 @@ describe('computeSetupStats', () => {
     expect(stats.totalPnlPct).toBeCloseTo(14.7, 6);
   });
 
-  // A cancelled setup never risked anything and an open one has not resolved —
-  // counting either would make the win rate mean something it does not.
-  it('leaves cancelled and still-open setups out of every ratio', () => {
+  // A setup that has not resolved cannot be counted a win or a loss yet.
+  it('leaves still-open setups out of the scored sample', () => {
     const stats = computeSetupStats([
       setup('TP_HIT', { pnlPct: 10, rMultiple: 1 }),
-      setup('CANCELLED'),
       setup('ENTERED'),
       setup('PENDING'),
     ]);
 
     expect(stats.scored).toBe(1);
     expect(stats.winRate).toBe(1);
-    // Fill rate ignores the cancelled setup: 2 of the 3 real setups reached the limit.
+    // 2 of the 3 setups reached the limit; the PENDING one has not.
     expect(stats.fillRate).toBeCloseTo(2 / 3, 6);
   });
 

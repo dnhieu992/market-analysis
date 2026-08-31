@@ -50,9 +50,5 @@ export function createStrategyBacktestRepository(client = prisma) {
     update(id: string, data: Prisma.StrategyBacktestSetupUncheckedUpdateInput) {
       return client.strategyBacktestSetup.update({ where: { id }, data });
     },
-
-    remove(id: string) {
-      return client.strategyBacktestSetup.delete({ where: { id } });
-    },
   };
 }

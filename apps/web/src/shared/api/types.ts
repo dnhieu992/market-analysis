@@ -1249,7 +1249,7 @@ export type StrategyBacktestStatus =
   | 'TP_HIT'
   | 'SL_HIT'
   | 'CLOSED'
-  | 'CANCELLED'
+  /** Called off by the trader. The only way a setup leaves the board — nothing is deleted. */
   | 'INVALID';
 
 /** Horizon the setup was planned on — a scalp and a swing are not comparable. */
@@ -1271,6 +1271,8 @@ export type StrategyBacktestSetup = {
   /** Cloudflare R2 URLs of the charts the analysis was based on. */
   images: string[];
   status: StrategyBacktestStatus;
+  /** Why the setup was called off, when the trader bothered to say. */
+  invalidReason: string | null;
   triggeredAt: string | null;
   closedAt: string | null;
   exitPrice: number | null;

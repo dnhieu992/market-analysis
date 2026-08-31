@@ -900,6 +900,10 @@ model BtcDaytradeAnalysis {
 /// then runs to `takeProfit` or `stopLoss`. The trader writes every field by hand —
 /// nothing here is produced by an LLM or a signal job.
 ///
+/// Rows are never deleted. A setup the trader calls off becomes INVALID (with an
+/// optional reason) and stops being tracked, but stays on the board — the abandoned
+/// setups are part of what the trader wants to look back on.
+///
 /// Deliberately standalone: no relation to Order/Signal/TrackingCoin. The page exists
 /// to score the trader's own manual analysis, so its history must never be entangled
 /// with (or deleted by) the automated tables.
@@ -913,7 +917,8 @@ model StrategyBacktestSetup {
   takeProfit    Float? // null = run until SL or a manual close
   note          String?   @db.Text // why this setup was taken, markdown
   images        Json      @default("[]") // string[] of Cloudflare R2 chart-screenshot URLs
-  status        String    @default("PENDING") @db.VarChar(12) // PENDING|ENTERED|TP_HIT|SL_HIT|CLOSED|CANCELLED|INVALID
+  status        String    @default("PENDING") @db.VarChar(12) // PENDING|ENTERED|TP_HIT|SL_HIT|CLOSED|INVALID
+  invalidReason String?   @db.Text // why the trader called the setup off, optional
   triggeredAt   DateTime? // when price first touched entryPrice
   closedAt      DateTime?
   exitPrice     Float? // fill price of the exit (TP/SL level, or the manual close price)
