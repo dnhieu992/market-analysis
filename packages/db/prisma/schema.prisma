@@ -907,11 +907,13 @@ model StrategyBacktestSetup {
   id            String    @id @default(cuid())
   symbol        String    @default("BTCUSDT") @db.VarChar(20)
   direction     String    @db.VarChar(5) // LONG | SHORT
+  setupType     String    @default("SWING") @db.VarChar(10) // SWING | SCALP — horizon the setup was planned on
   entryPrice    Float
   stopLoss      Float
   takeProfit    Float? // null = run until SL or a manual close
   note          String?   @db.Text // why this setup was taken, markdown
-  status        String    @default("PENDING") @db.VarChar(12) // PENDING|ENTERED|TP_HIT|SL_HIT|CLOSED|CANCELLED
+  images        Json      @default("[]") // string[] of Cloudflare R2 chart-screenshot URLs
+  status        String    @default("PENDING") @db.VarChar(12) // PENDING|ENTERED|TP_HIT|SL_HIT|CLOSED|CANCELLED|INVALID
   triggeredAt   DateTime? // when price first touched entryPrice
   closedAt      DateTime?
   exitPrice     Float? // fill price of the exit (TP/SL level, or the manual close price)

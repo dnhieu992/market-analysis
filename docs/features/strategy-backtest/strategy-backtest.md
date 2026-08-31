@@ -2,9 +2,10 @@
 
 ## Description
 A scorecard for the trader's own manual analysis. Setups are written by hand on the page —
-direction, a limit entry, a stop and (optionally) a target — and a worker cron then watches
-the market for them exactly the way a resting limit order on an exchange behaves: it waits
-at the entry, fills when price trades through it, and closes at TP or SL.
+direction, swing or scalping, a limit entry, a stop, optionally a target, a note and the
+chart screenshots the read was based on — and a worker cron then watches the market for
+them exactly the way a resting limit order on an exchange behaves: it waits at the entry,
+fills when price trades through it, and closes at TP or SL.
 
 Nothing here is automated analysis and nothing places a real order. The point is to answer
 "were my setups actually any good?" with a win rate, an R total and a fill rate, instead of
@@ -16,24 +17,29 @@ The data lives in its own table (`strategy_backtest_setups`) with no relation to
 automated pipelines.
 
 ## Main Flow
-1. The trader opens `/strategy-backtest` and fills in the form: LONG/SHORT, entry (the limit
-   price), stop loss, optional take profit, and a note on why the setup is worth taking. The
-   planned R:R updates live while the numbers are typed.
-2. `POST /strategy-backtest` validates that the three prices describe a real trade (LONG →
+1. The trader opens `/strategy-backtest` and fills in the form: LONG/SHORT, Swing/Scalping,
+   entry (the limit price), stop loss, optional take profit, a note on why the setup is worth
+   taking, and any number of chart screenshots. The planned R:R updates live while the numbers
+   are typed.
+2. Screenshots are uploaded to Cloudflare R2 first (`POST /upload/images`), and only then is
+   the setup written — a setup that saved but lost its charts is the worse outcome, so a failed
+   upload aborts before anything is stored.
+3. `POST /strategy-backtest` validates that the three prices describe a real trade (LONG →
    stop below entry, target above; mirrored for SHORT) and stores the setup as `PENDING`.
-3. Every 5 minutes `SchedulerService.runStrategyBacktestScan()` calls
+4. Every 5 minutes `SchedulerService.runStrategyBacktestScan()` calls
    `StrategyBacktestScanService.scan()`, which loads the open setups, groups them by symbol
    and fetches 60 public Binance **5m** candles per symbol.
-4. `replaySetup()` replays only the candles newer than the setup's `lastCheckedAt` watermark:
+5. `replaySetup()` replays only the candles newer than the setup's `lastCheckedAt` watermark:
    - `PENDING` → `ENTERED` when a candle trades through `entryPrice` (LONG needs the low to
      reach it, SHORT the high) — `triggeredAt` is stamped.
    - `ENTERED` → `SL_HIT` / `TP_HIT` when a candle trades through the stop or the target.
      `exitPrice`, `pnlPct` (net of 0.05%/side) and `rMultiple` are written on close.
-5. The page polls `GET /strategy-backtest` every 60s. The API returns the setups plus the
+6. The page polls `GET /strategy-backtest` every 60s. The API returns the setups plus the
    live price, and computes `plannedRr`, `distanceToEntryPct` (PENDING) and
    `unrealizedPct` / `unrealizedR` (ENTERED) on the fly — none of those are stored.
-6. Anything the job cannot decide is the trader's call: cancel a setup that has not filled,
-   or close a filled one by hand at the live price (`CLOSED`).
+7. Anything the job cannot decide is the trader's call: cancel a setup that has not filled,
+   close a filled one by hand at the live price (`CLOSED`), or mark either kind `INVALID`
+   when the reasoning behind it stops holding.
 
 ## Edge Cases
 - **A candle that trades through both the stop and the target is scored as the stop.** Intra-
@@ -55,9 +61,15 @@ automated pipelines.
   still `PENDING`; the note stays editable for the whole life of the setup.
 - **Cancel only applies to unfilled setups; manual close only to filled ones** — both rejected
   with a Vietnamese message the dialog shows verbatim.
+- **`INVALID` stops the tracking, immediately.** The status is simply not in
+  `STRATEGY_BACKTEST_OPEN_STATUSES`, so the very next scan pass no longer loads the setup —
+  there is no separate flag to keep in sync. It applies to a filled setup too, unlike cancel.
 - **Stats exclude what they should.** Win rate and R are computed only over setups that filled
-  *and* finished; a cancelled setup never risked anything and an open one has not resolved.
+  *and* finished; a cancelled or invalidated setup never produced a verdict to score, and an
+  open one has not resolved. Both are dropped from the denominators too, not just the numerator.
   A break-even close counts as a loss, not a win.
+- **Screenshots are create-only.** They are attached when the setup is written and shown as a
+  thumbnail strip on the card (click for a lightbox); there is no edit path for them yet.
 - **No expiry.** A `PENDING` setup waits indefinitely — by the trader's choice, it is cancelled
   by hand. There is no Telegram notification either; the page is the only surface.
 
@@ -66,7 +78,8 @@ automated pipelines.
 **Web**
 - `apps/web/src/app/strategy-backtest/page.tsx` — route, thin re-export
 - `apps/web/src/_pages/strategy-backtest-page/strategy-backtest-page.tsx` — Server Component, loads the board
-- `apps/web/src/widgets/strategy-backtest/strategy-backtest-board.tsx` — client widget: form, filters, cards, 60s polling
+- `apps/web/src/widgets/strategy-backtest/strategy-backtest-board.tsx` — client widget: form (type toggle + image upload), filters, cards, screenshot lightbox, 60s polling
+- `apps/web/src/shared/ui/image-upload/image-upload.tsx` — reused screenshot picker
 - `apps/web/src/widgets/strategy-backtest/setup-stats.ts` — pure scorecard math (win rate, R, fill rate)
 - `apps/web/src/widgets/strategy-backtest/setup-stats.spec.ts` — its tests
 - `apps/web/src/shared/api/client.ts` — `fetchStrategyBacktestBoard` and the mutations (via `mutationJson`, which surfaces the API's message)
@@ -75,7 +88,7 @@ automated pipelines.
 - `apps/web/src/app/globals.css` — `.sbt-*` styles
 
 **API**
-- `apps/api/src/modules/strategy-backtest/strategy-backtest.controller.ts` — `GET /`, `POST /`, `PATCH /:id`, `POST /:id/cancel`, `POST /:id/close`, `DELETE /:id`
+- `apps/api/src/modules/strategy-backtest/strategy-backtest.controller.ts` — `GET /`, `POST /`, `PATCH /:id`, `POST /:id/cancel`, `POST /:id/invalidate`, `POST /:id/close`, `DELETE /:id`
 - `apps/api/src/modules/strategy-backtest/strategy-backtest.service.ts` — validation, live-price enrichment, manual close
 - `apps/api/src/modules/strategy-backtest/dto/*.ts` — `class-validator` DTOs
 - `apps/api/src/app.module.ts` — module registration
@@ -90,4 +103,5 @@ automated pipelines.
 - `packages/core/src/setups/strategy-backtest-math.ts` — PnL / R / R:R formulas shared by worker and API
 - `packages/db/prisma/schema.prisma` — `StrategyBacktestSetup`
 - `packages/db/prisma/migrations/20260831120000_add_strategy_backtest_setups/migration.sql`
+- `packages/db/prisma/migrations/20260831160000_add_setup_type_and_images/migration.sql` — `setupType` + `images`
 - `packages/db/src/repositories/strategy-backtest.repository.ts`

@@ -2,13 +2,23 @@ import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../client';
 
-/** Statuses the scan job still has to watch — everything else is finished. */
+/**
+ * Statuses the scan job still has to watch. A setup the trader marked INVALID drops
+ * out of this list, which is exactly what stops it being tracked.
+ */
 export const STRATEGY_BACKTEST_OPEN_STATUSES = ['PENDING', 'ENTERED'];
 
 /** What the trader fills in by hand; every other column is bookkeeping. */
 export type StrategyBacktestSetupInput = Pick<
   Prisma.StrategyBacktestSetupUncheckedCreateInput,
-  'symbol' | 'direction' | 'entryPrice' | 'stopLoss' | 'takeProfit' | 'note'
+  | 'symbol'
+  | 'direction'
+  | 'setupType'
+  | 'entryPrice'
+  | 'stopLoss'
+  | 'takeProfit'
+  | 'note'
+  | 'images'
 >;
 
 export function createStrategyBacktestRepository(client = prisma) {

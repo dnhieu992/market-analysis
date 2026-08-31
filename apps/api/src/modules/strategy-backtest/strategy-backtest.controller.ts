@@ -39,6 +39,12 @@ export class StrategyBacktestController {
     return this.service.cancel(id);
   }
 
+  @Post(':id/invalidate')
+  @ApiOperation({ summary: 'Call a setup off — it stops being tracked and is left out of the stats' })
+  invalidate(@Param('id') id: string) {
+    return this.service.invalidate(id);
+  }
+
   @Post(':id/close')
   @ApiOperation({ summary: 'Close a filled setup by hand at a given (or the live) price' })
   close(@Param('id') id: string, @Body() body: CloseSetupDto) {

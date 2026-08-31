@@ -28,6 +28,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Nhật ký phân tích & cảm xúc hàng ngày + ảnh mô hình'
   },
   {
+    href: '/strategy-backtest',
+    label: 'Strategy Backtest',
+    description: 'Setup BTC tự phân tích tay · job quét 5 phút chấm điểm khớp / TP / SL'
+  },
+  {
     href: '/portfolio',
     label: 'Portfolio',
     description: 'Coin holdings & PnL tracker'
@@ -51,11 +56,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/tracking-coins',
     label: 'Tracking Coins · Gom đáy',
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
-  },
-  {
-    href: '/strategy-backtest',
-    label: 'Strategy Backtest',
-    description: 'Setup BTC tự phân tích tay · job quét 5 phút chấm điểm khớp / TP / SL'
   },
   {
     href: '/strategy',

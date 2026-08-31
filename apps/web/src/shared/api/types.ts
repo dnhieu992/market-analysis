@@ -1249,7 +1249,11 @@ export type StrategyBacktestStatus =
   | 'TP_HIT'
   | 'SL_HIT'
   | 'CLOSED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'INVALID';
+
+/** Horizon the setup was planned on — a scalp and a swing are not comparable. */
+export type StrategyBacktestSetupType = 'SWING' | 'SCALP';
 
 /**
  * One hand-written setup tracked like a resting limit order. `plannedRr` and the
@@ -1259,10 +1263,13 @@ export type StrategyBacktestSetup = {
   id: string;
   symbol: string;
   direction: 'LONG' | 'SHORT';
+  setupType: StrategyBacktestSetupType;
   entryPrice: number;
   stopLoss: number;
   takeProfit: number | null;
   note: string | null;
+  /** Cloudflare R2 URLs of the charts the analysis was based on. */
+  images: string[];
   status: StrategyBacktestStatus;
   triggeredAt: string | null;
   closedAt: string | null;
@@ -1290,10 +1297,12 @@ export type StrategyBacktestBoard = {
 
 export type CreateStrategyBacktestSetupInput = {
   direction: 'LONG' | 'SHORT';
+  setupType: StrategyBacktestSetupType;
   entryPrice: number;
   stopLoss: number;
   takeProfit?: number;
   note?: string;
+  images?: string[];
 };
 
 export type UpdateStrategyBacktestSetupInput = {

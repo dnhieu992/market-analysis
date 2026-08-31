@@ -1776,6 +1776,17 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
+    /** Call a setup off — it leaves the scan job and the scorecard. */
+    async invalidateStrategyBacktestSetup(
+      id: string,
+    ): Promise<StrategyBacktestBoard['setups'][number]> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}/invalidate`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
     async cancelStrategyBacktestSetup(id: string): Promise<StrategyBacktestBoard['setups'][number]> {
       return mutationJson(
         fetchImpl,

@@ -11111,6 +11111,7 @@ a.metric-card--link:hover {
 }
 .sbt-dir-btn.is-active.is-long { background: rgba(31, 157, 87, 0.12); border-color: #1f9d57; color: #1f8a52; }
 .sbt-dir-btn.is-active.is-short { background: rgba(211, 58, 44, 0.1); border-color: #d33a2c; color: #c0392b; }
+.sbt-dir-btn.is-active.is-type { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
 .sbt-form-footer {
   display: flex;
@@ -11137,6 +11138,7 @@ a.metric-card--link:hover {
 .sbt-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .sbt-btn--danger { background: #d33a2c; border-color: #d33a2c; color: #fff; }
 .sbt-btn--ghost { color: var(--muted); }
+.sbt-btn--warn { border-color: #c89b08; color: #9a7b08; }
 
 .sbt-error { margin: 10px 0 0; font-size: 12.5px; color: #c0392b; }
 
@@ -11188,6 +11190,9 @@ a.metric-card--link:hover {
 .sbt-dir--long { color: #1f8a52; }
 .sbt-dir--short { color: #c0392b; }
 .sbt-symbol { font-size: 13px; font-weight: 600; color: var(--muted); }
+.sbt-type { padding: 2px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 600; }
+.sbt-type--swing { background: rgba(47, 111, 237, 0.1); color: #2f6fed; }
+.sbt-type--scalp { background: rgba(189, 123, 57, 0.14); color: #8a5a1f; }
 .sbt-status { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
 .sbt-status--pending { background: #fbf0cd; color: #9a7b08; }
 .sbt-status--active { background: #e6efff; color: #2f6fed; }
@@ -11222,6 +11227,19 @@ a.metric-card--link:hover {
   white-space: pre-wrap;
 }
 .sbt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+.sbt-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.sbt-thumb {
+  padding: 0;
+  width: 96px;
+  height: 68px;
+  overflow: hidden;
+  background: var(--background-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: zoom-in;
+}
+.sbt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 @media (max-width: 640px) {
   .sbt-page { padding: 16px 14px 48px; }

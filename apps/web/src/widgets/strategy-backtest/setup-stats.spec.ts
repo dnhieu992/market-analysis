@@ -10,10 +10,12 @@ function setup(
     id: Math.random().toString(36).slice(2),
     symbol: 'BTCUSDT',
     direction: 'LONG',
+    setupType: 'SWING',
     entryPrice: 100,
     stopLoss: 90,
     takeProfit: 120,
     note: null,
+    images: [],
     status,
     triggeredAt: null,
     closedAt: null,
@@ -74,6 +76,22 @@ describe('computeSetupStats', () => {
     expect(stats.winRate).toBe(1);
     // Fill rate ignores the cancelled setup: 2 of the 3 real setups reached the limit.
     expect(stats.fillRate).toBeCloseTo(2 / 3, 6);
+  });
+
+  // A setup called off mid-flight must not land in the win/loss column either way —
+  // the trader abandoned the reasoning, so it never produced a verdict to score.
+  it('drops setups marked invalid, even ones that had already filled', () => {
+    const stats = computeSetupStats([
+      setup('TP_HIT', { pnlPct: 10, rMultiple: 1 }),
+      setup('INVALID'),
+      setup('PENDING'),
+    ]);
+
+    expect(stats.dropped).toBe(1);
+    expect(stats.scored).toBe(1);
+    expect(stats.wins).toBe(1);
+    // Only the TP_HIT and the PENDING setup are still counted.
+    expect(stats.fillRate).toBeCloseTo(0.5, 6);
   });
 
   it('counts a break-even close as a loss rather than a win', () => {

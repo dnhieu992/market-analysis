@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsNumber,
   IsOptional,
@@ -16,6 +18,11 @@ export class CreateSetupDto {
 
   @IsIn(['LONG', 'SHORT'])
   direction!: 'LONG' | 'SHORT';
+
+  /** The horizon the setup was planned on — a scalp and a swing are not comparable. */
+  @IsOptional()
+  @IsIn(['SWING', 'SCALP'])
+  setupType?: 'SWING' | 'SCALP';
 
   /** The resting limit price — the setup fills when price trades through it. */
   @IsNumber()
@@ -36,4 +43,11 @@ export class CreateSetupDto {
   @IsString()
   @MaxLength(5000)
   note?: string;
+
+  /** Chart screenshots, already uploaded to R2 via POST /upload/images. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(10)
+  images?: string[];
 }

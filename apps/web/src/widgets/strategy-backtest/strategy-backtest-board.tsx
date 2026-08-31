@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
+import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 import type {
   StrategyBacktestBoard as BoardData,
   StrategyBacktestSetup,
+  StrategyBacktestSetupType,
   StrategyBacktestStatus,
 } from '@web/shared/api/types';
 
@@ -23,6 +25,12 @@ const STATUS_LABEL: Record<StrategyBacktestStatus, string> = {
   SL_HIT: 'Dính SL',
   CLOSED: 'Đóng tay',
   CANCELLED: 'Đã huỷ',
+  INVALID: 'Invalid',
+};
+
+const TYPE_LABEL: Record<StrategyBacktestSetupType, string> = {
+  SWING: 'Swing',
+  SCALP: 'Scalping',
 };
 
 const STATUS_MODIFIER: Record<StrategyBacktestStatus, string> = {
@@ -32,6 +40,7 @@ const STATUS_MODIFIER: Record<StrategyBacktestStatus, string> = {
   SL_HIT: 'loss',
   CLOSED: 'closed',
   CANCELLED: 'dead',
+  INVALID: 'dead',
 };
 
 type Filter = 'all' | 'pending' | 'open' | 'done';
@@ -46,6 +55,46 @@ const FILTERS: { key: Filter; label: string; match: (s: StrategyBacktestSetup) =
     match: (s) => s.status !== 'PENDING' && s.status !== 'ENTERED',
   },
 ];
+
+/** Screenshot strip — the charts the setup was read off, click to open full size. */
+function SetupImages({ urls }: { urls: string[] }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  if (urls.length === 0) return null;
+
+  return (
+    <>
+      <div className="sbt-images">
+        {urls.map((url) => (
+          <button
+            key={url}
+            type="button"
+            className="sbt-thumb"
+            onClick={() => setLightbox(url)}
+            aria-label="Xem ảnh setup"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="Chart setup" />
+          </button>
+        ))}
+      </div>
+      {lightbox ? (
+        <div className="lightbox-backdrop" onClick={() => setLightbox(null)}>
+          <button className="lightbox-close" onClick={() => setLightbox(null)} aria-label="Đóng">
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox}
+            alt="Chart setup"
+            className="lightbox-img"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 function fmtPrice(value: number | null | undefined): string {
   if (value == null) return '—';
@@ -88,10 +137,14 @@ function parseNumber(raw: string): number | null {
 
 function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
   const [direction, setDirection] = useState<'LONG' | 'SHORT'>('LONG');
+  const [setupType, setSetupType] = useState<StrategyBacktestSetupType>('SWING');
   const [entry, setEntry] = useState('');
   const [stop, setStop] = useState('');
   const [target, setTarget] = useState('');
   const [note, setNote] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Remounts ImageUpload after a save so its internal previews are cleared with the form.
+  const [uploaderKey, setUploaderKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,18 +170,28 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
     setSaving(true);
     setError(null);
     try {
+      // Upload first: a setup that saved but lost its charts would be the worse outcome,
+      // so a failed upload aborts before anything is written.
+      const images = pendingFiles.length
+        ? await apiClient.uploadImages(pendingFiles, 'BTCUSDT')
+        : [];
+
       await apiClient.createStrategyBacktestSetup({
         direction,
+        setupType,
         entryPrice,
         stopLoss,
         ...(takeProfit != null ? { takeProfit } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
+        ...(images.length ? { images } : {}),
       });
       onCreated(await apiClient.fetchStrategyBacktestBoard());
       setEntry('');
       setStop('');
       setTarget('');
       setNote('');
+      setPendingFiles([]);
+      setUploaderKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được setup');
     } finally {
@@ -157,6 +220,26 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
               onClick={() => setDirection('SHORT')}
             >
               ▼ Short
+            </button>
+          </div>
+        </div>
+
+        <div className="sbt-field">
+          <label className="sbt-label">Loại lệnh</label>
+          <div className="sbt-dir-toggle">
+            <button
+              type="button"
+              className={`sbt-dir-btn${setupType === 'SWING' ? ' is-active is-type' : ''}`}
+              onClick={() => setSetupType('SWING')}
+            >
+              Swing
+            </button>
+            <button
+              type="button"
+              className={`sbt-dir-btn${setupType === 'SCALP' ? ' is-active is-type' : ''}`}
+              onClick={() => setSetupType('SCALP')}
+            >
+              Scalping
             </button>
           </div>
         </div>
@@ -206,6 +289,15 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
             placeholder="Ghi lại vì sao setup này đáng vào — để sau còn chấm lại."
             value={note}
             onChange={(e) => setNote(e.target.value)}
+          />
+        </div>
+
+        <div className="sbt-field sbt-field--wide">
+          <label className="sbt-label">Ảnh chart</label>
+          <ImageUpload
+            key={uploaderKey}
+            onChange={(value: ImageUploadValue) => setPendingFiles(value.newFiles)}
+            uploading={saving}
           />
         </div>
       </div>
@@ -260,6 +352,9 @@ function SetupCard({
           {setup.direction === 'LONG' ? '▲ Long' : '▼ Short'}
         </span>
         <span className="sbt-symbol">{setup.symbol}</span>
+        <span className={`sbt-type sbt-type--${setup.setupType.toLowerCase()}`}>
+          {TYPE_LABEL[setup.setupType]}
+        </span>
         <span className={`sbt-status sbt-status--${STATUS_MODIFIER[setup.status]}`}>
           {STATUS_LABEL[setup.status]}
         </span>
@@ -311,6 +406,8 @@ function SetupCard({
 
       {setup.note ? <p className="sbt-note">{setup.note}</p> : null}
 
+      <SetupImages urls={setup.images} />
+
       <footer className="sbt-actions">
         {isPending ? (
           <button
@@ -330,6 +427,17 @@ function SetupCard({
             onClick={() => void run(() => apiClient.closeStrategyBacktestSetup(setup.id))}
           >
             Đóng ở giá hiện tại
+          </button>
+        ) : null}
+        {isPending || isOpen ? (
+          <button
+            type="button"
+            className="sbt-btn sbt-btn--warn"
+            disabled={busy}
+            title="Setup không còn hợp lệ — ngừng theo dõi và không tính vào thống kê"
+            onClick={() => void run(() => apiClient.invalidateStrategyBacktestSetup(setup.id))}
+          >
+            Invalid
           </button>
         ) : null}
         {confirmingDelete ? (
@@ -365,6 +473,7 @@ function StatsRow({ setups }: { setups: StrategyBacktestSetup[] }) {
     { label: 'Đã lên kế hoạch', value: String(stats.planned) },
     { label: 'Chờ khớp', value: String(stats.pending) },
     { label: 'Đang chạy', value: String(stats.open) },
+    { label: 'Huỷ / invalid', value: String(stats.dropped) },
     {
       label: `Win rate (${stats.wins}/${stats.scored})`,
       value: stats.winRate != null ? `${(stats.winRate * 100).toFixed(0)}%` : '—',

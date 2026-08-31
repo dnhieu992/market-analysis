@@ -3,6 +3,13 @@ import type { StrategyBacktestSetup, StrategyBacktestStatus } from '@web/shared/
 /** Statuses that mean the setup filled and is now finished — the ones worth scoring. */
 const SCORED: StrategyBacktestStatus[] = ['TP_HIT', 'SL_HIT', 'CLOSED'];
 
+/**
+ * Setups the trader took off the board: cancelled before filling, or called INVALID
+ * because the reasoning stopped holding. Neither produced a result the analysis can be
+ * judged on, so both are dropped from every ratio below — including the denominators.
+ */
+const DROPPED: StrategyBacktestStatus[] = ['CANCELLED', 'INVALID'];
+
 export type SetupStats = {
   /** Every setup ever written down, cancelled ones included. */
   planned: number;
@@ -16,7 +23,9 @@ export type SetupStats = {
   losses: number;
   /** Null until at least one setup has been scored. */
   winRate: number | null;
-  /** Share of non-cancelled setups that actually filled. Null with no sample. */
+  /** Setups called off — cancelled or marked invalid. Excluded from every ratio. */
+  dropped: number;
+  /** Share of the still-counted setups that actually filled. Null with no sample. */
   fillRate: number | null;
   /** Sum of realized R across scored setups — the headline "was the analysis good". */
   totalR: number | null;
@@ -34,8 +43,8 @@ export function computeSetupStats(setups: StrategyBacktestSetup[]): SetupStats {
   const scoredSetups = setups.filter((s) => SCORED.includes(s.status));
   const withR = scoredSetups.filter((s) => s.rMultiple != null);
   const withPnl = scoredSetups.filter((s) => s.pnlPct != null);
-  const filledEver = setups.filter((s) => s.status !== 'PENDING' && s.status !== 'CANCELLED');
-  const notCancelled = setups.filter((s) => s.status !== 'CANCELLED');
+  const counted = setups.filter((s) => !DROPPED.includes(s.status));
+  const filledEver = counted.filter((s) => s.status !== 'PENDING');
 
   const wins = scoredSetups.filter((s) => (s.pnlPct ?? 0) > 0).length;
   const totalR = withR.reduce((sum, s) => sum + (s.rMultiple ?? 0), 0);
@@ -44,11 +53,12 @@ export function computeSetupStats(setups: StrategyBacktestSetup[]): SetupStats {
     planned: setups.length,
     pending: setups.filter((s) => s.status === 'PENDING').length,
     open: setups.filter((s) => s.status === 'ENTERED').length,
+    dropped: setups.filter((s) => DROPPED.includes(s.status)).length,
     scored: scoredSetups.length,
     wins,
     losses: scoredSetups.length - wins,
     winRate: scoredSetups.length > 0 ? wins / scoredSetups.length : null,
-    fillRate: notCancelled.length > 0 ? filledEver.length / notCancelled.length : null,
+    fillRate: counted.length > 0 ? filledEver.length / counted.length : null,
     totalR: withR.length > 0 ? totalR : null,
     avgR: withR.length > 0 ? totalR / withR.length : null,
     totalPnlPct:

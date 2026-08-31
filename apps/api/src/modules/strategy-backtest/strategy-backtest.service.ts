@@ -22,10 +22,12 @@ export type StrategyBacktestSetupDto = {
   id: string;
   symbol: string;
   direction: SetupDirection;
+  setupType: 'SWING' | 'SCALP';
   entryPrice: number;
   stopLoss: number;
   takeProfit: number | null;
   note: string | null;
+  images: string[];
   status: string;
   triggeredAt: string | null;
   closedAt: string | null;
@@ -86,10 +88,12 @@ export class StrategyBacktestService {
     const row = await this.repository.create({
       symbol,
       direction: dto.direction,
+      setupType: dto.setupType ?? 'SWING',
       entryPrice: dto.entryPrice,
       stopLoss: dto.stopLoss,
       takeProfit,
       note: dto.note?.trim() ? dto.note : null,
+      images: dto.images ?? [],
     });
 
     return this.toDto(row, await this.fetchPrice(symbol));
@@ -131,6 +135,26 @@ export class StrategyBacktestService {
 
     const updated = await this.repository.update(id, {
       status: 'CANCELLED',
+      closedAt: new Date(),
+    });
+
+    return this.toDto(updated, await this.fetchPrice(updated.symbol));
+  }
+
+  /**
+   * Call a setup off. Unlike cancel this also applies to a setup that already filled —
+   * it is the trader saying "the reasoning behind this one no longer holds". The setup
+   * leaves the scan job's open list immediately and is left out of the scorecard, so a
+   * setup abandoned mid-flight never counts as either a win or a loss.
+   */
+  async invalidate(id: string): Promise<StrategyBacktestSetupDto> {
+    const row = await this.requireSetup(id);
+    if (row.status !== 'PENDING' && row.status !== 'ENTERED') {
+      throw new BadRequestException('Chỉ đánh dấu invalid được lệnh đang chờ khớp hoặc đang chạy.');
+    }
+
+    const updated = await this.repository.update(id, {
+      status: 'INVALID',
       closedAt: new Date(),
     });
 
@@ -201,10 +225,12 @@ export class StrategyBacktestService {
       id: row.id,
       symbol: row.symbol,
       direction,
+      setupType: row.setupType === 'SCALP' ? 'SCALP' : 'SWING',
       entryPrice: row.entryPrice,
       stopLoss: row.stopLoss,
       takeProfit: row.takeProfit,
       note: row.note,
+      images: toStringArray(row.images),
       status: row.status,
       triggeredAt: row.triggeredAt?.toISOString() ?? null,
       closedAt: row.closedAt?.toISOString() ?? null,
@@ -230,6 +256,12 @@ export class StrategyBacktestService {
           : null,
     };
   }
+}
+
+/** Coerce a Prisma Json column (unknown at the type level) to a string[]. */
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string');
 }
 
 function toDirection(value: string): SetupDirection {
