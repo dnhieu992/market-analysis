@@ -23,11 +23,15 @@ function setup(overrides: Partial<StrategyBacktestSetupRow> = {}): StrategyBackt
     id: 'setup-1',
     symbol: 'BTCUSDT',
     direction: 'LONG',
+    setupType: 'SWING',
+    orderType: 'LIMIT',
     entryPrice: 100,
     stopLoss: 90,
     takeProfit: 120,
     note: null,
+    images: [],
     status: 'PENDING',
+    invalidReason: null,
     triggeredAt: null,
     closedAt: null,
     exitPrice: null,
@@ -118,6 +122,37 @@ describe('replaySetup', () => {
     );
 
     expect(update.status).toBeUndefined();
+  });
+
+  // A MARKET setup is born ENTERED partway through a candle. The part of that candle's
+  // range that printed before the trader was in must not stop them out.
+  it('does not exit a market entry on the candle it was opened in', () => {
+    const straddling = candle(0, 105, 85);
+    const update = replaySetup(
+      setup({
+        orderType: 'MARKET',
+        status: 'ENTERED',
+        // Two minutes into the 5m candle that runs from the creation time.
+        triggeredAt: new Date(CREATED_AT.getTime() + 2 * 60_000)
+      }),
+      [straddling]
+    );
+
+    expect(update.status).toBeUndefined();
+  });
+
+  it('exits a market entry on the first candle that opened after it', () => {
+    const update = replaySetup(
+      setup({
+        orderType: 'MARKET',
+        status: 'ENTERED',
+        triggeredAt: new Date(CREATED_AT.getTime() + 2 * 60_000)
+      }),
+      [candle(0, 105, 85), candle(5, 105, 88)]
+    );
+
+    expect(update.status).toBe('SL_HIT');
+    expect(update.exitPrice).toBe(90);
   });
 
   it('runs a setup without a take profit until the stop, never closing on an up move', () => {

@@ -144,6 +144,12 @@ export class StrategyBacktestScanService {
  *  - A candle that trades through both the stop and the target is scored as the stop.
  *    Intra-candle order is unknowable from OHLC, so the pessimistic read is the only
  *    one that cannot flatter the trader's win rate.
+ *  - A position is never exited on a candle that opened before it existed. This matters
+ *    for a MARKET setup, which is born ENTERED partway through a candle: the earlier
+ *    half of that candle's range happened before the trader was in, so stopping out on
+ *    it would be plainly wrong rather than merely conservative. A LIMIT fill detected
+ *    inside this same run is unaffected — there the fill and the exit share one candle
+ *    in unknown order, and the pessimistic read above still applies.
  */
 export function replaySetup(setup: StrategyBacktestSetupRow, candles: Candle[]): SetupUpdate {
   const since = setup.lastCheckedAt ? new Date(setup.lastCheckedAt).getTime() : 0;
@@ -160,8 +166,17 @@ export function replaySetup(setup: StrategyBacktestSetupRow, candles: Candle[]):
   const update: SetupUpdate = {};
   let status = setup.status;
 
+  // Only set for a position that was already open when this run started; a fill that
+  // happens below keeps checking its own candle for an exit.
+  const exitFloor =
+    setup.status === 'ENTERED' && setup.triggeredAt
+      ? new Date(setup.triggeredAt).getTime()
+      : null;
+
   for (const candle of fresh) {
     const at = candle.closeTime ?? candle.openTime ?? new Date();
+    const openedBeforeEntry =
+      exitFloor != null && (candle.openTime?.getTime() ?? 0) < exitFloor;
 
     if (status === 'PENDING') {
       // A resting limit fills when price trades through the level: a LONG limit sits
@@ -173,7 +188,7 @@ export function replaySetup(setup: StrategyBacktestSetupRow, candles: Candle[]):
       update.triggeredAt = at;
     }
 
-    if (status === 'ENTERED') {
+    if (status === 'ENTERED' && !openedBeforeEntry) {
       const slHit = isLong ? candle.low <= setup.stopLoss : candle.high >= setup.stopLoss;
       if (slHit) {
         applyExit(update, setup, 'SL_HIT', setup.stopLoss, at);

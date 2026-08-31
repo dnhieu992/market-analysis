@@ -912,7 +912,8 @@ model StrategyBacktestSetup {
   symbol        String    @default("BTCUSDT") @db.VarChar(20)
   direction     String    @db.VarChar(5) // LONG | SHORT
   setupType     String    @default("SWING") @db.VarChar(10) // SWING | SCALP — horizon the setup was planned on
-  entryPrice    Float
+  orderType     String    @default("LIMIT") @db.VarChar(10) // LIMIT waits at entryPrice; MARKET enters on save
+  entryPrice    Float // for MARKET this is the live price captured at save time
   stopLoss      Float
   takeProfit    Float? // null = run until SL or a manual close
   note          String?   @db.Text // why this setup was taken, markdown

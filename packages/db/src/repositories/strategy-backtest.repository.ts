@@ -8,17 +8,25 @@ import { prisma } from '../client';
  */
 export const STRATEGY_BACKTEST_OPEN_STATUSES = ['PENDING', 'ENTERED'];
 
-/** What the trader fills in by hand; every other column is bookkeeping. */
+/**
+ * What the trader fills in by hand, plus the two columns a MARKET setup is born with:
+ * it is created already `ENTERED` at the live price, so it never passes through PENDING.
+ * Every other column is bookkeeping the scan job owns.
+ */
 export type StrategyBacktestSetupInput = Pick<
   Prisma.StrategyBacktestSetupUncheckedCreateInput,
   | 'symbol'
   | 'direction'
   | 'setupType'
+  | 'orderType'
   | 'entryPrice'
   | 'stopLoss'
   | 'takeProfit'
   | 'note'
   | 'images'
+  | 'status'
+  | 'triggeredAt'
+  | 'lastPrice'
 >;
 
 export function createStrategyBacktestRepository(client = prisma) {

@@ -24,10 +24,23 @@ export class CreateSetupDto {
   @IsIn(['SWING', 'SCALP'])
   setupType?: 'SWING' | 'SCALP';
 
-  /** The resting limit price — the setup fills when price trades through it. */
+  /**
+   * LIMIT rests at `entryPrice` until price trades through it; MARKET enters on save at
+   * whatever the live price is. Defaults to LIMIT.
+   */
+  @IsOptional()
+  @IsIn(['LIMIT', 'MARKET'])
+  orderType?: 'LIMIT' | 'MARKET';
+
+  /**
+   * The resting limit price. Required for a LIMIT setup (enforced in the service, which
+   * knows the order type); ignored for MARKET, where the server captures the live price
+   * so the entry cannot be back-dated to a level that never traded.
+   */
+  @IsOptional()
   @IsNumber()
   @IsPositive()
-  entryPrice!: number;
+  entryPrice?: number;
 
   @IsNumber()
   @IsPositive()

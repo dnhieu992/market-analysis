@@ -1255,6 +1255,9 @@ export type StrategyBacktestStatus =
 /** Horizon the setup was planned on — a scalp and a swing are not comparable. */
 export type StrategyBacktestSetupType = 'SWING' | 'SCALP';
 
+/** LIMIT waits at `entryPrice`; MARKET is entered at the live price the moment it is saved. */
+export type StrategyBacktestOrderType = 'LIMIT' | 'MARKET';
+
 /**
  * One hand-written setup tracked like a resting limit order. `plannedRr` and the
  * three live fields are computed by the API, never stored — the page only displays.
@@ -1264,6 +1267,8 @@ export type StrategyBacktestSetup = {
   symbol: string;
   direction: 'LONG' | 'SHORT';
   setupType: StrategyBacktestSetupType;
+  orderType: StrategyBacktestOrderType;
+  /** For a MARKET setup this is the live price captured when it was saved. */
   entryPrice: number;
   stopLoss: number;
   takeProfit: number | null;
@@ -1300,7 +1305,9 @@ export type StrategyBacktestBoard = {
 export type CreateStrategyBacktestSetupInput = {
   direction: 'LONG' | 'SHORT';
   setupType: StrategyBacktestSetupType;
-  entryPrice: number;
+  orderType: StrategyBacktestOrderType;
+  /** Omitted for MARKET — the server captures the live price instead. */
+  entryPrice?: number;
   stopLoss: number;
   takeProfit?: number;
   note?: string;

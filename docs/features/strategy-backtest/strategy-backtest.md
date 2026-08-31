@@ -2,10 +2,11 @@
 
 ## Description
 A scorecard for the trader's own manual analysis. Setups are written by hand on the page —
-direction, swing or scalping, a limit entry, a stop, optionally a target, a note and the
+direction, swing or scalping, limit or market, a stop, optionally a target, a note and the
 chart screenshots the read was based on — and a worker cron then watches the market for
-them exactly the way a resting limit order on an exchange behaves: it waits at the entry,
-fills when price trades through it, and closes at TP or SL.
+them exactly the way an order left on an exchange behaves. A **limit** setup waits at the
+entry and fills when price trades through it; a **market** setup is entered on the spot at
+the live price. Either way it then runs to TP or SL.
 
 Nothing here is automated analysis and nothing places a real order. The point is to answer
 "were my setups actually any good?" with a win rate, an R total and a fill rate, instead of
@@ -20,14 +21,20 @@ abandoned are part of what there is to learn from later.
 
 ## Main Flow
 1. The trader opens `/strategy-backtest` and fills in the form: LONG/SHORT, Swing/Scalping,
-   entry (the limit price), stop loss, optional take profit, a note on why the setup is worth
-   taking, and any number of chart screenshots. The planned R:R updates live while the numbers
-   are typed.
+   Limit/Market, stop loss, optional take profit, a note on why the setup is worth taking, and
+   any number of chart screenshots. For a limit setup the entry price is typed; for a market
+   setup the field is replaced by the live price, read-only, because the server prices it. The
+   planned R:R updates live while the numbers are typed.
 2. Screenshots are uploaded to Cloudflare R2 first (`POST /upload/images`), and only then is
    the setup written — a setup that saved but lost its charts is the worse outcome, so a failed
    upload aborts before anything is stored.
 3. `POST /strategy-backtest` validates that the three prices describe a real trade (LONG →
-   stop below entry, target above; mirrored for SHORT) and stores the setup as `PENDING`.
+   stop below entry, target above; mirrored for SHORT).
+   - **LIMIT** → stored as `PENDING` at the price the trader typed.
+   - **MARKET** → the server reads the live price, uses it as the entry, and writes the row
+     straight to `ENTERED` with `triggeredAt` set. It never passes through `PENDING`. The
+     client deliberately does not send an entry price for this case, so the entry can never
+     be a level that did not actually trade.
 4. Every 5 minutes `SchedulerService.runStrategyBacktestScan()` calls
    `StrategyBacktestScanService.scan()`, which loads the open setups, groups them by symbol
    and fetches 60 public Binance **5m** candles per symbol.
@@ -48,6 +55,15 @@ abandoned are part of what there is to learn from later.
 - **A candle that trades through both the stop and the target is scored as the stop.** Intra-
   candle order is unknowable from OHLC, so the pessimistic read is the only one that cannot
   flatter the win rate. The same rule lets a setup fill *and* stop out inside one candle.
+- **A market entry is never exited on the candle it opened in.** It is born `ENTERED` partway
+  through a 5m candle, and the part of that candle's range that printed beforehand happened
+  while the trader was not in the trade — stopping out on it would be plainly wrong rather
+  than conservative. Exits resume on the first candle that opens after `triggeredAt`. A limit
+  fill detected inside the same replay run is unaffected: there the fill and the exit share
+  one candle in unknown order, so the pessimistic rule above still applies.
+- **A market setup cannot be created while Binance is unreachable.** Without a live price
+  there is nothing honest to use as the entry, so the request is rejected with a message
+  suggesting a limit order instead.
 - **A new setup never back-fills against history.** The replay skips every candle that closed
   before the setup was created; only the single candle straddling creation is kept, because
   dropping it would lose up to 5 minutes of real fills.
@@ -61,7 +77,9 @@ abandoned are part of what there is to learn from later.
 - **A setup without a take profit** runs until the stop or a manual close — it is never closed
   on an up move.
 - **Prices are frozen once a setup fills.** `PATCH` rejects price edits unless the setup is
-  still `PENDING`; the note stays editable for the whole life of the setup.
+  still `PENDING`; the note stays editable for the whole life of the setup. A market setup is
+  therefore never price-editable — it is `ENTERED` from birth, which is the correct reading:
+  the trade is already on.
 - **Cancel only applies to unfilled setups; manual close only to filled ones** — both rejected
   with a Vietnamese message the dialog shows verbatim.
 - **`INVALID` stops the tracking, immediately.** The status is simply not in
@@ -112,4 +130,5 @@ abandoned are part of what there is to learn from later.
 - `packages/db/prisma/migrations/20260831120000_add_strategy_backtest_setups/migration.sql`
 - `packages/db/prisma/migrations/20260831160000_add_setup_type_and_images/migration.sql` — `setupType` + `images`
 - `packages/db/prisma/migrations/20260831180000_add_setup_invalid_reason/migration.sql` — `invalidReason`
+- `packages/db/prisma/migrations/20260831200000_add_setup_order_type/migration.sql` — `orderType`
 - `packages/db/src/repositories/strategy-backtest.repository.ts`

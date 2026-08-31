@@ -7,6 +7,7 @@ import { createApiClient } from '@web/shared/api/client';
 import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 import type {
   StrategyBacktestBoard as BoardData,
+  StrategyBacktestOrderType,
   StrategyBacktestSetup,
   StrategyBacktestSetupType,
   StrategyBacktestStatus,
@@ -31,6 +32,11 @@ const STATUS_LABEL: Record<StrategyBacktestStatus, string> = {
 const TYPE_LABEL: Record<StrategyBacktestSetupType, string> = {
   SWING: 'Swing',
   SCALP: 'Scalping',
+};
+
+const ORDER_LABEL: Record<StrategyBacktestOrderType, string> = {
+  LIMIT: 'Limit',
+  MARKET: 'Market',
 };
 
 const STATUS_MODIFIER: Record<StrategyBacktestStatus, string> = {
@@ -134,9 +140,16 @@ function parseNumber(raw: string): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
+function SetupForm({
+  livePrice,
+  onCreated,
+}: {
+  livePrice: number | null;
+  onCreated: (board: BoardData) => void;
+}) {
   const [direction, setDirection] = useState<'LONG' | 'SHORT'>('LONG');
   const [setupType, setSetupType] = useState<StrategyBacktestSetupType>('SWING');
+  const [orderType, setOrderType] = useState<StrategyBacktestOrderType>('LIMIT');
   const [entry, setEntry] = useState('');
   const [stop, setStop] = useState('');
   const [target, setTarget] = useState('');
@@ -147,7 +160,10 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const entryPrice = parseNumber(entry);
+  const isMarket = orderType === 'MARKET';
+  // A market setup is priced by the server at save time; the live price is only shown
+  // here so the R:R preview has something to measure against.
+  const entryPrice = isMarket ? livePrice : parseNumber(entry);
   const stopLoss = parseNumber(stop);
   const takeProfit = parseNumber(target);
 
@@ -162,8 +178,12 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
   }, [direction, entryPrice, stopLoss, takeProfit]);
 
   const submit = async () => {
-    if (entryPrice == null || stopLoss == null) {
-      setError('Cần nhập giá entry và stop loss.');
+    if (stopLoss == null) {
+      setError('Cần nhập stop loss.');
+      return;
+    }
+    if (!isMarket && entryPrice == null) {
+      setError('Lệnh limit cần giá entry.');
       return;
     }
     setSaving(true);
@@ -178,7 +198,10 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
       await apiClient.createStrategyBacktestSetup({
         direction,
         setupType,
-        entryPrice,
+        orderType,
+        // Left out for MARKET on purpose: the server reads the live price itself, so the
+        // entry can never be a level that did not actually trade.
+        ...(isMarket ? {} : { entryPrice: entryPrice as number }),
         stopLoss,
         ...(takeProfit != null ? { takeProfit } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
@@ -244,15 +267,46 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
         </div>
 
         <div className="sbt-field">
-          <label className="sbt-label" htmlFor="sbt-entry">Entry (limit)</label>
-          <input
-            id="sbt-entry"
-            className="sbt-input"
-            inputMode="decimal"
-            placeholder="vd. 108500"
-            value={entry}
-            onChange={(e) => setEntry(e.target.value)}
-          />
+          <label className="sbt-label">Kiểu vào lệnh</label>
+          <div className="sbt-dir-toggle">
+            <button
+              type="button"
+              className={`sbt-dir-btn${!isMarket ? ' is-active is-type' : ''}`}
+              onClick={() => setOrderType('LIMIT')}
+            >
+              Limit
+            </button>
+            <button
+              type="button"
+              className={`sbt-dir-btn${isMarket ? ' is-active is-type' : ''}`}
+              onClick={() => setOrderType('MARKET')}
+            >
+              Market
+            </button>
+          </div>
+        </div>
+
+        <div className="sbt-field">
+          <label className="sbt-label" htmlFor="sbt-entry">
+            {isMarket ? 'Entry (giá thị trường)' : 'Entry (limit)'}
+          </label>
+          {isMarket ? (
+            <div className="sbt-market-entry" aria-live="polite">
+              <span className="sbt-market-price">{fmtPrice(livePrice)}</span>
+              <span className="sbt-market-hint">
+                {livePrice == null ? 'chưa lấy được giá' : 'vào lệnh ngay khi lưu'}
+              </span>
+            </div>
+          ) : (
+            <input
+              id="sbt-entry"
+              className="sbt-input"
+              inputMode="decimal"
+              placeholder="vd. 108500"
+              value={entry}
+              onChange={(e) => setEntry(e.target.value)}
+            />
+          )}
         </div>
 
         <div className="sbt-field">
@@ -304,9 +358,12 @@ function SetupForm({ onCreated }: { onCreated: (board: BoardData) => void }) {
       <div className="sbt-form-footer">
         <span className="sbt-rr-preview">
           R:R dự kiến <strong>{plannedRr != null ? `${plannedRr.toFixed(2)}` : '—'}</strong>
+          {isMarket ? (
+            <span className="sbt-rr-note"> · tính theo giá thị trường lúc này</span>
+          ) : null}
         </span>
         <button type="button" className="sbt-btn sbt-btn--primary" onClick={submit} disabled={saving}>
-          {saving ? 'Đang lưu…' : 'Thêm setup'}
+          {saving ? 'Đang lưu…' : isMarket ? 'Vào lệnh market' : 'Thêm setup limit'}
         </button>
       </div>
 
@@ -439,6 +496,9 @@ function SetupCard({
         <span className={`sbt-type sbt-type--${setup.setupType.toLowerCase()}`}>
           {TYPE_LABEL[setup.setupType]}
         </span>
+        <span className={`sbt-order sbt-order--${setup.orderType.toLowerCase()}`}>
+          {ORDER_LABEL[setup.orderType]}
+        </span>
         <span className={`sbt-status sbt-status--${STATUS_MODIFIER[setup.status]}`}>
           {STATUS_LABEL[setup.status]}
         </span>
@@ -451,7 +511,9 @@ function SetupCard({
 
       <div className="sbt-prices">
         <div className="sbt-price">
-          <span className="sbt-price-label">Entry</span>
+          <span className="sbt-price-label">
+            {setup.orderType === 'MARKET' ? 'Entry (market)' : 'Entry'}
+          </span>
           <span className="sbt-price-value">{fmtPrice(setup.entryPrice)}</span>
         </div>
         <div className="sbt-price">
@@ -632,7 +694,7 @@ export function StrategyBacktestBoard({ initialBoard }: { initialBoard: BoardDat
 
       <StatsRow setups={board.setups} />
 
-      <SetupForm onCreated={setBoard} />
+      <SetupForm livePrice={board.price} onCreated={setBoard} />
 
       <div className="sbt-filters">
         {FILTERS.map((f) => (

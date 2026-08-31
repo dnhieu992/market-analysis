@@ -11,6 +11,7 @@ function setup(
     symbol: 'BTCUSDT',
     direction: 'LONG',
     setupType: 'SWING',
+    orderType: 'LIMIT',
     entryPrice: 100,
     stopLoss: 90,
     takeProfit: 120,

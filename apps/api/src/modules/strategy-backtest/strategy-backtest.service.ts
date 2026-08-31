@@ -24,6 +24,7 @@ export type StrategyBacktestSetupDto = {
   symbol: string;
   direction: SetupDirection;
   setupType: 'SWING' | 'SCALP';
+  orderType: 'LIMIT' | 'MARKET';
   entryPrice: number;
   stopLoss: number;
   takeProfit: number | null;
@@ -82,23 +83,52 @@ export class StrategyBacktestService {
     };
   }
 
+  /**
+   * A LIMIT setup is stored as PENDING at the price the trader typed. A MARKET setup is
+   * entered on the spot: the server captures the live price as the entry and writes the
+   * row straight to ENTERED, so it never passes through PENDING and the entry can never
+   * be a level that did not actually trade.
+   */
   async create(dto: CreateSetupDto): Promise<StrategyBacktestSetupDto> {
     const symbol = (dto.symbol ?? DEFAULT_SYMBOL).toUpperCase();
+    const orderType = dto.orderType ?? 'LIMIT';
     const takeProfit = dto.takeProfit ?? null;
-    assertCoherent(dto.direction, dto.entryPrice, dto.stopLoss, takeProfit);
+    const livePrice = await this.fetchPrice(symbol);
 
+    let entryPrice: number;
+    if (orderType === 'MARKET') {
+      if (livePrice == null) {
+        throw new BadRequestException(
+          'Không lấy được giá thị trường nên chưa vào lệnh market được. Thử lại, hoặc đặt lệnh limit.',
+        );
+      }
+      entryPrice = livePrice;
+    } else {
+      if (dto.entryPrice == null) {
+        throw new BadRequestException('Lệnh limit cần giá entry.');
+      }
+      entryPrice = dto.entryPrice;
+    }
+
+    assertCoherent(dto.direction, entryPrice, dto.stopLoss, takeProfit, orderType);
+
+    const enteredAt = new Date();
     const row = await this.repository.create({
       symbol,
       direction: dto.direction,
       setupType: dto.setupType ?? 'SWING',
-      entryPrice: dto.entryPrice,
+      orderType,
+      entryPrice,
       stopLoss: dto.stopLoss,
       takeProfit,
       note: dto.note?.trim() ? dto.note : null,
       images: dto.images ?? [],
+      ...(orderType === 'MARKET'
+        ? { status: 'ENTERED', triggeredAt: enteredAt, lastPrice: entryPrice }
+        : {}),
     });
 
-    return this.toDto(row, await this.fetchPrice(symbol));
+    return this.toDto(row, livePrice);
   }
 
   async update(id: string, dto: UpdateSetupDto): Promise<StrategyBacktestSetupDto> {
@@ -117,6 +147,7 @@ export class StrategyBacktestService {
     const takeProfit = dto.takeProfit !== undefined ? dto.takeProfit : row.takeProfit;
     const direction = toDirection(row.direction);
     if (touchesPrices) assertCoherent(direction, entryPrice, stopLoss, takeProfit);
+
 
     const updated = await this.repository.update(id, {
       entryPrice,
@@ -210,6 +241,7 @@ export class StrategyBacktestService {
       symbol: row.symbol,
       direction,
       setupType: row.setupType === 'SCALP' ? 'SCALP' : 'SWING',
+      orderType: row.orderType === 'MARKET' ? 'MARKET' : 'LIMIT',
       entryPrice: row.entryPrice,
       stopLoss: row.stopLoss,
       takeProfit: row.takeProfit,
@@ -258,27 +290,35 @@ function toDirection(value: string): SetupDirection {
  * stop below the entry and a target above it, mirrored for a SHORT. Catching this at
  * write time means the scan job never has to defend against a setup that would fill
  * and stop out on the same tick.
+ *
+ * For a MARKET setup the entry is the live price the server just read, so a rejection
+ * here means the stop or target sits on the wrong side of the *current* price — the
+ * message says so, otherwise it reads as if the trader mistyped a number they never
+ * entered.
  */
 function assertCoherent(
   direction: SetupDirection,
   entryPrice: number,
   stopLoss: number,
   takeProfit: number | null,
+  orderType: 'LIMIT' | 'MARKET' = 'LIMIT',
 ): void {
   const isLong = direction === 'LONG';
+  const entryLabel =
+    orderType === 'MARKET' ? `giá thị trường hiện tại (${entryPrice})` : 'giá entry';
 
   if (isLong && stopLoss >= entryPrice) {
-    throw new BadRequestException('Lệnh LONG: stop loss phải thấp hơn giá entry.');
+    throw new BadRequestException(`Lệnh LONG: stop loss phải thấp hơn ${entryLabel}.`);
   }
   if (!isLong && stopLoss <= entryPrice) {
-    throw new BadRequestException('Lệnh SHORT: stop loss phải cao hơn giá entry.');
+    throw new BadRequestException(`Lệnh SHORT: stop loss phải cao hơn ${entryLabel}.`);
   }
   if (takeProfit != null) {
     if (isLong && takeProfit <= entryPrice) {
-      throw new BadRequestException('Lệnh LONG: take profit phải cao hơn giá entry.');
+      throw new BadRequestException(`Lệnh LONG: take profit phải cao hơn ${entryLabel}.`);
     }
     if (!isLong && takeProfit >= entryPrice) {
-      throw new BadRequestException('Lệnh SHORT: take profit phải thấp hơn giá entry.');
+      throw new BadRequestException(`Lệnh SHORT: take profit phải thấp hơn ${entryLabel}.`);
     }
   }
 }
