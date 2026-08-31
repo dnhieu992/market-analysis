@@ -79,6 +79,9 @@ import type {
   ImageRef,
   SupertrendScanResult,
   SupertrendH4ScanResult,
+  StrategyBacktestBoard,
+  CreateStrategyBacktestSetupInput,
+  UpdateStrategyBacktestSetupInput,
 } from './types';
 
 
@@ -168,12 +171,12 @@ async function fetchJson<T>(fetchImpl: FetchLike, url: string, init?: RequestIni
 }
 
 /**
- * Like `fetchJson`, but rethrows the API's `message` on failure. The /asset
- * endpoints reject with rules the trader wrote (empty amount, transfer into the
- * same bucket, deleting a category that still has history) — those read far
- * better in the dialog than "Request failed … 409".
+ * Like `fetchJson`, but rethrows the API's `message` on failure. Used by endpoints
+ * that reject with rules the trader wrote — an /asset transfer into the same bucket,
+ * a /strategy-backtest setup whose stop sits on the wrong side of the entry. Those
+ * read far better in the dialog than "Request failed … 409".
  */
-async function assetMutation<T>(fetchImpl: FetchLike, url: string, init?: RequestInit): Promise<T> {
+async function mutationJson<T>(fetchImpl: FetchLike, url: string, init?: RequestInit): Promise<T> {
   const response = await fetchImpl(url, init);
 
   if (!response.ok) {
@@ -838,7 +841,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     async createAssetTransaction(input: CreateAssetTransactionInput): Promise<AssetTransaction> {
-      return assetMutation<AssetTransaction>(fetchImpl, `${baseUrl}/asset/transactions`, withDefaults({
+      return mutationJson<AssetTransaction>(fetchImpl, `${baseUrl}/asset/transactions`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -846,7 +849,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     async deleteAssetTransaction(id: string): Promise<void> {
-      await assetMutation<{ id: string }>(
+      await mutationJson<{ id: string }>(
         fetchImpl,
         `${baseUrl}/asset/transactions/${encodeURIComponent(id)}`,
         withDefaults({ method: 'DELETE' }),
@@ -854,7 +857,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     async createAssetCategory(input: { key: string; label: string }): Promise<AssetCategory> {
-      return assetMutation<AssetCategory>(fetchImpl, `${baseUrl}/asset/categories`, withDefaults({
+      return mutationJson<AssetCategory>(fetchImpl, `${baseUrl}/asset/categories`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -865,7 +868,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       id: string,
       input: { label?: string; sortOrder?: number },
     ): Promise<AssetCategory> {
-      return assetMutation<AssetCategory>(
+      return mutationJson<AssetCategory>(
         fetchImpl,
         `${baseUrl}/asset/categories/${encodeURIComponent(id)}`,
         withDefaults({
@@ -877,7 +880,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     async deleteAssetCategory(id: string): Promise<void> {
-      await assetMutation<{ id: string }>(
+      await mutationJson<{ id: string }>(
         fetchImpl,
         `${baseUrl}/asset/categories/${encodeURIComponent(id)}`,
         withDefaults({ method: 'DELETE' }),
@@ -1732,6 +1735,76 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/supertrend-scan/run-h4`,
         withDefaults({ method: 'POST' }),
+      );
+    },
+
+    /** The /strategy-backtest board: every manual setup plus the live price. */
+    async fetchStrategyBacktestBoard(): Promise<StrategyBacktestBoard> {
+      return fetchJson<StrategyBacktestBoard>(
+        fetchImpl,
+        `${baseUrl}/strategy-backtest`,
+        withDefaults(),
+      );
+    },
+
+    async createStrategyBacktestSetup(
+      input: CreateStrategyBacktestSetupInput,
+    ): Promise<StrategyBacktestBoard['setups'][number]> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-backtest`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async updateStrategyBacktestSetup(
+      id: string,
+      input: UpdateStrategyBacktestSetupInput,
+    ): Promise<StrategyBacktestBoard['setups'][number]> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}`,
+        withDefaults({
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    async cancelStrategyBacktestSetup(id: string): Promise<StrategyBacktestBoard['setups'][number]> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}/cancel`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
+    /** Close a filled setup by hand; omit `exitPrice` to close at the live price. */
+    async closeStrategyBacktestSetup(
+      id: string,
+      exitPrice?: number,
+    ): Promise<StrategyBacktestBoard['setups'][number]> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}/close`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(exitPrice != null ? { exitPrice } : {}),
+        }),
+      );
+    },
+
+    async deleteStrategyBacktestSetup(id: string): Promise<void> {
+      await mutationJson<{ id: string }>(
+        fetchImpl,
+        `${baseUrl}/strategy-backtest/${encodeURIComponent(id)}`,
+        withDefaults({ method: 'DELETE' }),
       );
     },
   };

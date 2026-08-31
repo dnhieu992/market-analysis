@@ -1241,3 +1241,64 @@ export type CreateAssetTransactionInput = {
   note?: string;
   occurredAt?: string;
 };
+
+/** Lifecycle of a manual setup on /strategy-backtest. */
+export type StrategyBacktestStatus =
+  | 'PENDING'
+  | 'ENTERED'
+  | 'TP_HIT'
+  | 'SL_HIT'
+  | 'CLOSED'
+  | 'CANCELLED';
+
+/**
+ * One hand-written setup tracked like a resting limit order. `plannedRr` and the
+ * three live fields are computed by the API, never stored — the page only displays.
+ */
+export type StrategyBacktestSetup = {
+  id: string;
+  symbol: string;
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number | null;
+  note: string | null;
+  status: StrategyBacktestStatus;
+  triggeredAt: string | null;
+  closedAt: string | null;
+  exitPrice: number | null;
+  /** Realized % on the entry, net of 0.05%/side fees. Null while still open. */
+  pnlPct: number | null;
+  rMultiple: number | null;
+  lastPrice: number | null;
+  lastCheckedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  plannedRr: number | null;
+  /** How far price still is from the limit; only on PENDING setups. */
+  distanceToEntryPct: number | null;
+  /** Live result of a filled setup; only on ENTERED setups. */
+  unrealizedPct: number | null;
+  unrealizedR: number | null;
+};
+
+export type StrategyBacktestBoard = {
+  price: number | null;
+  symbol: string;
+  setups: StrategyBacktestSetup[];
+};
+
+export type CreateStrategyBacktestSetupInput = {
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit?: number;
+  note?: string;
+};
+
+export type UpdateStrategyBacktestSetupInput = {
+  entryPrice?: number;
+  stopLoss?: number;
+  takeProfit?: number | null;
+  note?: string;
+};

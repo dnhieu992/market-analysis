@@ -29,6 +29,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { JournalModule } from './modules/journal/journal.module';
+import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-backtest.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { JournalModule } from './modules/journal/journal.module';
     DeepseekModule,
     JournalModule,
     AssetModule,
+    StrategyBacktestModule,
   ],
   providers: [
     {

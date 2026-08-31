@@ -894,3 +894,35 @@ model BtcDaytradeAnalysis {
   @@index([date(sort: Desc)])
   @@map("btc_daytrade_analyses")
 }
+
+/// A manually-planned setup tracked on /strategy-backtest, exactly like a resting
+/// limit order left on an exchange: it waits at `entryPrice` until price touches it,
+/// then runs to `takeProfit` or `stopLoss`. The trader writes every field by hand —
+/// nothing here is produced by an LLM or a signal job.
+///
+/// Deliberately standalone: no relation to Order/Signal/TrackingCoin. The page exists
+/// to score the trader's own manual analysis, so its history must never be entangled
+/// with (or deleted by) the automated tables.
+model StrategyBacktestSetup {
+  id            String    @id @default(cuid())
+  symbol        String    @default("BTCUSDT") @db.VarChar(20)
+  direction     String    @db.VarChar(5) // LONG | SHORT
+  entryPrice    Float
+  stopLoss      Float
+  takeProfit    Float? // null = run until SL or a manual close
+  note          String?   @db.Text // why this setup was taken, markdown
+  status        String    @default("PENDING") @db.VarChar(12) // PENDING|ENTERED|TP_HIT|SL_HIT|CLOSED|CANCELLED
+  triggeredAt   DateTime? // when price first touched entryPrice
+  closedAt      DateTime?
+  exitPrice     Float? // fill price of the exit (TP/SL level, or the manual close price)
+  pnlPct        Float? // realized % on entry, NET of 0.05%/side fees
+  rMultiple     Float? // (exit − entry) / (entry − SL), signed by direction
+  lastPrice     Float? // last price the scan job saw
+  lastCheckedAt DateTime? // watermark — the scan only replays candles newer than this
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("strategy_backtest_setups")
+}

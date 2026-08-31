@@ -83,3 +83,8 @@ export type {
   BtcDaytradeAnalysisInput,
   BtcDaytradeAnalysisListItem,
 } from './repositories/btc-daytrade-analysis.repository';
+export {
+  createStrategyBacktestRepository,
+  STRATEGY_BACKTEST_OPEN_STATUSES,
+} from './repositories/strategy-backtest.repository';
+export type { StrategyBacktestSetupInput } from './repositories/strategy-backtest.repository';

@@ -19,6 +19,7 @@ describe('SchedulerService', () => {
         dailySignalService as never,
         { sync: jest.fn().mockResolvedValue({ synced: 0, pages: 0 }) } as never,
         { sync: jest.fn().mockResolvedValue({ synced: 0, pages: 0 }) } as never,
+        { scan: jest.fn().mockResolvedValue({ checked: 0, triggered: 0, closed: 0 }) } as never,
         { trackedSymbols: ['BTCUSDT', 'ETHUSDT'] }
       ),
       dailySignalService

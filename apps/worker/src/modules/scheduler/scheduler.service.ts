@@ -7,6 +7,7 @@ import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
+import { StrategyBacktestScanService } from '../strategy-backtest/strategy-backtest-scan.service';
 
 @Injectable()
 export class SchedulerService {
@@ -19,6 +20,7 @@ export class SchedulerService {
     private readonly dailySignalService: DailySignalService,
     private readonly bitgetHistoryService: BitgetHistoryService,
     private readonly mexcHistoryService: MexcHistoryService,
+    private readonly strategyBacktestScanService: StrategyBacktestScanService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -114,6 +116,21 @@ export class SchedulerService {
   }
 
   // The OKX twin of these syncs was removed with the /okx page (2026-08-20).
+
+  // Runs every 5 minutes — advance the manual setups on /strategy-backtest against
+  // fresh 5m candles (PENDING→ENTERED→TP/SL). Matched to the 5m candle so each pass
+  // sees exactly one newly-closed candle; the replay is watermarked, so a missed pass
+  // is caught up rather than lost. One public Binance call per symbol, no auth.
+  @Cron('*/5 * * * *', { timeZone: 'UTC' })
+  async runStrategyBacktestScan() {
+    try {
+      await this.strategyBacktestScanService.scan();
+    } catch (err) {
+      this.logger.error(
+        `Strategy-backtest scan failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
 
   // @Cron('0 1 * * *', { timeZone: 'UTC' })
   async runDailySwingScan() {

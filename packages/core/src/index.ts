@@ -89,3 +89,11 @@ export {
   evaluateLimitOrder,
 } from './orders/tracking-coin-orders';
 export type { OrderSigSnapshot, LimitOrderResult, OrderEvalResult } from './orders/tracking-coin-orders';
+export {
+  SETUP_FEE_PCT_PER_SIDE,
+  computeSetupPnlPct,
+  computeSetupRMultiple,
+  computeSetupPlannedRr,
+  computeDistanceToEntryPct,
+} from './setups/strategy-backtest-math';
+export type { SetupDirection } from './setups/strategy-backtest-math';

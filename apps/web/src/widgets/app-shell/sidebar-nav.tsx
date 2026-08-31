@@ -53,6 +53,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
+    href: '/strategy-backtest',
+    label: 'Strategy Backtest',
+    description: 'Setup BTC tự phân tích tay · job quét 5 phút chấm điểm khớp / TP / SL'
+  },
+  {
     href: '/strategy',
     label: 'Strategies',
     description: 'Manage trading strategies'
