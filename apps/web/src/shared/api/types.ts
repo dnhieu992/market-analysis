@@ -1275,6 +1275,15 @@ export type StrategyBacktestSetup = {
   note: string | null;
   /** Cloudflare R2 URLs of the charts the analysis was based on. */
   images: string[];
+  /**
+   * Post-mortem written after the fact, markdown. `note` is the plan going in,
+   * `review` is the verdict coming out — kept apart so neither overwrites the other.
+   */
+  review: string | null;
+  /** Screenshots attached to the review (the replay charts), separate from `images`. */
+  reviewImages: string[];
+  /** Last time the review was saved with actual text; null = never reviewed. */
+  reviewedAt: string | null;
   status: StrategyBacktestStatus;
   /** Why the setup was called off, when the trader bothered to say. */
   invalidReason: string | null;
@@ -1319,4 +1328,7 @@ export type UpdateStrategyBacktestSetupInput = {
   stopLoss?: number;
   takeProfit?: number | null;
   note?: string;
+  /** Empty string clears the review. Editable in every status, unlike the prices. */
+  review?: string;
+  reviewImages?: string[];
 };

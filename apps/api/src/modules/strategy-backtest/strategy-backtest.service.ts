@@ -30,6 +30,10 @@ export type StrategyBacktestSetupDto = {
   takeProfit: number | null;
   note: string | null;
   images: string[];
+  /** Post-mortem written after the fact — the plan is `note`, the verdict is this. */
+  review: string | null;
+  reviewImages: string[];
+  reviewedAt: string | null;
   status: string;
   invalidReason: string | null;
   triggeredAt: string | null;
@@ -149,11 +153,19 @@ export class StrategyBacktestService {
     if (touchesPrices) assertCoherent(direction, entryPrice, stopLoss, takeProfit);
 
 
+    // The review is deliberately editable in every status — a setup is reviewed
+    // *after* it resolved, so gating it on PENDING like the prices would make the
+    // field impossible to ever fill in. `reviewedAt` is stamped on every save that
+    // leaves actual text behind, and cleared when the review is emptied.
+    const review = dto.review !== undefined ? (dto.review.trim() ? dto.review : null) : undefined;
+
     const updated = await this.repository.update(id, {
       entryPrice,
       stopLoss,
       takeProfit,
       ...(dto.note !== undefined ? { note: dto.note.trim() ? dto.note : null } : {}),
+      ...(review !== undefined ? { review, reviewedAt: review ? new Date() : null } : {}),
+      ...(dto.reviewImages !== undefined ? { reviewImages: dto.reviewImages } : {}),
     });
 
     return this.toDto(updated, await this.fetchPrice(updated.symbol));
@@ -247,6 +259,9 @@ export class StrategyBacktestService {
       takeProfit: row.takeProfit,
       note: row.note,
       images: toStringArray(row.images),
+      review: row.review,
+      reviewImages: toStringArray(row.reviewImages),
+      reviewedAt: row.reviewedAt?.toISOString() ?? null,
       status: row.status,
       invalidReason: row.invalidReason,
       triggeredAt: row.triggeredAt?.toISOString() ?? null,

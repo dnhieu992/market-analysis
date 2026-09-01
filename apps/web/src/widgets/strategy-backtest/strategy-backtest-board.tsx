@@ -13,6 +13,7 @@ import type {
   StrategyBacktestStatus,
 } from '@web/shared/api/types';
 
+import { ReviewDialog } from './review-dialog';
 import { computeSetupStats } from './setup-stats';
 
 const apiClient = createApiClient();
@@ -465,6 +466,7 @@ function SetupCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invalidating, setInvalidating] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -483,6 +485,7 @@ function SetupCard({
 
   const isPending = setup.status === 'PENDING';
   const isOpen = setup.status === 'ENTERED';
+  const hasReview = Boolean(setup.review?.trim());
   const result = setup.pnlPct ?? setup.unrealizedPct;
   const resultR = setup.rMultiple ?? setup.unrealizedR;
 
@@ -507,6 +510,14 @@ function SetupCard({
             {fmtPct(result)} <span className="sbt-result-r">{fmtR(resultR)}</span>
           </span>
         ) : null}
+        <button
+          type="button"
+          className={`sbt-review-btn${hasReview ? ' is-done' : ''}`}
+          onClick={() => setReviewing(true)}
+          title={hasReview ? 'Xem / sửa review lệnh này' : 'Viết review cho lệnh này'}
+        >
+          {hasReview ? '✓ Review' : '+ Review'}
+        </button>
       </header>
 
       <div className="sbt-prices">
@@ -589,6 +600,10 @@ function SetupCard({
 
       {/* The card's own error line; while the dialog is open its message shows in there. */}
       {error && !invalidating ? <p className="sbt-error">{error}</p> : null}
+
+      {reviewing ? (
+        <ReviewDialog setup={setup} onSaved={onChanged} onClose={() => setReviewing(false)} />
+      ) : null}
 
       {invalidating ? (
         <InvalidDialog

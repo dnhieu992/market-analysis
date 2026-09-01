@@ -13,6 +13,12 @@ Nothing here is automated analysis and nothing places a real order. The point is
 from memory. Today only `BTCUSDT` is tracked; the table and the scan job already key on
 `symbol`, so adding pairs is a UI change only.
 
+Once a setup has resolved it can also carry a **review** — a markdown post-mortem with its
+own screenshots, written from a dialog on the card. It is kept apart from the setup's `note`
+on purpose: the note is the plan going in ("why this is worth taking"), the review is the
+verdict coming out ("why it actually won/lost, and what to change"). Neither can overwrite
+the other, so the board keeps both halves of the lesson.
+
 The data lives in its own table (`strategy_backtest_setups`) with no relation to
 `Order`/`Signal`/`TrackingCoin` — deliberately, so this history is never touched by the
 automated pipelines. **Nothing is ever deleted**: a setup the trader calls off becomes
@@ -50,6 +56,12 @@ abandoned are part of what there is to learn from later.
    live price (`CLOSED`), or mark a waiting or running one `INVALID` when the reasoning
    behind it stops holding. The Invalid button opens a dialog for an optional reason, which
    is then shown on the card.
+8. Every card's title row carries a **Review** button. It opens a dialog showing the setup's
+   numbers (entry / SL / TP / exit / % / R) above the post-mortem, rendered as markdown, plus
+   any review screenshots. "Sửa review" switches to the shared `MarkdownEditor` and an
+   `ImageUpload`; saving uploads the new charts first and then `PATCH`es `review` +
+   `reviewImages`. The button reads `+ Review` (dashed) until something is written and
+   `✓ Review` (solid) after, so an unreviewed loss is visible from the board.
 
 ## Edge Cases
 - **A candle that trades through both the stop and the target is scored as the stop.** Intra-
@@ -95,6 +107,16 @@ abandoned are part of what there is to learn from later.
   A break-even close counts as a loss, not a win.
 - **Screenshots are create-only.** They are attached when the setup is written and shown as a
   thumbnail strip on the card (click for a lightbox); there is no edit path for them yet.
+- **A review is editable in every status, unlike the prices.** A setup is reviewed *after* it
+  resolved, so gating the field on `PENDING` the way the prices are gated would make it
+  impossible to ever fill in. Saving an empty review clears both the text and `reviewedAt`.
+- **The review dialog opens in edit mode when there is nothing written yet**, and in read mode
+  once there is — re-reading an old verdict is the common case. Cancelling the first-ever
+  review closes the dialog (there is nothing to fall back to); cancelling an edit of an
+  existing one restores the saved text and images.
+- **Review screenshots upload before the text is written**, same order as setup creation: a
+  review that saved but lost its charts is the worse outcome. Existing review images can be
+  removed in the editor; they are not deleted from R2, only unlinked.
 - **No expiry.** A `PENDING` setup waits indefinitely — by the trader's choice, it is cancelled
   by hand. There is no Telegram notification either; the page is the only surface.
 
@@ -103,7 +125,10 @@ abandoned are part of what there is to learn from later.
 **Web**
 - `apps/web/src/app/strategy-backtest/page.tsx` — route, thin re-export
 - `apps/web/src/_pages/strategy-backtest-page/strategy-backtest-page.tsx` — Server Component, loads the board
-- `apps/web/src/widgets/strategy-backtest/strategy-backtest-board.tsx` — client widget: form (type toggle + image upload), filters, cards, screenshot lightbox, invalid-reason dialog, 60s polling
+- `apps/web/src/widgets/strategy-backtest/strategy-backtest-board.tsx` — client widget: form (type toggle + image upload), filters, cards, screenshot lightbox, invalid-reason dialog, Review button, 60s polling
+- `apps/web/src/widgets/strategy-backtest/review-dialog.tsx` — the post-mortem dialog: result strip, markdown read/edit (shared `MarkdownEditor`), review-image upload and lightbox
+- `apps/web/src/shared/ui/markdown-editor/markdown-editor.tsx` — reused TipTap editor
+- `apps/web/src/shared/lib/markdown.ts` — `renderMarkdown` used for the read-only render
 - `apps/web/src/shared/ui/image-upload/image-upload.tsx` — reused screenshot picker
 - `apps/web/src/widgets/strategy-backtest/setup-stats.ts` — pure scorecard math (win rate, R, fill rate)
 - `apps/web/src/widgets/strategy-backtest/setup-stats.spec.ts` — its tests
@@ -131,4 +156,5 @@ abandoned are part of what there is to learn from later.
 - `packages/db/prisma/migrations/20260831160000_add_setup_type_and_images/migration.sql` — `setupType` + `images`
 - `packages/db/prisma/migrations/20260831180000_add_setup_invalid_reason/migration.sql` — `invalidReason`
 - `packages/db/prisma/migrations/20260831200000_add_setup_order_type/migration.sql` — `orderType`
+- `packages/db/prisma/migrations/20260901120000_add_setup_review/migration.sql` — `review` + `reviewImages` + `reviewedAt`
 - `packages/db/src/repositories/strategy-backtest.repository.ts`

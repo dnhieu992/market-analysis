@@ -11268,10 +11268,64 @@ a.metric-card--link:hover {
 }
 .sbt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
+/* Review — the post-mortem button sits in the card title row, and turns solid once
+   a verdict has actually been written so an unreviewed loss is visible at a glance. */
+.sbt-review-btn {
+  margin-left: auto;
+  padding: 3px 11px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sbt-review-btn:hover { border-color: #2f6fed; color: #2f6fed; }
+/* When a result is shown it already claims the auto margin, so the button just follows it. */
+.sbt-result + .sbt-review-btn { margin-left: 0; }
+.sbt-review-btn.is-done {
+  border-style: solid;
+  border-color: rgba(47, 111, 237, 0.35);
+  background: rgba(47, 111, 237, 0.1);
+  color: #2f6fed;
+}
+
+.sbt-review-dialog { max-width: 820px; }
+.sbt-review-body { display: flex; flex-direction: column; gap: 14px; }
+.sbt-review-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.sbt-review-render { font-size: 13.5px; line-height: 1.65; }
+.sbt-review-render h1,
+.sbt-review-render h2,
+.sbt-review-render h3 { margin: 16px 0 8px; font-size: 15px; }
+.sbt-review-render h1:first-child,
+.sbt-review-render h2:first-child,
+.sbt-review-render h3:first-child { margin-top: 0; }
+.sbt-review-render p { margin: 8px 0; }
+.sbt-review-render ul,
+.sbt-review-render ol { margin: 8px 0; padding-left: 22px; }
+.sbt-review-render li { margin: 4px 0; }
+.sbt-review-render code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--background-elevated);
+  font-size: 12.5px;
+}
+.sbt-review-empty { color: var(--muted); font-size: 13px; margin: 0; }
+
 @media (max-width: 640px) {
   .sbt-page { padding: 16px 14px 48px; }
   .sbt-stats { grid-template-columns: repeat(2, 1fr); }
   .sbt-stat-value { font-size: 16px; }
   .sbt-prices { gap: 14px; }
   .sbt-result { margin-left: 0; width: 100%; }
+  .sbt-review-btn { margin-left: 0; }
+  .sbt-review-strip { gap: 14px; }
 }

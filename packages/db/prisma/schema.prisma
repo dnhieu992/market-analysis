@@ -918,6 +918,9 @@ model StrategyBacktestSetup {
   takeProfit    Float? // null = run until SL or a manual close
   note          String?   @db.Text // why this setup was taken, markdown
   images        Json      @default("[]") // string[] of Cloudflare R2 chart-screenshot URLs
+  review        String?   @db.LongText // post-mortem written after the fact, markdown
+  reviewImages  Json      @default("[]") // string[] of R2 URLs attached to the review
+  reviewedAt    DateTime? // when the review was last written — null = never reviewed
   status        String    @default("PENDING") @db.VarChar(12) // PENDING|ENTERED|TP_HIT|SL_HIT|CLOSED|INVALID
   invalidReason String?   @db.Text // why the trader called the setup off, optional
   triggeredAt   DateTime? // when price first touched entryPrice

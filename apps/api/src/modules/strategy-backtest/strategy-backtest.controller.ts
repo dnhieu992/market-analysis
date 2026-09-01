@@ -29,7 +29,10 @@ export class StrategyBacktestController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Edit a setup (prices only while it is still PENDING)' })
+  @ApiOperation({
+    summary:
+      'Edit a setup — prices only while it is still PENDING; note and review stay editable for life',
+  })
   update(@Param('id') id: string, @Body() body: UpdateSetupDto) {
     return this.service.update(id, body);
   }
