@@ -59,8 +59,8 @@ abandoned are part of what there is to learn from later.
 8. Every card's title row carries a **Review** button. It opens a dialog showing the setup's
    numbers (entry / SL / TP / exit / % / R) above the post-mortem, rendered as markdown, plus
    any review screenshots. "Sửa review" switches to the shared `MarkdownEditor` and an
-   `ImageUpload`; saving uploads the new charts first and then `PATCH`es `review` +
-   `reviewImages`. The button reads `+ Review` (dashed) until something is written and
+   `ImageUpload` (markdown tables included); saving uploads the new charts first and then
+   `PATCH`es `review` + `reviewImages`. The button reads `+ Review` (dashed) until something is written and
    `✓ Review` (solid) after, so an unreviewed loss is visible from the board.
 
 ## Edge Cases

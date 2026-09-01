@@ -1,6 +1,14 @@
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
 const htmlEsc = (s: string) => s.replace(/[&<>]/g, (c) => ESC[c] ?? c);
 
+/**
+ * Drop the backslashes a markdown *writer* adds to protect punctuation — the editor
+ * emits `\-1` for a cell that starts with a minus, and displaying that literally is
+ * wrong. Runs last, after the inline/heading/list rules, so an escaped `\*` or `\-`
+ * is not un-escaped early and then re-interpreted as formatting.
+ */
+const unescapeMd = (s: string) => s.replace(/\\([\\`*_{}\[\]()#+\-.!|~>])/g, '$1');
+
 function applyInline(s: string): string {
   return htmlEsc(s)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -22,18 +30,18 @@ function renderTable(lines: string[]): string {
   let html = '<div style="overflow-x:auto;margin:8px 0;"><table style="border-collapse:collapse;width:100%;">';
 
   if (hasHeader) {
-    html += `<thead><tr>${parseRow(lines[0]!).map((c) => `<th style="${TH}">${applyInline(c)}</th>`).join('')}</tr></thead>`;
+    html += `<thead><tr>${parseRow(lines[0]!).map((c) => `<th style="${TH}">${unescapeMd(applyInline(c))}</th>`).join('')}</tr></thead>`;
     html += '<tbody>';
     lines.slice(sepIdx + 1).forEach((l, i) => {
       const rowStyle = i % 2 === 1 ? 'background:#f9fafb;' : '';
-      html += `<tr style="${rowStyle}">${parseRow(l).map((c) => `<td style="${TD}">${applyInline(c)}</td>`).join('')}</tr>`;
+      html += `<tr style="${rowStyle}">${parseRow(l).map((c) => `<td style="${TD}">${unescapeMd(applyInline(c))}</td>`).join('')}</tr>`;
     });
     html += '</tbody>';
   } else {
     html += '<tbody>';
     lines.filter((l) => !isSep(l)).forEach((l, i) => {
       const rowStyle = i % 2 === 1 ? 'background:#f9fafb;' : '';
-      html += `<tr style="${rowStyle}">${parseRow(l).map((c) => `<td style="${TD}">${applyInline(c)}</td>`).join('')}</tr>`;
+      html += `<tr style="${rowStyle}">${parseRow(l).map((c) => `<td style="${TD}">${unescapeMd(applyInline(c))}</td>`).join('')}</tr>`;
     });
     html += '</tbody>';
   }
@@ -56,7 +64,7 @@ function renderNonTable(raw: string): string {
   );
 
   s = s.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br/>');
-  return s;
+  return unescapeMd(s);
 }
 
 export function renderMarkdown(text: string): string {

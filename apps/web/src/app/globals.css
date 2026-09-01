@@ -8517,6 +8517,47 @@ a.metric-card--link:hover {
   pointer-events: none;
 }
 
+/* tables — GFM pipe tables round-tripped by tiptap-markdown. `table-layout: fixed`
+   is what makes the resize handles behave; the wrapper scrolls so a wide table
+   never widens the dialog it lives in. */
+.md-editor__content .tableWrapper { overflow-x: auto; margin: 0.6em 0; }
+.md-editor__content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+}
+.md-editor__content th,
+.md-editor__content td {
+  border: 1px solid var(--border);
+  padding: 5px 9px;
+  vertical-align: top;
+  min-width: 60px;
+  position: relative;
+}
+.md-editor__content th { background: var(--background-elevated); font-weight: 600; text-align: left; }
+.md-editor__content th > p,
+.md-editor__content td > p { margin: 0; }
+/* the cell(s) covered by the current selection */
+.md-editor__content .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(47, 111, 237, 0.12);
+  pointer-events: none;
+}
+/* column resize handle */
+.md-editor__content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #2f6fed;
+  pointer-events: none;
+}
+.md-editor__content.resize-cursor { cursor: col-resize; }
+
 /* ── tracking coins: journal panel (embedded in detail dialog) ── */
 .jrn-panel { display: flex; flex-direction: column; gap: 10px; }
 .jrn-loading { text-align: center; padding: 40px 0; color: var(--muted); font-size: 0.88rem; }

@@ -4,6 +4,10 @@ import { useEffect } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import Table from '@tiptap/extension-table';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import TableRow from '@tiptap/extension-table-row';
 import { Markdown } from 'tiptap-markdown';
 
 export type MarkdownEditorProps = Readonly<{
@@ -42,6 +46,29 @@ const TOOLBAR: ReadonlyArray<ToolbarButton | 'sep'> = [
   { label: '1. List', title: 'Danh sách đánh số', isActive: (e) => e.isActive('orderedList'), run: (e) => e.chain().focus().toggleOrderedList().run() },
   { label: '❝', title: 'Trích dẫn', isActive: (e) => e.isActive('blockquote'), run: (e) => e.chain().focus().toggleBlockquote().run() },
   { label: '</>', title: 'Khối code', isActive: (e) => e.isActive('codeBlock'), run: (e) => e.chain().focus().toggleCodeBlock().run() },
+  'sep',
+  {
+    label: '▦',
+    title: 'Chèn bảng 3×3',
+    isActive: (e) => e.isActive('table'),
+    run: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+  },
+];
+
+/**
+ * Row/column edits, shown only while the caret is inside a table — out of a table
+ * they are dead buttons, and the toolbar is already long.
+ *
+ * Markdown can only express a plain grid with a single header row, so merge/split
+ * cell commands are deliberately left out: tiptap-markdown falls back to raw HTML
+ * for a table with spans, which would then never round-trip back as a table.
+ */
+const TABLE_TOOLBAR: ToolbarButton[] = [
+  { label: '+Cột', title: 'Thêm cột bên phải', run: (e) => e.chain().focus().addColumnAfter().run() },
+  { label: '−Cột', title: 'Xoá cột hiện tại', run: (e) => e.chain().focus().deleteColumn().run() },
+  { label: '+Hàng', title: 'Thêm hàng bên dưới', run: (e) => e.chain().focus().addRowAfter().run() },
+  { label: '−Hàng', title: 'Xoá hàng hiện tại', run: (e) => e.chain().focus().deleteRow().run() },
+  { label: '✕ Bảng', title: 'Xoá cả bảng', run: (e) => e.chain().focus().deleteTable().run() },
 ];
 
 export function MarkdownEditor({
@@ -61,6 +88,12 @@ export function MarkdownEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit,
+      // Tables round-trip through tiptap-markdown as GFM pipe tables (markdown-it
+      // parses them, the package's own serializer writes them back).
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Markdown.configure({ html: false, linkify: true, breaks: true, transformPastedText: true }),
       ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
     ],
@@ -110,6 +143,24 @@ export function MarkdownEditor({
               </button>
             ),
           )}
+          {editor?.isActive('table') ? (
+            <>
+              <span className="md-editor__sep" aria-hidden="true" />
+              {TABLE_TOOLBAR.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="md-editor__btn"
+                  title={item.title}
+                  aria-label={item.title}
+                  onMouseDown={(ev) => ev.preventDefault()}
+                  onClick={() => editor && item.run(editor)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </>
+          ) : null}
         </div>
       )}
       <EditorContent editor={editor} className="md-editor__surface" style={{ minHeight }} />
