@@ -494,6 +494,10 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
     return () => clearInterval(interval);
   }, [holdings]);
 
+  // Rows with totalAmount <= 0 are fully-sold positions kept for their realized PnL —
+  // they are not coins the portfolio still holds, so they don't count here.
+  const heldCoinCount = holdings.filter((h) => h.totalAmount > 0).length;
+
   const sorted = [...holdings].sort((a, b) => {
     const priceA = prices[a.coinId] ?? 0;
     const priceB = prices[b.coinId] ?? 0;
@@ -513,7 +517,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
       <div className="table-header">
         <div>
           <h2>Holdings</h2>
-          <p>{holdings.length === 0 ? 'No holdings yet.' : `${holdings.length} coin${holdings.length === 1 ? '' : 's'}`}</p>
+          <p>{holdings.length === 0 ? 'No holdings yet.' : `${heldCoinCount} coin${heldCoinCount === 1 ? '' : 's'}`}</p>
         </div>
         {holdings.length > 0 && (
           <div className="table-actions">
