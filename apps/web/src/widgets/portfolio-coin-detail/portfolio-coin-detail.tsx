@@ -9,7 +9,7 @@ import { formatCryptoPrice } from '@web/shared/lib/format';
 import { isTransferTransaction } from '@web/shared/lib/transfer';
 import type { CoinTransaction, Holding, Portfolio } from '@web/shared/api/types';
 import { ChartIcon } from '@web/widgets/bitget/chart-icon';
-import { SetupChartDialog } from '@web/widgets/bitget/setup-chart-dialog';
+import { SetupChartDialog, FULL_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { CoinChatDrawer } from '@web/widgets/coin-chat-drawer/coin-chat-drawer';
 
 type PortfolioCoinDetailProps = Readonly<{
@@ -696,9 +696,13 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
         />
       )}
 
-      {/* Chart dialog — same renderer/timeframes as the /bitget Setup tab */}
+      {/* Chart dialog — same renderer as the /bitget Setup tab, plus a W1 tab for the swing read */}
       {chartOpen && (
-        <SetupChartDialog symbol={coinId} onClose={() => setChartOpen(false)} />
+        <SetupChartDialog
+          symbol={coinId}
+          timeframes={FULL_CHART_TIMEFRAMES}
+          onClose={() => setChartOpen(false)}
+        />
       )}
 
       {/* Transfer coin dialog */}

@@ -9,8 +9,10 @@ leaving the portfolio page or switching to `/bitget`.
 1. User opens `/portfolio/<portfolioId>/<coinId>` (e.g. `.../ETH`).
 2. The header renders the coin symbol followed by a `ChartIcon` button (`.bg-chart-icon-btn`,
    the same affordance as Bitget Positions / Setup / Tracking Coins).
-3. Clicking it sets `chartOpen` and mounts `SetupChartDialog` with `symbol={coinId}`, using the
-   dialog's defaults: `tf = 4h` and the intraday→D1 switcher (`M15 / M30 / H1 / H4 / D1`).
+3. Clicking it sets `chartOpen` and mounts `SetupChartDialog` with `symbol={coinId}`, opening on
+   `tf = 4h` with the full switcher `M15 / M30 / H1 / H4 / D1 / W1` (`FULL_CHART_TIMEFRAMES`).
+   A portfolio holding is a swing position, so the weekly tab matters here even though the
+   `/bitget` Setup tab stops at D1.
 4. The dialog fetches `GET /bitget/setup-chart?symbol=<coinId>&timeframe=<tf>` with
    `credentials: 'include'`, turns the PNG into a blob URL and shows it. The API normalizes the
    bare symbol to `<coinId>USDT` before pulling public Binance klines, so `ETH` works as-is.
@@ -27,13 +29,18 @@ leaving the portfolio page or switching to `/bitget`.
   entry markers. This is inherited from the shared endpoint and is informational only.
 - **Dialog stacking** — `SetupChartDialog` portals to `document.body`, so it is not clipped by the
   page's card/backdrop-filter containers.
+- **W1 on a young coin** — the weekly render falls back to whatever history Binance returns
+  (`TF_CONFIG['1w']` asks for 300 bars, displays 80); a recent listing simply shows fewer candles.
+- **W1 stays off the Setup-tab QQE column** — `FULL_CHART_TIMEFRAMES` is a separate constant rather
+  than an addition to `CHART_TIMEFRAMES`, because that set also feeds `qqe-cell.tsx`, where an extra
+  timeframe costs one more Binance call per listed coin.
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/widgets/portfolio-coin-detail/portfolio-coin-detail.tsx` — renders the chart icon
   button in the header and mounts the dialog on click (`chartOpen` state)
 - `apps/web/src/widgets/bitget/chart-icon.tsx` — shared monochrome candlestick icon (reused as-is)
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — shared full-screen chart dialog with the
-  timeframe switcher (reused as-is)
+  timeframe switcher; defines `FULL_CHART_TIMEFRAMES` (M15 → W1) used by this page
 - `apps/web/src/app/globals.css` — `.bg-chart-icon-btn` and `.eb-chart-*` dialog styles (global,
   already available on this page)
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/setup-chart` (public, PNG)

@@ -26,6 +26,15 @@ export const SWING_CHART_TIMEFRAMES = [
   { label: 'W1', tf: '1w' },
 ] as const satisfies readonly ChartTimeframe[];
 
+/** Full ladder (M15 → W1) — used by the portfolio coin chart, where a holding is read on
+ *  the weekly structure as well as intraday. Kept separate from CHART_TIMEFRAMES because
+ *  that set also drives the Setup-tab QQE column, and a W1 cell there would cost one extra
+ *  Binance call per listed coin. */
+export const FULL_CHART_TIMEFRAMES = [
+  ...CHART_TIMEFRAMES,
+  { label: 'W1', tf: '1w' },
+] as const satisfies readonly ChartTimeframe[];
+
 /** Timeframe a "Chart" button opens on by default; switchable inside the dialog. */
 export const DEFAULT_CHART_TF = '4h';
 
