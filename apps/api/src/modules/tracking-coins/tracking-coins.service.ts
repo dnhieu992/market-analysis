@@ -4,6 +4,7 @@ import type { DcaZone, AccZone, DcaGomPlan } from '@app/core';
 import { createTrackingCoinsRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { DailyCandleCacheService } from '../market/daily-candle-cache.service';
 
 type CoinSetup = {
   swingMaxLoss: number | null;
@@ -11,11 +12,6 @@ type CoinSetup = {
   daytradeMaxLoss: number | null;
   daytradeMinRR: number | null;
 };
-
-/** Daily candles pulled for the 7d / 30d / 90d / 180d change columns (needs ≥ 181 back + today). */
-const CHANGE_KLINE_LIMIT = 185;
-/** Those changes move once a day — reuse a reading for 5 minutes. */
-const CHANGE_CACHE_TTL_MS = 5 * 60_000;
 
 /**
  * Price change as a ratio (0.0123 = +1.23%) over 7 / 30 / 90 / 180 days, each
@@ -89,34 +85,23 @@ export type TrackingCoinWithSignal = {
 @Injectable()
 export class TrackingCoinsService {
   private readonly repo = createTrackingCoinsRepository();
-  private readonly changeCache = new Map<string, { at: number; value: TrackingPriceChange }>();
 
-  constructor(private readonly binance: BinanceMarketDataService) {}
+  constructor(
+    private readonly binance: BinanceMarketDataService,
+    private readonly dailyCandles: DailyCandleCacheService,
+  ) {}
 
   /**
-   * 7-day / 90-day price change per coin — the data behind the table's "7d" and
-   * "90d" columns. Cached ~5 min per coin (a daily close is all that moves them).
+   * 7d / 30d / 90d / 180d price change per coin — the data behind those table
+   * columns. Daily candles come from the shared cache, so this endpoint costs
+   * no Binance round trip once `/scores` (or an earlier load) has warmed it.
    */
   async getPriceChanges(symbols: string[]): Promise<TrackingPriceChange[]> {
     const unique = [...new Set(symbols.map((s) => bareSymbol(s)).filter(Boolean))];
-    const out: TrackingPriceChange[] = [];
-    for (const bare of unique) {
-      out.push(await this.priceChangeFor(bare));
-    }
-    return out;
-  }
+    const candlesBySymbol = await this.dailyCandles.getMany(unique);
 
-  private async priceChangeFor(bare: string): Promise<TrackingPriceChange> {
-    const cached = this.changeCache.get(bare);
-    if (cached && Date.now() - cached.at < CHANGE_CACHE_TTL_MS) return cached.value;
-
-    try {
-      const klines = await this.binance.fetchKlines({
-        symbol: `${bare}USDT`,
-        timeframe: '1d' as never,
-        limit: CHANGE_KLINE_LIMIT,
-      });
-      const closes = klines.map((k) => parseFloat(k[4]));
+    return unique.map((bare) => {
+      const closes = (candlesBySymbol.get(bare) ?? []).map((c) => c.close);
       const n = closes.length;
       const current = n > 0 ? closes[n - 1]! : NaN;
       // `d` days ago = the close `d` candles back from the current (forming) one.
@@ -124,27 +109,14 @@ export class TrackingCoinsService {
         const past = n > d ? closes[n - 1 - d] : undefined;
         return past != null && past > 0 && Number.isFinite(current) ? (current - past) / past : null;
       };
-      const value: TrackingPriceChange = {
+      return {
         symbol: bare,
         change7d: changeAgo(7),
         change30d: changeAgo(30),
         change90d: changeAgo(90),
         change180d: changeAgo(180),
       };
-      this.changeCache.set(bare, { at: Date.now(), value });
-      return value;
-    } catch {
-      // Transient fetch failure: reuse the last-known reading, else blanks.
-      return (
-        cached?.value ?? {
-          symbol: bare,
-          change7d: null,
-          change30d: null,
-          change90d: null,
-          change180d: null,
-        }
-      );
-    }
+    });
   }
 
   /**

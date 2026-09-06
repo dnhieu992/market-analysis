@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { isSupertrendBullish, type Candle } from '@app/core';
 
-import { MarketDataService } from '../market/market-data.service';
+import { DailyCandleCacheService } from '../market/daily-candle-cache.service';
 
 /**
  * The "Scores" column on /tracking-coins: how many checks a coin currently
@@ -16,18 +16,12 @@ import { MarketDataService } from '../market/market-data.service';
 const SUPERTREND_PERIOD = 10;
 const SUPERTREND_MULTIPLIER = 3;
 
-/** Daily candles pulled per coin — plenty of warm-up for a 10-period ATR. */
-const CANDLE_LIMIT = 200;
-
 /**
  * A coin needs this many closed daily candles before its Supertrend is trusted;
  * fresh listings would otherwise report whatever the seed bar dictates. Same
  * threshold the daily Supertrend screener uses, so the two never disagree.
  */
 const MIN_CLOSED_CANDLES = 60;
-
-/** Every rule reads a closed daily candle, so a score only moves on a daily close. */
-const SCORE_CACHE_TTL_MS = 5 * 60_000;
 
 type RuleContext = {
   /** Daily candles with the in-progress one dropped. */
@@ -67,60 +61,52 @@ export type TrackingCoinScore = {
 @Injectable()
 export class TrackingCoinScoreService {
   private readonly logger = new Logger(TrackingCoinScoreService.name);
-  private readonly cache = new Map<string, { at: number; value: TrackingCoinScore }>();
 
-  constructor(private readonly marketData: MarketDataService) {}
+  constructor(private readonly dailyCandles: DailyCandleCacheService) {}
 
   /** Rule ids and labels, for a UI that wants to name what it is showing. */
   listRules(): { id: string; label: string }[] {
     return RULES.map(({ id, label }) => ({ id, label }));
   }
 
+  /**
+   * Candles come from the shared daily cache, so all symbols are fetched once
+   * and concurrently rather than one blocking round trip each.
+   */
   async getScores(symbols: string[]): Promise<TrackingCoinScore[]> {
     const unique = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
-    const out: TrackingCoinScore[] = [];
-    for (const bare of unique) {
-      out.push(await this.scoreFor(bare));
-    }
-    return out;
+    const candlesBySymbol = await this.dailyCandles.getMany(unique);
+
+    return unique.map((bare) => {
+      const candles = candlesBySymbol.get(bare);
+      if (!candles) {
+        this.logger.warn(`No daily candles available for ${bare} — score left blank`);
+        return blankScore(bare);
+      }
+      return scoreFrom(bare, dropUnclosedCandle(candles));
+    });
+  }
+}
+
+function scoreFrom(bare: string, d1Closed: Candle[]): TrackingCoinScore {
+  const rules: Record<string, boolean | null> = {};
+  let passed = 0;
+  let judged = 0;
+
+  for (const rule of RULES) {
+    const result = rule.evaluate({ d1Closed });
+    rules[rule.id] = result;
+    if (result === null) continue;
+    judged += 1;
+    if (result) passed += 1;
   }
 
-  private async scoreFor(bare: string): Promise<TrackingCoinScore> {
-    const cached = this.cache.get(bare);
-    if (cached && Date.now() - cached.at < SCORE_CACHE_TTL_MS) return cached.value;
-
-    let d1Closed: Candle[];
-    try {
-      const candles = await this.marketData.getCandles(`${bare}USDT`, '1d', CANDLE_LIMIT);
-      d1Closed = dropUnclosedCandle(candles);
-    } catch (error) {
-      this.logger.warn(
-        `Score fetch failed for ${bare}: ${error instanceof Error ? error.message : String(error)}`
-      );
-      // Transient failure: keep the last-known score rather than blanking the column.
-      return cached?.value ?? blankScore(bare);
-    }
-
-    const rules: Record<string, boolean | null> = {};
-    let passed = 0;
-    let judged = 0;
-    for (const rule of RULES) {
-      const result = rule.evaluate({ d1Closed });
-      rules[rule.id] = result;
-      if (result === null) continue;
-      judged += 1;
-      if (result) passed += 1;
-    }
-
-    const value: TrackingCoinScore = {
-      symbol: bare,
-      score: judged === 0 ? null : passed,
-      maxScore: MAX_SCORE,
-      rules,
-    };
-    this.cache.set(bare, { at: Date.now(), value });
-    return value;
-  }
+  return {
+    symbol: bare,
+    score: judged === 0 ? null : passed,
+    maxScore: MAX_SCORE,
+    rules,
+  };
 }
 
 function blankScore(symbol: string): TrackingCoinScore {

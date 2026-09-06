@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Inject, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
@@ -24,6 +24,8 @@ export class TrackingCoinsController {
   }
 
   @Get('price-changes')
+  // Daily closes; a reload inside a minute can reuse the browser's copy.
+  @Header('Cache-Control', 'private, max-age=60')
   @ApiOperation({ summary: '7d / 30d / 90d / 180d price change per coin (Binance daily closes)' })
   getPriceChanges(@Query('symbols') symbols = '') {
     const list = symbols.split(',').map((s) => s.trim()).filter(Boolean);
@@ -31,6 +33,7 @@ export class TrackingCoinsController {
   }
 
   @Get('scores')
+  @Header('Cache-Control', 'private, max-age=60')
   @ApiOperation({ summary: 'Rule score per coin (passed/total) — currently D1 Supertrend only' })
   getScores(@Query('symbols') symbols = '') {
     const list = symbols.split(',').map((s) => s.trim()).filter(Boolean);
