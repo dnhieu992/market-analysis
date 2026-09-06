@@ -438,7 +438,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
               type="button"
               className="bg-chart-icon-btn"
               onClick={() => setChartOpen(true)}
-              title="Xem chart (SonicR + S/R Channel + RSI) — chọn khung M15/M30/H1/H4/D1 trong dialog"
+              title="Xem chart (SonicR + S/R Channel + RSI) — chọn khung M15/M30/H1/H4/D1/W1 trong dialog"
               aria-label={`Xem chart ${coinId}`}
             >
               <ChartIcon />

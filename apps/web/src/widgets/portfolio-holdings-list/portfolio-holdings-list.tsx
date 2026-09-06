@@ -8,6 +8,8 @@ import { formatCryptoPrice } from '@web/shared/lib/format';
 import { isTransferTransaction } from '@web/shared/lib/transfer';
 
 import { CreateTransactionForm } from '@web/features/create-transaction/create-transaction-form';
+import { ChartIcon } from '@web/widgets/bitget/chart-icon';
+import { SetupChartDialog, FULL_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { createApiClient } from '@web/shared/api/client';
 import type { CoinTransaction, Holding } from '@web/shared/api/types';
 
@@ -470,6 +472,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
   );
   const [editNote, setEditNote] = useState<EditNoteState | null>(null);
   const [historyCoin, setHistoryCoin] = useState<string | null>(null);
+  const [chartCoin, setChartCoin] = useState<string | null>(null);
   const soldRatioByCoin = useMemo(() => buildSoldRatioByCoin(transactions), [transactions]);
 
   useEffect(() => {
@@ -580,9 +583,20 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
                     {/* Full-width on mobile */}
                     <td data-label="Coin" data-full="">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                        <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
-                          <strong>{h.coinId}</strong>
-                        </Link>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                          <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
+                            <strong>{h.coinId}</strong>
+                          </Link>
+                          <button
+                            type="button"
+                            className="bg-chart-icon-btn"
+                            onClick={() => setChartCoin(h.coinId)}
+                            title={`Xem chart ${h.coinId} (SonicR + S/R Channel + RSI) — khung M15/M30/H1/H4/D1/W1`}
+                            aria-label={`Xem chart ${h.coinId}`}
+                          >
+                            <ChartIcon />
+                          </button>
+                        </div>
                         <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
                           <button
                             title={note ? 'Edit note' : 'Add note'}
@@ -701,6 +715,13 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
         coinId={historyCoin}
         transactions={transactions}
         onClose={() => setHistoryCoin(null)}
+      />
+    )}
+    {chartCoin && (
+      <SetupChartDialog
+        symbol={chartCoin}
+        timeframes={FULL_CHART_TIMEFRAMES}
+        onClose={() => setChartCoin(null)}
       />
     )}
     </>
