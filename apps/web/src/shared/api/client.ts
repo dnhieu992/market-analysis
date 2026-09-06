@@ -13,6 +13,8 @@ import type {
   DashboardOrder,
   DashboardSignal,
   Holding,
+  HoldingReview,
+  ReviewZone,
   OrderFilterParams,
   PaginatedOrders,
   PnlSnapshot,
@@ -320,6 +322,34 @@ function mapHolding(row: JsonRecord): Holding {
     totalInvested: Number(row.totalCost ?? row.totalInvested),
     realizedPnl: Number(row.realizedPnl),
     note: row.note == null ? null : String(row.note)
+  };
+}
+
+function mapReviewZones(raw: unknown): ReviewZone[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((z) => {
+    const zone = z as JsonRecord;
+    return {
+      low: Number(zone.low),
+      high: Number(zone.high),
+      distancePct: zone.distancePct == null ? null : Number(zone.distancePct),
+      touches: zone.touches == null ? null : Number(zone.touches)
+    };
+  });
+}
+
+function mapHoldingReview(row: JsonRecord): HoldingReview {
+  return {
+    coinId: String(row.coinId),
+    reviewDate: String(row.reviewDate),
+    verdict: String(row.verdict),
+    previousVerdict: row.previousVerdict == null ? null : String(row.previousVerdict),
+    changed: Boolean(row.changed),
+    price: row.price == null ? null : Number(row.price),
+    reason: row.reason == null ? null : String(row.reason),
+    metrics: (row.metrics as Record<string, unknown> | null) ?? null,
+    buyZones: mapReviewZones(row.buyZones),
+    sellZones: mapReviewZones(row.sellZones)
   };
 }
 
@@ -635,6 +665,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
     async updateHoldingNote(portfolioId: string, coinId: string, note: string | null): Promise<void> {
       const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/holdings/${coinId}/note`, withDefaults({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) }));
       if (!response.ok) throw new Error(`Failed to update holding note: ${response.status}`);
+    },
+    /** Latest verdict per coin — the badges on the Holdings table. */
+    async fetchHoldingReviews(portfolioId: string): Promise<HoldingReview[]> {
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/holdings/reviews`, withDefaults());
+      return rows.map(mapHoldingReview);
+    },
+    /** Every review for one coin, newest first. */
+    async fetchCoinReviewHistory(portfolioId: string, coinId: string): Promise<HoldingReview[]> {
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/portfolios/${portfolioId}/holdings/${encodeURIComponent(coinId)}/reviews`, withDefaults());
+      return rows.map(mapHoldingReview);
     },
     async recalculateHoldings(portfolioId: string): Promise<void> {
       const response = await fetchImpl(`${baseUrl}/portfolios/${portfolioId}/holdings/recalculate`, withDefaults({ method: 'POST' }));

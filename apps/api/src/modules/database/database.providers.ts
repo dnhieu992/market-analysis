@@ -6,6 +6,7 @@ import {
   createHoldingRepository,
   createOrderRepository,
   createPnlHistoryRepository,
+  createHoldingReviewRepository,
   createPortfolioRepository,
   createSessionRepository,
   createSettingsRepository,
@@ -28,6 +29,7 @@ export const PORTFOLIO_REPOSITORY = Symbol('PORTFOLIO_REPOSITORY');
 export const COIN_TRANSACTION_REPOSITORY = Symbol('COIN_TRANSACTION_REPOSITORY');
 export const HOLDING_REPOSITORY = Symbol('HOLDING_REPOSITORY');
 export const PNL_HISTORY_REPOSITORY = Symbol('PNL_HISTORY_REPOSITORY');
+export const HOLDING_REVIEW_REPOSITORY = Symbol('HOLDING_REVIEW_REPOSITORY');
 export const CONVERSATION_REPOSITORY = Symbol('CONVERSATION_REPOSITORY');
 export const DatabaseProviders: Provider[] = [
   {
@@ -81,6 +83,10 @@ export const DatabaseProviders: Provider[] = [
   {
     provide: PNL_HISTORY_REPOSITORY,
     useFactory: () => createPnlHistoryRepository()
+  },
+  {
+    provide: HOLDING_REVIEW_REPOSITORY,
+    useFactory: () => createHoldingReviewRepository()
   },
   {
     provide: CONVERSATION_REPOSITORY,

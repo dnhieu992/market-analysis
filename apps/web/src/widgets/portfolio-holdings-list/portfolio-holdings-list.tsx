@@ -11,7 +11,8 @@ import { CreateTransactionForm } from '@web/features/create-transaction/create-t
 import { ChartIcon } from '@web/widgets/bitget/chart-icon';
 import { SetupChartDialog, FULL_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { createApiClient } from '@web/shared/api/client';
-import type { CoinTransaction, Holding } from '@web/shared/api/types';
+import type { CoinTransaction, Holding, HoldingReview } from '@web/shared/api/types';
+import { reviewsByCoin, shortReviewDate, verdictStyle } from '@web/shared/lib/holding-review';
 
 type PortfolioHoldingsListProps = Readonly<{
   portfolioId: string;
@@ -110,6 +111,43 @@ async function fetchPrices(coinIds: string[]): Promise<PriceData> {
   } catch {
     return { prices: {}, changes: {} };
   }
+}
+
+/**
+ * The daily review's verdict for one coin, sitting next to its symbol. Kept to a
+ * dot plus the verdict word — the reasoning and the buy/sell zones live on the
+ * coin detail page, which the symbol already links to.
+ */
+function VerdictBadge({ review }: { review: HoldingReview }) {
+  const style = verdictStyle(review.verdict);
+  const title = [
+    `${review.verdict} · review ${shortReviewDate(review.reviewDate)}`,
+    review.changed && review.previousVerdict ? `(đổi từ ${review.previousVerdict})` : null,
+    review.reason,
+  ].filter(Boolean).join('\n');
+
+  return (
+    <span
+      title={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.25rem',
+        padding: '0.1rem 0.4rem',
+        borderRadius: '999px',
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+        color: style.color,
+        background: style.background,
+        border: `1px solid ${style.color}33`,
+      }}
+    >
+      {style.emoji} {review.verdict}
+      {/* A verdict that moved today is the only thing worth a second glyph. */}
+      {review.changed && <span style={{ fontWeight: 400, opacity: 0.75 }}>↕</span>}
+    </span>
+  );
 }
 
 function CoinAvatar({ coinId }: { coinId: string }) {
@@ -473,7 +511,19 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
   const [editNote, setEditNote] = useState<EditNoteState | null>(null);
   const [historyCoin, setHistoryCoin] = useState<string | null>(null);
   const [chartCoin, setChartCoin] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Record<string, HoldingReview>>({});
   const soldRatioByCoin = useMemo(() => buildSoldRatioByCoin(transactions), [transactions]);
+
+  // Verdicts from the daily 00:00 UTC review. Loaded after mount and treated as
+  // optional: the table is fully usable on a day the review never ran.
+  useEffect(() => {
+    let cancelled = false;
+    createApiClient()
+      .fetchHoldingReviews(portfolioId)
+      .then((rows) => { if (!cancelled) setReviews(reviewsByCoin(rows)); })
+      .catch(() => { /* no badges, nothing else changes */ });
+    return () => { cancelled = true; };
+  }, [portfolioId]);
 
   useEffect(() => {
     if (holdings.length === 0) { setPricesLoaded(true); return; }
@@ -587,6 +637,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
                           <Link href={`/portfolio/${portfolioId}/${h.coinId}`} className="tt-symbol-btn">
                             <strong>{h.coinId}</strong>
                           </Link>
+                          {reviews[h.coinId] && <VerdictBadge review={reviews[h.coinId]!} />}
                           <button
                             type="button"
                             className="bg-chart-icon-btn"

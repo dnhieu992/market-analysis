@@ -283,6 +283,7 @@ model Portfolio {
   transactions CoinTransaction[]
   holdings     Holding[]
   pnlHistory   PnlHistory[]
+  reviews      HoldingReview[]
   @@index([userId])
   @@map("portfolios")
 }
@@ -323,6 +324,37 @@ model Holding {
   @@unique([portfolioId, coinId])
   @@index([portfolioId])
   @@map("holdings")
+}
+
+/// One coin's verdict from the daily Claude portfolio review (00:00 UTC).
+/// Written by claude-cron/portfolio-review, read by the portfolio pages — kept
+/// out of `Holding.note`, which belongs to the trader.
+model HoldingReview {
+  id              String    @id @default(uuid()) @db.Char(36)
+  portfolioId     String    @db.Char(36)
+  coinId          String    @db.VarChar(50)
+  /// Report date (UTC). One row per coin per day; a re-run upserts.
+  reviewDate      DateTime  @db.Date
+  /// GOM THÊM | GIỮ | CHỐT BỚT | THOÁT | KHÔNG CÓ DỮ LIỆU
+  verdict         String    @db.VarChar(32)
+  /// Yesterday's verdict, so the UI can mark the ones that moved.
+  previousVerdict String?   @db.VarChar(32)
+  /// Price at review time — what the verdict was judged against.
+  price           Decimal?  @db.Decimal(20, 8)
+  /// 1-2 sentences of Vietnamese reasoning.
+  reason          String?   @db.Text
+  /// D1 snapshot as JSON: trend, rsi14, change7d/30d/90d, distance to the 90d high.
+  metricsJson     String?   @db.Text
+  /// Buy zones as JSON: [{ low, high, distancePct, touches }].
+  buyZonesJson    String?   @db.Text
+  /// Sell zones, same shape as buyZonesJson.
+  sellZonesJson   String?   @db.Text
+  createdAt       DateTime  @default(now())
+  portfolio       Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, coinId, reviewDate])
+  @@index([portfolioId, reviewDate(sort: Desc)])
+  @@map("holding_reviews")
 }
 
 model PnlHistory {

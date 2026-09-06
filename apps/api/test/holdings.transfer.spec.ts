@@ -28,7 +28,12 @@ function createService(holding: { totalAmount: number; avgCost: number } | null)
   const repository = {
     findByPortfolioAndCoin: jest.fn().mockResolvedValue(holding)
   };
-  return new HoldingsService(repository as never);
+  // The review repository is unused by transferCoin; a stub keeps the constructor happy.
+  const reviewRepository = {
+    latestByCoin: jest.fn().mockResolvedValue([]),
+    listByCoin: jest.fn().mockResolvedValue([])
+  };
+  return new HoldingsService(repository as never, reviewRepository as never);
 }
 
 describe('HoldingsService.transferCoin', () => {

@@ -13,6 +13,7 @@ export { createPortfolioRepository } from './repositories/portfolio.repository';
 export { createCoinTransactionRepository } from './repositories/coin-transaction.repository';
 export { createHoldingRepository } from './repositories/holding.repository';
 export { createPnlHistoryRepository } from './repositories/pnl-history.repository';
+export { createHoldingReviewRepository } from './repositories/holding-review.repository';
 export { createConversationRepository } from './repositories/conversation.repository';
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
 export { createTradingJournalRepository } from './repositories/trading-journal.repository';

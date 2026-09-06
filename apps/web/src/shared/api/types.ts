@@ -255,6 +255,31 @@ export type Holding = {
   note: string | null;
 };
 
+/** One price band the daily review named — a buy zone or a sell zone. */
+export type ReviewZone = {
+  low: number;
+  high: number;
+  /** Distance from the review-time price, in percent (negative = below). */
+  distancePct: number | null;
+  touches: number | null;
+};
+
+/** One coin's verdict from the daily 00:00 UTC Claude portfolio review. */
+export type HoldingReview = {
+  coinId: string;
+  /** UTC report date, `YYYY-MM-DD`. */
+  reviewDate: string;
+  verdict: string;
+  previousVerdict: string | null;
+  /** True when this report moved the verdict off yesterday's. */
+  changed: boolean;
+  price: number | null;
+  reason: string | null;
+  metrics: Record<string, unknown> | null;
+  buyZones: ReviewZone[];
+  sellZones: ReviewZone[];
+};
+
 export type PnlSnapshot = {
   id: string;
   portfolioId: string;

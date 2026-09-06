@@ -35,6 +35,27 @@ export class HoldingsController {
     return this.holdingsService.getByPortfolio(portfolioId, currentPrices);
   }
 
+  @Get('reviews')
+  @ApiOperation({ summary: "Latest Claude review verdict per coin (daily 00:00 UTC job)" })
+  async getLatestReviews(
+    @Param('portfolioId') portfolioId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
+    return this.holdingsService.getLatestReviews(portfolioId);
+  }
+
+  @Get(':coinId/reviews')
+  @ApiOperation({ summary: 'Review history for one coin, newest first' })
+  async getReviewHistory(
+    @Param('portfolioId') portfolioId: string,
+    @Param('coinId') coinId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    await this.portfolioService.getPortfolio(portfolioId, req.authUser!.id);
+    return this.holdingsService.getReviewHistory(portfolioId, coinId);
+  }
+
   @Patch(':coinId/note')
   @ApiOperation({ summary: 'Update note for a holding' })
   async updateNote(

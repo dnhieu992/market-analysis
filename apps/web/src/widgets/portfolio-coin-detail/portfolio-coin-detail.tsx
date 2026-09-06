@@ -10,6 +10,7 @@ import { isTransferTransaction } from '@web/shared/lib/transfer';
 import type { CoinTransaction, Holding, Portfolio } from '@web/shared/api/types';
 import { ChartIcon } from '@web/widgets/bitget/chart-icon';
 import { SetupChartDialog, FULL_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
+import { HoldingReviewPanel } from './holding-review-panel';
 import { CoinChatDrawer } from '@web/widgets/coin-chat-drawer/coin-chat-drawer';
 
 type PortfolioCoinDetailProps = Readonly<{
@@ -517,6 +518,9 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           </div>
         )}
       </div>
+
+      {/* Daily Claude review — renders nothing until the cron has covered this coin */}
+      <HoldingReviewPanel portfolioId={portfolioId} coinId={coinId} />
 
       {/* Transactions */}
       <article className="panel">

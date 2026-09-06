@@ -3,9 +3,10 @@ import { randomUUID } from 'crypto';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import { prisma } from '@app/db';
-import { HOLDING_REPOSITORY } from '../database/database.providers';
+import { HOLDING_REPOSITORY, HOLDING_REVIEW_REPOSITORY } from '../database/database.providers';
 
 type HoldingRepository = ReturnType<typeof import('@app/db').createHoldingRepository>;
+type HoldingReviewRepository = ReturnType<typeof import('@app/db').createHoldingReviewRepository>;
 
 /** Marks the sell/buy pair a partial transfer books, so the UI can exclude it from trade stats. */
 export const TRANSFER_NOTE_PREFIX = '[transfer]';
@@ -27,12 +28,82 @@ export type HoldingWithPnl = {
   currentValue: number | null;
 };
 
+/** One zone the review named, as stored in `buyZonesJson` / `sellZonesJson`. */
+export type ReviewZone = {
+  low: number;
+  high: number;
+  distancePct: number | null;
+  touches: number | null;
+};
+
+export type HoldingReviewView = {
+  coinId: string;
+  /** UTC report date as `YYYY-MM-DD` — the client never needs the time. */
+  reviewDate: string;
+  verdict: string;
+  previousVerdict: string | null;
+  /** True when this report moved the verdict — what the UI highlights. */
+  changed: boolean;
+  price: number | null;
+  reason: string | null;
+  metrics: Record<string, unknown> | null;
+  buyZones: ReviewZone[];
+  sellZones: ReviewZone[];
+};
+
+/** Tolerates a malformed column rather than failing the whole request. */
+function parseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function toReviewView(row: {
+  coinId: string;
+  reviewDate: Date;
+  verdict: string;
+  previousVerdict: string | null;
+  price: Decimal | null;
+  reason: string | null;
+  metricsJson: string | null;
+  buyZonesJson: string | null;
+  sellZonesJson: string | null;
+}): HoldingReviewView {
+  return {
+    coinId: row.coinId,
+    reviewDate: row.reviewDate.toISOString().slice(0, 10),
+    verdict: row.verdict,
+    previousVerdict: row.previousVerdict,
+    changed: row.previousVerdict != null && row.previousVerdict !== row.verdict,
+    price: row.price != null ? Number(row.price) : null,
+    reason: row.reason,
+    metrics: parseJson<Record<string, unknown> | null>(row.metricsJson, null),
+    buyZones: parseJson<ReviewZone[]>(row.buyZonesJson, []),
+    sellZones: parseJson<ReviewZone[]>(row.sellZonesJson, [])
+  };
+}
+
 @Injectable()
 export class HoldingsService {
   constructor(
     @Inject(HOLDING_REPOSITORY)
-    private readonly holdingRepository: HoldingRepository
+    private readonly holdingRepository: HoldingRepository,
+    @Inject(HOLDING_REVIEW_REPOSITORY)
+    private readonly reviewRepository: HoldingReviewRepository
   ) {}
+
+  /** Newest verdict per coin — the badges on the Holdings table. */
+  async getLatestReviews(portfolioId: string): Promise<HoldingReviewView[]> {
+    return (await this.reviewRepository.latestByCoin(portfolioId)).map(toReviewView);
+  }
+
+  /** Every review for one coin, newest first — the coin detail timeline. */
+  async getReviewHistory(portfolioId: string, coinId: string): Promise<HoldingReviewView[]> {
+    return (await this.reviewRepository.listByCoin(portfolioId, coinId)).map(toReviewView);
+  }
 
   async getByPortfolio(portfolioId: string, currentPrices: Record<string, number> = {}): Promise<HoldingWithPnl[]> {
     const holdings = await this.holdingRepository.listByPortfolio(portfolioId);
