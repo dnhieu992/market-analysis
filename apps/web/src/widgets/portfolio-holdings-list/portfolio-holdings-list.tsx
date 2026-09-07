@@ -514,6 +514,13 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
   const [reviews, setReviews] = useState<Record<string, HoldingReview>>({});
   const soldRatioByCoin = useMemo(() => buildSoldRatioByCoin(transactions), [transactions]);
 
+  // Master eye next to the "Holdings" title: on only when every row is showing its P/L,
+  // so a single click reveals the rest instead of hiding the ones already open.
+  const allPnlVisible = holdings.length > 0 && holdings.every((h) => pnlVisibleMap[h.coinId] ?? false);
+  const toggleAllPnl = () => {
+    setPnlVisibleMap(allPnlVisible ? {} : Object.fromEntries(holdings.map((h) => [h.coinId, true])));
+  };
+
   // Verdicts from the daily 00:00 UTC review. Loaded after mount and treated as
   // optional: the table is fully usable on a day the review never ran.
   useEffect(() => {
@@ -569,7 +576,21 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
     <article className="panel">
       <div className="table-header">
         <div>
-          <h2>Holdings</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <h2>Holdings</h2>
+            {holdings.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleAllPnl}
+                title={allPnlVisible ? 'Hide all P/L' : 'Show all P/L'}
+                aria-label={allPnlVisible ? 'Hide all P/L' : 'Show all P/L'}
+                aria-pressed={allPnlVisible}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+              >
+                <EyeIcon visible={allPnlVisible} />
+              </button>
+            )}
+          </div>
           <p>{holdings.length === 0 ? 'No holdings yet.' : `${heldCoinCount} coin${heldCoinCount === 1 ? '' : 's'}`}</p>
         </div>
         {holdings.length > 0 && (
