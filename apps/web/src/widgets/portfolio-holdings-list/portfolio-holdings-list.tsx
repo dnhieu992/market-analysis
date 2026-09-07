@@ -645,10 +645,13 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
 
                 const note = notes[h.coinId] ?? null;
                 const isEmpty = h.totalAmount <= 0;
+                // A sold-out row is dimmed as history — unless the daily review put a
+                // buy-back verdict on it, in which case it is the one row worth reading.
+                const dimmed = isEmpty && !reviews[h.coinId];
                 return (
                   <tr
                     key={h.coinId}
-                    style={isEmpty ? { opacity: 0.45, background: 'rgba(128,128,128,0.08)' } : undefined}
+                    style={dimmed ? { opacity: 0.45, background: 'rgba(128,128,128,0.08)' } : undefined}
                     title={isEmpty ? 'Không còn nắm giữ (holding = 0)' : undefined}
                   >
                     {/* Full-width on mobile */}

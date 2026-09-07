@@ -4,7 +4,9 @@ a verdict badge next to every coin in the Holdings table, and the full analysis 
 D1 metrics, buy/sell zones, plus the day-by-day history — on the coin detail page.
 
 Verdicts are the four from the review prompt: 🟢 GOM THÊM · 🔵 GIỮ · 🟠 CHỐT BỚT · 🔴 THOÁT
-(plus ⚪ KHÔNG CÓ DỮ LIỆU for a coin Binance has no data for).
+(plus ⚪ KHÔNG CÓ DỮ LIỆU for a coin Binance has no data for). Since 2026-09-07 a **sold-out**
+coin can also carry a buy-back verdict from the snowball scan — 🟢 MUA LẠI · 🟡 CHỜ VÙNG — and
+only those two ever appear on a row whose holding is zero.
 
 The analysis is produced entirely outside the app — see `docs/features/portfolio-daily-review/`.
 The app only reads the `holding_reviews` table; it never writes it.
@@ -35,8 +37,11 @@ The app only reads the `holding_reviews` table; it never writes it.
   on a verdict the prompt did not produce.
 - **Two rows for one coin and date** — impossible: `@@unique([portfolioId, coinId, reviewDate])`.
   A same-day re-run updates the row in place.
-- **Sold-out coin** — reviews only cover holdings with `totalAmount > 0`, so a coin sold to zero
-  keeps its last badge until the history is deleted; the date on the badge shows how old it is.
+- **Sold-out coin** — the daily scan now covers zeroed holdings too, but only the ones its
+  buy-back gate shortlists (at most 6). Such a row keeps its normal opacity in the Holdings table
+  instead of being dimmed as history, because a 🟢 MUA LẠI badge at 45% opacity is the one badge
+  worth reading. A sold-out coin the gate skipped keeps its last badge from when it was held; the
+  date on the badge shows how old that is.
 - **`Holding.note` is untouched** — the trader's note column and the review live in separate
   tables, so neither can overwrite the other.
 
@@ -51,8 +56,8 @@ The app only reads the `holding_reviews` table; it never writes it.
   `GET .../holdings/:coinId/reviews`
 - `apps/web/src/shared/api/client.ts` — `fetchHoldingReviews`, `fetchCoinReviewHistory`, `mapHoldingReview`
 - `apps/web/src/shared/api/types.ts` — `HoldingReview`, `ReviewZone`
-- `apps/web/src/shared/lib/holding-review.ts` — verdict colours/emoji, date shortening, staleness
-- `apps/web/src/widgets/portfolio-holdings-list/portfolio-holdings-list.tsx` — `VerdictBadge` per row
+- `apps/web/src/shared/lib/holding-review.ts` — verdict colours/emoji (incl. MUA LẠI / CHỜ VÙNG), date shortening, staleness
+- `apps/web/src/widgets/portfolio-holdings-list/portfolio-holdings-list.tsx` — `VerdictBadge` per row, and the dim rule that a reviewed sold-out row opts out of
 - `apps/web/src/widgets/portfolio-coin-detail/holding-review-panel.tsx` — the full panel + history
 - `apps/web/src/widgets/portfolio-coin-detail/portfolio-coin-detail.tsx` — mounts the panel
 - `claude-cron/portfolio-review/publish-reviews.mjs` — the writer (gitignored, server-local)

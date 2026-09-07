@@ -1,9 +1,12 @@
 import type { HoldingReview } from '@web/shared/api/types';
 
 /**
- * Presentation for a daily-review verdict. The four verdicts and their colours
- * come from claude-cron/portfolio-review/prompt.md — the Telegram report and the
+ * Presentation for a daily-review verdict. The verdicts and their colours come
+ * from claude-cron/portfolio-review/prompt.md — the Telegram report and the
  * portfolio pages must read as the same thing, so the emoji match it exactly.
+ *
+ * Four of them judge an open position; MUA LẠI / CHỜ VÙNG belong to the buy-back
+ * (snowball) list and only ever land on a row that is already fully sold.
  */
 export type VerdictStyle = {
   emoji: string;
@@ -18,6 +21,8 @@ const STYLES: Record<string, VerdictStyle> = {
   'GIỮ':      { emoji: '🔵', color: '#3b82f6', background: 'rgba(59,130,246,0.12)' },
   'CHỐT BỚT': { emoji: '🟠', color: '#f59e0b', background: 'rgba(245,158,11,0.12)' },
   'THOÁT':    { emoji: '🔴', color: '#ef4444', background: 'rgba(239,68,68,0.12)' },
+  'MUA LẠI':  { emoji: '🟢', color: '#22c55e', background: 'rgba(34,197,94,0.12)' },
+  'CHỜ VÙNG': { emoji: '🟡', color: '#eab308', background: 'rgba(234,179,8,0.12)' },
 };
 
 const UNKNOWN: VerdictStyle = { emoji: '⚪', color: 'var(--muted)', background: 'rgba(128,128,128,0.12)' };
