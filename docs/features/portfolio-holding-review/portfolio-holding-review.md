@@ -20,7 +20,9 @@ The app only reads the `holding_reviews` table; it never writes it.
 3. On `/portfolio/<id>/<coinId>`, `HoldingReviewPanel` fetches
    `GET /portfolios/:id/holdings/:coinId/reviews` (newest first, capped at 60) and renders the
    latest verdict in full: badge, price at review time, reasoning, the D1 metrics line, and the
-   🟩 buy / 🟥 sell zones. Older reviews collapse behind a "Lịch sử (n)" button.
+   🟩 buy / 🟥 sell zones. A "Lịch sử (n)" button opens `ReviewHistoryDialog`, listing every older
+   review as a one-line row (date, verdict, reason); clicking a row expands it in place to the
+   same full detail as the latest review, via the shared `ReviewDetail` renderer.
 4. Both endpoints go through `PortfolioService.getPortfolio` first, so a portfolio belonging to
    another user 404s before any review is read.
 

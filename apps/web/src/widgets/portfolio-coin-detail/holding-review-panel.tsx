@@ -61,10 +61,109 @@ function ZoneRow({ label, color, zones }: { label: string; color: string; zones:
   );
 }
 
+/** Full verdict detail for one review — badge, reason, metrics, zones. Reused for
+ * the latest review inline and for an expanded row in the history dialog. */
+function ReviewDetail({ review }: { review: HoldingReview }) {
+  const style = verdictStyle(review.verdict);
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <span
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+            padding: '0.25rem 0.6rem', borderRadius: 999,
+            fontSize: '0.95rem', fontWeight: 700,
+            color: style.color, background: style.background, border: `1px solid ${style.color}33`,
+          }}
+        >
+          {style.emoji} {review.verdict}
+        </span>
+        {review.changed && review.previousVerdict && (
+          <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>đổi từ {review.previousVerdict}</span>
+        )}
+        {review.price != null && (
+          <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+            giá lúc review {formatCryptoPrice(review.price)}
+          </span>
+        )}
+      </div>
+
+      {review.reason && (
+        <p style={{ margin: '0.6rem 0 0', lineHeight: 1.55 }}>{review.reason}</p>
+      )}
+      <MetricsLine metrics={review.metrics} />
+      <ZoneRow label="🟩 Mua" color="#22c55e" zones={review.buyZones} />
+      <ZoneRow label="🟥 Bán" color="#ef4444" zones={review.sellZones} />
+    </div>
+  );
+}
+
+/** One row in the history dialog — collapsed to date + verdict + one-line reason,
+ * expands in place to the same full detail as the latest review on click. */
+function HistoryRow({ review }: { review: HoldingReview }) {
+  const [expanded, setExpanded] = useState(false);
+  const style = verdictStyle(review.verdict);
+  return (
+    <div style={{ borderBottom: '1px solid var(--border)' }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          display: 'flex', width: '100%', gap: '0.6rem', padding: '0.6rem 0', alignItems: 'baseline',
+          background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit',
+        }}
+      >
+        <span style={{ fontSize: '0.75rem', color: 'var(--muted)', flexShrink: 0, width: '1rem' }}>
+          {expanded ? '▾' : '▸'}
+        </span>
+        <span style={{ fontSize: '0.8rem', color: 'var(--muted)', minWidth: '3.2rem', flexShrink: 0 }}>
+          {shortReviewDate(review.reviewDate)}
+        </span>
+        <span style={{ color: style.color, fontWeight: 600, fontSize: '0.85rem', minWidth: '6rem', flexShrink: 0 }}>
+          {style.emoji} {review.verdict}
+        </span>
+        <span
+          style={{
+            fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: expanded ? 'normal' : 'nowrap',
+          }}
+        >
+          {review.reason ?? '—'}
+        </span>
+      </button>
+      {expanded && (
+        <div style={{ padding: '0 0 0.85rem 1.6rem' }}>
+          <ReviewDetail review={review} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Dialog listing every past review as a row; click a row to expand its full detail. */
+function ReviewHistoryDialog({ reviews, onClose }: { reviews: HoldingReview[]; onClose: () => void }) {
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Lịch sử đánh giá</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          {reviews.map((review) => (
+            <HistoryRow key={review.reviewDate} review={review} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The daily 00:00 UTC Claude review for this coin: today's verdict in full, with
- * the earlier ones collapsed underneath. The same analysis that goes to Telegram
- * — here so the trader can read it against the position instead of scrolling a chat.
+ * the earlier ones one click away in a history dialog. The same analysis that goes
+ * to Telegram — here so the trader can read it against the position instead of
+ * scrolling a chat.
  */
 export function HoldingReviewPanel({ portfolioId, coinId }: HoldingReviewPanelProps) {
   const [reviews, setReviews] = useState<HoldingReview[] | null>(null);
@@ -84,7 +183,6 @@ export function HoldingReviewPanel({ portfolioId, coinId }: HoldingReviewPanelPr
   if (reviews == null || reviews.length === 0) return null;
 
   const [latest, ...older] = reviews as [HoldingReview, ...HoldingReview[]];
-  const style = verdictStyle(latest.verdict);
   const ageDays = reviewAgeDays(latest.reviewDate);
 
   return (
@@ -99,63 +197,20 @@ export function HoldingReviewPanel({ portfolioId, coinId }: HoldingReviewPanelPr
         </h2>
         {older.length > 0 && (
           <div className="table-actions">
-            <button className="btn btn--secondary" onClick={() => setHistoryOpen((open) => !open)}>
-              {historyOpen ? 'Ẩn lịch sử' : `Lịch sử (${older.length})`}
+            <button className="btn btn--secondary" onClick={() => setHistoryOpen(true)}>
+              Lịch sử ({older.length})
             </button>
           </div>
         )}
       </div>
 
       <div style={{ padding: '0 1rem 1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-          <span
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-              padding: '0.25rem 0.6rem', borderRadius: 999,
-              fontSize: '0.95rem', fontWeight: 700,
-              color: style.color, background: style.background, border: `1px solid ${style.color}33`,
-            }}
-          >
-            {style.emoji} {latest.verdict}
-          </span>
-          {latest.changed && latest.previousVerdict && (
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>đổi từ {latest.previousVerdict}</span>
-          )}
-          {latest.price != null && (
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-              giá lúc review {formatCryptoPrice(latest.price)}
-            </span>
-          )}
-        </div>
-
-        {latest.reason && (
-          <p style={{ margin: '0.6rem 0 0', lineHeight: 1.55 }}>{latest.reason}</p>
-        )}
-        <MetricsLine metrics={latest.metrics} />
-        <ZoneRow label="🟩 Mua" color="#22c55e" zones={latest.buyZones} />
-        <ZoneRow label="🟥 Bán" color="#ef4444" zones={latest.sellZones} />
-
-        {historyOpen && older.length > 0 && (
-          <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
-            {older.map((review) => {
-              const past = verdictStyle(review.verdict);
-              return (
-                <div key={review.reviewDate} style={{ display: 'flex', gap: '0.6rem', padding: '0.4rem 0', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--muted)', minWidth: '3.2rem', flexShrink: 0 }}>
-                    {shortReviewDate(review.reviewDate)}
-                  </span>
-                  <span style={{ color: past.color, fontWeight: 600, fontSize: '0.85rem', minWidth: '6rem', flexShrink: 0 }}>
-                    {past.emoji} {review.verdict}
-                  </span>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>
-                    {review.reason ?? '—'}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <ReviewDetail review={latest} />
       </div>
+
+      {historyOpen && older.length > 0 && (
+        <ReviewHistoryDialog reviews={older} onClose={() => setHistoryOpen(false)} />
+      )}
     </article>
   );
 }
