@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { HoldingReview, ReviewZone } from '@web/shared/api/types';
@@ -140,9 +141,12 @@ function HistoryRow({ review }: { review: HoldingReview }) {
   );
 }
 
-/** Dialog listing every past review as a row; click a row to expand its full detail. */
+/** Dialog listing every past review as a row; click a row to expand its full detail.
+ * Portals to document.body — this panel is a `.panel` card, and `.panel`'s
+ * backdrop-filter creates a containing block that traps a `position: fixed`
+ * child inside the card's box instead of covering the viewport. */
 function ReviewHistoryDialog({ reviews, onClose }: { reviews: HoldingReview[]; onClose: () => void }) {
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
@@ -155,7 +159,8 @@ function ReviewHistoryDialog({ reviews, onClose }: { reviews: HoldingReview[]; o
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
