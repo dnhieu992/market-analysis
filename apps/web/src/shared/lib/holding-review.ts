@@ -32,6 +32,18 @@ export function verdictStyle(verdict: string): VerdictStyle {
   return STYLES[verdict.trim().toUpperCase()] ?? STYLES[verdict.trim()] ?? UNKNOWN;
 }
 
+const BUY_BACK_VERDICTS = new Set(['MUA LẠI', 'CHỜ VÙNG']);
+
+/**
+ * True only for the snowball buy-back verdicts — the two that can land on a
+ * sold-out coin. A coin's newest review can otherwise be a stale open-position
+ * verdict (GIỮ, THOÁT, …) left over from before it was fully sold, which is not
+ * a reason to keep that row looking active.
+ */
+export function isBuyBackVerdict(verdict: string): boolean {
+  return BUY_BACK_VERDICTS.has(verdict.trim().toUpperCase());
+}
+
 /** `2026-09-06` → `06/09` — the badge only has room for day and month. */
 export function shortReviewDate(reviewDate: string): string {
   const [, month, day] = reviewDate.split('-');

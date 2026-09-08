@@ -41,9 +41,13 @@ The app only reads the `holding_reviews` table; it never writes it.
   A same-day re-run updates the row in place.
 - **Sold-out coin** — the daily scan now covers zeroed holdings too, but only the ones its
   buy-back gate shortlists (at most 6). Such a row keeps its normal opacity in the Holdings table
-  instead of being dimmed as history, because a 🟢 MUA LẠI badge at 45% opacity is the one badge
-  worth reading. A sold-out coin the gate skipped keeps its last badge from when it was held; the
-  date on the badge shows how old that is.
+  instead of being dimmed as history, because a 🟢 MUA LẠI or 🟡 CHỜ VÙNG badge at 45% opacity is
+  the one badge worth reading — `isBuyBackVerdict()` (`holding-review.ts`) is what the dim check
+  keys on. A sold-out coin whose *newest* review is a stale open-position verdict (GIỮ, THOÁT, …)
+  left over from before it sold out still dims as history; only a live buy-back verdict keeps it
+  bright. A sold-out coin the gate skipped keeps its last badge from when it was held (dimmed); the
+  date on the badge shows how old that is. Before 2026-09-08 the dim check only tested "does a
+  review exist", so any coin ever reviewed while still held stayed undimmed forever after selling.
 - **`Holding.note` is untouched** — the trader's note column and the review live in separate
   tables, so neither can overwrite the other.
 
@@ -58,7 +62,7 @@ The app only reads the `holding_reviews` table; it never writes it.
   `GET .../holdings/:coinId/reviews`
 - `apps/web/src/shared/api/client.ts` — `fetchHoldingReviews`, `fetchCoinReviewHistory`, `mapHoldingReview`
 - `apps/web/src/shared/api/types.ts` — `HoldingReview`, `ReviewZone`
-- `apps/web/src/shared/lib/holding-review.ts` — verdict colours/emoji (incl. MUA LẠI / CHỜ VÙNG), date shortening, staleness
+- `apps/web/src/shared/lib/holding-review.ts` — verdict colours/emoji (incl. MUA LẠI / CHỜ VÙNG), date shortening, staleness, `isBuyBackVerdict()`
 - `apps/web/src/widgets/portfolio-holdings-list/portfolio-holdings-list.tsx` — `VerdictBadge` per row, and the dim rule that a reviewed sold-out row opts out of
 - `apps/web/src/widgets/portfolio-coin-detail/holding-review-panel.tsx` — the full panel + history
 - `apps/web/src/widgets/portfolio-coin-detail/portfolio-coin-detail.tsx` — mounts the panel
