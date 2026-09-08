@@ -4,13 +4,13 @@ Bộ lọc thô hàng ngày: quét **các coin trong danh sách `/tracking-coins
 
 Kết quả **không lưu DB và không hiển thị trên dashboard**. Chỉ có Telegram.
 
-Hai đường kích hoạt:
-- **Cron 00:10 UTC hàng ngày** — chạy 10 phút sau khi nến D1 đóng.
-- **Nút `Scan`** trên trang `/portfolio` (cạnh `+ New Portfolio`) — chạy thủ công, cũng chỉ gửi Telegram. Từ 2026-08-10 nút này chạy **cả** scan D1 lẫn [scan 4H Supertrend + QQE](../supertrend-h4-qqe-scan/supertrend-h4-qqe-scan.md); hai scan độc lập, mỗi cái một tin Telegram và một dòng trạng thái.
+Kích hoạt duy nhất: **cron 00:10 UTC hàng ngày** — chạy 10 phút sau khi nến D1 đóng. `POST /supertrend-scan/run` vẫn tồn tại cho lượt chạy tay (Swagger/curl) nhưng không còn nút nào trên UI gọi tới.
+
+Trước 2026-09-08 trang `/portfolio` có nút `Scan` chạy thủ công cả scan D1 này lẫn scan 4H Supertrend + QQE song song — nút đó và toàn bộ scan H4 đã bị xoá theo yêu cầu (không cần gửi Telegram mỗi khi nến H4 đóng nữa).
 
 ## Main Flow
 
-1. Trigger: cron `0 10 0 * * *` (UTC) trong `SupertrendScanService`, hoặc `POST /supertrend-scan/run` từ nút `Scan`.
+1. Trigger: cron `0 10 0 * * *` (UTC) trong `SupertrendScanService`.
 2. `TrackingScanSymbolsService.list()` đọc bảng `TrackingCoin` (danh sách theo dõi ở trang `/tracking-coins`), chuẩn hoá symbol về dạng bare rồi ghép thành cặp Binance (`ADA` → `ADAUSDT`), khử trùng lặp. Trước 2026-08-11 bước này quét toàn bộ ≈470 cặp spot USDT của Binance.
 3. Với mỗi symbol (8 symbol song song): lấy 200 nến `1d`, **bỏ nến đang chạy** (`closeTime > now`).
 4. Coin có dưới 60 nến D1 đã đóng bị bỏ qua — quá ít lịch sử thì hướng Supertrend chỉ phản ánh bar khởi tạo.
@@ -28,7 +28,7 @@ Với vài chục coin theo dõi, lượt quét xong trong vài giây (bản qu�
 
 ## Edge Cases
 
-- **Quét chồng lượt** — cờ `scanning` chặn: bấm `Scan` khi cron đang chạy (hoặc bấm hai lần) sẽ ném lỗi, UI hiện "Scan thất bại — thử lại sau."
+- **Quét chồng lượt** — cờ `scanning` chặn: một lượt chạy tay (Swagger/curl) trong lúc cron đang chạy sẽ ném lỗi thay vì chạy chồng.
 - **Nến chưa đóng** — luôn lọc theo `closeTime <= now`, nên chạy lúc 00:10 UTC hay giữa ngày đều đọc cùng một nến D1 đã đóng.
 - **Coin mới list** (< 60 nến D1) — bỏ qua, đếm vào `skipped`, không báo lỗi.
 - **Một symbol lỗi klines** — bắt riêng từng symbol, đếm vào `failed`, lượt quét vẫn hoàn tất.
@@ -52,10 +52,9 @@ Với vài chục coin theo dõi, lượt quét xong trong vài giây (bản qu�
 - `apps/api/src/modules/supertrend-scan/tracking-scan-symbols.service.ts` — nguồn symbol: danh sách `/tracking-coins` → cặp Binance
 - `packages/db/src/repositories/tracking-coins.repository.ts` — `findAllCoins()`
 - `apps/api/src/app.module.ts` — đăng ký `SupertrendScanModule`
-- `apps/web/src/widgets/portfolios-list/portfolios-list.tsx` — nút `Scan` + dòng trạng thái
-- `apps/web/src/shared/api/client.ts` — `runSupertrendScan()`
-- `apps/web/src/shared/api/types.ts` — `SupertrendScanResult`
 
 ## Notes
 
-Cron nằm ở **API** chứ không phải worker: worker không mở cổng HTTP nên không nhận được trigger từ nút `Scan`, còn API vốn đã chạy `ScheduleModule` và các cron khác (`bitget-auto-trade`, `pnl`). Đặt chung một chỗ để cron và nút bấm dùng đúng một service, không nhân đôi logic.
+Cron nằm ở **API** chứ không phải worker vì API vốn đã chạy `ScheduleModule` và các cron khác (`bitget-auto-trade`, `pnl`).
+
+Nút `Scan` trên `/portfolio` và scan 4H Supertrend + QQE song song (`SupertrendH4ScanService`, `POST /supertrend-scan/run-h4`) đã bị xoá hoàn toàn ngày 2026-09-08 — Telegram không cần báo mỗi khi nến H4 đóng nữa. `SupertrendScanController` giờ chỉ còn route `run` (D1); FE không còn wrapper hay type nào cho scan này (`runSupertrendScan`, `SupertrendScanResult` đã bị xoá khỏi `client.ts`/`types.ts`).

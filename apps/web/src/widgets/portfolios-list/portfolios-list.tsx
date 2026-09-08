@@ -83,57 +83,12 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
   const [isPending, startTransition] = useTransition();
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [pricesLoaded, setPricesLoaded] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [scanMessage, setScanMessage] = useState<string[] | null>(null);
 
   useEffect(() => {
     const allCoinIds = [...new Set(Object.values(holdingsMap).flat().map((h) => h.coinId))];
     if (allCoinIds.length === 0) { setPricesLoaded(true); return; }
     fetchPrices(allCoinIds).then((p) => { setPrices(p); setPricesLoaded(true); });
   }, [holdingsMap]);
-
-  // Fires both screeners at once: Supertrend(10,3) D1 and Supertrend + QQE H4.
-  // Both read the /tracking-coins watchlist (not the whole Binance spot list),
-  // so a run is a few seconds. Each result only goes to Telegram — nothing is
-  // stored or rendered here beyond these status lines. They run independently so
-  // one failing (or being blocked by its own cron) still lets the other report.
-  async function handleScan() {
-    setScanning(true);
-    setScanMessage(null);
-    const api = createApiClient();
-    const [daily, h4] = await Promise.allSettled([
-      api.runSupertrendScan(),
-      api.runSupertrendH4Scan(),
-    ]);
-
-    const lines: string[] = [];
-
-    if (daily.status === 'rejected') {
-      lines.push('D1: scan thất bại — thử lại sau.');
-    } else {
-      const { bullish, scanned, telegramSent } = daily.value;
-      lines.push(
-        telegramSent
-          ? `D1: đã gửi Telegram — ${bullish.length}/${scanned} coin bullish.`
-          : `D1: quét xong ${bullish.length}/${scanned} coin bullish, nhưng gửi Telegram thất bại.`
-      );
-    }
-
-    if (h4.status === 'rejected') {
-      lines.push('H4: scan thất bại — thử lại sau.');
-    } else {
-      const { supertrendBullish, qqeBullish, bullish, flipped, scanned, telegramSent } = h4.value;
-      const summary =
-        `${scanned} coin — Supertrend ${supertrendBullish.length} (${flipped.length} vừa đảo chiều), ` +
-        `QQE ${qqeBullish.length}, cả hai ${bullish.length}`;
-      lines.push(
-        telegramSent ? `H4: đã gửi Telegram — ${summary}.` : `H4: quét xong ${summary}, nhưng gửi Telegram thất bại.`
-      );
-    }
-
-    setScanMessage(lines);
-    setScanning(false);
-  }
 
   async function handleConfirmDelete() {
     if (!deletePortfolioId) return;
@@ -155,26 +110,9 @@ export function PortfoliosList({ portfolios, holdingsMap }: PortfoliosListProps)
             <p>{portfolios.length === 0 ? 'No portfolios yet.' : `${portfolios.length} portfolio${portfolios.length === 1 ? '' : 's'}`}</p>
           </div>
           <div className="table-actions">
-            <button
-              className="btn btn--secondary"
-              onClick={handleScan}
-              disabled={scanning}
-              title="Quét các coin trong danh sách /tracking-coins: Supertrend(10,3) D1 và Supertrend + QQE H4, gửi list qua Telegram"
-            >
-              {scanning ? 'Scanning…' : 'Scan'}
-            </button>
             <button className="btn btn--primary" onClick={() => setCreateOpen(true)}>+ New Portfolio</button>
           </div>
         </div>
-
-        {(scanning || scanMessage) && (
-          <div className="tt-muted" style={{ margin: '0 0 0.75rem', fontSize: '0.85rem' }}>
-            {scanning
-              ? <p style={{ margin: 0 }}>Đang quét Supertrend D1 + Supertrend/QQE H4 cho các coin đang theo dõi…</p>
-              : scanMessage?.map((line) => <p key={line} style={{ margin: 0 }}>{line}</p>)
-            }
-          </div>
-        )}
 
         {portfolios.length > 0 && (
           <div className="tt-wrap tt-card-wrap">

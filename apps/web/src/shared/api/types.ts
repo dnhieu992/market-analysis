@@ -1131,29 +1131,6 @@ export type ImageRef = {
   type?: string;
 };
 
-/** Result of the manual Supertrend(10,3) D1 scan (POST /supertrend-scan/run). */
-export type SupertrendScanResult = {
-  scanned: number;
-  bullish: string[];
-  skipped: number;
-  failed: number;
-  telegramSent: boolean;
-  startedAt: string;
-  durationMs: number;
-};
-
-/**
- * Result of the 4H Supertrend(10,3) + QQE scan (POST /supertrend-scan/run-h4).
- * Each indicator is reported on its own; `bullish` is the intersection and
- * `flipped` the coins whose Supertrend turned bearish → bullish on the last
- * closed 4H candle.
- */
-export type SupertrendH4ScanResult = SupertrendScanResult & {
-  supertrendBullish: string[];
-  qqeBullish: string[];
-  flipped: string[];
-};
-
 // ── Asset ledger (overview asset card) ───────────────────────────────────────
 
 /** One bucket the trader's USDT is split into. `balanceUsdt` is derived from the ledger. */

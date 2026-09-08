@@ -79,8 +79,6 @@ import type {
   CreateAssetTransactionInput,
   BinanceKline,
   ImageRef,
-  SupertrendScanResult,
-  SupertrendH4ScanResult,
   StrategyBacktestBoard,
   CreateStrategyBacktestSetupInput,
   UpdateStrategyBacktestSetupInput,
@@ -1758,24 +1756,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async deleteOrderJournal(id: string): Promise<void> {
       await fetchImpl(`${baseUrl}/orders/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
-    },
-
-    /** Scans every Binance USDT spot pair for a bullish D1 Supertrend and sends the list to Telegram. */
-    async runSupertrendScan(): Promise<SupertrendScanResult> {
-      return fetchJson<SupertrendScanResult>(
-        fetchImpl,
-        `${baseUrl}/supertrend-scan/run`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    /** Scans every Binance USDT spot pair for a bullish 4H Supertrend + QQE and sends the list to Telegram. */
-    async runSupertrendH4Scan(): Promise<SupertrendH4ScanResult> {
-      return fetchJson<SupertrendH4ScanResult>(
-        fetchImpl,
-        `${baseUrl}/supertrend-scan/run-h4`,
-        withDefaults({ method: 'POST' }),
-      );
     },
 
     /** The /strategy-backtest board: every manual setup plus the live price. */
