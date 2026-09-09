@@ -12,7 +12,7 @@ import { ChartIcon } from '@web/widgets/bitget/chart-icon';
 import { SetupChartDialog, FULL_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { createApiClient } from '@web/shared/api/client';
 import type { CoinTransaction, Holding, HoldingReview } from '@web/shared/api/types';
-import { isBuyBackVerdict, reviewsByCoin, shortReviewDate, verdictStyle } from '@web/shared/lib/holding-review';
+import { reviewsByCoin, shortReviewDate, verdictStyle } from '@web/shared/lib/holding-review';
 
 type PortfolioHoldingsListProps = Readonly<{
   portfolioId: string;
@@ -645,13 +645,10 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
 
                 const note = notes[h.coinId] ?? null;
                 const isEmpty = h.totalAmount <= 0;
-                const review = reviews[h.coinId];
-                // A sold-out row is dimmed as history — unless the daily review put a
-                // buy-back verdict (MUA LẠI / CHỜ VÙNG) on it, in which case it is the
-                // one row worth reading. A stale open-position verdict left over from
-                // before the coin sold out (GIỮ, THOÁT, …) is not a reason to keep it
-                // looking active.
-                const dimmed = isEmpty && !(review && isBuyBackVerdict(review.verdict));
+                // A sold-out row always dims as history, even when the daily scan puts a
+                // fresh buy-back verdict (MUA LẠI / CHỜ VÙNG) on it — the badge is still
+                // shown, just not used to brighten a zero-holding row.
+                const dimmed = isEmpty;
                 return (
                   <tr
                     key={h.coinId}
