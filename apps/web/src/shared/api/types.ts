@@ -334,7 +334,6 @@ export type UserProfile = {
   email: string;
   name: string;
   symbolsTracking: string[];
-  dailySignalWatchlist: string[];
 };
 
 export type UpdateProfileInput = {

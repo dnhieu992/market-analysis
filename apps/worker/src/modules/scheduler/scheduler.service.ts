@@ -5,7 +5,6 @@ import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
-import { DailySignalService } from '../daily-signal/daily-signal.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { StrategyBacktestScanService } from '../strategy-backtest/strategy-backtest-scan.service';
 
@@ -17,7 +16,6 @@ export class SchedulerService {
   constructor(
     private readonly analysisOrchestratorService: AnalysisOrchestratorService,
     private readonly swingSignalService: SwingSignalService,
-    private readonly dailySignalService: DailySignalService,
     private readonly bitgetHistoryService: BitgetHistoryService,
     private readonly mexcHistoryService: MexcHistoryService,
     private readonly strategyBacktestScanService: StrategyBacktestScanService,
@@ -35,19 +33,17 @@ export class SchedulerService {
     return this.analysisOrchestratorService.runBatch(symbols);
   }
 
-  // Runs every day at 00:30 UTC (07:30 local time UTC+7)
-  //
-  // The auto daily plan (charts + Claude Vision analysis pushed to Telegram)
-  // was dropped from this job on 2026-08-05 at the trader's request. Its only
-  // consumer was that Telegram message — the /daily-plan page and its API went
-  // away on 2026-08-04 — so generating it cost a vision call per symbol for
-  // rows nobody reads. `VisualAnalysisService` is left in place, unwired, if it
-  // is ever wanted back.
-  @Cron('30 0 * * *', { timeZone: 'UTC' })
-  async sendDailySignals() {
-    this.logger.log('Running daily signal job');
-    await this.dailySignalService.checkAndSend();
-  }
+  // The 00:30 UTC job here used to run two things:
+  //   - the auto daily plan (charts + Claude Vision analysis pushed to Telegram),
+  //     dropped 2026-08-05 — the /daily-plan page and its API went away 2026-08-04,
+  //     so generating it cost a vision call per symbol for rows nobody read.
+  //     `VisualAnalysisService` is left in place, unwired, if it is ever wanted back.
+  //   - `DailySignalService.checkAndSend()` (the "Coins can long today" UT Bot M30
+  //     message), dropped 2026-09-09 at the trader's request — unwanted daily noise.
+  //     `isUtBotUptrend` (`@app/core`) stayed: `FomoLongStrategy` in the backtest
+  //     module still uses it. See docs/features/daily-long-signal/ (kept as a
+  //     design reference, marked REMOVED).
+  // Nothing is left to run at this cron time.
 
   // Small-cap radar (00:05 UTC) and meme radar (00:07 UTC) scans removed
   // together with their pages (2026-08-04).

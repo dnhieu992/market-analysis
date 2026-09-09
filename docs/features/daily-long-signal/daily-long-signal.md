@@ -1,5 +1,13 @@
 # Daily Long Signal Feature
 
+> **REMOVED 2026-09-09** at the trader's request — the daily "Coins can long today"
+> Telegram message was unwanted noise. Deleted: `apps/worker/src/modules/daily-signal/`,
+> the `sendDailySignals` cron in `scheduler.service.ts`, the `dailySignalWatchlist`
+> column/DTO/API field, and the "Daily Signal Watchlist" section on `/profile`.
+> `isUtBotUptrend` (`@app/core`) stayed — `FomoLongStrategy` in the backtest module
+> still uses it. Kept below as a design reference only; nothing here reflects the
+> current codebase.
+
 ## Muc tieu
 
 Moi ngay luc 00:00 UTC, worker tu dong kiem tra tung dong coin trong "Daily Signal Watchlist" cua user. Neu M30 UT Bot dang uptrend thi coin do duoc xem la co the long hom nay. Worker gui mot tin nhan Telegram tong hop danh sach cac coin du dieu kien.
