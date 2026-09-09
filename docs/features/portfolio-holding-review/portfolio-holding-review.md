@@ -5,8 +5,10 @@ D1 metrics, buy/sell zones, plus the day-by-day history — on the coin detail p
 
 Verdicts are the four from the review prompt: 🟢 GOM THÊM · 🔵 GIỮ · 🟠 CHỐT BỚT · 🔴 THOÁT
 (plus ⚪ KHÔNG CÓ DỮ LIỆU for a coin Binance has no data for). Since 2026-09-07 a **sold-out**
-coin can also carry a buy-back verdict from the snowball scan — 🟢 MUA LẠI · 🟡 CHỜ VÙNG — and
-only those two ever appear on a row whose holding is zero.
+coin can also carry a verdict from the snowball buy-back scan — 🟢 MUA LẠI · 🟡 CHỜ VÙNG · ⚫
+KHÔNG ĐỦ ĐIỀU KIỆN — and only those three ever appear on a row whose holding is zero. Since
+2026-09-09 every sold-out coin the scan can read Binance data for gets one of these three, not
+just the top-6 shortlist — see the "Sold-out coin" edge case below for the split.
 
 The analysis is produced entirely outside the app — see `docs/features/portfolio-daily-review/`.
 The app only reads the `holding_reviews` table; it never writes it.
@@ -39,13 +41,18 @@ The app only reads the `holding_reviews` table; it never writes it.
   on a verdict the prompt did not produce.
 - **Two rows for one coin and date** — impossible: `@@unique([portfolioId, coinId, reviewDate])`.
   A same-day re-run updates the row in place.
-- **Sold-out coin** — the daily scan now covers zeroed holdings too, but only the ones its
-  buy-back gate shortlists (at most 6). Such a row still dims to 45% opacity like any other
-  zero-holding row; the 🟢 MUA LẠI / 🟡 CHỜ VÙNG badge is shown but never brightens the row.
-  Before 2026-09-08 the dim check only tested "does a review exist", so any coin ever reviewed
-  while still held stayed undimmed forever after selling; a same-day fix then tried excepting only
-  a live buy-back verdict, but that made the row visibly un-dim every day the gate re-shortlisted
-  the coin — since 2026-09-09 a sold-out row dims unconditionally regardless of verdict.
+- **Sold-out coin** — the daily scan covers every zeroed holding it can read Binance data for, not
+  just the ones its buy-back gate shortlists (at most 6, capped so the report block stays
+  readable). Before 2026-09-09 a coin outside the top 6 got **no** DB entry at all — "missing" from
+  the portfolio page, which read as a bug even though the report explained the gate. Now every such
+  coin gets a verdict: `shortlisted: true` → 🟢 MUA LẠI / 🟡 CHỜ VÙNG with the full 3-tier ladder as
+  `buyZones`; blocked only by score/no-pullback/outside-top-6 → the same two verdicts but with a
+  single `entryZone` as `buyZones`; blocked by D1 downtrend, too-expensive-vs-last-sell, or no sell
+  history at all → ⚫ **KHÔNG ĐỦ ĐIỀU KIỆN** with empty `buyZones` and the block reason as `reason`.
+  A coin Binance has no data for still gets no entry. Every one of these rows still dims to 45%
+  opacity like any other zero-holding row; the badge is shown but never brightens the row (a
+  2026-09-08 attempt to except a live buy-back verdict from the dim rule made the row visibly
+  un-dim every day the gate re-picked it — since 2026-09-09 a sold-out row dims unconditionally).
 - **`Holding.note` is untouched** — the trader's note column and the review live in separate
   tables, so neither can overwrite the other.
 
@@ -60,8 +67,12 @@ The app only reads the `holding_reviews` table; it never writes it.
   `GET .../holdings/:coinId/reviews`
 - `apps/web/src/shared/api/client.ts` — `fetchHoldingReviews`, `fetchCoinReviewHistory`, `mapHoldingReview`
 - `apps/web/src/shared/api/types.ts` — `HoldingReview`, `ReviewZone`
-- `apps/web/src/shared/lib/holding-review.ts` — verdict colours/emoji (incl. MUA LẠI / CHỜ VÙNG), date shortening, staleness
+- `apps/web/src/shared/lib/holding-review.ts` — verdict colours/emoji (incl. MUA LẠI / CHỜ VÙNG / KHÔNG ĐỦ ĐIỀU KIỆN), date shortening, staleness
 - `apps/web/src/widgets/portfolio-holdings-list/portfolio-holdings-list.tsx` — `VerdictBadge` per row; a zero-holding row always dims regardless of its verdict
 - `apps/web/src/widgets/portfolio-coin-detail/holding-review-panel.tsx` — the full panel + history
 - `apps/web/src/widgets/portfolio-coin-detail/portfolio-coin-detail.tsx` — mounts the panel
+- `claude-cron/portfolio-review/snapshot.mjs` — builds the `watchlist` (soldOut coins), scores and
+  gates them (`BUYBACK.shortlistMax` = 6), gitignored/server-local
+- `claude-cron/portfolio-review/prompt.md` — the headless session's instructions; step 7 is what
+  decides which watchlist coins get a `holding_reviews` entry and which verdict, gitignored/server-local
 - `claude-cron/portfolio-review/publish-reviews.mjs` — the writer (gitignored, server-local)
