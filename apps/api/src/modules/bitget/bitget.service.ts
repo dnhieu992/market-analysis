@@ -12,7 +12,7 @@ import {
   createBitgetTradeRepository,
 } from '@app/db';
 
-import { BitgetTradeClient, type BitgetRawPosition } from './bitget-trade.client';
+import { BitgetTradeClient, type BitgetPlanOrder, type BitgetRawPosition } from './bitget-trade.client';
 
 /** The /my-asset bucket that holds the Bitget futures capital. */
 const CAPITAL_CATEGORY_KEY = 'bitget';
@@ -45,6 +45,28 @@ function tradeKeyOf(symbol: string, holdSide: string, openedAtMs: number): strin
 function toPrice(raw: string | null | undefined): number | null {
   const n = Number(raw);
   return raw && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * Index pending TP/SL plan orders by `symbol|holdSide` → the live take-profit
+ * (`pos_profit`) and stop-loss (`pos_loss`) trigger prices. When a side has more
+ * than one of a type, the newest (largest cTime) wins — matching what `setTpsl`'s
+ * cleanup keeps live.
+ */
+function buildTpslMap(orders: BitgetPlanOrder[]): Map<string, { tp: number | null; sl: number | null }> {
+  const newest = new Map<string, { tp: BitgetPlanOrder | null; sl: BitgetPlanOrder | null }>();
+  for (const o of orders) {
+    const key = `${o.symbol}|${o.posSide}`;
+    const entry = newest.get(key) ?? { tp: null, sl: null };
+    if (o.planType === 'pos_profit' && (!entry.tp || Number(o.cTime) > Number(entry.tp.cTime))) entry.tp = o;
+    else if (o.planType === 'pos_loss' && (!entry.sl || Number(o.cTime) > Number(entry.sl.cTime))) entry.sl = o;
+    newest.set(key, entry);
+  }
+  const result = new Map<string, { tp: number | null; sl: number | null }>();
+  for (const [key, { tp, sl }] of newest) {
+    result.set(key, { tp: toPrice(tp?.triggerPrice), sl: toPrice(sl?.triggerPrice) });
+  }
+  return result;
 }
 
 /** Compact number formatting for the system journal lines. */
@@ -160,8 +182,20 @@ export class BitgetService {
       return null;
     });
 
+    // `all-position` only reports takeProfit/stopLoss for some positions (empty for
+    // shorts and some longs even with a live TP/SL), so read the pending plan orders
+    // as the authoritative TP/SL source. Non-fatal: on failure fall back to the
+    // per-position fields rather than blank the table.
+    const tpslByPosition = await this.client
+      .getAllPendingTpslOrders()
+      .then(buildTpslMap)
+      .catch((err) => {
+        this.logger.warn(`Failed to fetch Bitget TP/SL plan orders: ${(err as Error).message}`);
+        return new Map<string, { tp: number | null; sl: number | null }>();
+      });
+
     const positions = raw
-      .map((p) => this.mapPosition(p))
+      .map((p) => this.mapPosition(p, tpslByPosition.get(`${p.symbol}|${p.holdSide}`)))
       .sort((a, b) => Math.abs(b.notionalUsd) - Math.abs(a.notionalUsd));
 
     const totalUnrealizedPnlUsd = positions.reduce((sum, p) => sum + p.unrealizedPnlUsd, 0);
@@ -580,7 +614,10 @@ export class BitgetService {
       .catch((err) => this.logger.warn(`Failed to write system journal log: ${(err as Error).message}`));
   }
 
-  private mapPosition(p: BitgetRawPosition): BitgetPosition {
+  private mapPosition(
+    p: BitgetRawPosition,
+    tpsl?: { tp: number | null; sl: number | null },
+  ): BitgetPosition {
     const size = Number(p.total);
     const entryPrice = Number(p.openPriceAvg);
     const markPrice = Number(p.markPrice);
@@ -605,8 +642,8 @@ export class BitgetService {
       unrealizedPnlUsd,
       roePct: marginUsd > 0 ? (unrealizedPnlUsd / marginUsd) * 100 : 0,
       realizedPnlUsd: Number(p.achievedProfits),
-      takeProfitPrice: toPrice(p.takeProfit),
-      stopLossPrice: toPrice(p.stopLoss),
+      takeProfitPrice: tpsl?.tp ?? toPrice(p.takeProfit),
+      stopLossPrice: tpsl?.sl ?? toPrice(p.stopLoss),
       openedAt: p.cTime ? new Date(Number(p.cTime)).toISOString() : null,
       updatedAt: p.uTime ? new Date(Number(p.uTime)).toISOString() : null,
     };

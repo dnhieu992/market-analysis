@@ -220,6 +220,21 @@ export class BitgetTradeClient {
     return data?.entrustedList ?? [];
   }
 
+  /**
+   * Every pending TP/SL plan order across all symbols, in one call. The
+   * `all-position` rows only surface `takeProfit`/`stopLoss` for some positions
+   * (empty for shorts and some longs even when a plan order exists), so this is
+   * the authoritative source for what TP/SL is actually live on each position.
+   */
+  async getAllPendingTpslOrders(): Promise<BitgetPlanOrder[]> {
+    const data = await this.request<{ entrustedList: BitgetPlanOrder[] | null }>(
+      'GET',
+      '/api/v2/mix/order/orders-plan-pending',
+      { productType: this.productType, planType: 'profit_loss' },
+    );
+    return data?.entrustedList ?? [];
+  }
+
   /** Cancel one pending plan order (`planType` must be the order's own type). */
   async cancelPlanOrder(symbol: string, orderId: string, planType: string): Promise<void> {
     await this.request<unknown>('POST', '/api/v2/mix/order/cancel-plan-order', undefined, {
