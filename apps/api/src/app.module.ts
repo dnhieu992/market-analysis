@@ -23,7 +23,6 @@ import { TelegramLogsModule } from './modules/telegram-logs/telegram-logs.module
 import { TransactionModule } from './modules/transaction/transaction.module';
 import { TrackingCoinsModule } from './modules/tracking-coins/tracking-coins.module';
 import { SkillsModule } from './modules/skills/skills.module';
-import { SupertrendScanModule } from './modules/supertrend-scan/supertrend-scan.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UserModule } from './modules/user/user.module';
@@ -54,7 +53,6 @@ import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-bac
     StorageModule,
     SkillsModule,
     TrackingCoinsModule,
-    SupertrendScanModule,
     BitgetModule,
     MexcModule,
     DeepseekModule,
