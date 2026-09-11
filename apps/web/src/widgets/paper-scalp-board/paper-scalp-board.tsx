@@ -121,8 +121,51 @@ function OpenTradeCard({ trade, livePrice }: { trade: ScalpPaperTrade; livePrice
   );
 }
 
+function ChartModal({ url, onClose }: { url: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 10, padding: 12, maxWidth: '95vw', maxHeight: '95vh', overflow: 'auto', position: 'relative' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Chart 15m lúc vào lệnh</span>
+          <button
+            onClick={onClose}
+            style={{ border: 'none', background: '#f3f4f6', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 13 }}
+          >
+            Đóng ✕
+          </button>
+        </div>
+        <img src={url} alt="Chart 15m lúc vào lệnh" style={{ display: 'block', maxWidth: '90vw', maxHeight: '82vh', width: 'auto', height: 'auto' }} />
+      </div>
+    </div>
+  );
+}
+
 export function PaperScalpBoard({ initialBoard }: { initialBoard: BoardData }) {
   const [board, setBoard] = useState<BoardData>(initialBoard);
+  const [chartUrl, setChartUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -200,13 +243,22 @@ export function PaperScalpBoard({ initialBoard }: { initialBoard: BoardData }) {
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{fmtTime(t.closedAt)}</td>
                   <td style={{ padding: '8px 12px' }}>
                     {t.chartUrl ? (
-                      <a href={t.chartUrl} target="_blank" rel="noreferrer" title="Xem chart 15m lúc vào lệnh">
-                        <img
-                          src={t.chartUrl}
-                          alt="Chart lúc vào lệnh"
-                          style={{ width: 96, height: 60, objectFit: 'cover', border: '1px solid #e5e7eb', borderRadius: 4, display: 'block' }}
-                        />
-                      </a>
+                      <button
+                        onClick={() => setChartUrl(t.chartUrl)}
+                        style={{
+                          border: '1px solid #bfdbfe',
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          borderRadius: 6,
+                          padding: '4px 10px',
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Xem chart
+                      </button>
                     ) : (
                       <span style={{ color: '#9ca3af' }}>—</span>
                     )}
@@ -217,6 +269,8 @@ export function PaperScalpBoard({ initialBoard }: { initialBoard: BoardData }) {
           </table>
         </div>
       )}
+
+      {chartUrl && <ChartModal url={chartUrl} onClose={() => setChartUrl(null)} />}
     </div>
   );
 }

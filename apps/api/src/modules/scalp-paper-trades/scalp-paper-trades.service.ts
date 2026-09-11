@@ -125,6 +125,10 @@ export class ScalpPaperTradesService {
           entryPrice: trade.entryPrice,
         },
       ],
+      entryMarker: {
+        price: trade.entryPrice,
+        side: trade.direction === 'SHORT' ? 'short' : 'long',
+      },
     });
 
     const objectKey = `scalp-charts/${trade.id}.png`;

@@ -68,6 +68,10 @@ export type SetupChartInput = {
    *  where the position opened and closed — draws vertical Vào/Đóng lines and a
    *  shaded holding band. */
   tradeSpan?: { openIndex: number; closeIndex: number; win: boolean };
+  /** For an entry snapshot: pinpoint the exact entry candle (the most recent bar)
+   *  and price with a vertical line + arrow, so the entry is unmistakable rather
+   *  than just a horizontal price level. */
+  entryMarker?: { price: number; side: 'long' | 'short' };
 };
 
 // Widened 1.5× (1200 → 1800): the panes are ~square, so in the fullscreen dialog
@@ -825,6 +829,82 @@ function tradeSpanPlugin(span: NonNullable<SetupChartInput['tradeSpan']>): Plugi
   };
 }
 
+/**
+ * Pinpoints the entry on an entry-snapshot chart: a vertical dashed line at the
+ * most recent candle (the moment the position was taken) plus a filled arrow +
+ * dot at the exact entry price, so the entry candle AND level are unmistakable —
+ * a horizontal price line alone doesn't say *when* the trade was opened.
+ */
+function entryMarkerPlugin(
+  candleCount: number,
+  marker: NonNullable<SetupChartInput['entryMarker']>,
+): Plugin {
+  return {
+    id: 'entry-marker',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales, chartArea } = chart;
+      const xScale = scales['x'];
+      const yScale = scales['y'];
+      if (!xScale || !yScale || candleCount === 0) return;
+
+      const x = xScale.getPixelForValue(candleCount - 1);
+      const y = yScale.getPixelForValue(marker.price);
+      const isLong = marker.side === 'long';
+      const color = isLong ? '#16a34a' : '#dc2626';
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+      ctx.clip();
+
+      // Vertical line marking the entry candle.
+      ctx.beginPath();
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Dot at the exact entry price on that candle.
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      // Arrow pointing at the entry price (▲ for long from below, ▼ for short from above).
+      const dir = isLong ? 1 : -1; // long: arrow sits below price pointing up
+      const tipY = y + dir * 12;
+      const baseY = y + dir * 24;
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.moveTo(x, tipY);
+      ctx.lineTo(x - 6, baseY);
+      ctx.lineTo(x + 6, baseY);
+      ctx.closePath();
+      ctx.fill();
+
+      // "VÀO LONG/SHORT" label near the entry candle at the top of the pane.
+      const label = `VÀO ${isLong ? 'LONG' : 'SHORT'}`;
+      ctx.font = 'bold 11px sans-serif';
+      const tw = ctx.measureText(label).width;
+      const boxX = Math.min(x + 6, chartArea.right - tw - 12);
+      ctx.fillStyle = color;
+      ctx.fillRect(boxX, chartArea.top + 2, tw + 8, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, boxX + 4, chartArea.top + 10);
+
+      ctx.restore();
+    },
+  };
+}
+
 // ── Public entry ────────────────────────────────────────────────────────────
 
 export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> {
@@ -985,6 +1065,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       volumePlugin(candles, volMa),
       ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),
       positionMarkerPlugin(markers),
+      ...(input.entryMarker ? [entryMarkerPlugin(candles.length, input.entryMarker)] : []),
     ],
   };
 
