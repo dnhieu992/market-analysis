@@ -1,6 +1,7 @@
 ## Description
-A standalone experiment (started 2026-09-09): a monitor that watches BTCUSDT daily,
-12:00–00:00 UTC, and paper-trades BTC scalps where **Claude Code itself decides** every
+A standalone experiment (started 2026-09-09): a monitor that watches BTCUSDT **24/7**
+(every 15 min, all day, since 2026-09-11), and paper-trades BTC scalps where
+**Claude Code itself decides** every
 entry, hold/adjust, and early-close call by reading raw H1+M15 candles — there is no fixed
 entry rule. Fully simulated — no exchange orders are ever placed. Deliberately separate
 from the worker's scheduled analysis pipeline and from `/strategy-backtest` (which is for
@@ -36,9 +37,9 @@ What is left to Claude's judgment vs. enforced in code:
   see `checkStopTakeProfitHit`), and at most one open position at a time.
 
 ## Main Flow
-1. `scalp-monitor.timer` (systemd, `OnCalendar=*-*-* 12..23:0/15:00 UTC`) fires
-   `scalp-monitor.service` every 15 minutes, 12:00–23:45 UTC, one-shot each time —
-   nothing runs outside that window, no persistent process at all.
+1. `scalp-monitor.timer` (systemd, `OnCalendar=*-*-* *:0/15:00 UTC`) fires
+   `scalp-monitor.service` every 15 minutes, 24/7, one-shot each time — no persistent
+   process at all, just a fresh tick every quarter hour around the clock.
 2. The service runs `claude-cron/scalp-monitor/run.sh`, which:
    a. Runs `node claude-cron/scalp-monitor/snapshot.mjs` — deterministic, no LLM: fetches
       fresh H4+H1+M15 Binance candles, loads the current OPEN `ScalpPaperTrade` (if any), and
@@ -65,10 +66,11 @@ What is left to Claude's judgment vs. enforced in code:
       trade's `chartUrl`. This call is best-effort: if the API is down or R2 is
       unconfigured it is logged and swallowed, and the trade stays intact without a chart.
    d. Logs everything to `/var/log/scalp-monitor/<date>.log` (kept 7 days).
-3. A trade left OPEN across the overnight 00:00–12:00 UTC gap is unmanaged during the
-   gap — the 12:00 UTC tick's snapshot replays every M15 candle it missed in order first,
-   so a mechanical fill during the gap is still recorded against the correct historical
-   candle, just reported late.
+3. With 24/7 ticks there is no scheduled gap, so an open trade is managed every 15 min
+   around the clock. Should a tick still be missed (host reboot, `claude` mid-autoupdate,
+   Binance hiccup), the next tick's snapshot replays every M15 candle it missed in order
+   first, so a mechanical fill during the miss is still recorded against the correct
+   historical candle, just reported late.
 4. `GET /scalp-paper-trades` (API) reads the table back: the current open trade (with live
    unrealized PnL from a fresh Binance price) plus closed history and win-rate/PnL/R stats.
 5. `/paper-scalp` (web) renders that board — entry reasoning, Claude's latest running
@@ -91,8 +93,9 @@ What is left to Claude's judgment vs. enforced in code:
 - Claude sends an ADJUST that would loosen the stop (more risk): silently clamped to the
   tighter of old/new — `SCALP_RISK_USD` stays a real ceiling regardless of what the model
   asks for.
-- Any OPEN trade at 00:00 UTC is left OPEN, unmanaged, until the window reopens at 12:00
-  UTC — intentional, not a bug (see Main Flow point 3).
+- A tick fires while the previous one is still running (a `claude -p` tick can take up to
+  360s): systemd's oneshot service will not start a second concurrent instance, so the
+  overlapping tick is simply skipped — the following 15-min tick picks up normally.
 - Entry-chart render fails (API down, R2 unconfigured, Binance hiccup): `apply-decision.mjs`
   logs it and moves on — the entry is already committed, `chartUrl` just stays null and the
   board shows "—" in the Chart column. The chart is never on the entry's critical path.
@@ -106,7 +109,7 @@ What is left to Claude's judgment vs. enforced in code:
 - `claude-cron/scalp-monitor/apply-decision.mjs` — validates and applies the decision;
   owns every guardrail (sizing, stop-only-tightens, SL/TP-vs-entry sanity).
 - `/etc/systemd/system/scalp-monitor.service`, `/etc/systemd/system/scalp-monitor.timer` —
-  scheduling (15 min, 12:00–23:45 UTC daily).
+  scheduling (every 15 min, 24/7 — `OnCalendar=*-*-* *:0/15:00 UTC`).
 - `packages/core/src/setups/scalp-paper-trade.ts` — the parts NOT left to the model:
   sizing/PnL math, `clampStopTighten`, `checkStopTakeProfitHit`, and `detectTrend` (the
   informational hint). Shared by `snapshot.mjs`/`apply-decision.mjs` (via `require('@app/core')`,
