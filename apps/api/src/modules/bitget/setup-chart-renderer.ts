@@ -1093,6 +1093,13 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
   const emaVals = [...ema34High, ...ema34Low, ...ema89, ...ema200].filter((v) =>
     Number.isFinite(v),
   );
+  // A live position entry far from the current price (e.g. an old underwater
+  // Bitget position) must NOT be allowed to stretch the y-axis, or it squashes all
+  // the candles into a thin band. Keep only marker prices within 5% of the current
+  // price; farther ones are simply clipped out of the pane by the marker plugin.
+  const nearMarkerPrices = markers
+    .flatMap((m) => (m.kind === 'closed' ? [m.entryPrice, m.closePrice] : [m.entryPrice]))
+    .filter((p) => Number.isFinite(p) && Math.abs(p - currentPrice) <= currentPrice * 0.05);
   const prices = [
     ...candles.flatMap((c) => [c.high, c.low]),
     ...emaVals,
@@ -1100,7 +1107,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
     // outside the candle range and would otherwise be clipped away.
     ...[...utStopUp, ...utStopDown].filter((v) => Number.isFinite(v)),
     ...srChannels.flatMap((c) => [c.hi, c.lo]),
-    ...markers.flatMap((m) => (m.kind === 'closed' ? [m.entryPrice, m.closePrice] : [m.entryPrice])),
+    ...nearMarkerPrices,
     currentPrice,
   ];
   const minPrice = Math.min(...prices);
