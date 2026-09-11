@@ -29,6 +29,7 @@ import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-backtest.module';
+import { ScalpPaperTradesModule } from './modules/scalp-paper-trades/scalp-paper-trades.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-bac
     JournalModule,
     AssetModule,
     StrategyBacktestModule,
+    ScalpPaperTradesModule,
   ],
   providers: [
     {

@@ -8,6 +8,12 @@ importers:
 
   .:
     devDependencies:
+      '@app/core':
+        specifier: workspace:*
+        version: link:packages/core
+      '@app/db':
+        specifier: workspace:*
+        version: link:packages/db
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0

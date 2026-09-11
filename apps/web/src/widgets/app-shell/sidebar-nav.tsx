@@ -33,6 +33,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Setup BTC tự phân tích tay · job quét 5 phút chấm điểm khớp / TP / SL'
   },
   {
+    href: '/paper-scalp',
+    label: 'Paper Scalp',
+    description: 'Monitor M15 tự vào lệnh giả định theo price action · trend H1'
+  },
+  {
     href: '/portfolio',
     label: 'Portfolio',
     description: 'Coin holdings & PnL tracker'

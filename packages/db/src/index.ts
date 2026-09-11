@@ -89,3 +89,8 @@ export {
   STRATEGY_BACKTEST_OPEN_STATUSES,
 } from './repositories/strategy-backtest.repository';
 export type { StrategyBacktestSetupInput } from './repositories/strategy-backtest.repository';
+export {
+  createScalpPaperTradeRepository,
+  SCALP_PAPER_TRADE_OPEN_STATUS,
+} from './repositories/scalp-paper-trade.repository';
+export type { ScalpPaperTradeInput } from './repositories/scalp-paper-trade.repository';
