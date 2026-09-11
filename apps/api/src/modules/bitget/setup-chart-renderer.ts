@@ -27,6 +27,26 @@ export const UT_BOT_PARAMS = {
   keyValue: 3,
 } as const;
 
+/**
+ * Timeframe → candles to fetch (`limit`) and how many of the most recent to
+ * actually plot (`display`). `limit` must cover `display` + 200 so EMA200 is warm
+ * across the whole displayed window (EMA200 needs 200 prior candles). `display` is
+ * deliberately capped low (~80) so candles render wide and readable on the 1200px
+ * canvas instead of being squashed to a few pixels ("sít xịt"). Single source of
+ * truth shared by every setup-chart page (bitget, mexc, tracking-coins) so they
+ * all look consistent — change candle density here, once.
+ */
+export const SETUP_CHART_TF_CONFIG: Record<string, { limit: number; display: number }> = {
+  '15m': { limit: 500, display: 80 },
+  'M30': { limit: 500, display: 80 },
+  '1h':  { limit: 400, display: 80 },
+  '4h':  { limit: 340, display: 80 },
+  '1d':  { limit: 300, display: 80 },
+  // Weekly: Binance only serves ~600 weekly candles for old pairs, so EMA200 stays
+  // warm on majors and simply starts late on younger coins.
+  '1w':  { limit: 300, display: 70 },
+};
+
 export type OhlcCandle = {
   time: number; // unix timestamp ms
   open: number;

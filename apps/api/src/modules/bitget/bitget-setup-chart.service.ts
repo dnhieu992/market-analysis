@@ -5,7 +5,13 @@ import { createBitgetTradeChartRepository } from '@app/db';
 import { BitgetService } from './bitget.service';
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { StorageService } from '../storage/storage.service';
-import { renderSetupChart, QQE_PARAMS, type ChartMarker, type OhlcCandle } from './setup-chart-renderer';
+import {
+  renderSetupChart,
+  QQE_PARAMS,
+  SETUP_CHART_TF_CONFIG as TF_CONFIG,
+  type ChartMarker,
+  type OhlcCandle,
+} from './setup-chart-renderer';
 
 const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
 
@@ -59,18 +65,6 @@ export type QqeTfSignal = {
 
 export type QqeSymbolSignals = { symbol: string; signals: Record<string, QqeTfSignal | null> };
 
-// `limit` must cover `display` + 200 bars so the EMA200 line is warm across the
-// whole displayed window (EMA200 needs 200 prior candles before its first value).
-const TF_CONFIG: Record<string, { limit: number; display: number }> = {
-  '15m': { limit: 500, display: 200 },
-  'M30': { limit: 500, display: 200 },
-  '1h':  { limit: 400, display: 150 },
-  '4h':  { limit: 340, display: 120 },
-  '1d':  { limit: 300, display: 90  },
-  // Weekly: Binance only serves ~600 weekly candles for old pairs, so EMA200 stays
-  // warm on majors and simply starts late on younger coins.
-  '1w':  { limit: 300, display: 80  },
-};
 
 /** Candle interval (ms) per supported timeframe — used to window a closed trade. */
 const TF_MS: Record<string, number> = {
