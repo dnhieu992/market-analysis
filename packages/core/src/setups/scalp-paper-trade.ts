@@ -23,8 +23,23 @@ export const SCALP_FEE_PCT_PER_SIDE = 0.05;
 export type ScalpDirection = 'LONG' | 'SHORT';
 export type ScalpTrend = 'uptrend' | 'downtrend' | 'sideway';
 
-/** What Claude is asked to decide each tick — see scripts/run-scalp-paper-monitor.ts. */
-export type ScalpAction = 'ENTER_LONG' | 'ENTER_SHORT' | 'NO_TRADE' | 'HOLD' | 'ADJUST' | 'CLOSE_NOW';
+/**
+ * What Claude is asked to decide each tick. The monitor is limit-order based: when
+ * flat Claude pre-computes a resting limit (`PLACE_LIMIT_*`); a candle touching that
+ * limit fills it into an open trade mechanically (no model call). While a limit is
+ * resting Claude can `KEEP`, `UPDATE_LIMIT`, or `CANCEL` it; once open it manages
+ * with `HOLD` / `ADJUST` / `CLOSE_NOW`.
+ */
+export type ScalpAction =
+  | 'PLACE_LIMIT_LONG'
+  | 'PLACE_LIMIT_SHORT'
+  | 'NO_TRADE'
+  | 'KEEP'
+  | 'UPDATE_LIMIT'
+  | 'CANCEL'
+  | 'HOLD'
+  | 'ADJUST'
+  | 'CLOSE_NOW';
 
 export type ScalpDecision = {
   action: ScalpAction;
@@ -131,6 +146,33 @@ export type ScalpFill = {
   exitPrice: number;
   at: Date;
 };
+
+export type ScalpLimitFill = {
+  /** Always the limit price — a resting limit fills at its own price, not the wick. */
+  fillPrice: number;
+  at: Date;
+};
+
+/**
+ * Replays candles against a resting LIMIT order and returns the first candle that
+ * touches it, if any. A buy-limit (LONG) fills when a candle's low reaches down to
+ * the limit; a sell-limit (SHORT) fills when a candle's high reaches up to it. The
+ * fill price is always the limit itself (a resting order executes at its price).
+ */
+export function checkLimitFill(
+  direction: ScalpDirection,
+  limitPrice: number,
+  candles: Candle[]
+): ScalpLimitFill | null {
+  const isLong = direction === 'LONG';
+  for (const candle of candles) {
+    const touched = isLong ? candle.low <= limitPrice : candle.high >= limitPrice;
+    if (touched) {
+      return { fillPrice: limitPrice, at: candle.closeTime ?? candle.openTime ?? new Date() };
+    }
+  }
+  return null;
+}
 
 /**
  * Replays candles against the CURRENT stop/target (whatever Claude last set them to)

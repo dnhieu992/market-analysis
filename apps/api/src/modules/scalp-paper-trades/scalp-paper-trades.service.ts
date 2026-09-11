@@ -40,7 +40,8 @@ export type ScalpPaperTradeDto = {
   /** Claude's latest commentary from a HOLD/ADJUST tick — null until the first one. */
   lastNote: string | null;
   model: string | null;
-  openedAt: string;
+  /** Null while PENDING (the limit hasn't filled); set to the fill time once OPEN. */
+  openedAt: string | null;
   closedAt: string | null;
   exitPrice: number | null;
   pnlUsd: number | null;
@@ -68,6 +69,8 @@ export type ScalpPaperTradeStats = {
 export type ScalpPaperTradeBoard = {
   symbol: string;
   price: number | null;
+  /** A resting limit Claude placed that hasn't filled yet — null if none. */
+  pendingOrder: ScalpPaperTradeDto | null;
   openTrade: ScalpPaperTradeDto | null;
   history: ScalpPaperTradeDto[];
   stats: ScalpPaperTradeStats;
@@ -152,8 +155,14 @@ export class ScalpPaperTradesService {
     const price = await this.fetchPrice();
 
     const dtos = rows.map((row) => this.toDto(row, price));
+    const pendingOrder = dtos.find((t) => t.status === 'PENDING') ?? null;
     const openTrade = dtos.find((t) => t.status === 'OPEN') ?? null;
-    const closed = dtos.filter((t) => t.status !== 'OPEN');
+    // Stats count only trades that actually filled and closed — a CANCELLED limit
+    // never filled, so it is neither a win nor a loss.
+    const CLOSED_STATUSES = ['CLOSED_TP', 'CLOSED_SL', 'CLOSED_EARLY'];
+    const closed = dtos.filter((t) => CLOSED_STATUSES.includes(t.status));
+    // The history table shows everything that is no longer live (closed + cancelled).
+    const history = dtos.filter((t) => t.status !== 'OPEN' && t.status !== 'PENDING');
 
     const wins = closed.filter((t) => t.status === 'CLOSED_TP').length;
     const losses = closed.filter((t) => t.status === 'CLOSED_SL').length;
@@ -164,8 +173,9 @@ export class ScalpPaperTradesService {
     return {
       symbol: SYMBOL,
       price,
+      pendingOrder,
       openTrade,
-      history: closed,
+      history,
       stats: {
         closedCount: closed.length,
         wins,
@@ -211,7 +221,7 @@ export class ScalpPaperTradesService {
       reasoning: row.reasoning,
       lastNote: row.lastNote,
       model: row.model,
-      openedAt: row.openedAt.toISOString(),
+      openedAt: row.openedAt?.toISOString() ?? null,
       closedAt: row.closedAt?.toISOString() ?? null,
       exitPrice: row.exitPrice,
       pnlUsd: row.pnlUsd,

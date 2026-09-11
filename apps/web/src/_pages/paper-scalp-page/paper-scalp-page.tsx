@@ -5,6 +5,7 @@ import type { ScalpPaperTradeBoard as BoardData } from '@web/shared/api/types';
 const EMPTY_BOARD: BoardData = {
   symbol: 'BTCUSDT',
   price: null,
+  pendingOrder: null,
   openTrade: null,
   history: [],
   stats: { closedCount: 0, wins: 0, losses: 0, closedEarly: 0, winRate: null, totalPnlUsd: 0, totalR: 0 },

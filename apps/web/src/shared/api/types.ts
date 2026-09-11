@@ -1342,7 +1342,7 @@ export type ScalpPaperTrade = {
   id: string;
   symbol: string;
   direction: 'LONG' | 'SHORT';
-  status: 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EARLY';
+  status: 'PENDING' | 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EARLY' | 'CANCELLED';
   entryPrice: number;
   initialStopLoss: number;
   stopLoss: number;
@@ -1355,7 +1355,7 @@ export type ScalpPaperTrade = {
   /** Claude's latest commentary from a HOLD/ADJUST tick — null until the first one. */
   lastNote: string | null;
   model: string | null;
-  openedAt: string;
+  openedAt: string | null;
   closedAt: string | null;
   exitPrice: number | null;
   pnlUsd: number | null;
@@ -1382,6 +1382,7 @@ export type ScalpPaperTradeStats = {
 export type ScalpPaperTradeBoard = {
   symbol: string;
   price: number | null;
+  pendingOrder: ScalpPaperTrade | null;
   openTrade: ScalpPaperTrade | null;
   history: ScalpPaperTrade[];
   stats: ScalpPaperTradeStats;

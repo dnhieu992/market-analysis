@@ -980,7 +980,10 @@ model ScalpPaperTrade {
   id              String    @id @default(cuid())
   symbol          String    @default("BTCUSDT") @db.VarChar(20)
   direction       String    @db.VarChar(5) // LONG | SHORT
-  status          String    @default("OPEN") @db.VarChar(12) // OPEN | CLOSED_TP | CLOSED_SL | CLOSED_EARLY
+  status          String    @default("OPEN") @db.VarChar(12) // PENDING | OPEN | CLOSED_TP | CLOSED_SL | CLOSED_EARLY | CANCELLED
+  // While PENDING this is the resting LIMIT price Claude pre-computed; once the
+  // limit is touched by a candle the trade flips to OPEN and this becomes the fill
+  // (entry) price — they are the same number by construction.
   entryPrice      Float
   // Original stop — kept forever so rMultiple always measures against the risk the
   // trade was actually taken with, even after `stopLoss` is tightened later.
@@ -997,7 +1000,10 @@ model ScalpPaperTrade {
   // entry `reasoning` never changes, this does, every tick.
   lastNote        String?   @db.Text
   model           String?   @db.VarChar(60)
-  openedAt        DateTime
+  // Null while PENDING (the limit hasn't filled yet); set to the fill time when a
+  // candle touches the limit and the trade flips to OPEN. `createdAt` is the
+  // placement time. `closedAt` doubles as the cancel time for a CANCELLED limit.
+  openedAt        DateTime?
   closedAt        DateTime?
   exitPrice       Float?
   pnlUsd          Float?

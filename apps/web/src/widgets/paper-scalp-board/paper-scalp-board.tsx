@@ -11,17 +11,21 @@ const apiClient = createApiClient();
 const REFRESH_MS = 30_000;
 
 const STATUS_LABEL: Record<ScalpPaperTrade['status'], string> = {
+  PENDING: 'Chờ khớp',
   OPEN: 'Đang mở',
   CLOSED_TP: 'Chạm TP',
   CLOSED_SL: 'Dính SL',
   CLOSED_EARLY: 'Claude cắt sớm',
+  CANCELLED: 'Đã huỷ (chưa khớp)',
 };
 
 const STATUS_COLOR: Record<ScalpPaperTrade['status'], string> = {
+  PENDING: '#7c3aed',
   OPEN: '#2563eb',
   CLOSED_TP: '#16a34a',
   CLOSED_SL: '#dc2626',
   CLOSED_EARLY: '#d97706',
+  CANCELLED: '#6b7280',
 };
 
 function fmtUsd(n: number | null): string {
@@ -50,6 +54,58 @@ function StatTile({ label, value, color }: { label: string; value: string; color
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 16px', minWidth: 140 }}>
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 20, fontWeight: 600, color: color ?? '#111827' }}>{value}</div>
+    </div>
+  );
+}
+
+function PendingOrderCard({ order, livePrice }: { order: ScalpPaperTrade; livePrice: number | null }) {
+  const isLong = order.direction === 'LONG';
+  const distancePct =
+    livePrice != null ? ((order.entryPrice - livePrice) / livePrice) * 100 : null;
+
+  return (
+    <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#7c3aed', textTransform: 'uppercase' }}>
+          Lệnh limit chờ khớp — {isLong ? 'LONG' : 'SHORT'} {order.symbol}
+        </span>
+        <div style={{ fontSize: 13, color: '#6b7280' }}>Giá hiện tại: {livePrice != null ? fmtPrice(livePrice) : '—'}</div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 14 }}>
+        <div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>Giá limit</div>
+          <div style={{ fontWeight: 600 }}>{fmtPrice(order.entryPrice)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>Stop Loss</div>
+          <div style={{ fontWeight: 600 }}>{fmtPrice(order.stopLoss)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>Take Profit</div>
+          <div style={{ fontWeight: 600 }}>{fmtPrice(order.takeProfit)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>R:R kế hoạch</div>
+          <div style={{ fontWeight: 600 }}>1:{order.rrPlanned.toFixed(2)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>Cách giá hiện tại</div>
+          <div style={{ fontWeight: 600 }}>{distancePct != null ? `${distancePct > 0 ? '+' : ''}${distancePct.toFixed(2)}%` : '—'}</div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 13, color: '#4b5563', marginTop: 12, lineHeight: 1.5 }}>
+        <strong>Lý do đặt lệnh:</strong> {order.reasoning}
+      </div>
+      {order.lastNote && (
+        <div style={{ fontSize: 13, color: '#5b21b6', marginTop: 8, lineHeight: 1.5, background: '#f3e8ff', padding: '8px 10px', borderRadius: 8 }}>
+          <strong>Nhận định mới nhất:</strong> {order.lastNote}
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
+        Đặt lúc {fmtTime(order.createdAt)} · Trend H1 (tham khảo): {order.h1Trend} · sẽ tự khớp khi giá chạm limit
+      </div>
     </div>
   );
 }
@@ -181,7 +237,7 @@ export function PaperScalpBoard({ initialBoard }: { initialBoard: BoardData }) {
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Paper Scalp — {board.symbol}</h1>
         <p style={{ color: '#6b7280', margin: '4px 0 0' }}>
-          Lệnh giả định — Claude tự đọc nến H1/M15 để quyết định vào lệnh, giữ, điều chỉnh SL/TP hoặc cắt sớm mỗi 15 phút. Không phải lệnh thật.
+          Lệnh giả định — Claude đặt sẵn lệnh limit, mỗi 30 phút kiểm tra: limit tự khớp khi giá chạm mức, sau đó giữ/điều chỉnh SL/TP hoặc cắt sớm. Không vào lệnh market, không phải lệnh thật.
         </p>
       </div>
 
@@ -197,10 +253,14 @@ export function PaperScalpBoard({ initialBoard }: { initialBoard: BoardData }) {
         <StatTile label="Tổng R" value={fmtR(stats.totalR)} color={stats.totalR >= 0 ? '#16a34a' : '#dc2626'} />
       </div>
 
+      {board.pendingOrder && <PendingOrderCard order={board.pendingOrder} livePrice={board.price} />}
+
       {board.openTrade ? (
         <OpenTradeCard trade={board.openTrade} livePrice={board.price} />
       ) : (
-        <div style={{ color: '#6b7280', fontStyle: 'italic', marginBottom: 24 }}>Chưa có lệnh nào đang mở.</div>
+        !board.pendingOrder && (
+          <div style={{ color: '#6b7280', fontStyle: 'italic', marginBottom: 24 }}>Chưa có lệnh nào đang mở.</div>
+        )
       )}
 
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Lịch sử</h2>

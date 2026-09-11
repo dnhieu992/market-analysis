@@ -106,6 +106,7 @@ export {
   computeScalpRMultiple,
   clampStopTighten,
   checkStopTakeProfitHit,
+  checkLimitFill,
 } from './setups/scalp-paper-trade';
 export type {
   ScalpDirection,
@@ -113,4 +114,5 @@ export type {
   ScalpAction,
   ScalpDecision,
   ScalpFill,
+  ScalpLimitFill,
 } from './setups/scalp-paper-trade';
