@@ -20,10 +20,15 @@ What is left to Claude's judgment vs. enforced in code:
   stop/target) or CLOSE_NOW (cut the trade immediately, without waiting for the stop or
   target). The judgment is still the model's, but `prompt.md` now imposes soft trading
   rules on it (not enforced in code): trade top-down with the trend (follow H1; if H1 is
-  sideway follow H4; if both are sideway `NO_TRADE`), place the stop beyond structure
-  rather than at a fixed tiny distance, require at least 1:1.5 reward:risk or else
-  `NO_TRADE`, and only trail the stop to breakeven after the trade is +1R. Computed H4 and
-  H1 swing-structure labels are offered as informational hints in the snapshot.
+  sideway follow H4; if both are sideway `NO_TRADE`); **never enter into an active retrace
+  — wait for confirmation** (a rejection candle at the level, or a 15m close back through
+  the retrace's own micro-structure) rather than shorting a bounce that is still making
+  higher highs; **anchor the stop to confirmed structure** (the broken S/R zone) beyond
+  the retrace's reach, not on a swing point still forming inside the retrace, and enter
+  near the level rather than mid-range; require at least 1:1.5 reward:risk measured with
+  that properly-placed stop or else `NO_TRADE`; and only trail the stop to breakeven after
+  the trade is a *full* +1R (not +0.5R). Computed H4 and H1 swing-structure labels are
+  offered as informational hints in the snapshot.
 - **Enforced in code, never left to the model:** position sizing (a stop-out always costs
   exactly $1 — `SCALP_RISK_USD`), the stop can only ever be tightened by an ADJUST (never
   loosened, regardless of what Claude writes), whether a stop/target actually filled
