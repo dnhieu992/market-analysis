@@ -15,8 +15,13 @@ const SYMBOL = 'BTCUSDT';
 
 /** 15m candles pulled for the entry snapshot — enough to warm the slow EMAs. */
 const ENTRY_CHART_LIMIT = 500;
-/** How many of those to actually plot (the rest just warm the indicators). */
-const ENTRY_CHART_DISPLAY = 200;
+/**
+ * How many of those to actually plot (the rest just warm the indicators). Kept
+ * small on purpose: 200 bars on a 1200px canvas squashes each 15m candle to ~3px
+ * ("sít xịt"). ~60 bars (~15h of 15m context) gives readable, wide candles while
+ * still showing the swing structure around the entry.
+ */
+const ENTRY_CHART_DISPLAY = 60;
 
 export type ScalpPaperTradeDto = {
   id: string;
