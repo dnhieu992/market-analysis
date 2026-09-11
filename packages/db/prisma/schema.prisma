@@ -1004,6 +1004,10 @@ model ScalpPaperTrade {
   rMultiple       Float?
   lastPrice       Float?
   lastCheckedAt   DateTime?
+  // Snapshot of the 15m chart at the moment the trade was opened — rendered and
+  // uploaded to R2 right AFTER the entry is recorded (never blocks the entry).
+  chartUrl        String?   @db.Text
+  chartObjectKey  String?   @db.VarChar(300)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

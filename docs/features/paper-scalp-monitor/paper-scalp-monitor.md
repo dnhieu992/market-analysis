@@ -53,7 +53,12 @@ What is left to Claude's judgment vs. enforced in code:
    c. Runs `node claude-cron/scalp-monitor/apply-decision.mjs`, which re-reads the current
       DB state (not trusting anything stale), validates the decision, applies the sizing
       and stop-only-tightens guardrails, and writes the result — this is where an ENTER_*
-      decision actually becomes a `ScalpPaperTrade` row.
+      decision actually becomes a `ScalpPaperTrade` row. **Immediately AFTER the row is
+      created** (never before — the entry must not wait on a render), it POSTs to
+      `POST /scalp-paper-trades/:id/chart`, which renders the 15m BTCUSDT chart at that
+      moment (with an entry-price marker), uploads the PNG to R2, and stores the URL on the
+      trade's `chartUrl`. This call is best-effort: if the API is down or R2 is
+      unconfigured it is logged and swallowed, and the trade stays intact without a chart.
    d. Logs everything to `/var/log/scalp-monitor/<date>.log` (kept 7 days).
 3. A trade left OPEN across the overnight 00:00–12:00 UTC gap is unmanaged during the
    gap — the 12:00 UTC tick's snapshot replays every M15 candle it missed in order first,
@@ -83,6 +88,9 @@ What is left to Claude's judgment vs. enforced in code:
   asks for.
 - Any OPEN trade at 00:00 UTC is left OPEN, unmanaged, until the window reopens at 12:00
   UTC — intentional, not a bug (see Main Flow point 3).
+- Entry-chart render fails (API down, R2 unconfigured, Binance hiccup): `apply-decision.mjs`
+  logs it and moves on — the entry is already committed, `chartUrl` just stays null and the
+  board shows "—" in the Chart column. The chart is never on the entry's critical path.
 
 ## Related Files (FE / BE / Worker / Cron)
 - `claude-cron/scalp-monitor/run.sh` — systemd-invoked wrapper: snapshot → (maybe) headless
@@ -103,8 +111,10 @@ What is left to Claude's judgment vs. enforced in code:
   (used by the API; the cron scripts talk to `@app/db`'s `prisma` client directly).
 - `packages/db/prisma/schema.prisma` (`ScalpPaperTrade` model) + migrations
   `20260909151800_add_scalp_paper_trades`, `20260909160000_scalp_paper_trade_llm_driven`.
-- `apps/api/src/modules/scalp-paper-trades/*` — read-only `GET /scalp-paper-trades` board
-  (open trade + live unrealized PnL, closed history, stats).
+- `apps/api/src/modules/scalp-paper-trades/*` — `GET /scalp-paper-trades` board (open trade +
+  live unrealized PnL, closed history, stats) and `POST /scalp-paper-trades/:id/chart`, which
+  renders the 15m entry-moment chart (reusing `bitget/setup-chart-renderer`), uploads it to R2
+  via `StorageService`, and stores the URL on the trade (`renderAndAttachEntryChart`).
 - `apps/web/src/app/paper-scalp/page.tsx`, `apps/web/src/_pages/paper-scalp-page/*`,
   `apps/web/src/widgets/paper-scalp-board/*` — the `/paper-scalp` page.
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav entry.

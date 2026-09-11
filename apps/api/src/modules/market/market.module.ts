@@ -6,6 +6,6 @@ import { MarketDataService } from './market-data.service';
 
 @Module({
   providers: [BinanceMarketDataService, MarketDataService, DailyCandleCacheService],
-  exports: [MarketDataService, DailyCandleCacheService]
+  exports: [BinanceMarketDataService, MarketDataService, DailyCandleCacheService]
 })
 export class MarketModule {}

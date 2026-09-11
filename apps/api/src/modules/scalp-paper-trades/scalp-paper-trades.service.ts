@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   computeScalpPnlUsd,
   computeScalpRMultiple,
@@ -7,8 +7,16 @@ import {
 import { createScalpPaperTradeRepository } from '@app/db';
 
 import { MarketDataService } from '../market/market-data.service';
+import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { StorageService } from '../storage/storage.service';
+import { renderSetupChart, type OhlcCandle } from '../bitget/setup-chart-renderer';
 
 const SYMBOL = 'BTCUSDT';
+
+/** 15m candles pulled for the entry snapshot — enough to warm the slow EMAs. */
+const ENTRY_CHART_LIMIT = 500;
+/** How many of those to actually plot (the rest just warm the indicators). */
+const ENTRY_CHART_DISPLAY = 200;
 
 export type ScalpPaperTradeDto = {
   id: string;
@@ -38,6 +46,8 @@ export type ScalpPaperTradeDto = {
   /** Live result while OPEN — always null once closed (use pnlUsd/rMultiple instead). */
   unrealizedPnlUsd: number | null;
   unrealizedR: number | null;
+  /** R2 URL of the 15m entry-moment chart snapshot — null until it's rendered. */
+  chartUrl: string | null;
 };
 
 export type ScalpPaperTradeStats = {
@@ -65,7 +75,68 @@ export class ScalpPaperTradesService {
   private readonly logger = new Logger(ScalpPaperTradesService.name);
   private readonly repository = createScalpPaperTradeRepository();
 
-  constructor(private readonly marketDataService: MarketDataService) {}
+  constructor(
+    private readonly marketDataService: MarketDataService,
+    private readonly binance: BinanceMarketDataService,
+    private readonly storage: StorageService,
+  ) {}
+
+  /**
+   * Render the 15m chart at the moment a trade was opened, upload it to R2, and
+   * store the URL on the trade row. Called by the scalp-monitor cron right AFTER
+   * the position is recorded — deliberately not on the entry path, so a slow
+   * render never delays the entry itself. Idempotent-ish: re-rendering an
+   * already-charted trade just overwrites the same object key.
+   */
+  async renderAndAttachEntryChart(tradeId: string): Promise<{ id: string; chartUrl: string }> {
+    const trade = await this.repository.findById(tradeId);
+    if (!trade) {
+      throw new NotFoundException(`Scalp paper trade ${tradeId} not found`);
+    }
+
+    const klines = await this.binance.fetchKlines({
+      symbol: trade.symbol,
+      timeframe: '15m',
+      limit: ENTRY_CHART_LIMIT,
+    });
+    if (klines.length === 0) {
+      throw new NotFoundException(`No 15m candles for ${trade.symbol}`);
+    }
+
+    const candles: OhlcCandle[] = klines.map((k) => ({
+      time: Number(k[0]),
+      open: parseFloat(k[1]),
+      high: parseFloat(k[2]),
+      low: parseFloat(k[3]),
+      close: parseFloat(k[4]),
+      volume: parseFloat(k[5]),
+    }));
+
+    const buffer = await renderSetupChart({
+      symbol: trade.symbol,
+      timeframe: '15m',
+      candles,
+      currentPrice: candles[candles.length - 1]!.close,
+      display: ENTRY_CHART_DISPLAY,
+      markers: [
+        {
+          kind: 'open',
+          holdSide: trade.direction === 'SHORT' ? 'short' : 'long',
+          entryPrice: trade.entryPrice,
+        },
+      ],
+    });
+
+    const objectKey = `scalp-charts/${trade.id}.png`;
+    const stored = await this.storage.uploadFile(
+      { buffer, mimetype: 'image/png', originalname: `${trade.id}.png`, size: buffer.length },
+      objectKey,
+    );
+
+    await this.repository.update(trade.id, { chartUrl: stored.url, chartObjectKey: stored.key });
+    this.logger.log(`Attached 15m entry chart to scalp trade ${trade.id}: ${stored.url}`);
+    return { id: trade.id, chartUrl: stored.url };
+  }
 
   async getBoard(): Promise<ScalpPaperTradeBoard> {
     const rows = await this.repository.list();
@@ -142,6 +213,7 @@ export class ScalpPaperTradesService {
       unrealizedPnlUsd: live != null ? computeScalpPnlUsd(direction, row.entryPrice, live, row.quantity) : null,
       unrealizedR:
         live != null ? computeScalpRMultiple(direction, row.entryPrice, row.initialStopLoss, live) : null,
+      chartUrl: row.chartUrl ?? null,
     };
   }
 }

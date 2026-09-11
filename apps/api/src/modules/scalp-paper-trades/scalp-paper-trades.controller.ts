@@ -1,6 +1,7 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Post } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { Public } from '../auth/public.decorator';
 import { ScalpPaperTradesService } from './scalp-paper-trades.service';
 
 @ApiTags('Scalp Paper Trades')
@@ -18,5 +19,15 @@ export class ScalpPaperTradesController {
   })
   getBoard() {
     return this.service.getBoard();
+  }
+
+  @Post(':id/chart')
+  @Public() // called by the local scalp-monitor cron (no session); renders public Binance data
+  @ApiOperation({
+    summary:
+      "Render the 15m entry-moment chart for a scalp trade, upload it to R2, and attach the URL — called right after the position is opened, never on the entry path",
+  })
+  renderEntryChart(@Param('id') id: string) {
+    return this.service.renderAndAttachEntryChart(id);
   }
 }

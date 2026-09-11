@@ -105,6 +105,18 @@ function OpenTradeCard({ trade, livePrice }: { trade: ScalpPaperTrade; livePrice
       <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
         Mở lúc {fmtTime(trade.openedAt)} · Trend H1 (tham khảo): {trade.h1Trend} · Model: {trade.model ?? '—'}
       </div>
+      {trade.chartUrl && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Chart 15m lúc vào lệnh</div>
+          <a href={trade.chartUrl} target="_blank" rel="noreferrer">
+            <img
+              src={trade.chartUrl}
+              alt="Chart 15m lúc vào lệnh"
+              style={{ width: '100%', maxWidth: 720, border: '1px solid #e5e7eb', borderRadius: 8, display: 'block' }}
+            />
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -156,7 +168,7 @@ export function PaperScalpBoard({ initialBoard }: { initialBoard: BoardData }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f9fafb', textAlign: 'left' }}>
-                {['ID', 'Trạng thái', 'Hướng', 'Entry', 'SL', 'TP', 'Exit', 'PnL', 'R', 'Mở lúc', 'Đóng lúc'].map((h) => (
+                {['ID', 'Trạng thái', 'Hướng', 'Entry', 'SL', 'TP', 'Exit', 'PnL', 'R', 'Mở lúc', 'Đóng lúc', 'Chart'].map((h) => (
                   <th key={h} style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
@@ -186,6 +198,19 @@ export function PaperScalpBoard({ initialBoard }: { initialBoard: BoardData }) {
                   <td style={{ padding: '8px 12px' }}>{fmtR(t.rMultiple)}</td>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{fmtTime(t.openedAt)}</td>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{fmtTime(t.closedAt)}</td>
+                  <td style={{ padding: '8px 12px' }}>
+                    {t.chartUrl ? (
+                      <a href={t.chartUrl} target="_blank" rel="noreferrer" title="Xem chart 15m lúc vào lệnh">
+                        <img
+                          src={t.chartUrl}
+                          alt="Chart lúc vào lệnh"
+                          style={{ width: 96, height: 60, objectFit: 'cover', border: '1px solid #e5e7eb', borderRadius: 4, display: 'block' }}
+                        />
+                      </a>
+                    ) : (
+                      <span style={{ color: '#9ca3af' }}>—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

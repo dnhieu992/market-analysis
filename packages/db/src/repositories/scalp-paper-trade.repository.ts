@@ -29,6 +29,10 @@ export function createScalpPaperTradeRepository(client = prisma) {
       return client.scalpPaperTrade.create({ data });
     },
 
+    findById(id: string) {
+      return client.scalpPaperTrade.findUnique({ where: { id } });
+    },
+
     /** At most one at a time in practice (the monitor is single-symbol, single-position). */
     findOpen() {
       return client.scalpPaperTrade.findFirst({

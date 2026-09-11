@@ -1365,6 +1365,8 @@ export type ScalpPaperTrade = {
   createdAt: string;
   unrealizedPnlUsd: number | null;
   unrealizedR: number | null;
+  /** R2 URL of the 15m entry-moment chart snapshot — null until it's rendered. */
+  chartUrl: string | null;
 };
 
 export type ScalpPaperTradeStats = {
