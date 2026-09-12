@@ -216,7 +216,19 @@
       "Bash(timeout 300 npx --no-install jest --config apps/api/jest.config.cjs --rootDir apps/api test/health.e2e-spec.ts)",
       "Bash(perl -0pi -e \"s/import \\\\{ OkxModule \\\\} from '\\\\.\\\\/modules\\\\/okx\\\\/okx\\\\.module';\\\\n//; s/^    OkxModule,\\\\n//m\" apps/api/src/app.module.ts)",
       "Bash(perl *)",
-      "Bash(pm2 stop *)"
+      "Bash(pm2 stop *)",
+      "Bash(break)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"pnpm dev:web\")",
+      "Bash(tee /tmp/claude-0/-root-market-analysis/2946746c-05e0-4f36-bcf3-2f4bbd3599b0/scratchpad/deploy.log)",
+      "Bash(tee /tmp/claude-0/-root-market-analysis/e203b114-680e-4dc6-acbf-a8d23acbbd70/scratchpad/deploy.log)",
+      "Bash(xargs -I{} sh -c 'echo \"-- {} --\"; cat {}')",
+      "Bash(tee /tmp/claude-0/-root-market-analysis/c0422fa5-8264-4807-9261-b3673d8b64e1/scratchpad/deploy.log)",
+      "Bash(tee /tmp/claude-0/-root-market-analysis/c0422fa5-8264-4807-9261-b3673d8b64e1/scratchpad/deploy2.log)",
+      "Bash(systemctl list-timers *)",
+      "Bash(crontab -l)",
+      "Bash(pm2 info *)",
+      "Bash(xargs -I{} wc -l {})"
     ],
     "defaultMode": "acceptEdits"
   }

@@ -25,3 +25,9 @@ apps/web/public/workbox-*.js.map
 
 # Local DB dumps taken before destructive migrations — never commit (real data)
 backups/
+
+# Daily portfolio review — headless Claude Code job driven by a systemd timer.
+# Deliberately untracked: it is server-local ops wiring, not app code, and it runs
+# from absolute paths in the working tree (git pull never touches untracked files).
+claude-cron/
+docs/features/portfolio-daily-review/
