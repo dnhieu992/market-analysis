@@ -14,6 +14,7 @@ import { createApiClient } from '@web/shared/api/client';
 import type { CoinTransaction, Holding, HoldingReview } from '@web/shared/api/types';
 import { reviewsByCoin, shortReviewDate, verdictStyle } from '@web/shared/lib/holding-review';
 import { CoinHistoryModal } from '@web/widgets/coin-history/coin-history-modal';
+import { SymbolChipFilter, matchesSymbolSelection } from '@web/widgets/bitget/symbol-filter-input';
 
 type PortfolioHoldingsListProps = Readonly<{
   portfolioId: string;
@@ -368,7 +369,17 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
   const [historyCoin, setHistoryCoin] = useState<string | null>(null);
   const [chartCoin, setChartCoin] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Record<string, HoldingReview>>({});
+  const [selectedCoins, setSelectedCoins] = useState<Set<string>>(new Set());
   const soldRatioByCoin = useMemo(() => buildSoldRatioByCoin(transactions), [transactions]);
+
+  const toggleCoin = (coinId: string) => {
+    setSelectedCoins((prev) => {
+      const next = new Set(prev);
+      if (next.has(coinId)) next.delete(coinId);
+      else next.add(coinId);
+      return next;
+    });
+  };
 
   // Master eye next to the "Holdings" title: on only when every row is showing its P/L,
   // so a single click reveals the rest instead of hiding the ones already open.
@@ -426,6 +437,9 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
     return pnlB - pnlA;
   });
 
+  // Coin-name chip filter (same UX as the Bitget tabs). Empty selection = all coins.
+  const visible = sorted.filter((h) => matchesSymbolSelection(h.coinId, selectedCoins));
+
   return (
     <>
       <PortfolioStatsPanel holdings={holdings} prices={prices} pricesLoaded={pricesLoaded} />
@@ -462,6 +476,30 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
         )}
       </div>
 
+      {holdings.length > 1 && (
+        <div className="bg-table-toolbar">
+          <div className="bg-toolbar-filter">
+            <span className="bg-toolbar-label">Lọc coin:</span>
+            <SymbolChipFilter
+              symbols={holdings.map((h) => h.coinId)}
+              selected={selectedCoins}
+              onToggle={toggleCoin}
+              count={visible.length}
+            />
+            {selectedCoins.size > 0 && (
+              <button
+                type="button"
+                className="bg-toolbar-clear"
+                onClick={() => setSelectedCoins(new Set())}
+                title="Xoá bộ lọc"
+              >
+                ✕ Xoá lọc
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {holdings.length > 0 && (
         <div className="tt-wrap tt-card-wrap">
           <table className="tt tt-card">
@@ -492,7 +530,7 @@ export function PortfolioHoldingsList({ portfolioId, holdings, transactions }: P
               </tr>
             </thead>
             <tbody>
-              {sorted.map((h) => {
+              {visible.map((h) => {
                 const currentPrice = prices[h.coinId];
                 const currentValue = currentPrice != null ? currentPrice * h.totalAmount : null;
                 const unrealizedPnl = currentPrice != null ? (currentPrice - h.avgCost) * h.totalAmount : 0;
