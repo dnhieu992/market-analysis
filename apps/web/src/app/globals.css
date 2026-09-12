@@ -10331,6 +10331,24 @@ a.metric-card--link:hover {
 .bg-schip--on { background: var(--accent, #4f46e5); border-color: var(--accent, #4f46e5); color: #fff; }
 .bg-sfilter-count { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 
+/* Portfolio holdings coin filter: keep the chips on ONE row that scrolls
+   horizontally instead of wrapping. Scoped to `.pf-coin-filter` so the shared
+   Bitget chip rows (`.bg-schips` elsewhere) keep wrapping as before. */
+.pf-coin-filter { flex: 1 1 100%; min-width: 0; }
+.pf-coin-filter > .bg-toolbar-label,
+.pf-coin-filter > .bg-toolbar-clear { flex: 0 0 auto; }
+.pf-coin-filter .bg-schips {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 3px; /* leave room for the scrollbar so it doesn't cover chips */
+}
+.pf-coin-filter .bg-schip { flex: 0 0 auto; }
+.pf-coin-filter .bg-sfilter-count { flex: 0 0 auto; }
+
 /* Pagination bar */
 .bg-pagination {
   display: flex;
