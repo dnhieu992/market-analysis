@@ -12,6 +12,7 @@ import { ChartIcon } from '@web/widgets/bitget/chart-icon';
 import { SetupChartDialog, FULL_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { HoldingReviewPanel } from './holding-review-panel';
 import { CoinChatDrawer } from '@web/widgets/coin-chat-drawer/coin-chat-drawer';
+import { CoinHistoryModal } from '@web/widgets/coin-history/coin-history-modal';
 
 type PortfolioCoinDetailProps = Readonly<{
   portfolioId: string;
@@ -357,6 +358,7 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
   const [askOpen, setAskOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [chartOpen, setChartOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editTx, setEditTx] = useState<CoinTransaction | null>(null);
   const [page, setPage] = useState(1);
@@ -449,8 +451,11 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
             {currentPrice != null ? formatPrice(currentPrice) : <span style={{ color: 'var(--muted)', fontSize: '1.2rem' }}>Fetching price…</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn--secondary" onClick={() => setAskOpen(true)}>Ask AI</button>
+          {transactions.length > 0 && (
+            <button className="btn btn--secondary" onClick={() => setHistoryOpen(true)}>🕘 History</button>
+          )}
           {transactions.length > 0 && (
             <button className="btn btn--secondary" onClick={() => setTransferOpen(true)}>Transfer</button>
           )}
@@ -706,6 +711,15 @@ export function PortfolioCoinDetail({ portfolioId, coinId, holding, transactions
           symbol={coinId}
           timeframes={FULL_CHART_TIMEFRAMES}
           onClose={() => setChartOpen(false)}
+        />
+      )}
+
+      {/* Investment cycle history dialog — same view as the portfolio holdings list */}
+      {historyOpen && (
+        <CoinHistoryModal
+          coinId={coinId}
+          transactions={transactions}
+          onClose={() => setHistoryOpen(false)}
         />
       )}
 
