@@ -1,9 +1,12 @@
 ## Description
 A standalone experiment (started 2026-09-09): a monitor that paper-trades BTC scalps
 where **Claude Code decides** every order by reading raw H1+M15 candles — there is no
-fixed entry rule. It is **limit-order based**: instead of entering at market, Claude
-pre-computes a resting LIMIT order, and it fills *mechanically* only if a candle actually
-trades at the limit price. Fully simulated — no exchange orders are ever placed.
+fixed entry rule. It is **limit-first, with a market-entry exception** (market entries
+added 2026-09-12): the default is a resting LIMIT order that fills *mechanically* only if
+a candle actually trades at the limit price (so Claude stops chasing and lets price come
+to it); but on a genuine breakout — where waiting for a pullback to a limit would miss the
+move — Claude may instead enter at **market**, opening immediately at the current price.
+Fully simulated — no exchange orders are ever placed.
 Deliberately separate from the worker's scheduled analysis pipeline and from
 `/strategy-backtest` (which is for the trader's own hand-written setups). Never more than
 one active order/position at a time.
@@ -34,24 +37,39 @@ the Claude Code plan the trader already has, not metered API usage. There is no
 `CLAUDE_API_KEY`/`axios` call anywhere in this feature.
 
 What is left to Claude's judgment vs. enforced in code:
-- **Claude decides:** when flat, whether to place a limit and its direction / limit price
-  / stop / target (`PLACE_LIMIT_LONG` / `PLACE_LIMIT_SHORT` / `NO_TRADE`); while a limit is
-  resting, whether to `KEEP`, `UPDATE_LIMIT` (move any of limit/stop/target) or `CANCEL`
-  it; once the limit has filled into an open trade, whether to `HOLD`, `ADJUST` (move the
-  stop/target) or `CLOSE_NOW`. `prompt.md` imposes soft trading rules (not enforced in
-  code): trade top-down with the trend (follow H1; if H1 is sideway follow H4; if both are
-  sideway `NO_TRADE`); **place the limit AT the level price must return to** — a sell-limit
-  at the resistance a bounce is expected to test (above price), a buy-limit at the support
-  a pullback should retest (below price) — so you never chase a market entry mid-move;
-  **anchor the stop to confirmed structure** just beyond that level; require at least 1:1.5
-  reward:risk (limit→stop vs limit→target) or else `NO_TRADE`; and only trail to breakeven
-  after a *full* +1R (not +0.5R). Computed H4/H1 swing-structure labels are informational
-  hints in the snapshot.
+- **Claude decides:** when flat, whether to enter and how — a resting limit
+  (`PLACE_LIMIT_LONG` / `PLACE_LIMIT_SHORT`, with direction / limit price / stop / target),
+  an immediate market entry (`PLACE_MARKET_LONG` / `PLACE_MARKET_SHORT`, with stop / target;
+  entry = current price), or `NO_TRADE`; while a limit is resting, whether to `KEEP`,
+  `UPDATE_LIMIT` (move any of limit/stop/target) or `CANCEL` it; once open (limit filled OR
+  market entry), whether to `HOLD`, `ADJUST` (move the stop/target) or `CLOSE_NOW`.
+  `prompt.md` imposes soft trading rules (not enforced in code): trade top-down with the
+  trend (follow H1; if H1 is sideway follow H4); **when both H1 and H4 are sideway, fade a
+  clean range (mean-reversion) — but only a well-defined one** (support/resistance each
+  tested ≥2×, edge-to-edge width ≥ ~1.0% so a target clears the 0.1% round-trip fee),
+  entering with limits **at the edges only** (buy-limit at range support, sell-limit at
+  range resistance), stop just beyond the edge, target the opposite edge/mid-range at ≥
+  1:1.5; a tight (<~0.6%) dead band on dying volume, or price stuck mid-range, is still
+  `NO_TRADE`, and a confirmed break-and-close out of the range is a breakout (market entry),
+  not a fade; **default
+  to the limit, placed AT the level price must return to** — a sell-limit at the resistance
+  a bounce is expected to test (above price), a buy-limit at the support a pullback should
+  retest (below price) — so you don't chase mid-move; **use a market entry only as the
+  breakout exception** — price decisively breaking a level right now with momentum, where no
+  nearby level a limit could rest at would fill (don't use it to chase an extended move or to
+  skip a valid limit); **anchor the stop to confirmed structure** just beyond that level
+  (for a breakout: beyond the level just broken, back inside the range); require at least
+  1:1.5 reward:risk (entry→stop vs entry→target) or else `NO_TRADE`; and only trail to
+  breakeven after a *full* +1R (not +0.5R). Computed H4/H1 swing-structure labels are
+  informational hints in the snapshot.
 - **Enforced in code (the realtime watcher / `mechanical.mjs`), never left to the model:**
   position sizing (a stop-out always costs exactly $1 — `SCALP_RISK_USD`), a resting limit
   must sit on the correct side of the current price (buy-limit below / sell-limit above)
   with SL/TP on the structurally-correct sides (`validateLimit` in apply-decision, else the
-  order is rejected), whether a resting limit actually filled (a candle touching the limit —
+  order is rejected); a **market entry** skips the side-of-price rule (it fills at the current
+  price) but still has its SL/TP sanity-checked (`validateMarket`) and is created directly
+  `OPEN` with `lastCheckedAt=now` so the watcher can't retro-trigger on the entry candle;
+  whether a resting limit actually filled (a candle touching the limit —
   `checkLimitFill`) and whether a stop/target then filled (`checkStopTakeProfitHit`,
   pessimistic: a candle touching both is scored as the stop) — both decided every minute by
   replaying real 1m candle highs/lows, not by asking the model — the stop can only ever be
@@ -65,13 +83,14 @@ What is left to Claude's judgment vs. enforced in code:
 
 **Telegram alerts.** Every lifecycle transition of a scalp order fires a one-off Telegram
 message to the trader (same bot/chat as the portfolio review, `TELEGRAM_BOT_TOKEN` /
-`TELEGRAM_CHAT_ID`), via `notify.mjs`: 📌 limit placed, 🟢 limit filled (entry), ✅ TP,
+`TELEGRAM_CHAT_ID`), via `notify.mjs`: 📌 limit placed, 🟢 limit filled / market entry, ✅ TP,
 🛑 SL, ⚪ early close (`CLOSE_NOW`), ❌ manual cancel, ⏱️ auto-cancel (stale/expired).
 - The **market events** — 🟢 fill / ✅ TP / 🛑 SL / ⏱️ expiry — are the realtime ones: sent
   by the system watcher (`watch.mjs`) the minute they happen, decoupled from Claude entirely.
-- The **decision events** — 📌 place / ❌ manual cancel / ⚪ early close — are sent by
-  `apply-decision.mjs` the moment Claude's decision is applied (i.e. at the 30-min tick,
-  which is inherently when such a decision is made).
+- The **decision events** — 📌 limit placed / 🟢 market entry / ❌ manual cancel / ⚪ early
+  close — are sent by `apply-decision.mjs` the moment Claude's decision is applied (i.e. at
+  the 30-min tick, which is inherently when such a decision is made). A `PLACE_MARKET_*`
+  fires its own 🟢 entry alert here (distinct from the watcher's 🟢 limit-fill alert).
 
 Routine `KEEP` / `HOLD` / `UPDATE_LIMIT` / `ADJUST` / `NO_TRADE` ticks are silent — only
 real state changes alert. Sending is best-effort and never throws: a Telegram outage is
@@ -110,14 +129,15 @@ logged and swallowed, never breaking a tick.
    b. If no sentinel, runs `claude -p "$(cat prompt.md)" --model claude-opus-4-8 --add-dir
       /var/tmp/scalp-monitor --allowedTools "Bash(node:*) Write"` — a headless session that
       reads the snapshot and decides (analyst only): flat →
-      `PLACE_LIMIT_LONG`/`PLACE_LIMIT_SHORT`/`NO_TRADE`; resting limit →
-      `KEEP`/`UPDATE_LIMIT`/`CANCEL`; open → `HOLD`/`ADJUST`/`CLOSE_NOW` — writing
-      `/var/tmp/scalp-monitor/decision.json`.
+      `PLACE_LIMIT_LONG`/`PLACE_LIMIT_SHORT`/`PLACE_MARKET_LONG`/`PLACE_MARKET_SHORT`/`NO_TRADE`;
+      resting limit → `KEEP`/`UPDATE_LIMIT`/`CANCEL`; open → `HOLD`/`ADJUST`/`CLOSE_NOW` —
+      writing `/var/tmp/scalp-monitor/decision.json`.
    c. Runs `node apply-decision.mjs`, which re-reads current DB state, validates the
       decision (`validateLimit` for a new/updated limit; stop-only-tightens for ADJUST),
       applies sizing, and writes the result via **status-guarded CAS** (a manage action that
       the watcher already settled under it is a logged no-op). A `PLACE_LIMIT_*` becomes a
-      **PENDING** row + 📌 alert; `CANCEL` → CANCELLED + ❌ alert; `CLOSE_NOW` → CLOSED_EARLY
+      **PENDING** row + 📌 alert; a `PLACE_MARKET_*` becomes an **OPEN** row (entry = current
+      price) + 🟢 alert; `CANCEL` → CANCELLED + ❌ alert; `CLOSE_NOW` → CLOSED_EARLY
       + ⚪ alert. The entry chart itself is rendered by the watcher on fill (`POST
       /scalp-paper-trades/:id/chart` → 15m chart → R2 → `chartUrl`), best-effort.
    d. Logs to `/var/log/scalp-monitor/<date>.log` (kept 7 days).
@@ -144,6 +164,8 @@ logged and swallowed, never breaking a tick.
 - Claude proposes a limit on the wrong side of price (sell-limit at/below, buy-limit
   at/above) or with SL/TP on the wrong side of the limit, or omits one: `validateLimit` in
   `apply-decision.mjs` rejects it before writing anything, logged, tried again next tick.
+  A market entry (`PLACE_MARKET_*`) with SL/TP on the wrong side of the current price, or
+  missing one, is likewise rejected by `validateMarket` before anything is written.
 - A candle both fills the resting limit AND then hits the stop/target in the same 1-min
   window: `runMechanical` flips it to OPEN at the limit and immediately closes it in the same
   run (checking the stop/target only on candles at/after the fill), firing both the 🟢 fill
@@ -202,8 +224,9 @@ logged and swallowed, never breaking a tick.
   (analyst role: decide setups / manage risk / comment; never execute or notify).
 - `claude-cron/scalp-monitor/apply-decision.mjs` — validates and applies Claude's decision
   via status-guarded CAS; owns the decision guardrails (sizing, stop-only-tightens,
-  SL/TP-vs-entry sanity); sends the decision Telegram alerts (📌 place / ❌ manual cancel /
-  ⚪ early close).
+  `validateLimit` for a resting limit / `validateMarket` for an immediate market entry);
+  creates a `PLACE_MARKET_*` directly as an OPEN row at the current price; sends the decision
+  Telegram alerts (📌 limit placed / 🟢 market entry / ❌ manual cancel / ⚪ early close).
 - `/etc/systemd/system/scalp-monitor.service`, `/etc/systemd/system/scalp-monitor.timer` —
   scheduling (every 30 min, 24/7 — `OnCalendar=*-*-* *:0/30:00 UTC`).
 
