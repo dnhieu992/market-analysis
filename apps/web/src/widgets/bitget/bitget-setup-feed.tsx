@@ -629,7 +629,7 @@ export function BitgetSetupFeed({
       ) : (
         <>
         <div className="bg-table-toolbar">
-          <div className="bg-toolbar-filter">
+          <div className="bg-toolbar-filter pf-coin-filter">
             <span className="bg-toolbar-label">Lọc coin:</span>
             <SymbolChipFilter
               symbols={symbols}

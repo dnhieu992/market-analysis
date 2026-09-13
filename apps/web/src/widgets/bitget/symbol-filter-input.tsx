@@ -12,8 +12,10 @@ function stripUsdt(symbol: string): string {
  * (USDT suffix stripped) and sorted alphabetically A→Z. No chip selected means
  * "all coins" — clicking a chip narrows the table to that coin (on top of any
  * other selected chips); clicking it again removes it from the selection.
- * Shared by the Bitget Positions, History and Setup tabs. Styling:
- * `.bg-schips*` in globals.css.
+ * Shared by the Bitget Positions, History and Setup tabs (and the Portfolio
+ * holdings filter). Styling: `.bg-schips*` in globals.css. Wrap the label +
+ * this component + clear button in `.bg-toolbar-filter.pf-coin-filter` to keep
+ * the chips on one horizontally-scrolling row instead of wrapping.
  */
 export function SymbolChipFilter({
   symbols,

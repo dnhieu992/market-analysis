@@ -10335,7 +10335,10 @@ a.metric-card--link:hover {
    instead of wrapping. Opt-in via `.pf-coin-filter` (used by the Portfolio
    holdings filter and the Bitget History tab filter) so the other shared Bitget
    chip rows (`.bg-schips` elsewhere) keep wrapping as before. */
-.pf-coin-filter { flex: 1 1 100%; min-width: 0; }
+/* flex:1 1 0 so it fills the row whether it is the toolbar's only child
+   (Portfolio, Positions, History) or shares the row with a right-side control
+   (Setup tab's "Setup nhiều coin" button stays on the same line). */
+.pf-coin-filter { flex: 1 1 0; min-width: 0; }
 .pf-coin-filter > .bg-toolbar-label,
 .pf-coin-filter > .bg-toolbar-clear { flex: 0 0 auto; }
 .pf-coin-filter .bg-schips {
