@@ -169,6 +169,39 @@ export function BitgetHistoryFeed({ initial, embedded = false, onCount }: Props)
     return sorted.filter((t) => matchesSymbolSelection(t.symbol, selectedSymbols));
   }, [trades, selectedSymbols]);
 
+  // Stats tiles follow the coin filter: with no coin selected we keep the
+  // server-computed summary (all trades); once a coin is picked we recompute
+  // the same aggregates over just the filtered rows so "Tổng PnL ròng" (and the
+  // sibling tiles) reflect the selection instead of the whole account.
+  const displaySummary = useMemo(() => {
+    if (selectedSymbols.size === 0) return summary;
+    let wins = 0;
+    let losses = 0;
+    let totalNetProfit = 0;
+    let bestNetProfit = 0;
+    let worstNetProfit = 0;
+    for (const t of filteredTrades) {
+      totalNetProfit += t.netProfit;
+      if (t.netProfit > 0) wins++;
+      else if (t.netProfit < 0) losses++;
+      if (t.netProfit > bestNetProfit) bestNetProfit = t.netProfit;
+      if (t.netProfit < worstNetProfit) worstNetProfit = t.netProfit;
+    }
+    const trades = filteredTrades.length;
+    const decided = wins + losses;
+    return {
+      ...summary,
+      trades,
+      wins,
+      losses,
+      winRatePct: decided > 0 ? (wins / decided) * 100 : 0,
+      totalNetProfit,
+      avgNetProfit: trades > 0 ? totalNetProfit / trades : 0,
+      bestNetProfit,
+      worstNetProfit,
+    };
+  }, [selectedSymbols, filteredTrades, summary]);
+
   // Reset to page 1 whenever the filter or page size changes.
   useEffect(() => {
     setPage(1);
@@ -207,37 +240,39 @@ export function BitgetHistoryFeed({ initial, embedded = false, onCount }: Props)
         <>
           <div className="bg-tiles">
             <div className="bg-tile">
-              <span className="bg-tile-label">Tổng PnL ròng</span>
-              <span className={`bg-tile-value ${pnlClass(summary.totalNetProfit)}`}>
-                {fmtUsd(summary.totalNetProfit)}
+              <span className="bg-tile-label">
+                Tổng PnL ròng{selectedSymbols.size > 0 ? ' (đã lọc)' : ''}
+              </span>
+              <span className={`bg-tile-value ${pnlClass(displaySummary.totalNetProfit)}`}>
+                {fmtUsd(displaySummary.totalNetProfit)}
               </span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">Win rate</span>
               <span className="bg-tile-value">
-                {summary.winRatePct.toFixed(1)}%
+                {displaySummary.winRatePct.toFixed(1)}%
                 <span className="bg-tile-sub">
-                  {summary.wins}W · {summary.losses}L
+                  {displaySummary.wins}W · {displaySummary.losses}L
                 </span>
               </span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">Số lệnh</span>
-              <span className="bg-tile-value">{summary.trades}</span>
+              <span className="bg-tile-value">{displaySummary.trades}</span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">TB / lệnh</span>
-              <span className={`bg-tile-value ${pnlClass(summary.avgNetProfit)}`}>
-                {fmtUsd(summary.avgNetProfit)}
+              <span className={`bg-tile-value ${pnlClass(displaySummary.avgNetProfit)}`}>
+                {fmtUsd(displaySummary.avgNetProfit)}
               </span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">Lãi lớn nhất</span>
-              <span className="bg-tile-value bg-pnl--up">{fmtUsd(summary.bestNetProfit)}</span>
+              <span className="bg-tile-value bg-pnl--up">{fmtUsd(displaySummary.bestNetProfit)}</span>
             </div>
             <div className="bg-tile">
               <span className="bg-tile-label">Lỗ lớn nhất</span>
-              <span className="bg-tile-value bg-pnl--down">{fmtUsd(summary.worstNetProfit)}</span>
+              <span className="bg-tile-value bg-pnl--down">{fmtUsd(displaySummary.worstNetProfit)}</span>
             </div>
           </div>
 
@@ -248,7 +283,7 @@ export function BitgetHistoryFeed({ initial, embedded = false, onCount }: Props)
           ) : (
             <>
             <div className="bg-table-toolbar">
-              <div className="bg-toolbar-filter">
+              <div className="bg-toolbar-filter pf-coin-filter">
                 <span className="bg-toolbar-label">Lọc coin:</span>
                 <SymbolChipFilter
                   symbols={availableSymbols}
