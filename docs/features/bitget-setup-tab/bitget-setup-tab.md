@@ -18,7 +18,7 @@ Per-side config is
 persisted in the **database** (`bitget_setup_configs`, unique on `symbol + holdSide`) so it
 survives reloads and is shared across devices.
 
-A **⚙ Setup nhiều coin** button in the table toolbar opens a **bulk config dialog**. It has
+A **⚙ Setup nhiều coin** button in the header actions (next to ↻ Làm mới) opens a **bulk config dialog**. It has
 **two independent side blocks** — **LONG** (green) and **SHORT** (red) — each with its own
 checkbox to enable it plus its **own leverage and margin**, so one save can configure long and
 short at different sizes (or only one of them). Below them is the coin picker: a searchable
@@ -292,7 +292,7 @@ with equal ratings keep the pinned/watchlist order (the sort is stable).
 - `apps/api/src/modules/bitget/bitget.controller.ts` — `GET /bitget/trade-chart/by-symbol?symbol=…` lists saved charts for a coin; `GET /bitget/trade-chart/counts` returns the per-coin chart count; `GET/PUT /bitget/setup/priority` reads/writes the star ratings; `GET/PUT /bitget/setup/note` reads/writes the per-coin assessment; `POST /bitget/setup-chart/save` snapshots the live Setup chart.
 - `apps/api/src/modules/bitget/dto/save-setup-chart.dto.ts` — validates `{ symbol, timeframe }` for the Setup-chart save.
 - `apps/web/src/widgets/bitget/setup-chart-dialog.tsx` — shared chart dialog; `allowSave` prop shows the 💾 Lưu button (Setup tab passes it, positions table does not).
-- `apps/web/src/widgets/bitget/symbol-filter-input.tsx` — shared coin-name filter, `SymbolChipFilter` (a chip per coin, multi-select) + `matchesSymbolSelection` (used by the Setup toolbar, the Positions tab and the History tab); filters `displaySymbols` (no chip selected = all coins). The chip row sits on one horizontally-scrolling line via `.bg-toolbar-filter.pf-coin-filter` (shared modifier, so the "⚙ Setup nhiều coin" button stays on the same row). While at least one chip is selected, `BulkSetupDialog` pre-selects the coins currently shown.
+- `apps/web/src/widgets/bitget/symbol-filter-input.tsx` — shared coin-name filter, `SymbolChipFilter` (a chip per coin, multi-select) + `matchesSymbolSelection` (used by the Setup toolbar, the Positions tab and the History tab); filters `displaySymbols` (no chip selected = all coins). The chip row sits on one horizontally-scrolling line via `.bg-toolbar-filter.pf-coin-filter` (shared modifier) and now owns the whole toolbar row — the "⚙ Setup nhiều coin" button moved up to the header actions. While at least one chip is selected, `BulkSetupDialog` pre-selects the coins currently shown.
 - `apps/web/src/shared/api/client.ts` — `fetchBitgetSavedChartsBySymbol(symbol)`, `saveBitgetSetupChart({ symbol, timeframe })`, `fetchBitgetChartCounts()`, `fetchBitgetSymbolPriorities()`, `saveBitgetSymbolPriority({ symbol, priority })`.
 - `apps/web/src/app/globals.css` — `.bg-ref-btn`, `.bg-attach-*` (icon + count badge, dimmed at 0), `.bg-symbol-cell` / `.bg-symbol-name` (name + icon row, stars underneath), `.bg-stars` / `.bg-star` / `.bg-star--on` (grey → yellow), `.bg-chart-icon-btn` (shared), `.bg-gallery*` (rail thumbnails + enlarged main image, responsive stack). `.bg-chart-btn(s)` and `.bg-view-chart-btn` were deleted with the buttons they styled.
 - `apps/api/src/modules/bitget/bitget-setup-chart.service.ts` — fetches M30 Binance klines, builds open/closed position markers (via `BitgetService`), renders the chart PNG, computes the per-timeframe QQE column (`getQqeSignals`, 60s cache), and the 7d/30d change column (`getPriceChanges`, daily candles, 5-min cache).

@@ -599,15 +599,22 @@ export function BitgetSetupFeed({
       <div className="bg-head">
         <div>
           {!embedded && <h1>Bitget · Setup mở lệnh</h1>}
-          <p className="bg-sub">
-            Mở lệnh nhanh theo giá market (cross) — mỗi coin có nút Long/Short riêng, cấu hình từng hướng được lưu lại.
-          </p>
         </div>
         <div className="bg-head-actions">
           <span className={`bg-live ${live ? 'bg-live--on' : ''}`} title="Giá realtime từ Bitget WS">
             <span className="bg-live-dot" />
             {live ? 'Realtime' : 'Đang kết nối…'}
           </span>
+          {configured && symbols.length > 0 && (
+            <button
+              type="button"
+              className="bg-bulk-btn"
+              onClick={() => setBulkOpen(true)}
+              title="Đặt đòn bẩy + ký quỹ cho nhiều coin cùng lúc (ghi đè cấu hình hiện tại)"
+            >
+              ⚙ Setup nhiều coin
+            </button>
+          )}
           <button className="bg-refresh" onClick={refreshPositions}>
             ↻ Làm mới
           </button>
@@ -647,16 +654,6 @@ export function BitgetSetupFeed({
                 ✕ Xoá lọc
               </button>
             )}
-          </div>
-          <div className="bg-toolbar-right">
-            <button
-              type="button"
-              className="bg-bulk-btn"
-              onClick={() => setBulkOpen(true)}
-              title="Đặt đòn bẩy + ký quỹ cho nhiều coin cùng lúc (ghi đè cấu hình hiện tại)"
-            >
-              ⚙ Setup nhiều coin
-            </button>
           </div>
         </div>
         {displaySymbols.length === 0 ? (
