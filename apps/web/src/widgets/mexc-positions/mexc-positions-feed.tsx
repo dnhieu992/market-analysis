@@ -343,7 +343,7 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
           ) : (
             <>
               <div className="bg-table-toolbar">
-                <div className="bg-toolbar-filter">
+                <div className="bg-toolbar-filter pf-coin-filter">
                   <span className="bg-toolbar-label">Lọc coin:</span>
                   <SymbolChipFilter
                     symbols={availableSymbols}
