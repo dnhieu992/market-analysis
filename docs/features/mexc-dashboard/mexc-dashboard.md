@@ -64,7 +64,8 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - `apps/api/src/modules/mexc/mexc-trade.client.ts` — client MEXC có ký (ký, đổi symbol, đổi contracts↔base, đọc/đặt/huỷ lệnh + TP/SL).
 - `apps/api/src/modules/mexc/mexc.service.ts` — vị thế, lịch sử, mở/đóng lệnh, TP/SL, log `system`.
 - `apps/api/src/modules/mexc/mexc-setup.service.ts` — cấu hình đòn bẩy/ký quỹ + sao ưu tiên + watchlist thủ công (`GET/POST/DELETE /mexc/setup/watchlist`).
-- `apps/api/src/modules/mexc/mexc-setup-chart.service.ts` — chart Setup/trade, QQE, đổi giá; **dùng lại** `../bitget/setup-chart-renderer`.
+- `apps/api/src/modules/mexc/mexc-setup-chart.service.ts` — chart Setup/trade, QQE, đổi giá; **dùng lại** `../bitget/setup-chart-renderer`. QQE (`getQqeSignals`) + đổi giá 7d/30d/90d (`getPriceChanges`) được warm bằng đúng pattern của `/tracking-coins`: fetch klines Binance **song song** qua pool `FETCH_CONCURRENCY` (8) thay vì tuần tự, mỗi reading **stale-while-revalidate** (phục vụ bản cũ ngay + refresh nền tới 6h, chỉ lần cold đầu tiên mới chờ), dedupe qua `qqeInFlight` / `changeInFlight` — để tab Setup load nhanh, giống bản vá của `/bitget`.
+- `apps/api/src/modules/mexc/mexc.controller.ts` — `GET /mexc/qqe-signals` + `GET /mexc/price-changes` mang `Cache-Control: private, max-age=60` (reload trong 1 phút dùng lại bản của trình duyệt).
 - `apps/api/src/modules/mexc/mexc-journal.service.ts` — nhật ký từng lệnh.
 - `apps/api/src/modules/mexc/mexc.controller.ts` + `dto/` — route `/mexc/*`.
 - `apps/api/src/app.module.ts` — đăng ký `MexcModule`.

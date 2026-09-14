@@ -148,6 +148,8 @@ export class MexcController {
   }
 
   @Get('qqe-signals')
+  // Readings only move on candle close; a reload inside a minute reuses the browser's copy.
+  @Header('Cache-Control', 'private, max-age=60')
   @ApiOperation({
     summary:
       'Current colinmck QQE Signals state (long/short) per timeframe for the given coins. `symbols` is comma-separated; optional `timeframes` (M30/1h/4h/1d/1w) narrows the scan — defaults to M30,1h,4h,1d.',
@@ -162,6 +164,8 @@ export class MexcController {
   }
 
   @Get('price-changes')
+  // Daily closes; a reload inside a minute can reuse the browser's copy.
+  @Header('Cache-Control', 'private, max-age=60')
   @ApiOperation({
     summary:
       '7-day and 30-day price change (ratio) per coin for the Setup-tab columns. `symbols` is comma-separated.',

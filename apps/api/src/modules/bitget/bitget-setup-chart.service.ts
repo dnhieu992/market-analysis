@@ -33,15 +33,31 @@ const QQE_SUPPORTED_TIMEFRAMES = ['M30', '1h', '4h', '1d', '1w'] as const;
 const QQE_KLINE_LIMIT = 200;
 /** Min closed candles before a QQE reading is trustworthy. */
 const QQE_MIN_CANDLES = 60;
-/** How long a per-(symbol,tf) QQE reading is reused before recomputing. */
+/** How long a per-(symbol,tf) QQE reading is served straight from memory. */
 const QQE_CACHE_TTL_MS = 60_000;
+/**
+ * Past FRESH but within this window a QQE reading is served immediately from the
+ * stale copy while a refresh runs in the background (stale-while-revalidate), so
+ * only the very first load after a restart ever waits on Binance.
+ */
+const QQE_MAX_STALE_MS = 6 * 60 * 60_000;
 
 /** Daily candles pulled to compute the 7d / 30d change (needs ≥ 31 back + today). */
 const CHANGE_KLINE_LIMIT = 40;
 /** 4h candles pulled for the H4 column — only the last CLOSED one is used. */
 const H4_KLINE_LIMIT = 3;
-/** 7d / 30d changes move once a day — reuse a reading for 5 minutes. */
+/** 7d / 30d changes move once a day — serve a reading straight from memory for 5 minutes. */
 const CHANGE_CACHE_TTL_MS = 5 * 60_000;
+/** Stale-while-revalidate window for a price-change reading (same model as QQE). */
+const CHANGE_MAX_STALE_MS = 6 * 60 * 60_000;
+
+/**
+ * Max Binance klines calls in flight while warming the Setup-tab columns. The
+ * QQE column alone is ~40 coins × 4 timeframes; fetching those one at a time
+ * (the old behaviour) measured many seconds per load. Binance tolerates this
+ * fan-out comfortably — klines cost weight 2 each. Mirrors DailyCandleCacheService.
+ */
+const FETCH_CONCURRENCY = 8;
 
 /**
  * Price change (as a ratio, 0.0123 = +1.23%) for a coin: the last CLOSED 4h
@@ -101,8 +117,12 @@ export class BitgetSetupChartService {
   private readonly chartRepo = createBitgetTradeChartRepository();
   /** Short-lived cache of QQE readings keyed by `${bare}:${tf}` to spare Binance. */
   private readonly qqeCache = new Map<string, { at: number; value: QqeTfSignal | null }>();
+  /** Dedupes concurrent QQE fetches of the same (symbol, tf). */
+  private readonly qqeInFlight = new Map<string, Promise<QqeTfSignal | null>>();
   /** Short-lived cache of 7d/30d change per bare symbol to spare Binance. */
   private readonly changeCache = new Map<string, { at: number; value: BitgetPriceChange }>();
+  /** Dedupes concurrent price-change fetches of the same symbol. */
+  private readonly changeInFlight = new Map<string, Promise<BitgetPriceChange>>();
 
   constructor(
     private readonly binance: BinanceMarketDataService,
@@ -325,15 +345,20 @@ export class BitgetSetupChartService {
     );
     const tfs: readonly string[] = requested.length > 0 ? requested : QQE_TIMEFRAMES;
     const uniqueBare = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
-    const out: QqeSymbolSignals[] = [];
-    for (const bare of uniqueBare) {
-      const signals: Record<string, QqeTfSignal | null> = {};
-      for (const tf of tfs) {
-        signals[tf] = await this.qqeForTimeframe(bare, tf);
-      }
-      out.push({ symbol: bare, signals });
-    }
-    return out;
+
+    // Fetch every (coin, timeframe) reading concurrently rather than one at a
+    // time — the old sequential nesting was the Setup tab's main slowdown.
+    const jobs: Array<{ bare: string; tf: string }> = [];
+    for (const bare of uniqueBare) for (const tf of tfs) jobs.push({ bare, tf });
+    const readings = new Map<string, QqeTfSignal | null>();
+    await this.runPooled(jobs, async ({ bare, tf }) => {
+      readings.set(`${bare}:${tf}`, await this.qqeForTimeframe(bare, tf));
+    });
+
+    return uniqueBare.map((bare) => ({
+      symbol: bare,
+      signals: Object.fromEntries(tfs.map((tf) => [tf, readings.get(`${bare}:${tf}`) ?? null])),
+    }));
   }
 
   /**
@@ -344,46 +369,80 @@ export class BitgetSetupChartService {
    */
   async getPriceChanges(symbols: string[]): Promise<BitgetPriceChange[]> {
     const uniqueBare = [...new Set(symbols.map(bareSymbol).filter(Boolean))];
-    const out: BitgetPriceChange[] = [];
-    for (const bare of uniqueBare) {
-      out.push(await this.priceChangeFor(bare));
-    }
-    return out;
+    const readings = new Map<string, BitgetPriceChange>();
+    await this.runPooled(uniqueBare, async (bare) => {
+      readings.set(bare, await this.priceChangeFor(bare));
+    });
+    return uniqueBare.map((bare) => readings.get(bare)!);
   }
 
-  /** H4 + 7d/30d change for one coin, served from cache when still fresh. */
-  private async priceChangeFor(bare: string): Promise<BitgetPriceChange> {
+  /**
+   * H4 + 7d/30d change for one coin. Fresh readings come straight from memory;
+   * a stale-but-usable reading is served immediately while a refresh runs in the
+   * background; only a missing / too-old reading makes the caller wait on Binance.
+   */
+  private priceChangeFor(bare: string): Promise<BitgetPriceChange> {
     const cached = this.changeCache.get(bare);
-    if (cached && Date.now() - cached.at < CHANGE_CACHE_TTL_MS) return cached.value;
-
-    try {
-      const klines = await this.binance.fetchKlines({
-        symbol: `${bare}USDT`,
-        timeframe: '1d' as never,
-        limit: CHANGE_KLINE_LIMIT,
-      });
-      const closes = klines.map((k) => parseFloat(k[4]));
-      const n = closes.length;
-      const current = n > 0 ? closes[n - 1]! : NaN;
-      // `d` days ago = the close `d` candles back from the current (forming) one.
-      const changeAgo = (d: number): number | null => {
-        const past = n > d ? closes[n - 1 - d] : undefined;
-        return past != null && past > 0 && Number.isFinite(current)
-          ? (current - past) / past
-          : null;
-      };
-      const value: BitgetPriceChange = {
-        symbol: bare,
-        changeH4: await this.h4ChangeFor(bare),
-        change7d: changeAgo(7),
-        change30d: changeAgo(30),
-      };
-      this.changeCache.set(bare, { at: Date.now(), value });
-      return value;
-    } catch {
-      // Transient fetch failure: reuse last-known reading, else blanks.
-      return cached?.value ?? { symbol: bare, changeH4: null, change7d: null, change30d: null };
+    const age = cached ? Date.now() - cached.at : Infinity;
+    if (cached && age < CHANGE_CACHE_TTL_MS) return Promise.resolve(cached.value);
+    if (cached && age < CHANGE_MAX_STALE_MS) {
+      void this.refreshChange(bare);
+      return Promise.resolve(cached.value);
     }
+    return this.refreshChange(bare);
+  }
+
+  /** Fetch one coin's H4 + 7d/30d change and store it; concurrent callers share it. */
+  private refreshChange(bare: string): Promise<BitgetPriceChange> {
+    const pending = this.changeInFlight.get(bare);
+    if (pending) return pending;
+
+    const task = (async (): Promise<BitgetPriceChange> => {
+      try {
+        // The daily change klines and the H4 candle are independent — fetch together.
+        const [klines, changeH4] = await Promise.all([
+          this.binance.fetchKlines({
+            symbol: `${bare}USDT`,
+            timeframe: '1d' as never,
+            limit: CHANGE_KLINE_LIMIT,
+          }),
+          this.h4ChangeFor(bare),
+        ]);
+        const closes = klines.map((k) => parseFloat(k[4]));
+        const n = closes.length;
+        const current = n > 0 ? closes[n - 1]! : NaN;
+        // `d` days ago = the close `d` candles back from the current (forming) one.
+        const changeAgo = (d: number): number | null => {
+          const past = n > d ? closes[n - 1 - d] : undefined;
+          return past != null && past > 0 && Number.isFinite(current)
+            ? (current - past) / past
+            : null;
+        };
+        const value: BitgetPriceChange = {
+          symbol: bare,
+          changeH4,
+          change7d: changeAgo(7),
+          change30d: changeAgo(30),
+        };
+        this.changeCache.set(bare, { at: Date.now(), value });
+        return value;
+      } catch {
+        // Transient fetch failure: keep the stale reading (so it retries next time), else blanks.
+        return (
+          this.changeCache.get(bare)?.value ?? {
+            symbol: bare,
+            changeH4: null,
+            change7d: null,
+            change30d: null,
+          }
+        );
+      } finally {
+        this.changeInFlight.delete(bare);
+      }
+    })();
+
+    this.changeInFlight.set(bare, task);
+    return task;
   }
 
   /**
@@ -411,28 +470,64 @@ export class BitgetSetupChartService {
     }
   }
 
-  /** QQE reading for one (coin, timeframe), served from cache when still fresh. */
-  private async qqeForTimeframe(bare: string, tf: string): Promise<QqeTfSignal | null> {
+  /**
+   * QQE reading for one (coin, timeframe). Fresh readings come straight from
+   * memory; a stale-but-usable reading is served immediately while a refresh runs
+   * in the background; only a missing / too-old reading waits on Binance.
+   */
+  private qqeForTimeframe(bare: string, tf: string): Promise<QqeTfSignal | null> {
     const cacheKey = `${bare}:${tf}`;
     const cached = this.qqeCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < QQE_CACHE_TTL_MS) return cached.value;
-
-    try {
-      const klines = await this.binance.fetchKlines({
-        symbol: `${bare}USDT`,
-        timeframe: tf as never,
-        limit: QQE_KLINE_LIMIT,
-      });
-      const now = Date.now();
-      // Only fully-closed candles — the forming candle would repaint the signal.
-      const closes = klines.filter((k) => Number(k[6]) <= now).map((k) => parseFloat(k[4]));
-      const value = closes.length >= QQE_MIN_CANDLES ? deriveQqeSignal(closes) : null;
-      this.qqeCache.set(cacheKey, { at: now, value });
-      return value;
-    } catch {
-      // Transient fetch failure: reuse last-known reading rather than blanking it.
-      return cached?.value ?? null;
+    const age = cached ? Date.now() - cached.at : Infinity;
+    if (cached && age < QQE_CACHE_TTL_MS) return Promise.resolve(cached.value);
+    if (cached && age < QQE_MAX_STALE_MS) {
+      void this.refreshQqe(cacheKey, bare, tf);
+      return Promise.resolve(cached.value);
     }
+    return this.refreshQqe(cacheKey, bare, tf);
+  }
+
+  /** Fetch + compute one (coin, tf) QQE reading and store it; concurrent callers share it. */
+  private refreshQqe(cacheKey: string, bare: string, tf: string): Promise<QqeTfSignal | null> {
+    const pending = this.qqeInFlight.get(cacheKey);
+    if (pending) return pending;
+
+    const task = (async (): Promise<QqeTfSignal | null> => {
+      try {
+        const klines = await this.binance.fetchKlines({
+          symbol: `${bare}USDT`,
+          timeframe: tf as never,
+          limit: QQE_KLINE_LIMIT,
+        });
+        const now = Date.now();
+        // Only fully-closed candles — the forming candle would repaint the signal.
+        const closes = klines.filter((k) => Number(k[6]) <= now).map((k) => parseFloat(k[4]));
+        const value = closes.length >= QQE_MIN_CANDLES ? deriveQqeSignal(closes) : null;
+        this.qqeCache.set(cacheKey, { at: Date.now(), value });
+        return value;
+      } catch {
+        // Transient fetch failure: keep the stale reading rather than blanking it.
+        return this.qqeCache.get(cacheKey)?.value ?? null;
+      } finally {
+        this.qqeInFlight.delete(cacheKey);
+      }
+    })();
+
+    this.qqeInFlight.set(cacheKey, task);
+    return task;
+  }
+
+  /** Run `task` over every item with at most FETCH_CONCURRENCY in flight. */
+  private async runPooled<T>(items: T[], task: (item: T) => Promise<void>): Promise<void> {
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < items.length) {
+        await task(items[next++]!);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(FETCH_CONCURRENCY, items.length) }, () => worker()),
+    );
   }
 
   /**
