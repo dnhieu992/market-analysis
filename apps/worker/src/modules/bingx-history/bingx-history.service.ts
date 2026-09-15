@@ -219,6 +219,169 @@ export class BingxHistoryService implements OnModuleInit {
     }
   }
 
+  // ── Backfill (one-off): today's closed + still-open into /trades ──────────
+
+  /**
+   * Re-anchor the sync start line with an EMPTY baseline. The first-run anchor
+   * records the currently-open externalIds to ignore them forever; this instead
+   * makes the next `sync()` ingest EVERY currently-open position (and reconcile
+   * it to close later). Used by the backfill runner so still-open positions show.
+   */
+  async resetAnchor(startAt: Date): Promise<void> {
+    await this.stateRepo.anchor(startAt, []);
+  }
+
+  /** Candidate BingX symbols to probe for closed history — the history endpoints
+   *  require an explicit symbol. Union of currently-open symbols, TRACKED_SYMBOLS
+   *  and a majors fallback. */
+  private backfillSymbols(open: LivePosition[]): string[] {
+    const set = new Set<string>();
+    for (const p of open) set.add(toBingxSymbol(p.symbol));
+    for (const t of (process.env.TRACKED_SYMBOLS ?? '').split(',')) {
+      if (t.trim()) set.add(toBingxSymbol(t.trim()));
+    }
+    for (const d of ['BTC-USDT', 'ETH-USDT', 'SOL-USDT', 'BNB-USDT']) set.add(d);
+    return [...set];
+  }
+
+  /**
+   * One-off backfill of positions CLOSED since `startMs` (both products) into the
+   * Order table. The ongoing `sync()` only reads LIVE positions, so closed trades
+   * are never ingested by it — this fills that gap for a bounded window.
+   * Insert-only, deduped by externalId; returns how many closed orders inserted.
+   */
+  async backfillClosedSince(startMs: number): Promise<number> {
+    if (!this.isConfigured()) return 0;
+    const [swap, std] = await Promise.all([
+      this.fetchSwapPositions().catch(() => [] as LivePosition[]),
+      this.fetchStandardPositions().catch(() => [] as LivePosition[]),
+    ]);
+    const symbols = this.backfillSymbols([...swap, ...std]);
+    let inserted = 0;
+    for (const sym of symbols) {
+      inserted += await this.backfillSwapClosed(sym, startMs).catch((err) => {
+        this.logger.warn(`BingX swap backfill ${sym} failed: ${(err as Error).message}`);
+        return 0;
+      });
+      inserted += await this.backfillStdClosed(sym, startMs).catch((err) => {
+        this.logger.warn(`BingX std backfill ${sym} failed: ${(err as Error).message}`);
+        return 0;
+      });
+    }
+    return inserted;
+  }
+
+  /** Insert one already-closed order, deduped by externalId. Returns 1 if inserted. */
+  private async insertClosed(o: {
+    externalId: string;
+    broker: string;
+    orderType: 'perpetual' | 'standard';
+    symbol: string;
+    side: 'long' | 'short';
+    entryPrice: number;
+    quantity: number;
+    leverage: number | null;
+    openedAtMs: number;
+    closePrice: number | null;
+    pnl: number | null;
+    closedAtMs: number;
+  }): Promise<number> {
+    if (await this.orderRepo.findByExternalId(o.externalId)) return 0;
+    await this.orderRepo.create({
+      source: 'bingx',
+      externalId: o.externalId,
+      symbol: o.symbol,
+      side: o.side,
+      entryPrice: o.entryPrice,
+      quantity: o.quantity,
+      leverage: o.leverage ?? undefined,
+      exchange: EXCHANGE,
+      broker: o.broker,
+      orderType: o.orderType,
+      status: 'closed',
+      openedAt: new Date(o.openedAtMs),
+      closePrice: o.closePrice ?? undefined,
+      pnl: o.pnl ?? undefined,
+      closedAt: new Date(o.closedAtMs),
+    });
+    return 1;
+  }
+
+  private async backfillSwapClosed(bingxSymbol: string, startMs: number): Promise<number> {
+    const data = await this.signedGet<
+      Record<string, unknown>[] | { positionHistory?: Record<string, unknown>[] }
+    >(SWAP_POSITION_HISTORY_PATH, { symbol: bingxSymbol, startTs: startMs, endTs: Date.now() });
+    const list = Array.isArray(data) ? data : (data.positionHistory ?? []);
+    let n = 0;
+    for (const r of list) {
+      const closedAtMs = num(r.closeTime ?? r.updateTime);
+      if (!(closedAtMs >= startMs)) continue;
+      const side = sideOf(String(r.positionSide ?? ''));
+      const entry = num(r.avgPrice ?? r.openAvgPrice ?? r.avgOpenPrice);
+      const qty = Math.abs(num(r.positionAmt ?? r.closePositionAmt ?? r.volume));
+      if (!side || !(entry > 0) || !(qty > 0)) continue;
+      const positionId =
+        r.positionId != null ? String(r.positionId) : `${bingxSymbol}-${side}-${closedAtMs}`;
+      const closePrice = num(r.avgClosePrice ?? r.closeAvgPrice ?? r.closePrice);
+      const reported = num(r.netProfit ?? r.realisedProfit ?? r.realizedProfit);
+      const lev = num(r.leverage);
+      n += await this.insertClosed({
+        externalId: `bingx-swap-${positionId}`,
+        broker: BROKER_SWAP,
+        orderType: 'perpetual',
+        symbol: toAppSymbol(bingxSymbol),
+        side,
+        entryPrice: entry,
+        quantity: qty,
+        leverage: lev > 0 ? lev : null,
+        openedAtMs: num(r.openTime ?? r.createTime) || closedAtMs,
+        closePrice: Number.isFinite(closePrice) ? closePrice : null,
+        pnl: Number.isFinite(reported)
+          ? reported
+          : this.pnlFromPrices({ side, entryPrice: entry, quantity: qty }, closePrice),
+        closedAtMs,
+      });
+    }
+    return n;
+  }
+
+  private async backfillStdClosed(bingxSymbol: string, startMs: number): Promise<number> {
+    const rows = await this.signedGet<
+      Record<string, unknown>[] | { orders?: Record<string, unknown>[] }
+    >(STD_ALL_ORDERS_PATH, { symbol: bingxSymbol, startTime: startMs, endTime: Date.now() });
+    const list = Array.isArray(rows) ? rows : (rows.orders ?? []);
+    let n = 0;
+    for (const r of list) {
+      if (String(r.status ?? '').toUpperCase() !== 'CLOSED') continue;
+      const closedAtMs = num(r.updateTime);
+      if (!(closedAtMs >= startMs)) continue;
+      const side = sideOf(String(r.positionSide ?? ''));
+      const entry = num(r.avgPrice);
+      const qty = Math.abs(num(r.executedQty));
+      const closePrice = num(r.closePrice);
+      if (!side || !(entry > 0) || !(qty > 0)) continue;
+      const openedAtMs = num(r.time) || closedAtMs;
+      const lev = num(r.leverage);
+      // Standard rows omit `symbol` — key on the queried symbol + side + times so a
+      // re-open of the same pair the same day stays a distinct order.
+      n += await this.insertClosed({
+        externalId: `bingx-std-${bingxSymbol}-${side}-${openedAtMs}-${closedAtMs}`,
+        broker: BROKER_STD,
+        orderType: 'standard',
+        symbol: toAppSymbol(bingxSymbol),
+        side,
+        entryPrice: entry,
+        quantity: qty,
+        leverage: lev > 0 ? lev : null,
+        openedAtMs,
+        closePrice: Number.isFinite(closePrice) ? closePrice : null,
+        pnl: this.pnlFromPrices({ side, entryPrice: entry, quantity: qty }, closePrice),
+        closedAtMs,
+      });
+    }
+    return n;
+  }
+
   // ── Fetch: live positions ───────────────────────────────────────────────
 
   private async fetchSwapPositions(): Promise<LivePosition[]> {
@@ -315,9 +478,11 @@ export class BingxHistoryService implements OnModuleInit {
 
     // Perpetual: positionHistory reports avgClosePrice + realized/net profit.
     const positionId = order.externalId?.replace('bingx-swap-', '');
+    // positionHistory requires symbol + startTs + endTs (NOT startTime); missing
+    // any of them returns error 109400 and no close price / PnL is ever recorded.
     const data = await this.signedGet<
       Record<string, unknown>[] | { positionHistory?: Record<string, unknown>[] }
-    >(SWAP_POSITION_HISTORY_PATH, { symbol: bingxSymbol, startTime });
+    >(SWAP_POSITION_HISTORY_PATH, { symbol: bingxSymbol, startTs: startTime, endTs: Date.now() });
     const list = Array.isArray(data) ? data : (data.positionHistory ?? []);
     const match =
       (positionId && list.find((r) => String(r.positionId ?? '') === positionId)) ||

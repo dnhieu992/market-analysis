@@ -28,11 +28,29 @@ onward are collected.
    - **Close:** for each still-open `source='bingx'` Order whose position is no
      longer live, flip it to `closed`, filling close price + realized PnL:
      - Perpetual: `GET /openApi/swap/v1/trade/positionHistory` (uses reported
-       `netProfit`/`realisedProfit`).
+       `netProfit`/`realisedProfit`). Requires `symbol` + `startTs` + `endTs`;
+       omitting them returns error 109400 and yields no close price / PnL.
      - Standard: `GET /openApi/contract/v1/allOrders` (PnL derived from
        close vs entry price, since it isn't reported).
 5. `/trades` renders these rows read-only: symbol edit, Close, and Delete are
    hidden for `source='bingx'`; Notes / Journal / Analyze remain available.
+
+### One-off backfill (`src/scripts/bingx-backfill.ts`)
+
+The ongoing sync only reads LIVE positions and, on its first run, baselines-out
+whatever was already open — so on initial setup, positions open at that moment and
+trades already closed earlier the same day never appear. The backfill runner
+covers that gap for the current UTC day:
+
+1. `resetAnchor(dayStart)` — re-anchor with an **empty baseline** so the next
+   `sync()` ingests every currently-open position instead of ignoring it.
+2. `backfillClosedSince(dayStartMs)` — insert positions CLOSED since 00:00 UTC
+   today (both products), deduped by `externalId`. Probes symbols from the union
+   of currently-open symbols, `TRACKED_SYMBOLS`, and a majors fallback, because
+   the history endpoints require an explicit `symbol`.
+3. `sync()` — ingest the currently-open positions via the normal path.
+
+Run: `pnpm --filter worker exec ts-node src/scripts/bingx-backfill.ts`
 
 ### externalId scheme (dedupe key, unique on `Order`)
 - Perpetual: `bingx-swap-<positionId>`
@@ -52,7 +70,8 @@ onward are collected.
   `&signature=`; key in header `X-BX-APIKEY`; every request carries `timestamp`.
 
 ## Related Files (FE / BE / Worker)
-- `apps/worker/src/modules/bingx-history/bingx-history.service.ts` — the client + sync logic
+- `apps/worker/src/modules/bingx-history/bingx-history.service.ts` — the client + sync + backfill logic
+- `apps/worker/src/scripts/bingx-backfill.ts` — one-off runner: current-day closed + open backfill
 - `apps/worker/src/modules/bingx-history/bingx-history.module.ts` — module
 - `apps/worker/src/modules/scheduler/scheduler.service.ts` — the 5-min cron
 - `apps/worker/src/modules/scheduler/scheduler.module.ts` — registers the module
