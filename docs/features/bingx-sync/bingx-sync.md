@@ -64,7 +64,14 @@ Run: `pnpm --filter worker exec ts-node src/scripts/bingx-backfill.ts`
 - **Position opened and closed between two 5-min polls:** never seen live, so never
   ingested — acceptable given the read-only/statistics intent and the 5-min cadence.
 - **Close details not found:** the Order is still flipped to `closed` with
-  `closedAt=now` and null price/PnL; a later run does not re-open it.
+  `closedAt=now` and null price/PnL.
+- **Live position carrying a `closed` Order (re-open reconcile):** if a position
+  the exchange reports LIVE already has a `closed` Order for its `externalId`
+  (e.g. the backfill mis-ingested a still-open position from close history, or the
+  same position id was genuinely re-opened), the sync flips that row back to
+  `open`, clears the close fields, and refreshes entry/qty/openedAt. Without this,
+  the open-insert path skipped the existing externalId and the live position never
+  returned to /trades.
 - **Overlapping runs:** guarded by an in-memory `syncing` flag.
 - **Signing:** HMAC-SHA256 (hex) over the exact query string, appended as
   `&signature=`; key in header `X-BX-APIKEY`; every request carries `timestamp`.

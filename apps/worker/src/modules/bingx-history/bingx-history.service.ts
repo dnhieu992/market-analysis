@@ -168,7 +168,28 @@ export class BingxHistoryService implements OnModuleInit {
       for (const pos of live) {
         if (baseline.has(pos.externalId)) continue;
         const existing = await this.orderRepo.findByExternalId(pos.externalId);
-        if (existing) continue;
+        if (existing) {
+          // The externalId already has an Order. Normally it's still open and we
+          // leave it alone. But a live position can carry a CLOSED order — e.g.
+          // the one-off backfill mis-ingested a still-open position from close
+          // history, or the same position id was genuinely re-opened. Since the
+          // exchange reports it live NOW, reconcile the row back to open and
+          // clear the stale close fields so it returns to /trades.
+          if (existing.status === 'closed') {
+            await this.orderRepo.update(existing.id, {
+              status: 'open',
+              closePrice: null,
+              pnl: null,
+              closedAt: null,
+              entryPrice: pos.entryPrice,
+              quantity: pos.quantity,
+              leverage: pos.leverage ?? undefined,
+              openedAt: new Date(pos.openedAtMs),
+            });
+            opened++;
+          }
+          continue;
+        }
         await this.orderRepo.create({
           source: 'bingx',
           externalId: pos.externalId,
