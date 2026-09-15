@@ -226,10 +226,14 @@ type SrChannel = { hi: number; lo: number; strength: number };
  * Channels" (TradingView defaults: pivot period 10, channel width 5% of the
  * 290-bar range, up to 6 non-overlapping channels). Pivots that cluster within a
  * channel width are merged; strength = 20 per clustered pivot + 1 per touching bar.
+ * `minPivots` mirrors the indicator's "Minimum Strength" input (default 1): a
+ * channel needs at least that many clustered pivots, so a lone pivot still draws
+ * a band — matching TradingView, which otherwise shows far more zones than a
+ * `minPivots = 2` port would.
  */
 function computeSrChannels(
   candles: OhlcCandle[],
-  { prd = 10, channelWPct = 5, maxSr = 6, minPivots = 2, loopback = 290 } = {},
+  { prd = 10, channelWPct = 5, maxSr = 6, minPivots = 1, loopback = 290 } = {},
 ): SrChannel[] {
   const n = candles.length;
   const highs = candles.map((c) => c.high);
