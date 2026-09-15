@@ -53,6 +53,7 @@ export type {
   MexcTradeClosedInput,
 } from './repositories/mexc-trade.repository';
 export { createMexcSyncStateRepository } from './repositories/mexc-sync-state.repository';
+export { createBingxSyncStateRepository } from './repositories/bingx-sync-state.repository';
 export { createMexcTradeJournalRepository } from './repositories/mexc-trade-journal.repository';
 export type {
   MexcTradeJournalInput,

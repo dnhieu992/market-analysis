@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 
 import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
+import { BingxHistoryService } from '../bingx-history/bingx-history.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
@@ -18,6 +19,7 @@ export class SchedulerService {
     private readonly swingSignalService: SwingSignalService,
     private readonly bitgetHistoryService: BitgetHistoryService,
     private readonly mexcHistoryService: MexcHistoryService,
+    private readonly bingxHistoryService: BingxHistoryService,
     private readonly strategyBacktestScanService: StrategyBacktestScanService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
@@ -108,6 +110,22 @@ export class SchedulerService {
       await this.mexcHistoryService.syncMilestones();
     } catch (err) {
       this.logger.error(`MEXC milestone sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Runs every 5 minutes — read-only reconcile of live BingX positions (Perpetual
+  // + Standard futures) into the generic Order table (source='bingx') so they show
+  // on /trades. No backfill: the first run only anchors the start line. Deliberately
+  // slower than the 15s Bitget/MEXC syncs — /trades doesn't need BingX in realtime.
+  @Cron('*/5 * * * *', { timeZone: 'UTC' })
+  async runBingxOrderSync() {
+    try {
+      const res = await this.bingxHistoryService.sync();
+      if (res.opened > 0 || res.closed > 0) {
+        this.logger.log(`BingX order sync — opened ${res.opened}, closed ${res.closed}`);
+      }
+    } catch (err) {
+      this.logger.error(`BingX order sync failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

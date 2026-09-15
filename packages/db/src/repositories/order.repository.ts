@@ -20,6 +20,18 @@ export function createOrderRepository(client = prisma) {
     findById(id: string) {
       return client.order.findUnique({ where: { id } });
     },
+    /** Look up an exchange-synced order by its stable dedupe key. */
+    findByExternalId(externalId: string) {
+      return client.order.findUnique({ where: { externalId } });
+    },
+    /** All still-open orders from one source (e.g. 'bingx') — used by the sync
+     *  to detect which tracked positions have since closed on the exchange. */
+    listOpenBySource(source: string) {
+      return client.order.findMany({
+        where: { source, status: 'open' },
+        orderBy: { openedAt: 'desc' },
+      });
+    },
     listLatest(limit = 20) {
       return client.order.findMany({
         orderBy: { openedAt: 'desc' },

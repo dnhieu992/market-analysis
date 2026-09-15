@@ -753,11 +753,20 @@ export function TradesTable({
             <tbody>
               {orders.map((order) => {
                 const isOpen = order.status.toLowerCase() === 'open';
+                // Orders synced read-only from an exchange (source='bingx') are the
+                // sync's source of truth — hide edit/close/delete so a manual change
+                // can't be silently overwritten on the next poll. Notes/journal/
+                // analyze stay available.
+                const readOnly = order.source === 'bingx';
                 return (
                   <tr key={order.id}>
                     <td data-label="Name" data-full="">
                       <div className="tt-name">
-                        <button className="tt-symbol-btn" onClick={() => onEditTrade(order)}>{order.symbol}</button>
+                        {readOnly ? (
+                          <span className="tt-symbol-btn tt-symbol-btn--readonly">{order.symbol}</span>
+                        ) : (
+                          <button className="tt-symbol-btn" onClick={() => onEditTrade(order)}>{order.symbol}</button>
+                        )}
                         <span className={`tt-side tt-side--${order.side.toLowerCase()}`}>{order.side.toUpperCase()}</span>
                       </div>
                     </td>
@@ -808,7 +817,7 @@ export function TradesTable({
                     <td data-label="Status"><StatusPill status={order.status} /></td>
                     <td data-label="Actions" data-full="">
                       <div className="tt-actions">
-                        {isOpen && (
+                        {isOpen && !readOnly && (
                           <button className="tt-btn tt-btn--success" data-tooltip="Close Trade" aria-label="Close Trade" onClick={() => onCloseTrade(order)}>
                             <IconCircleCheck />
                           </button>
@@ -832,9 +841,11 @@ export function TradesTable({
                         >
                           <IconAnalyze />
                         </button>
-                        <button className="tt-btn tt-btn--danger" data-tooltip="Delete" aria-label="Delete Trade" onClick={() => onRemoveTrade(order.id)}>
-                          <IconTrash />
-                        </button>
+                        {!readOnly && (
+                          <button className="tt-btn tt-btn--danger" data-tooltip="Delete" aria-label="Delete Trade" onClick={() => onRemoveTrade(order.id)}>
+                            <IconTrash />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
