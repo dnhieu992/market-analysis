@@ -25,6 +25,12 @@ onward are collected.
    - **Open:** for each live position whose `externalId` is not in the baseline
      and not already in `Order`, insert an open Order (`source='bingx'`,
      `broker='BingX'` or `'BingX Standard'`, `exchange='BingX'`).
+   - **Update:** for each live position that already has a still-**open** Order,
+     mirror the exchange's current `avgPrice`→`entryPrice`, `positionAmt`→`quantity`
+     and `leverage` back onto the row when they changed (compared with a tiny
+     relative epsilon). This is what keeps a position the user has **added to or
+     trimmed** (scale-in / scale-out) showing its live average price and size on
+     `/trades`, instead of the stale figures from when it first opened.
    - **Close:** for each still-open `source='bingx'` Order whose position is no
      longer live, flip it to `closed`, filling close price + realized PnL:
      - Perpetual: `GET /openApi/swap/v1/trade/positionHistory` (uses reported
@@ -65,6 +71,13 @@ Run: `pnpm --filter worker exec ts-node src/scripts/bingx-backfill.ts`
   ingested — acceptable given the read-only/statistics intent and the 5-min cadence.
 - **Close details not found:** the Order is still flipped to `closed` with
   `closedAt=now` and null price/PnL.
+- **Scale-in / scale-out on an open position:** the exchange recomputes the
+  average entry price and position size; the update step above detects the change
+  each sync and rewrites `entryPrice`/`quantity`/`leverage`. For Perpetual the
+  `positionId` (hence `externalId`) is stable across adds, so the same row is
+  updated. For Standard the `externalId` embeds the open time; if the exchange
+  keeps that constant across an add the same row updates, otherwise the old row
+  reconciles to `closed` and the resized one is inserted fresh.
 - **Live position carrying a `closed` Order (re-open reconcile):** if a position
   the exchange reports LIVE already has a `closed` Order for its `externalId`
   (e.g. the backfill mis-ingested a still-open position from close history, or the

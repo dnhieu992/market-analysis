@@ -91,6 +91,19 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : NaN;
 }
 
+/** Prices are equal within a tiny relative epsilon — avoids rewriting the row
+ *  every sync over sub-cent float noise from the exchange's avg-price rounding. */
+function priceEq(a: number | null | undefined, b: number): boolean {
+  if (a == null || !Number.isFinite(a)) return false;
+  return Math.abs(a - b) <= Math.max(1e-8, Math.abs(b) * 1e-6);
+}
+
+/** Quantities equal within a tiny relative epsilon (contract sizes vary widely). */
+function qtyEq(a: number | null | undefined, b: number): boolean {
+  if (a == null || !Number.isFinite(a)) return false;
+  return Math.abs(a - b) <= Math.max(1e-8, Math.abs(b) * 1e-6);
+}
+
 function sideOf(positionSide?: string): 'long' | 'short' | null {
   const s = (positionSide ?? '').toUpperCase();
   if (s === 'LONG') return 'long';
@@ -126,16 +139,17 @@ export class BingxHistoryService implements OnModuleInit {
 
   /**
    * Reconcile live BingX positions (swap + standard) into the Order table.
-   * Returns how many orders were opened / closed this run. Overlap-guarded.
+   * Returns how many orders were opened / closed / updated this run.
+   * Overlap-guarded.
    */
-  async sync(): Promise<{ opened: number; closed: number }> {
+  async sync(): Promise<{ opened: number; closed: number; updated: number }> {
     if (!this.isConfigured()) {
       this.logger.debug('BingX order sync skipped — credentials not configured');
-      return { opened: 0, closed: 0 };
+      return { opened: 0, closed: 0, updated: 0 };
     }
     if (this.syncing) {
       this.logger.debug('BingX order sync already in progress — skipping');
-      return { opened: 0, closed: 0 };
+      return { opened: 0, closed: 0, updated: 0 };
     }
     this.syncing = true;
     try {
@@ -159,22 +173,23 @@ export class BingxHistoryService implements OnModuleInit {
       if (!state || state.historyStartAt == null) {
         await this.stateRepo.anchor(new Date(), [...liveIds]);
         this.logger.log(`BingX sync anchored — ignoring ${liveIds.size} pre-existing position(s)`);
-        return { opened: 0, closed: 0 };
+        return { opened: 0, closed: 0, updated: 0 };
       }
       const baseline = new Set(state.baseline);
 
-      // 1. Insert newly-opened positions (unseen, and not part of the baseline).
+      // 1. Insert newly-opened positions (unseen, and not part of the baseline);
+      //    reconcile still-open ones whose size/entry changed on the exchange.
       let opened = 0;
+      let updated = 0;
       for (const pos of live) {
         if (baseline.has(pos.externalId)) continue;
         const existing = await this.orderRepo.findByExternalId(pos.externalId);
         if (existing) {
-          // The externalId already has an Order. Normally it's still open and we
-          // leave it alone. But a live position can carry a CLOSED order — e.g.
-          // the one-off backfill mis-ingested a still-open position from close
-          // history, or the same position id was genuinely re-opened. Since the
-          // exchange reports it live NOW, reconcile the row back to open and
-          // clear the stale close fields so it returns to /trades.
+          // The externalId already has an Order. A live position can carry a
+          // CLOSED order — e.g. the one-off backfill mis-ingested a still-open
+          // position from close history, or the same position id was genuinely
+          // re-opened. Since the exchange reports it live NOW, reconcile the row
+          // back to open and clear the stale close fields so it returns to /trades.
           if (existing.status === 'closed') {
             await this.orderRepo.update(existing.id, {
               status: 'open',
@@ -187,6 +202,20 @@ export class BingxHistoryService implements OnModuleInit {
               openedAt: new Date(pos.openedAtMs),
             });
             opened++;
+            continue;
+          }
+          // Still open: the user may have added or trimmed volume, which changes
+          // the exchange's avg entry price and quantity. Mirror those onto the
+          // stored Order so /trades shows the live size, not the stale one.
+          const patch: Record<string, number> = {};
+          if (!priceEq(existing.entryPrice, pos.entryPrice)) patch.entryPrice = pos.entryPrice;
+          if (!qtyEq(existing.quantity, pos.quantity)) patch.quantity = pos.quantity;
+          if (pos.leverage != null && existing.leverage !== pos.leverage) {
+            patch.leverage = pos.leverage;
+          }
+          if (Object.keys(patch).length > 0) {
+            await this.orderRepo.update(existing.id, patch);
+            updated++;
           }
           continue;
         }
@@ -234,7 +263,10 @@ export class BingxHistoryService implements OnModuleInit {
         closed++;
       }
 
-      return { opened, closed };
+      if (updated > 0) {
+        this.logger.log(`BingX sync reconciled ${updated} open position(s) with new size/entry`);
+      }
+      return { opened, closed, updated };
     } finally {
       this.syncing = false;
     }

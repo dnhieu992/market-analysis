@@ -121,8 +121,10 @@ export class SchedulerService {
   async runBingxOrderSync() {
     try {
       const res = await this.bingxHistoryService.sync();
-      if (res.opened > 0 || res.closed > 0) {
-        this.logger.log(`BingX order sync — opened ${res.opened}, closed ${res.closed}`);
+      if (res.opened > 0 || res.closed > 0 || res.updated > 0) {
+        this.logger.log(
+          `BingX order sync — opened ${res.opened}, closed ${res.closed}, updated ${res.updated}`,
+        );
       }
     } catch (err) {
       this.logger.error(`BingX order sync failed: ${err instanceof Error ? err.message : String(err)}`);
