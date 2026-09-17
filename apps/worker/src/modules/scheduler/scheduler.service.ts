@@ -5,6 +5,7 @@ import { resolveTrackedSymbols } from '../../config/tracked-symbols';
 import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.service';
 import { BingxHistoryService } from '../bingx-history/bingx-history.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
+import { BitgetQqeAlertService } from '../bitget-qqe-alert/bitget-qqe-alert.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { StrategyBacktestScanService } from '../strategy-backtest/strategy-backtest-scan.service';
@@ -18,6 +19,7 @@ export class SchedulerService {
     private readonly analysisOrchestratorService: AnalysisOrchestratorService,
     private readonly swingSignalService: SwingSignalService,
     private readonly bitgetHistoryService: BitgetHistoryService,
+    private readonly bitgetQqeAlertService: BitgetQqeAlertService,
     private readonly mexcHistoryService: MexcHistoryService,
     private readonly bingxHistoryService: BingxHistoryService,
     private readonly strategyBacktestScanService: StrategyBacktestScanService,
@@ -144,6 +146,22 @@ export class SchedulerService {
     } catch (err) {
       this.logger.error(
         `Strategy-backtest scan failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  // Runs 15s after every H4 candle close (00/04/08/12/16/20 UTC) — recompute
+  // colinmck QQE for every coin in the /bitget Setup tab and Telegram the ones
+  // whose just-closed 4h candle is a fresh Long (bull) / Short (bear) flip. The
+  // 15s offset lets the closed candle land on Binance before we read it; the
+  // service's `freshCross` gate means each flip alerts exactly once.
+  @Cron('15 0 0,4,8,12,16,20 * * *', { timeZone: 'UTC' })
+  async runBitgetQqeH4Alert() {
+    try {
+      await this.bitgetQqeAlertService.checkAndAlert();
+    } catch (err) {
+      this.logger.error(
+        `Bitget QQE H4 alert failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

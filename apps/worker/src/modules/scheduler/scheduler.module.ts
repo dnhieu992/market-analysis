@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AnalysisModule } from '../analysis/analysis.module';
 import { BingxHistoryModule } from '../bingx-history/bingx-history.module';
 import { BitgetHistoryModule } from '../bitget-history/bitget-history.module';
+import { BitgetQqeAlertModule } from '../bitget-qqe-alert/bitget-qqe-alert.module';
 import { MexcHistoryModule } from '../mexc-history/mexc-history.module';
 import { SwingSignalModule } from '../swing-signal/swing-signal.module';
 import { StrategyBacktestModule } from '../strategy-backtest/strategy-backtest.module';
@@ -18,6 +19,7 @@ import { SchedulerService } from './scheduler.service';
     AnalysisModule,
     SwingSignalModule,
     BitgetHistoryModule,
+    BitgetQqeAlertModule,
     MexcHistoryModule,
     BingxHistoryModule,
     StrategyBacktestModule
