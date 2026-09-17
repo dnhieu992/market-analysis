@@ -28,9 +28,9 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Nhật ký phân tích & cảm xúc hàng ngày + ảnh mô hình'
   },
   {
-    href: '/strategy-backtest',
-    label: 'Strategy Backtest',
-    description: 'Setup BTC tự phân tích tay · job quét 5 phút chấm điểm khớp / TP / SL'
+    href: '/trading-analysis',
+    label: 'Trading Analysis',
+    description: 'Nhật ký phân tích & ra quyết định giao dịch mỗi ngày · kho dữ liệu để Claude học hành vi'
   },
   {
     href: '/paper-scalp',

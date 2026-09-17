@@ -23,6 +23,14 @@ const nextConfig = {
         destination: '/pnl-calendar?tab=portfolio',
         permanent: false,
       },
+      // /strategy-backtest was reframed as the Trading Analysis journal (the setup
+      // board was dropped from the UI). 307 so old bookmarks keep working without
+      // being cached permanently.
+      {
+        source: '/strategy-backtest',
+        destination: '/trading-analysis',
+        permanent: false,
+      },
     ];
   },
   async rewrites() {
