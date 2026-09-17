@@ -160,11 +160,37 @@ export function NotesDialog({
   onClose: () => void;
   onImageDeleted: (url: string) => void;
 }) {
+  const router = useRouter();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
+  const [note, setNote] = useState(order.note ?? '');
+  // Baseline for the dirty check. Tracked in state (not the `order` prop) because the parent
+  // keeps the dialog open on the same stale order object after a save + router.refresh().
+  const [savedNote, setSavedNote] = useState(order.note ?? '');
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
   const images = order.images ?? [];
-  const hasNote = !!order.note?.trim();
   const hasImages = images.length > 0;
+  const noteDirty = note.trim() !== savedNote.trim();
+
+  async function handleSaveNote() {
+    setSavingNote(true);
+    setNoteError(null);
+    setNoteSaved(false);
+    try {
+      const trimmed = note.trim();
+      await createApiClient().updateOrder(order.id, { note: trimmed });
+      setSavedNote(trimmed);
+      setNoteSaved(true);
+      // Re-fetch the server-rendered table so the saved note shows there too.
+      router.refresh();
+    } catch {
+      setNoteError('Không lưu được note. Thử lại sau.');
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   async function handleDeleteImage(url: string) {
     setDeletingUrl(url);
@@ -186,12 +212,28 @@ export function NotesDialog({
             <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
           </div>
           <div className="dialog-body notes-dialog-body">
-            {hasNote && (
-              <div className="notes-section">
-                <p className="notes-section-label">Note</p>
-                <p className="notes-text">{order.note}</p>
+            <div className="notes-section">
+              <p className="notes-section-label">Note</p>
+              <textarea
+                className="notes-edit-textarea"
+                rows={4}
+                placeholder="Ghi chú cho lệnh này: lý do vào/giữ, kế hoạch, mốc giá theo dõi…"
+                value={note}
+                onChange={(e) => { setNote(e.target.value); setNoteSaved(false); }}
+              />
+              {noteError && <p className="trade-form-error">{noteError}</p>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => { void handleSaveNote(); }}
+                  disabled={savingNote || !noteDirty}
+                >
+                  {savingNote ? 'Đang lưu…' : 'Lưu note'}
+                </button>
+                {noteSaved && !noteDirty && <span className="tt-muted">✓ Đã lưu</span>}
               </div>
-            )}
+            </div>
             {hasImages && (
               <div className="notes-section">
                 <p className="notes-section-label">Screenshots ({images.length})</p>
@@ -213,8 +255,8 @@ export function NotesDialog({
                 </div>
               </div>
             )}
-            {!hasNote && !hasImages && (
-              <p className="tt-muted" style={{ padding: '8px 0' }}>No notes or screenshots for this trade.</p>
+            {!hasImages && (
+              <p className="tt-muted" style={{ padding: '8px 0' }}>Chưa có ảnh chụp màn hình cho lệnh này.</p>
             )}
           </div>
         </div>
