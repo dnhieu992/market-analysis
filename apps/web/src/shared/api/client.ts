@@ -828,11 +828,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     // ── Trading Journal ─────────────────────────────────────────
-    async fetchJournalEntries(): Promise<TradingJournalEntry[]> {
-      return fetchJson<TradingJournalEntry[]>(fetchImpl, `${baseUrl}/journal`, withDefaults());
+    async fetchJournalEntries(scope?: string): Promise<TradingJournalEntry[]> {
+      const query = scope ? `?scope=${encodeURIComponent(scope)}` : '';
+      return fetchJson<TradingJournalEntry[]>(fetchImpl, `${baseUrl}/journal${query}`, withDefaults());
     },
 
-    async saveJournalEntry(input: { date: string; content: string; images: string[]; tags: string[] }): Promise<TradingJournalEntry> {
+    async saveJournalEntry(input: { scope?: string; date: string; content: string; images: string[]; tags: string[] }): Promise<TradingJournalEntry> {
       return fetchJson<TradingJournalEntry>(
         fetchImpl,
         `${baseUrl}/journal`,

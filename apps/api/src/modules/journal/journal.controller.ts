@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ReformatJournalDto } from './dto/reformat-journal.dto';
@@ -15,15 +15,15 @@ export class JournalController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all journal entries, newest day first' })
-  list() {
-    return this.service.list();
+  @ApiOperation({ summary: 'List journal entries for a scope (default GENERAL), newest day first' })
+  list(@Query('scope') scope?: string) {
+    return this.service.list(scope);
   }
 
   @Get(':date')
-  @ApiOperation({ summary: 'Get the journal entry for a calendar day (YYYY-MM-DD)' })
-  getByDate(@Param('date') date: string) {
-    return this.service.getByDate(date);
+  @ApiOperation({ summary: 'Get the journal entry for a calendar day (YYYY-MM-DD) in a scope' })
+  getByDate(@Param('date') date: string, @Query('scope') scope?: string) {
+    return this.service.getByDate(date, scope);
   }
 
   @Get(':id/revisions')

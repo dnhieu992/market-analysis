@@ -109,7 +109,11 @@ model OrderJournal {
 // Kept as a corpus to later fine-tune an LLM "clone" of the trader and review discipline.
 model TradingJournalEntry {
   id        String   @id @default(cuid())
-  date      DateTime @unique @db.Date
+  // Which corpus this day belongs to: GENERAL = the /journal page, STRATEGY_BACKTEST = the
+  // daily setup-analysis notes on /strategy-backtest. Kept separate so each trains a distinct
+  // "clone" behaviour. One entry per scope per calendar day.
+  scope     String   @default("GENERAL") @db.VarChar(24)
+  date      DateTime @db.Date
   content   String   @db.LongText
   images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
   tags      Json     @default("[]") // string[] of freeform tags
@@ -117,6 +121,7 @@ model TradingJournalEntry {
   updatedAt DateTime @updatedAt
   revisions TradingJournalRevision[]
 
+  @@unique([scope, date])
   @@map("trading_journal_entries")
 }
 

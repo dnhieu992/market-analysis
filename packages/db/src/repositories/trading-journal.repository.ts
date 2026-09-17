@@ -1,6 +1,10 @@
 import { prisma } from '../client';
 
+/** Default corpus — the /journal page. STRATEGY_BACKTEST is the setup-analysis notes. */
+export const DEFAULT_JOURNAL_SCOPE = 'GENERAL';
+
 export type TradingJournalUpsert = {
+  scope?: string;
   date: Date;
   content: string;
   images?: string[];
@@ -22,13 +26,13 @@ function sameSnapshot(
 /** CRUD for the daily trading journal (/journal). One entry per calendar day, keyed by `date`. */
 export function createTradingJournalRepository(client = prisma) {
   return {
-    /** All entries, newest day first. */
-    findAll() {
-      return client.tradingJournalEntry.findMany({ orderBy: { date: 'desc' } });
+    /** All entries in a scope, newest day first. */
+    findAll(scope: string = DEFAULT_JOURNAL_SCOPE) {
+      return client.tradingJournalEntry.findMany({ where: { scope }, orderBy: { date: 'desc' } });
     },
 
-    findByDate(date: Date) {
-      return client.tradingJournalEntry.findUnique({ where: { date } });
+    findByDate(date: Date, scope: string = DEFAULT_JOURNAL_SCOPE) {
+      return client.tradingJournalEntry.findUnique({ where: { scope_date: { scope, date } } });
     },
 
     findById(id: string) {
@@ -51,10 +55,11 @@ export function createTradingJournalRepository(client = prisma) {
     upsertByDate(input: TradingJournalUpsert) {
       const images = input.images ?? [];
       const tags = input.tags ?? [];
+      const scope = input.scope ?? DEFAULT_JOURNAL_SCOPE;
       return client.$transaction(async (tx) => {
         const entry = await tx.tradingJournalEntry.upsert({
-          where: { date: input.date },
-          create: { date: input.date, content: input.content, images, tags },
+          where: { scope_date: { scope, date: input.date } },
+          create: { scope, date: input.date, content: input.content, images, tags },
           update: { content: input.content, images, tags },
         });
 

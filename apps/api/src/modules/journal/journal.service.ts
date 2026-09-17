@@ -45,8 +45,19 @@ const REFORMAT_SYSTEM = [
   '- KHÔNG bọc kết quả trong ```code fence```. Chỉ trả về đúng nội dung markdown đã format, không thêm lời giải thích, không mở đầu, không kết luận thừa.',
 ].join('\n');
 
+/** Corpora a journal entry can belong to. Anything else falls back to GENERAL. */
+const JOURNAL_SCOPES = ['GENERAL', 'STRATEGY_BACKTEST'] as const;
+const DEFAULT_SCOPE = 'GENERAL';
+
+/** Coerce a client-supplied scope to a known one; unknown/empty → GENERAL. */
+function normalizeScope(scope?: string): string {
+  const s = (scope ?? '').trim().toUpperCase();
+  return (JOURNAL_SCOPES as readonly string[]).includes(s) ? s : DEFAULT_SCOPE;
+}
+
 export type JournalEntryDto = {
   id: string;
+  scope: string;
   date: string; // ISO date YYYY-MM-DD
   content: string;
   images: string[];
@@ -77,6 +88,7 @@ function toDateOnly(iso: string): Date {
 
 type JournalRow = {
   id: string;
+  scope: string;
   date: Date;
   content: string;
   images: unknown;
@@ -100,6 +112,7 @@ export class JournalService {
   private map(r: JournalRow): JournalEntryDto {
     return {
       id: r.id,
+      scope: r.scope,
       date: r.date.toISOString().slice(0, 10),
       content: r.content,
       images: toStringArray(r.images),
@@ -119,13 +132,13 @@ export class JournalService {
     };
   }
 
-  async list(): Promise<JournalEntryDto[]> {
-    const rows = await this.repo.findAll();
+  async list(scope?: string): Promise<JournalEntryDto[]> {
+    const rows = await this.repo.findAll(normalizeScope(scope));
     return rows.map((r) => this.map(r));
   }
 
-  async getByDate(date: string): Promise<JournalEntryDto | null> {
-    const row = await this.repo.findByDate(toDateOnly(date));
+  async getByDate(date: string, scope?: string): Promise<JournalEntryDto | null> {
+    const row = await this.repo.findByDate(toDateOnly(date), normalizeScope(scope));
     return row ? this.map(row) : null;
   }
 
@@ -138,8 +151,9 @@ export class JournalService {
   }
 
   /** Create or update the entry for a calendar day; the repository snapshots it as a revision. */
-  async upsert(input: { date: string; content: string; images?: string[]; tags?: string[] }): Promise<JournalEntryDto> {
+  async upsert(input: { scope?: string; date: string; content: string; images?: string[]; tags?: string[] }): Promise<JournalEntryDto> {
     const row = await this.repo.upsertByDate({
+      scope: normalizeScope(input.scope),
       date: toDateOnly(input.date),
       content: input.content,
       images: input.images ?? [],

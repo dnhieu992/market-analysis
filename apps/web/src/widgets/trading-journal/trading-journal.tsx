@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { TradingJournalEntry, TradingJournalRevision } from '@web/shared/api/types';
@@ -139,12 +139,32 @@ function RevisionRow({
   );
 }
 
+const DEFAULT_TITLE = 'Trading Journal';
+const DEFAULT_SUBTITLE = (
+  <>
+    Ghi lại phân tích &amp; cảm xúc mỗi ngày, đính kèm ảnh mô hình trade. Mỗi ngày một nhật ký (mở lại để sửa);
+    mỗi lần lưu được ghi lại thành một mốc trong <b>Lịch sử trong ngày</b> để bạn xem lại mình đã nghĩ gì lúc nào.
+    Đây là kho dữ liệu để sau này huấn luyện một &ldquo;bản sao&rdquo; phong cách trade của bạn.
+  </>
+);
+const DEFAULT_PLACEHOLDER =
+  'Hôm nay thị trường thế nào? Bạn phân tích gì, vào/không vào lệnh nào, cảm xúc ra sao (FOMO, sợ, tự tin…)?';
+
 export function TradingJournal({
   initialEntries,
   initialRevisions = [],
+  scope,
+  title = DEFAULT_TITLE,
+  subtitle = DEFAULT_SUBTITLE,
+  placeholder = DEFAULT_PLACEHOLDER,
 }: {
   initialEntries: TradingJournalEntry[];
   initialRevisions?: TradingJournalRevision[];
+  /** Corpus to read/write. Omitted = GENERAL (the /journal page). */
+  scope?: string;
+  title?: string;
+  subtitle?: ReactNode;
+  placeholder?: string;
 }) {
   // Memoised: a fresh client each render would re-trigger the revision effect forever.
   const api = useMemo(() => createApiClient(), []);
@@ -207,6 +227,7 @@ export function TradingJournal({
     }
     setRevLoading(true);
     try {
+      // Revisions are addressed by entry id, so they need no scope.
       const rows = await api.fetchJournalRevisions(entryId);
       if (loadedRevFor.current === entryId) setRevisions(rows);
     } catch {
@@ -264,7 +285,7 @@ export function TradingJournal({
         const urls = await api.uploadImages(pendingFiles);
         allImages = [...images, ...urls];
       }
-      const entry = await api.saveJournalEntry({ date, content: finalContent, images: allImages, tags });
+      const entry = await api.saveJournalEntry({ scope, date, content: finalContent, images: allImages, tags });
       setEntries((prev) => {
         const rest = prev.filter((e) => e.id !== entry.id && e.date !== entry.date);
         return [entry, ...rest].sort((a, b) => b.date.localeCompare(a.date));
@@ -326,12 +347,8 @@ export function TradingJournal({
   return (
     <div className="tj-page">
       <header className="tj-header">
-        <h1 className="tj-title">Trading Journal</h1>
-        <p className="tj-sub">
-          Ghi lại phân tích &amp; cảm xúc mỗi ngày, đính kèm ảnh mô hình trade. Mỗi ngày một nhật ký (mở lại để sửa);
-          mỗi lần lưu được ghi lại thành một mốc trong <b>Lịch sử trong ngày</b> để bạn xem lại mình đã nghĩ gì lúc nào.
-          Đây là kho dữ liệu để sau này huấn luyện một &ldquo;bản sao&rdquo; phong cách trade của bạn.
-        </p>
+        <h1 className="tj-title">{title}</h1>
+        <p className="tj-sub">{subtitle}</p>
       </header>
 
       {error && <div className="tj-error">{error}</div>}
@@ -355,7 +372,7 @@ export function TradingJournal({
           <MarkdownEditor
             value={content}
             onChange={setContent}
-            placeholder="Hôm nay thị trường thế nào? Bạn phân tích gì, vào/không vào lệnh nào, cảm xúc ra sao (FOMO, sợ, tự tin…)?"
+            placeholder={placeholder}
             minHeight={260}
           />
         </div>

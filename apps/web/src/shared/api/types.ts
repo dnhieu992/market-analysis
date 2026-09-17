@@ -1090,6 +1090,7 @@ export type OrderJournalNote = {
 /** A daily trading-journal entry (one per calendar day). */
 export type TradingJournalEntry = {
   id: string;
+  scope?: string; // GENERAL (/journal) | STRATEGY_BACKTEST — omitted by older callers
   date: string; // YYYY-MM-DD
   content: string;
   images: string[];
