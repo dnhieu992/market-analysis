@@ -3,8 +3,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { createApiClient } from '@web/shared/api/client';
+import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 import type { DashboardOrder } from '@web/shared/api/types';
+
+// Lazy-load the TipTap editor so its bundle only loads when a notes dialog is opened —
+// the same rich editor the order-journal drawer uses.
+const MarkdownEditor = dynamic(
+  () => import('@web/shared/ui/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  { ssr: false },
+);
 
 const FILTER_STORAGE_KEY = 'trades_filters';
 const PERSISTED_FILTER_KEYS = ['symbol', 'status', 'broker', 'dateFrom', 'dateTo', 'dateFilter'] as const;
@@ -141,128 +150,111 @@ function IconAnalyze() {
   );
 }
 
-function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
-  return (
-    <div className="lightbox-backdrop" onClick={onClose}>
-      <button className="lightbox-close" onClick={onClose} aria-label="Close">✕</button>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="screenshot" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
-    </div>
-  );
-}
-
 export function NotesDialog({
   order,
   onClose,
-  onImageDeleted,
 }: {
   order: DashboardOrder;
   onClose: () => void;
-  onImageDeleted: (url: string) => void;
 }) {
   const router = useRouter();
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const [note, setNote] = useState(order.note ?? '');
-  // Baseline for the dirty check. Tracked in state (not the `order` prop) because the parent
+  const [existingUrls, setExistingUrls] = useState<string[]>(order.images ?? []);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Baselines for the dirty check. Tracked in state (not the `order` prop) because the parent
   // keeps the dialog open on the same stale order object after a save + router.refresh().
   const [savedNote, setSavedNote] = useState(order.note ?? '');
-  const [savingNote, setSavingNote] = useState(false);
-  const [noteSaved, setNoteSaved] = useState(false);
-  const [noteError, setNoteError] = useState<string | null>(null);
-  const images = order.images ?? [];
-  const hasImages = images.length > 0;
-  const noteDirty = note.trim() !== savedNote.trim();
+  const [savedImages, setSavedImages] = useState<string[]>(order.images ?? []);
+  // Remounts ImageUpload after a save so just-uploaded files show as existing, not pending.
+  const [uploaderKey, setUploaderKey] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function handleSaveNote() {
-    setSavingNote(true);
-    setNoteError(null);
-    setNoteSaved(false);
-    try {
-      const trimmed = note.trim();
-      await createApiClient().updateOrder(order.id, { note: trimmed });
-      setSavedNote(trimmed);
-      setNoteSaved(true);
-      // Re-fetch the server-rendered table so the saved note shows there too.
-      router.refresh();
-    } catch {
-      setNoteError('Không lưu được note. Thử lại sau.');
-    } finally {
-      setSavingNote(false);
-    }
+  const imagesDirty =
+    pendingFiles.length > 0 ||
+    existingUrls.length !== savedImages.length ||
+    existingUrls.some((u, i) => u !== savedImages[i]);
+  const dirty = note.trim() !== savedNote.trim() || imagesDirty;
+
+  function handleImageChange(value: ImageUploadValue) {
+    setExistingUrls(value.existingUrls);
+    setPendingFiles(value.newFiles);
+    setSaved(false);
   }
 
-  async function handleDeleteImage(url: string) {
-    setDeletingUrl(url);
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
     try {
-      const newImages = images.filter((u) => u !== url);
-      await createApiClient().updateOrder(order.id, { images: newImages });
-      onImageDeleted(url);
+      const api = createApiClient();
+      let newUrls: string[] = [];
+      if (pendingFiles.length > 0) {
+        newUrls = await api.uploadImages(pendingFiles, order.symbol, order.side);
+      }
+      const images = [...existingUrls, ...newUrls];
+      const trimmed = note.trim();
+      await api.updateOrder(order.id, { note: trimmed, images });
+      setSavedNote(trimmed);
+      setSavedImages(images);
+      setExistingUrls(images);
+      setPendingFiles([]);
+      setUploaderKey((k) => k + 1);
+      setSaved(true);
+      // Re-fetch the server-rendered table so the saved note/images show there too.
+      router.refresh();
+    } catch {
+      setError('Không lưu được. Thử lại sau.');
     } finally {
-      setDeletingUrl(null);
+      setSaving(false);
     }
   }
 
   return (
-    <>
-      <div className="dialog-backdrop" onClick={onClose}>
-        <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
-          <div className="dialog-header">
-            <span className="dialog-title">Notes &amp; Screenshots — {order.symbol}</span>
-            <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header">
+          <span className="dialog-title">Notes &amp; Screenshots — {order.symbol}</span>
+          <button className="dialog-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="dialog-body notes-dialog-body">
+          <div className="notes-section">
+            <p className="notes-section-label">Note</p>
+            <MarkdownEditor
+              value={note}
+              onChange={(v) => { setNote(v); setSaved(false); }}
+              placeholder="Ghi chú cho lệnh này: lý do vào/giữ, kế hoạch, mốc giá theo dõi…"
+              minHeight={160}
+            />
           </div>
-          <div className="dialog-body notes-dialog-body">
-            <div className="notes-section">
-              <p className="notes-section-label">Note</p>
-              <textarea
-                className="notes-edit-textarea"
-                rows={4}
-                placeholder="Ghi chú cho lệnh này: lý do vào/giữ, kế hoạch, mốc giá theo dõi…"
-                value={note}
-                onChange={(e) => { setNote(e.target.value); setNoteSaved(false); }}
-              />
-              {noteError && <p className="trade-form-error">{noteError}</p>}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  onClick={() => { void handleSaveNote(); }}
-                  disabled={savingNote || !noteDirty}
-                >
-                  {savingNote ? 'Đang lưu…' : 'Lưu note'}
-                </button>
-                {noteSaved && !noteDirty && <span className="tt-muted">✓ Đã lưu</span>}
-              </div>
-            </div>
-            {hasImages && (
-              <div className="notes-section">
-                <p className="notes-section-label">Screenshots ({images.length})</p>
-                <div className="notes-images-grid">
-                  {images.map((url) => (
-                    <div key={url} className="notes-img-thumb">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt="trade screenshot" onClick={() => setLightboxUrl(url)} />
-                      <button
-                        className="notes-img-del"
-                        aria-label="Delete image"
-                        disabled={deletingUrl === url}
-                        onClick={() => { void handleDeleteImage(url); }}
-                      >
-                        {deletingUrl === url ? '…' : '✕'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {!hasImages && (
-              <p className="tt-muted" style={{ padding: '8px 0' }}>Chưa có ảnh chụp màn hình cho lệnh này.</p>
-            )}
+
+          <div className="notes-section">
+            <p className="notes-section-label">Screenshots</p>
+            <ImageUpload
+              key={uploaderKey}
+              existingUrls={savedImages}
+              onChange={handleImageChange}
+              uploading={saving}
+            />
+          </div>
+
+          {error && <p className="trade-form-error">{error}</p>}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => { void handleSave(); }}
+              disabled={saving || !dirty}
+            >
+              {saving ? 'Đang lưu…' : 'Lưu'}
+            </button>
+            {saved && !dirty && <span className="tt-muted">✓ Đã lưu</span>}
           </div>
         </div>
       </div>
-      {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
-    </>
+    </div>
   );
 }
 

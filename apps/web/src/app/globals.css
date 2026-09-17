@@ -1809,20 +1809,6 @@ a {
   color: var(--fg);
 }
 
-.notes-edit-textarea {
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  resize: vertical;
-  box-sizing: border-box;
-}
-
 .notes-images-grid {
   display: flex;
   flex-wrap: wrap;

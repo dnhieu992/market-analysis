@@ -187,11 +187,6 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
         <NotesDialog
           order={notesOrder}
           onClose={() => setNotesOrder(null)}
-          onImageDeleted={(url) =>
-            setNotesOrder((prev) =>
-              prev ? { ...prev, images: (prev.images ?? []).filter((u) => u !== url) } : null
-            )
-          }
         />
       )}
 
