@@ -9,6 +9,13 @@ _A worker cron that, after every H4 (4h) candle close, recomputes the colinmck Q
    - A coin qualifies only when `cross[]`'s **last** element is non-null — i.e. the just-closed candle IS the flip bar (a brand-new signal).
 3. If any coin flipped, one Telegram message (HTML, Vietnamese) is sent to `TELEGRAM_CHAT_ID` listing each coin with 🟢 BULL / 🔴 BEAR.
 
+## Manual Trigger (testing)
+Run on demand instead of waiting for the H4-close cron (on the server, where `.env` has `DATABASE_URL` / `TELEGRAM_*`):
+- `pnpm --filter worker qqe:trigger` — runs the **exact production path** (`checkAndAlert()`); Telegrams only if a coin's just-closed 4h candle is a fresh flip, so it may send nothing.
+- `pnpm --filter worker qqe:trigger -- --preview` — sends a clearly-labelled "manual test" Telegram listing the **current** QQE regime (bull/bear) of every Setup coin, regardless of freshness. Use this to confirm the full DB → Binance → QQE → Telegram chain end-to-end.
+
+The script (`apps/worker/src/scripts/trigger-qqe-alert.ts`) bootstraps a standalone Nest context from `BitgetQqeAlertModule` only — it does **not** start the scheduler crons. `--preview` uses `BitgetQqeAlertService.previewCurrentStates()`, which shares the `crossFor()` fetch/compute helper with `checkAndAlert()` (single source of truth, `mode: 'current'` vs `'fresh'`).
+
 ## Edge Cases
 - **No dedup store needed** — `freshCross` gates the send, so each flip alerts exactly once. The next H4 tick sees a different "last closed candle" and will not re-fire the same flip.
 - **Empty Setup tab** — logs and returns without sending.
@@ -19,7 +26,8 @@ _A worker cron that, after every H4 (4h) candle close, recomputes the colinmck Q
 - **Side-agnostic** — a coin shows both long/short rows in the Setup tab, but QQE is per-coin, so it is scanned once regardless of how many config rows it has.
 
 ## Related Files (FE / BE / Worker)
-- `apps/worker/src/modules/bitget-qqe-alert/bitget-qqe-alert.service.ts` — Worker: loads Setup coins, computes QQE on the closed H4 candle, formats + sends the alert
+- `apps/worker/src/modules/bitget-qqe-alert/bitget-qqe-alert.service.ts` — Worker: loads Setup coins, computes QQE on the closed H4 candle, formats + sends the alert; also exposes `previewCurrentStates()` for the manual trigger
+- `apps/worker/src/scripts/trigger-qqe-alert.ts` — Worker: manual CLI trigger (`qqe:trigger`, `--preview`) to run/test the alert on demand
 - `apps/worker/src/modules/bitget-qqe-alert/bitget-qqe-alert.module.ts` — Worker: wires the service to `MarketModule` + `TelegramModule`
 - `apps/worker/src/modules/scheduler/scheduler.service.ts` — Worker: `runBitgetQqeH4Alert()` cron at the H4 close
 - `apps/worker/src/modules/scheduler/scheduler.module.ts` — Worker: imports `BitgetQqeAlertModule`

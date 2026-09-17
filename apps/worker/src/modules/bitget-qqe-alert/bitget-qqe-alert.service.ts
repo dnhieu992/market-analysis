@@ -64,7 +64,7 @@ export class BitgetQqeAlertService {
 
       const alerts: QqeAlert[] = [];
       await this.runPooled(symbols, async (bare) => {
-        const state = await this.freshCrossFor(bare);
+        const state = await this.crossFor(bare, 'fresh');
         if (state) alerts.push({ symbol: bare, state });
       });
 
@@ -93,11 +93,31 @@ export class BitgetQqeAlertService {
   }
 
   /**
-   * The QQE state IF the last closed 4h candle is itself the flip bar, else null.
-   * `cross[]` is aligned 1:1 with the closed-candle closes, so the last element
-   * is non-null only on a brand-new Long/Short signal.
+   * Manual-test helper (used by scripts/trigger-qqe-alert.ts, NOT the cron): the
+   * CURRENT QQE regime of every Setup-tab coin — the last non-null cross in the
+   * series — regardless of whether the just-closed candle is the flip bar. Lets a
+   * manual run exercise the full DB → Binance → QQE → Telegram path on demand.
+   * Returns the states; the caller decides how to format/send them.
    */
-  private async freshCrossFor(bare: string): Promise<QqeState | null> {
+  async previewCurrentStates(): Promise<QqeAlert[]> {
+    const configs = await this.setupRepo.findAll();
+    const symbols = [...new Set(configs.map((c) => bareSymbol(c.symbol)))].filter(Boolean);
+    const states: QqeAlert[] = [];
+    await this.runPooled(symbols, async (bare) => {
+      const state = await this.crossFor(bare, 'current');
+      if (state) states.push({ symbol: bare, state });
+    });
+    states.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    return states;
+  }
+
+  /**
+   * The QQE state for a coin's closed 4h candles. `cross[]` is aligned 1:1 with the
+   * closed-candle closes. `mode: 'fresh'` returns a state only when the LAST candle
+   * is itself the flip bar (a brand-new signal); `mode: 'current'` returns the last
+   * non-null cross, i.e. the regime the coin is in right now. Null on any failure.
+   */
+  private async crossFor(bare: string, mode: 'fresh' | 'current'): Promise<QqeState | null> {
     try {
       const klines = await this.binance.fetchKlines({
         symbol: `${bare}USDT`,
@@ -115,8 +135,16 @@ export class BitgetQqeAlertService {
         QQE_PARAMS.smoothing,
         QQE_PARAMS.qqeFactor,
       );
-      const last = cross[cross.length - 1];
-      return last === 'long' || last === 'short' ? last : null;
+      if (mode === 'fresh') {
+        const last = cross[cross.length - 1];
+        return last === 'long' || last === 'short' ? last : null;
+      }
+      // 'current' — the most recent non-null flip defines the standing regime.
+      for (let i = cross.length - 1; i >= 0; i--) {
+        const c = cross[i];
+        if (c === 'long' || c === 'short') return c;
+      }
+      return null;
     } catch (err) {
       this.logger.warn(
         `QQE fetch/compute failed for ${bare}: ${err instanceof Error ? err.message : String(err)}`,
