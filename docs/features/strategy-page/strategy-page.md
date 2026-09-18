@@ -12,7 +12,8 @@ The detail panel has three parts: a **header** (name, version, created/updated d
 
 ## Personal Note
 - `StrategyNoteSection` (in `strategy-detail-panel.tsx`) renders `strategy.note` as markdown when present, else an empty-state prompt.
-- Editing opens an inline textarea; **Lưu** calls `updateTradingStrategy(id, { note })` (empty → `null` to clear) then `router.refresh()`. The Edit dialog does **not** touch `note` (partial PATCH), so the two never clobber each other.
+- Editing opens an inline textarea; **Lưu** calls `updateTradingStrategy(id, { note })` (empty → `null` to clear) then `router.refresh()`.
+- **The note is the only field editable from the UI.** The header has a **Xoá** (delete) action only — there is no content/name/version editor on the page, so the backtest `content` is read-only (edit it via the seed script / DB if it needs to change). `EditStrategyForm` still exists in the codebase but is no longer wired into the panel.
 - Stored on the `TradingStrategy.note` `TEXT NULL` column (migration `20260918120000_add_strategy_note`). API accepts it via `note?` on Create/Update DTOs.
 
 ## Edge Cases

@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { EditStrategyForm } from '@web/features/edit-strategy/edit-strategy-form';
 import { createApiClient } from '@web/shared/api/client';
 import { renderMarkdown } from '@web/shared/lib/markdown';
 import type { TradingStrategy } from '@web/shared/api/types';
@@ -21,7 +20,6 @@ function fmtDate(iso: string): string {
 export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('backtest');
-  const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -59,9 +57,6 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
             </div>
           </div>
           <div className="strat-detail-head-actions">
-            <button className="btn btn--secondary btn--sm" onClick={() => setEditOpen(true)}>
-              ✎ Sửa
-            </button>
             <button className="btn btn--danger btn--sm" onClick={() => setDeleteOpen(true)}>
               Xoá
             </button>
@@ -101,26 +96,6 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
           )}
         </div>
       </div>
-
-      {editOpen && (
-        <div className="dialog-backdrop" onClick={() => setEditOpen(false)}>
-          <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
-            <div className="dialog-header">
-              <span className="dialog-title">Edit Strategy — {strategy.name}</span>
-              <button className="dialog-close" onClick={() => setEditOpen(false)} aria-label="Close">✕</button>
-            </div>
-            <div className="dialog-body">
-              <EditStrategyForm
-                strategy={strategy}
-                onSubmitted={() => {
-                  setEditOpen(false);
-                  router.refresh();
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
       {deleteOpen && (
         <div className="dialog-backdrop" onClick={() => setDeleteOpen(false)}>
