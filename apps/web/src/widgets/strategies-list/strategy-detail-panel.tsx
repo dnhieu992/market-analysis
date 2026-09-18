@@ -12,12 +12,15 @@ type StrategyDetailPanelProps = Readonly<{
   strategy: TradingStrategy;
 }>;
 
+type Tab = 'backtest' | 'note';
+
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
   const router = useRouter();
+  const [tab, setTab] = useState<Tab>('backtest');
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -37,12 +40,13 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
     }
   }
 
+  const hasNote = Boolean(strategy.note && strategy.note.trim());
   const updatedDiffers = strategy.updatedAt && strategy.updatedAt !== strategy.createdAt;
 
   return (
     <>
       <div className="strat-detail">
-        {/* Header */}
+        {/* Sticky header */}
         <header className="strat-detail-head">
           <div className="strat-detail-head-main">
             <h2 className="strat-detail-name">{strategy.name}</h2>
@@ -64,19 +68,38 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
           </div>
         </header>
 
-        {/* Backtest / description */}
-        <section className="strat-section">
-          <div className="strat-section-head">
-            <h3 className="strat-section-title">📊 Backtest &amp; mô tả</h3>
-          </div>
-          <div
-            className="strat-detail-content strat-detail-content--md"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(strategy.content) }}
-          />
-        </section>
+        {/* Tabs */}
+        <div className="strat-tabs" role="tablist" aria-label="Nội dung chiến lược">
+          <button
+            role="tab"
+            aria-selected={tab === 'backtest'}
+            className={`strat-tab${tab === 'backtest' ? ' strat-tab--active' : ''}`}
+            onClick={() => setTab('backtest')}
+          >
+            📊 Backtest &amp; mô tả
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'note'}
+            className={`strat-tab${tab === 'note' ? ' strat-tab--active' : ''}`}
+            onClick={() => setTab('note')}
+          >
+            📝 Ghi chú của tôi
+            {hasNote && <span className="strat-tab-dot" aria-label="có ghi chú" />}
+          </button>
+        </div>
 
-        {/* Personal note */}
-        <StrategyNoteSection strategy={strategy} />
+        {/* Panel */}
+        <div className="strat-tab-panel">
+          {tab === 'backtest' ? (
+            <div
+              className="strat-detail-content strat-detail-content--md"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(strategy.content) }}
+            />
+          ) : (
+            <StrategyNoteSection strategy={strategy} />
+          )}
+        </div>
       </div>
 
       {editOpen && (
@@ -128,12 +151,12 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
 /** Editable, persisted personal note — stored on `TradingStrategy.note`, separate from `content`. */
 function StrategyNoteSection({ strategy }: { strategy: TradingStrategy }) {
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
+  const hasNote = Boolean(strategy.note && strategy.note.trim());
+  // Auto-open the editor when there is no note yet, so the tab is immediately actionable.
+  const [editing, setEditing] = useState(!hasNote);
   const [draft, setDraft] = useState(strategy.note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const hasNote = Boolean(strategy.note && strategy.note.trim());
 
   function startEdit() {
     setDraft(strategy.note ?? '');
@@ -156,47 +179,54 @@ function StrategyNoteSection({ strategy }: { strategy: TradingStrategy }) {
     }
   }
 
-  return (
-    <section className="strat-section strat-note">
-      <div className="strat-section-head">
-        <h3 className="strat-section-title">📝 Ghi chú của tôi</h3>
-        {!editing && (
-          <button className="btn btn--ghost btn--sm" onClick={startEdit}>
-            {hasNote ? '✎ Sửa ghi chú' : '+ Thêm ghi chú'}
+  if (editing) {
+    return (
+      <div className="strat-note-editor">
+        <p className="strat-note-hint">
+          Nhận định riêng của bạn — hỗ trợ markdown: <code>**đậm**</code>, <code>- danh sách</code>, bảng.
+        </p>
+        <textarea
+          className="strat-note-textarea"
+          rows={10}
+          value={draft}
+          placeholder="Ví dụ: chỉ vào lệnh QQE D1 khi trùng vùng hỗ trợ tuần; bỏ qua H4; TP +10% vì +15% chỉ ~43%…"
+          onChange={(e) => setDraft(e.target.value)}
+          autoFocus
+        />
+        {error && <p className="trade-form-error">{error}</p>}
+        <div className="strat-note-actions">
+          <button className="btn btn--primary btn--sm" onClick={save} disabled={saving}>
+            {saving ? 'Đang lưu…' : '💾 Lưu ghi chú'}
           </button>
-        )}
-      </div>
-
-      {editing ? (
-        <div className="strat-note-editor">
-          <textarea
-            className="strat-note-textarea"
-            rows={6}
-            value={draft}
-            placeholder="Nhận định riêng của bạn về chiến lược này… (hỗ trợ markdown: **đậm**, bảng, - danh sách)"
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-          />
-          {error && <p className="trade-form-error">{error}</p>}
-          <div className="strat-note-actions">
-            <button className="btn btn--primary btn--sm" onClick={save} disabled={saving}>
-              {saving ? 'Đang lưu…' : 'Lưu'}
-            </button>
-            <button className="btn btn--secondary btn--sm" onClick={() => setEditing(false)} disabled={saving}>
+          {hasNote && (
+            <button
+              className="btn btn--secondary btn--sm"
+              onClick={() => {
+                setDraft(strategy.note ?? '');
+                setEditing(false);
+              }}
+              disabled={saving}
+            >
               Huỷ
             </button>
-          </div>
+          )}
         </div>
-      ) : hasNote ? (
-        <div
-          className="strat-detail-content--md strat-note-body"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(strategy.note ?? '') }}
-        />
-      ) : (
-        <p className="strat-note-empty">
-          Chưa có ghi chú. Bấm <strong>“+ Thêm ghi chú”</strong> để lưu nhận định riêng của bạn.
-        </p>
-      )}
-    </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="strat-note-view">
+      <div className="strat-note-view-head">
+        <span className="strat-note-view-label">Cập nhật {fmtDate(strategy.updatedAt)}</span>
+        <button className="btn btn--ghost btn--sm" onClick={startEdit}>
+          ✎ Sửa
+        </button>
+      </div>
+      <div
+        className="strat-detail-content--md strat-note-body"
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(strategy.note ?? '') }}
+      />
+    </div>
   );
 }
