@@ -75,7 +75,12 @@ export class BitgetQqeAlertService {
       const configs = await this.setupRepo.findAll();
       const symbols = [...new Set(configs.map((c) => bareSymbol(c.symbol)))].filter(Boolean);
       if (symbols.length === 0) {
-        this.logger.log(`QQE ${label} alert — Setup tab is empty, nothing to scan`);
+        // Still send a heartbeat so the user knows the scan ran (just had no coins).
+        const res = await this.telegram.sendToChat(
+          process.env.TELEGRAM_CHAT_ID ?? '',
+          this.formatNoSignalMessage(timeframe, 0),
+        );
+        this.logger.log(`QQE ${label} alert — Setup tab empty, sent notice (telegram ${res.success ? 'sent' : 'failed'})`);
         return;
       }
 
@@ -85,8 +90,16 @@ export class BitgetQqeAlertService {
         if (state) alerts.push({ symbol: bare, state });
       });
 
+      // Always send a message on each candle close — flips if any, otherwise a
+      // "no fresh signal" heartbeat so silence never looks like a broken bot.
       if (alerts.length === 0) {
-        this.logger.log(`QQE ${label} alert — ${symbols.length} coins scanned, no fresh flips`);
+        const res = await this.telegram.sendToChat(
+          process.env.TELEGRAM_CHAT_ID ?? '',
+          this.formatNoSignalMessage(timeframe, symbols.length),
+        );
+        this.logger.log(
+          `QQE ${label} alert — ${symbols.length} coins scanned, no fresh flips (telegram ${res.success ? 'sent' : 'failed'})`,
+        );
         return;
       }
 
@@ -189,6 +202,16 @@ export class BitgetQqeAlertService {
       '',
       `⏱ Nến ${candleName} vừa đóng cửa`,
     ].join('\n');
+  }
+
+  /** Heartbeat when a candle closed with no fresh flip (or no coins to scan). */
+  private formatNoSignalMessage(timeframe: QqeTimeframe, scanned: number): string {
+    const { label, candleName } = TF_META[timeframe];
+    const body =
+      scanned === 0
+        ? 'Setup tab đang trống — không có coin nào để quét.'
+        : `Đã quét ${scanned} coin, không có coin nào vừa đảo chiều QQE.`;
+    return [`🔕 <b>[${label}] QQE — không có tín hiệu mới</b>`, '', body, '', `⏱ Nến ${candleName} vừa đóng cửa`].join('\n');
   }
 
   /** Run `task` over every item with at most FETCH_CONCURRENCY in flight. */

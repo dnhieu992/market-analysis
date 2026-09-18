@@ -10,7 +10,10 @@ _A worker cron that, after every H4 (4h) **and** D1 (daily) candle close, recomp
    - Loads all Setup-tab configs via `createBitgetSetupConfigRepository().findAll()` and reduces them to the distinct bare coin symbols (e.g. `BTCUSDT` → `BTC`).
    - For each coin (pooled, max 6 concurrent Binance calls): fetches the last 200 klines **for that timeframe** (`4h` or `1d`), drops the still-forming candle (`closeTime > now`), and runs `calculateQqe` from `@app/core` with the same params as the chart (`rsiPeriod 10, smoothing 4, qqeFactor 3.2`).
    - A coin qualifies only when `cross[]`'s **last** element is non-null — i.e. the just-closed candle IS the flip bar (a brand-new signal).
-3. If any coin flipped, one Telegram message (HTML, Vietnamese) is sent to `TELEGRAM_CHAT_ID`, header `🔔 [H4] QQE — tín hiệu mới` / `🔔 [D1] QQE — tín hiệu mới`, listing each coin with 🟢 BULL / 🔴 BEAR and a `⏱ Nến H4 / D1 (ngày) vừa đóng cửa` footer.
+3. **A Telegram message is sent on every candle close** (HTML, Vietnamese) to `TELEGRAM_CHAT_ID`:
+   - If any coin flipped → `🔔 [H4] QQE — tín hiệu mới` / `🔔 [D1] …`, listing each coin with 🟢 BULL / 🔴 BEAR.
+   - If nothing flipped (or the Setup tab is empty) → a heartbeat `🔕 [H4] QQE — không có tín hiệu mới` ("Đã quét N coin, không có coin nào vừa đảo chiều QQE."), so silence never looks like a broken bot.
+   - Both carry the `⏱ Nến H4 / D1 (ngày) vừa đóng cửa` footer.
 
 ## Manual Trigger (testing)
 Run on demand instead of waiting for the candle-close cron (on the server, where `.env` has `DATABASE_URL` / `TELEGRAM_*`):
@@ -22,7 +25,8 @@ The script (`apps/worker/src/scripts/trigger-qqe-alert.ts`) bootstraps a standal
 
 ## Edge Cases
 - **No dedup store needed** — `freshCross` gates the send, so each flip alerts exactly once. The next tick sees a different "last closed candle" and will not re-fire the same flip.
-- **Empty Setup tab** — logs and returns without sending.
+- **Empty Setup tab** — sends the `🔕 … không có tín hiệu mới` heartbeat ("Setup tab đang trống") instead of staying silent.
+- **No fresh flips** — sends the heartbeat too; a candle close is never silent.
 - **Overlap guard** — a per-timeframe `running` set skips a tick if the previous one of the **same** timeframe is still in flight; H4 and D1 (both near 00:00 UTC) may run concurrently without blocking each other.
 - **Per-coin fetch/compute failure** — logged as a warning and skipped; other coins still alert.
 - **Too few candles** (`< 60` closed) — coin skipped (QQE bands not warmed). For D1 this needs ~60 days of daily history, which Binance provides in the 200-kline fetch.
