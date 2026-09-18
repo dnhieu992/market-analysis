@@ -9,10 +9,9 @@ import { StrategyDetailPanel } from './strategy-detail-panel';
 type StrategiesSplitProps = Readonly<{
   strategies: TradingStrategy[];
   selectedId: string | null;
-  onCreateClick: () => void;
 }>;
 
-export function StrategiesSplit({ strategies, selectedId, onCreateClick }: StrategiesSplitProps) {
+export function StrategiesSplit({ strategies, selectedId }: StrategiesSplitProps) {
   const router = useRouter();
   // Default to the first strategy when the URL has no (or an unknown) id, so the
   // panel is never empty while strategies exist.
@@ -27,7 +26,6 @@ export function StrategiesSplit({ strategies, selectedId, onCreateClick }: Strat
     <div className="strat-page">
       <div className="strat-page-header">
         <h1 className="strat-page-title">Strategy Analysis</h1>
-        <button className="btn btn--primary btn--sm" onClick={onCreateClick}>+ Add Strategy</button>
       </div>
 
       {/* Strategy selector — chip buttons on the first row */}
