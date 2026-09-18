@@ -1,80 +1,65 @@
 ---
 name: spot-scan
-description: Use this skill whenever the user wants to scan the market for spot-buy candidates — "spot scan", "scan coin", "quét coin", "tìm coin tiềm năng", "tìm dự án tốt để mua", "coin nào có thể tăng mạnh", "next ZEC", "tìm coin giống ZEC", "coin tích luỹ sắp breakout", "scan theo vốn hoá". Runs the ZEC-template accumulation→breakout screener over a CoinGecko universe (filtered by market cap) merged with Binance technicals, then helps evaluate the top picks like a fund (team, investors, tokenomics, unlocks).
-version: 1.0.0
+description: Use this skill whenever the user wants to scan the market for spot-buy candidates by FUNDAMENTALS — "spot scan", "scan coin", "quét coin", "tìm coin tiềm năng", "tìm dự án tốt để mua", "coin nào có thể tăng mạnh", "next ZEC", "tìm coin giống ZEC", "scan theo vốn hoá". Runs a fundamental screener (deep drawdown from ATH, low dilution / high MC-FDV, high circulating %, market-cap window) over Binance-listed coins, then helps evaluate the top picks like a fund (team, investors, tokenomics, unlocks). No technical/price-pattern analysis.
+version: 2.0.0
 ---
 
-# Spot Scan — find the next ZEC
+# Spot Scan — pick spot buys by fundamentals (find the next ZEC)
 
-A two-layer spot-buy screener. **Layer 1 (this script) = technical + quantitative timing:** which
-coins are in a ZEC-like accumulation → early breakout right now. **Layer 2 (you, after) = fundamental
-due diligence:** which of those actually deserve a buy. Technicals say *when*; fundamentals say *which*.
+A **fundamental** screener for asymmetric spot buys. It ranks Binance-listed coins in a market-cap
+window on the quantitative fundamentals a value buyer cares about — then you do the qualitative due
+diligence on the top picks. **No technical / price-pattern analysis.**
 
-The ZEC template (measured): $15.78 → $1,535 (~97×). Deep drawdown from ATH → long tight base near
-the lows → reclaim of the 200-day SMA → volume expansion → base breakout while still early. ZEC's
-market cap when the move began was only **~$267M** (and ~$369M when it first listed on Binance in
-2019) — the opportunity lives at a few hundred $M, not at its current ~$25B. That is why the default
-cap window is small/mid-cap.
-
-**Universe = Binance-listed USDT pairs only** (from Binance `exchangeInfo`, ~490 TRADING pairs),
-intersected with the CoinGecko cap window. There is no point scanning all ~21k CoinGecko coins —
-99% are dead/illiquid; the tradable, on-exchange subset in the cap window is only a few hundred.
+Reference (ZEC, measured): at its $15.78 low it was **−99.5% from its $3,191 ATH**, with a **hard
+21M cap**, ~73% already mined (fair-launch, **no VC unlock overhang**), market cap ~$267M — then ran
+~97×. Those are the fundamentals the scan looks for.
 
 ## Execute
 
-Run the screener (universe from CoinGecko, technicals from Binance D1):
-
 ```bash
 cd /root/market-analysis && TS_NODE_TRANSPILE_ONLY=1 pnpm exec ts-node --project apps/api/tsconfig.json \
-  scripts/run-spot-scan.ts 25 --min=30 --max=2000 --vol=2 --pool=350
+  scripts/run-spot-scan.ts 25 --min=30 --max=2000 --vol=2
 ```
 
-Args (market caps in $M): `rows` (how many to show) then flags `--min` `--max` (market-cap window),
-`--vol` (min 24h volume), `--pool` (how many CoinGecko coins to pull). Takes ~1–2 min (rate-limited).
+Args (market caps in $M): `rows`, then `--min` `--max` (cap window), `--vol` (min 24h volume).
+Fast (no klines) — Binance `exchangeInfo` for the universe + a few CoinGecko pages.
 
 ### Market-cap window — what to pick
-- **Default $30M–$2B** is the sweet spot for "next ZEC" hunting.
-- **< ~$30M:** mostly dead/illiquid/scam — hard to exit, skip unless the user asks.
-- **$30M–$300M:** highest asymmetry (10–50× room) but highest risk — needs strong fundamentals.
-- **$300M–$2B:** survivors with a real chance of 3–10× and better liquidity.
-- **> a few $B:** less room to multiply; only if the user wants safer/large-cap revivals.
-- Adjust on request, e.g. micro-cap hunt `--min=10 --max=150`, or safer `--min=300 --max=5000`.
+- **Default $30M–$2B.** ZEC's move began at ~$267M, so the opportunity is small/mid-cap.
+- **< $30M:** dead/illiquid — skip. **$30M–$300M:** highest asymmetry (10–50×) + highest risk →
+  needs the strongest fundamentals (this is the ZEC-at-liftoff zone). **$300M–$2B:** survivors, 3–10×.
+  **> a few $B:** little room to multiply.
+- Adjust on request, e.g. `--min=150 --max=500` for the ZEC-liftoff band.
 
 ## Present the results
 
-1. Show the ranked table (coin, score, market cap, MC/FDV, ATH%, 30d%, signals).
-2. Read the columns for the user:
-   - **score** — how closely it matches the ZEC accumulation→breakout template (higher = closer).
-   - **ATH%** — TRUE drawdown from all-time high (deep = beaten-down, more room).
-   - **MC/FDV** — dilution: near 100% = most tokens already circulating (good); **< 30% = heavy
-     unlock overhang** (flagged with ⚠).
-   - **signals** — `reclaim 200D` (regime flip), `base N×` (tight base), `vol N×` (volume surge),
-     `60d high` (breakout), `+N% off low` (`⚠ late` if already > +150% — missed the early phase).
-3. Call out the cleanest setups (high score, deep ATH, low dilution, NOT "late") vs the ones to
-   avoid (high dilution / already extended).
+Show the ranked table and read the columns:
+- **score** — deep drawdown from ATH + low dilution (MC/FDV) + high circulating %.
+- **ATH%** — TRUE drawdown from all-time high (deeper = more beaten-down / room to re-rate).
+- **MC/FDV** — dilution: near 100% = most supply already circulating (good); **< 30% = heavy unlock
+  overhang** (🚩). **circ%** — how much of max supply is already out.
+- **30d%** — recent price change, shown as context only (not scored).
 
-## Then: fundamental due diligence (layer 2)
+**Then flag the trap:** a coin can be −100% from ATH with high MC/FDV and still be **dead** (e.g.
+LUNC/Terra Classic). The scan is a quantitative filter only — the qualitative layer decides.
 
-The scan is timing only. For the top picks the user is interested in, evaluate like a fund — **do
-not invent facts**; use `WebSearch`/`WebFetch` for real data and cite the source, or point the user
-to the source if unknown:
+## Then: fundamental due diligence (the deciding layer)
 
+For the top picks, evaluate like a fund — **do not invent facts**; use `WebSearch`/`WebFetch` for
+real data and cite the source (or point the user to it if unknown):
 - **Team** — founders / CEO / CTO, doxxed?, track record, GitHub activity.
-- **Investors & funding** — which VCs (tier-1 like a16z/Paradigm/Binance Labs > unknowns), amount
-  raised, valuation, when. Source: RootData, CryptoRank, Messari, ICO Drops.
-- **Tokenomics** — allocation (team/investors/community); insiders > 40–50% = red flag.
-- **Unlocks/vesting** — upcoming cliffs / large unlocks = sell pressure. Source: Token Unlocks,
-  CryptoRank. (The scan's MC/FDV already hints at this.)
+- **Investors & funding** — which VCs (tier-1 > unknowns), amount raised, valuation, when.
+  Source: RootData, CryptoRank, Messari, ICO Drops.
+- **Tokenomics** — allocation (team/investors/community); insiders > 40–50% = 🚩.
+- **Unlocks/vesting** — upcoming cliffs / large unlocks. Source: Token Unlocks, CryptoRank.
 - **Traction** — TVL, revenue, real usage. Source: DefiLlama, Token Terminal.
-- **Narrative/catalyst** — sector in favour + upcoming catalyst (mainnet, listing, supply lock).
+- **Narrative/catalyst** — sector in favour + upcoming catalyst; supply structure / hard cap.
 
-The full checklist + red flags + source table also live in the **"Spot Scan" strategy** on
-`/strategy` (the app). Keep the two in sync if the method changes.
+The full checklist + the ZEC "backtest" (how ZEC scored on these criteria) + source table live in the
+**"Spot Scan" strategy** on `/strategy`. Keep the two in sync if the method changes.
 
 ## Notes
-- No API keys needed: Binance `exchangeInfo` for the tradable USDT universe + public klines for
-  technicals; CoinGecko `/coins/markets` (needs a `User-Agent`, already set) for market cap +
-  fundamentals. Only Binance-listed coins are scanned. A very newly-listed coin (< 220 daily bars)
-  scores on fundamentals only and is marked "mới list (thiếu lịch sử D1)".
-- It is a **research filter, not a buy signal**. Most deep-drawdown coins never become ZEC; the
-  filter only raises the odds. Always confirm fundamentals before buying spot.
+- No API keys: Binance `exchangeInfo` for the tradable USDT universe; CoinGecko `/coins/markets`
+  (needs a `User-Agent`, already set) for market cap + FDV + ATH + supply. Only Binance-listed coins.
+- It is a **research filter, not a buy signal**. Deep-drawdown + low-dilution raises the odds; most
+  such coins never become ZEC. Fundamentals decide.

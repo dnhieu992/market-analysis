@@ -10,12 +10,14 @@ projects entering a ZEC-like accumulation → breakout, and rank current candida
 - Liftoff footprint: **reclaim of the 200D SMA** from below, **30d volume ~2×** its average,
   then a **base breakout** (new 60d high) while still early (not parabolic).
 
-## Screener (5 traits, scored 0–100)
-1. Deep drawdown from ATH (≥ 60–70%).
-2. Tight multi-month base near the lows (range max/min < ~2×).
-3. Regime flip: reclaimed the 200D SMA within ~30d.
-4. Volume expansion (30d avg ≥ 1.3–2× prior).
-5. Base breakout (60d high) but still early (+15…+150% off the 180d low; >150% flagged "late").
+## Screener — FUNDAMENTAL only (v2, scored 0–100)
+Technical signals removed by request. Score = deep drawdown from ATH + low dilution (MC/FDV) +
+high circulating %. Data: Binance `exchangeInfo` (universe) + CoinGecko `/coins/markets`
+(mcap/FDV/ATH/supply). No klines. The qualitative layer (team/VC/tokenomics/unlocks) is manual DD.
+
+### ZEC "backtest" (applying the fundamental criteria)
+At the $15.78 low: −99.5% from its $3,191 ATH · hard 21M cap · ~73% mined, fair-launch (no VC unlock)
+· ECC / Zooko / zk-SNARKs · privacy narrative · ~$267M cap → passed on fundamentals, then ran 97×.
 
 ## Command
 ```bash
