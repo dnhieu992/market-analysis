@@ -25,6 +25,7 @@ import type {
   RunBackTestInput,
   Skill,
   TrackingSettings,
+  StrategyHistoryEntry,
   TradingStrategy,
   UpdateDashboardOrderInput,
   UpdatePortfolioInput,
@@ -264,6 +265,16 @@ function mapSettings(row: JsonRecord): TrackingSettings {
     trackingSymbols: symbols,
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt)
+  };
+}
+
+function mapStrategyHistory(row: JsonRecord): StrategyHistoryEntry {
+  return {
+    id: String(row.id),
+    strategyId: String(row.strategyId),
+    title: String(row.title),
+    content: String(row.content),
+    createdAt: String(row.createdAt)
   };
 }
 
@@ -592,6 +603,27 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const response = await fetchImpl(`${baseUrl}/strategies/${id}`, withDefaults({ method: 'DELETE' }));
       if (!response.ok) {
         throw new Error(`Request failed for ${baseUrl}/strategies/${id}: ${response.status}`);
+      }
+    },
+    async fetchStrategyHistory(strategyId: string): Promise<StrategyHistoryEntry[]> {
+      const rows = await fetchJson<JsonRecord[]>(fetchImpl, `${baseUrl}/strategies/${strategyId}/history`, withDefaults());
+      return rows.map(mapStrategyHistory);
+    },
+    async createStrategyHistory(strategyId: string, input: { title: string; content: string }): Promise<StrategyHistoryEntry> {
+      const response = await fetchImpl(`${baseUrl}/strategies/${strategyId}/history`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/strategies/${strategyId}/history: ${response.status}`);
+      }
+      return mapStrategyHistory((await response.json()) as JsonRecord);
+    },
+    async deleteStrategyHistory(historyId: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/strategies/history/${historyId}`, withDefaults({ method: 'DELETE' }));
+      if (!response.ok) {
+        throw new Error(`Request failed for ${baseUrl}/strategies/history/${historyId}: ${response.status}`);
       }
     },
     async fetchPortfolios(): Promise<Portfolio[]> {

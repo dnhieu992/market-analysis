@@ -1,7 +1,12 @@
 ## Description
 The `/strategy` page (nav label **"Strategy Analysis"**, positioned right under Overview) manages trading strategies. On desktop the strategy selector is a **row of chip buttons on the first row** (under the page header); the selected strategy renders full-width below in a sectioned detail panel. On mobile it shows a 2-column card grid; tapping a card navigates to `/strategy/[id]` for the full detail view.
 
-The detail panel has three parts: a **header** (name, version, created/updated dates, Edit/Delete), a **📊 Backtest & mô tả** section rendering `content` as markdown (tables/headings via `renderMarkdown`), and a **📝 Ghi chú của tôi** section — a persisted personal note (`TradingStrategy.note`, separate from `content`) with inline add/edit/save.
+The detail panel is **tabbed**: a **header** (name, version, dates, Delete) above three tabs —
+**📊 Backtest & mô tả** (renders `content` as markdown via `renderMarkdown`), **📝 Ghi chú của tôi**
+(persisted personal note `TradingStrategy.note`, inline add/edit/save), and **🕘 Lịch sử scan**
+(append-only log of saved scan/analysis runs; rows expand accordion-style to show their markdown,
+same UX as `/journal`). History is stored in the `StrategyHistory` table and fetched client-side per
+strategy.
 
 ## Main Flow
 1. Server Component (`_pages/strategy-page/strategy-page.tsx`) fetches all strategies and reads `searchParams.id`.
@@ -16,9 +21,19 @@ The detail panel has three parts: a **header** (name, version, created/updated d
 - **The note is the only field editable from the UI.** The header has a **Xoá** (delete) action only — there is no content/name/version editor on the page, so the backtest `content` is read-only (edit it via the seed script / DB if it needs to change). `EditStrategyForm` still exists in the codebase but is no longer wired into the panel.
 - Stored on the `TradingStrategy.note` `TEXT NULL` column (migration `20260918120000_add_strategy_note`). API accepts it via `note?` on Create/Update DTOs.
 
+## Scan History
+- `StrategyHistorySection` (in `strategy-detail-panel.tsx`) fetches `GET /strategies/:id/history`,
+  shows a "+ Lưu lần scan" form (title + markdown content → `POST /strategies/:id/history`), and
+  lists entries newest-first. Each row expands to render its markdown; 🗑 deletes via
+  `DELETE /strategies/history/:historyId`.
+- Backed by the `StrategyHistory` table (`id, strategyId, title, content, createdAt`), migration
+  `20260918130000_add_strategy_history`. API routes live on `StrategiesController`; history routes are
+  declared before `:id` routes so paths don't clash.
+
 ## Edge Cases
 - No strategies: both layouts show an empty state message.
 - Empty/whitespace note is saved as `null` (clears it) and shows the empty-state prompt.
+- History entry requires both title and content (validated client-side and by the DTO).
 - Invalid or missing `?id` on desktop: detail area shows placeholder ("Select a strategy to view details").
 - Strategy not found on `/strategy/[id]`: Next.js `notFound()` renders the 404 page.
 - After delete: `router.push('/strategy')` clears selection and returns to list root. Delete failure shows an inline error message in the confirm dialog.

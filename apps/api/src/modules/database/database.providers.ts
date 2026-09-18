@@ -11,6 +11,7 @@ import {
   createSessionRepository,
   createSettingsRepository,
   createSignalRepository,
+  createStrategyHistoryRepository,
   createTelegramMessageLogRepository,
   createTradingStrategyRepository,
   createUserRepository,
@@ -25,6 +26,7 @@ export const SETTINGS_REPOSITORY = Symbol('SETTINGS_REPOSITORY');
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 export const SESSION_REPOSITORY = Symbol('SESSION_REPOSITORY');
 export const STRATEGY_REPOSITORY = Symbol('STRATEGY_REPOSITORY');
+export const STRATEGY_HISTORY_REPOSITORY = Symbol('STRATEGY_HISTORY_REPOSITORY');
 export const PORTFOLIO_REPOSITORY = Symbol('PORTFOLIO_REPOSITORY');
 export const COIN_TRANSACTION_REPOSITORY = Symbol('COIN_TRANSACTION_REPOSITORY');
 export const HOLDING_REPOSITORY = Symbol('HOLDING_REPOSITORY');
@@ -67,6 +69,10 @@ export const DatabaseProviders: Provider[] = [
   {
     provide: STRATEGY_REPOSITORY,
     useFactory: () => createTradingStrategyRepository()
+  },
+  {
+    provide: STRATEGY_HISTORY_REPOSITORY,
+    useFactory: () => createStrategyHistoryRepository()
   },
   {
     provide: PORTFOLIO_REPOSITORY,

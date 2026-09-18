@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { StrategiesService } from './strategies.service';
 import { CreateStrategyDto } from './dto/create-strategy.dto';
+import { CreateStrategyHistoryDto } from './dto/create-strategy-history.dto';
 import { UpdateStrategyDto } from './dto/update-strategy.dto';
 
 @ApiTags('Strategies')
@@ -18,6 +19,25 @@ export class StrategiesController {
   @ApiOperation({ summary: 'List all strategies' })
   listStrategies() {
     return this.strategiesService.listStrategies();
+  }
+
+  @Get(':id/history')
+  @ApiOperation({ summary: 'List saved scan/analysis history for a strategy' })
+  listHistory(@Param('id') id: string) {
+    return this.strategiesService.listHistory(id);
+  }
+
+  @Post(':id/history')
+  @ApiOperation({ summary: 'Save a scan/analysis run to a strategy history' })
+  addHistory(@Param('id') id: string, @Body() body: CreateStrategyHistoryDto) {
+    return this.strategiesService.addHistory(id, body);
+  }
+
+  @Delete('history/:historyId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete one strategy history entry' })
+  removeHistory(@Param('historyId') historyId: string) {
+    return this.strategiesService.removeHistory(historyId);
   }
 
   @Get(':id')

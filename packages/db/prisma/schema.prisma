@@ -227,6 +227,18 @@ model TradingStrategy {
   @@index([name])
 }
 
+// Saved scan/analysis runs for a strategy (e.g. Spot Scan) — an append-only log
+// shown as expandable rows in the strategy's History tab.
+model StrategyHistory {
+  id         String   @id @default(uuid()) @db.Char(36)
+  strategyId String   @db.Char(36)
+  title      String
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([strategyId, createdAt])
+}
+
 model User {
   id                  String               @id @default(cuid())
   email               String               @unique

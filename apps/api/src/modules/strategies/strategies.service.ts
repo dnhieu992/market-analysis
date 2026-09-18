@@ -1,7 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
-import { STRATEGY_REPOSITORY } from '../database/database.providers';
+import { STRATEGY_HISTORY_REPOSITORY, STRATEGY_REPOSITORY } from '../database/database.providers';
 import type { CreateStrategyDto } from './dto/create-strategy.dto';
+import type { CreateStrategyHistoryDto } from './dto/create-strategy-history.dto';
 import type { UpdateStrategyDto } from './dto/update-strategy.dto';
 
 type StrategyRepository = {
@@ -12,12 +13,38 @@ type StrategyRepository = {
   remove: (id: string) => Promise<unknown>;
 };
 
+type StrategyHistoryRepository = {
+  create: (data: Record<string, unknown>) => Promise<unknown>;
+  listByStrategy: (strategyId: string) => Promise<unknown[]>;
+  findById: (id: string) => Promise<unknown | null>;
+  remove: (id: string) => Promise<unknown>;
+};
+
 @Injectable()
 export class StrategiesService {
   constructor(
     @Inject(STRATEGY_REPOSITORY)
-    private readonly strategyRepository: StrategyRepository
+    private readonly strategyRepository: StrategyRepository,
+    @Inject(STRATEGY_HISTORY_REPOSITORY)
+    private readonly historyRepository: StrategyHistoryRepository
   ) {}
+
+  listHistory(strategyId: string) {
+    return this.historyRepository.listByStrategy(strategyId);
+  }
+
+  async addHistory(strategyId: string, input: CreateStrategyHistoryDto) {
+    await this.getStrategyById(strategyId);
+    return this.historyRepository.create({ ...input, strategyId });
+  }
+
+  async removeHistory(historyId: string) {
+    const entry = await this.historyRepository.findById(historyId);
+    if (!entry) {
+      throw new NotFoundException(`Strategy history ${historyId} not found`);
+    }
+    return this.historyRepository.remove(historyId);
+  }
 
   listStrategies() {
     return this.strategyRepository.listAll();

@@ -9,6 +9,7 @@ export { createUserRepository } from './repositories/user.repository';
 export { createSessionRepository } from './repositories/session.repository';
 export { createBackTestResultRepository } from './repositories/back-test-result.repository';
 export { createTradingStrategyRepository } from './repositories/trading-strategy.repository';
+export { createStrategyHistoryRepository } from './repositories/strategy-history.repository';
 export { createPortfolioRepository } from './repositories/portfolio.repository';
 export { createCoinTransactionRepository } from './repositories/coin-transaction.repository';
 export { createHoldingRepository } from './repositories/holding.repository';

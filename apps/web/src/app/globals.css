@@ -5169,6 +5169,123 @@ a.metric-card--link:hover {
   gap: 8px;
 }
 
+/* ── Strategy History tab (accordion of saved scans, like /journal) ────────── */
+
+.strat-hist {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.strat-hist-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.strat-hist-count {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.strat-hist-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.strat-hist-title-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.strat-hist-title-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.strat-hist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strat-hist-item {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.strat-hist-item--open {
+  border-color: rgba(31, 111, 91, 0.35);
+}
+
+.strat-hist-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.strat-hist-head:hover {
+  background: var(--accent-soft);
+}
+
+.strat-hist-caret {
+  color: var(--accent);
+  font-size: 0.8rem;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.strat-hist-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--foreground);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strat-hist-date {
+  font-size: 0.74rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.strat-hist-body {
+  padding: 4px 16px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.strat-hist-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 .strat-detail-placeholder {
   display: flex;
   align-items: center;

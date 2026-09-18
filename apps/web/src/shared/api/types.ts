@@ -206,6 +206,14 @@ export type TradingStrategy = {
   updatedAt: string;
 };
 
+export type StrategyHistoryEntry = {
+  id: string;
+  strategyId: string;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
 export type CreateTradingStrategyInput = {
   name: string;
   content: string;

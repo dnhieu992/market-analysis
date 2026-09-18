@@ -1,20 +1,26 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { createApiClient } from '@web/shared/api/client';
 import { renderMarkdown } from '@web/shared/lib/markdown';
-import type { TradingStrategy } from '@web/shared/api/types';
+import type { StrategyHistoryEntry, TradingStrategy } from '@web/shared/api/types';
 
 type StrategyDetailPanelProps = Readonly<{
   strategy: TradingStrategy;
 }>;
 
-type Tab = 'backtest' | 'note';
+type Tab = 'backtest' | 'note' | 'history';
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('vi-VN', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 }
 
 export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
@@ -82,6 +88,14 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
             📝 Ghi chú của tôi
             {hasNote && <span className="strat-tab-dot" aria-label="có ghi chú" />}
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'history'}
+            className={`strat-tab${tab === 'history' ? ' strat-tab--active' : ''}`}
+            onClick={() => setTab('history')}
+          >
+            🕘 Lịch sử scan
+          </button>
         </div>
 
         {/* Panel */}
@@ -91,8 +105,10 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
               className="strat-detail-content strat-detail-content--md"
               dangerouslySetInnerHTML={{ __html: renderMarkdown(strategy.content) }}
             />
-          ) : (
+          ) : tab === 'note' ? (
             <StrategyNoteSection strategy={strategy} />
+          ) : (
+            <StrategyHistorySection strategy={strategy} />
           )}
         </div>
       </div>
@@ -202,6 +218,146 @@ function StrategyNoteSection({ strategy }: { strategy: TradingStrategy }) {
         className="strat-detail-content--md strat-note-body"
         dangerouslySetInnerHTML={{ __html: renderMarkdown(strategy.note ?? '') }}
       />
+    </div>
+  );
+}
+
+/**
+ * History tab: an append-only log of saved scan/analysis runs for this strategy.
+ * Each row expands (accordion) to show its full markdown content — same UX as /journal.
+ */
+function StrategyHistorySection({ strategy }: { strategy: TradingStrategy }) {
+  const [entries, setEntries] = useState<StrategyHistoryEntry[] | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    createApiClient()
+      .fetchStrategyHistory(strategy.id)
+      .then((rows) => { if (alive) setEntries(rows); })
+      .catch(() => { if (alive) setEntries([]); });
+    return () => { alive = false; };
+  }, [strategy.id]);
+
+  async function save() {
+    if (!title.trim() || !content.trim()) {
+      setError('Cần cả tiêu đề và nội dung.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await createApiClient().createStrategyHistory(strategy.id, {
+        title: title.trim(),
+        content: content.trim(),
+      });
+      setEntries((prev) => [created, ...(prev ?? [])]);
+      setTitle('');
+      setContent('');
+      setAdding(false);
+      setExpanded(created.id);
+    } catch {
+      setError('Lưu lịch sử thất bại. Thử lại sau.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Xoá mục lịch sử này?')) return;
+    try {
+      await createApiClient().deleteStrategyHistory(id);
+      setEntries((prev) => (prev ?? []).filter((e) => e.id !== id));
+    } catch {
+      /* keep the row on failure */
+    }
+  }
+
+  return (
+    <div className="strat-hist">
+      <div className="strat-hist-toolbar">
+        <span className="strat-hist-count">
+          {entries == null ? 'Đang tải…' : `${entries.length} lần scan / phân tích đã lưu`}
+        </span>
+        {!adding && (
+          <button className="btn btn--primary btn--sm" onClick={() => { setAdding(true); setError(null); }}>
+            + Lưu lần scan
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <div className="strat-hist-editor">
+          <input
+            className="strat-hist-title-input"
+            placeholder="Tiêu đề, vd: Scan $150M–$500M · 18/09/2026"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            autoFocus
+          />
+          <textarea
+            className="strat-note-textarea"
+            rows={10}
+            placeholder="Dán kết quả scan / phân tích ở đây (hỗ trợ markdown: bảng, **đậm**, - danh sách)…"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+          />
+          {error && <p className="trade-form-error">{error}</p>}
+          <div className="strat-note-actions">
+            <button className="btn btn--primary btn--sm" onClick={save} disabled={saving}>
+              {saving ? 'Đang lưu…' : '💾 Lưu'}
+            </button>
+            <button className="btn btn--secondary btn--sm" onClick={() => { setAdding(false); setError(null); }} disabled={saving}>
+              Huỷ
+            </button>
+          </div>
+        </div>
+      )}
+
+      {entries != null && entries.length === 0 && !adding && (
+        <p className="strat-note-empty">
+          Chưa có lần scan nào. Bấm <strong>“+ Lưu lần scan”</strong> để lưu lại kết quả scan/phân tích — sau này bấm từng dòng để mở lại.
+        </p>
+      )}
+
+      {entries != null && entries.length > 0 && (
+        <ul className="strat-hist-list">
+          {entries.map((e) => {
+            const open = expanded === e.id;
+            return (
+              <li key={e.id} className={`strat-hist-item${open ? ' strat-hist-item--open' : ''}`}>
+                <div
+                  className="strat-hist-head"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setExpanded(open ? null : e.id)}
+                  onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setExpanded(open ? null : e.id); } }}
+                >
+                  <span className="strat-hist-caret">{open ? '▾' : '▸'}</span>
+                  <span className="strat-hist-title">{e.title}</span>
+                  <span className="strat-hist-date">{fmtDateTime(e.createdAt)}</span>
+                </div>
+                {open && (
+                  <div className="strat-hist-body">
+                    <div
+                      className="strat-detail-content--md"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(e.content) }}
+                    />
+                    <div className="strat-hist-row-actions">
+                      <button className="btn btn--ghost btn--sm" onClick={() => remove(e.id)}>🗑 Xoá</button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
