@@ -199,6 +199,7 @@ export type TradingStrategy = {
   id: string;
   name: string;
   content: string;
+  note: string | null;
   imageReference: string[];
   version: string;
   createdAt: string;
@@ -208,6 +209,7 @@ export type TradingStrategy = {
 export type CreateTradingStrategyInput = {
   name: string;
   content: string;
+  note?: string | null;
   imageReference?: string[];
   version: string;
 };
@@ -215,6 +217,7 @@ export type CreateTradingStrategyInput = {
 export type UpdateTradingStrategyInput = {
   name?: string;
   content?: string;
+  note?: string | null;
   imageReference?: string[];
   version?: string;
 };

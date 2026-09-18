@@ -275,6 +275,7 @@ function mapTradingStrategy(row: JsonRecord): TradingStrategy {
     id: String(row.id),
     name: String(row.name),
     content: String(row.content),
+    note: row.note == null ? null : String(row.note),
     imageReference,
     version: String(row.version),
     createdAt: String(row.createdAt),

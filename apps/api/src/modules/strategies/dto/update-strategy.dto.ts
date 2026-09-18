@@ -12,6 +12,11 @@ export class UpdateStrategyDto {
   @IsString()
   content?: string;
 
+  @ApiPropertyOptional({ example: 'Ghi chú riêng của tôi về chiến lược này' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+
   @ApiPropertyOptional({ example: ['https://example.com/image.png'], type: [String] })
   @IsOptional()
   @IsArray()

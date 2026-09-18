@@ -218,6 +218,7 @@ model TradingStrategy {
   id             String   @id @default(uuid()) @db.Char(36)
   name           String
   content        String   @db.Text
+  note           String?  @db.Text
   imageReference Json     @default("[]")
   version        String
   createdAt      DateTime @default(now())
