@@ -21,6 +21,7 @@
 import * as https from 'https';
 
 const BINANCE = 'https://api.binance.com/api/v3/klines';
+const BINANCE_INFO = 'https://api.binance.com/api/v3/exchangeInfo';
 const CG = 'https://api.coingecko.com/api/v3';
 const UA = 'market-analysis-spot-scan/1.0';
 // CoinGecko symbols that are NOT the Binance pair we want (stablecoins / wrapped / dupes to skip).
@@ -48,9 +49,18 @@ async function klines(sym: string, startMs: number, endMs: number): Promise<C[]>
   return out;
 }
 
+/** Base assets that have a TRADING <BASE>USDT spot pair on Binance. */
+async function binanceUsdtBases(): Promise<Set<string>> {
+  const info = await getJson(BINANCE_INFO);
+  const set = new Set<string>();
+  const syms = (info?.symbols ?? []) as any[];
+  for (const s of syms) if (s.quoteAsset === 'USDT' && s.status === 'TRADING') set.add(String(s.baseAsset).toUpperCase());
+  return set;
+}
+
 type Fund = { sym: string; mcap: number; fdv: number | null; vol: number; athPct: number; mcFdv: number | null; circPct: number | null; chg30: number | null; rank: number };
 
-async function cgUniverse(minM: number, maxM: number, minVolM: number, pool: number): Promise<Fund[]> {
+async function cgUniverse(minM: number, maxM: number, minVolM: number, pool: number, binance: Set<string>): Promise<Fund[]> {
   const out: Fund[] = [];
   for (let page = 1; page <= 12 && out.length < pool; page++) {
     const rows = await getJson(`${CG}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}&sparkline=false&price_change_percentage=30d`);
@@ -60,6 +70,7 @@ async function cgUniverse(minM: number, maxM: number, minVolM: number, pool: num
       const mcap = r.market_cap ?? 0;
       const vol = r.total_volume ?? 0;
       if (!sym || SKIP.has(sym)) continue;
+      if (!binance.has(sym)) continue; // Binance-listed coins only
       if (mcap < minM * 1e6 || mcap > maxM * 1e6) continue;
       if (vol < minVolM * 1e6) continue;
       out.push({
@@ -124,7 +135,7 @@ function score(f: Fund, t: Tech | null): Row {
     if (t.offLow >= 15 && t.offLow <= 150) { s += 10; why.push(`+${t.offLow.toFixed(0)}% off low`); }
     else if (t.offLow > 150) { why.push(`⚠ +${t.offLow.toFixed(0)}% off low (late)`); }
   } else {
-    why.push('no Binance D1 (fund-only)');
+    why.push('mới list (thiếu lịch sử D1)');
   }
   return { ...f, score: s, why, hasTech: !!t };
 }
@@ -141,11 +152,13 @@ async function main() {
   const minM = flag('min', 30), maxM = flag('max', 2000), minVolM = flag('vol', 2), pool = flag('pool', 350);
 
   console.log(`\nSpot Scan — "find the next ZEC" · ${new Date().toISOString().slice(0, 10)}`);
-  console.log(`Universe: CoinGecko, market cap $${minM}M–$${maxM >= 1000 ? (maxM / 1000) + 'B' : maxM + 'M'} · 24h vol ≥ $${minVolM}M · up to ${pool} coins`);
+  console.log(`Universe: Binance-listed USDT pairs · market cap $${minM}M–$${maxM >= 1000 ? (maxM / 1000) + 'B' : maxM + 'M'} · 24h vol ≥ $${minVolM}M · up to ${pool} coins`);
   console.log('Signals: deep ATH drawdown + low dilution (fund) + tight base + 200D reclaim + volume + early breakout (tech)\n');
 
-  const uni = await cgUniverse(minM, maxM, minVolM, pool);
-  console.log(`Fetched ${uni.length} coins in the cap window. Pulling Binance D1 for technicals…`);
+  const binance = await binanceUsdtBases();
+  console.log(`Binance has ${binance.size} TRADING USDT pairs. Selecting the cap window from CoinGecko…`);
+  const uni = await cgUniverse(minM, maxM, minVolM, pool, binance);
+  console.log(`${uni.length} Binance coins in the cap window. Pulling D1 klines for technicals…`);
 
   const end = Date.now(), start = end - 400 * 864e5;
   const scored: Row[] = [];
@@ -165,7 +178,8 @@ async function main() {
       `${(r.chg30 != null ? (r.chg30 >= 0 ? '+' : '') + r.chg30.toFixed(0) + '%' : '—').padStart(5)}   ${r.why.join(', ')}`,
     );
   });
-  console.log(`\n(${scored.length} coins scored; ${scored.filter((r) => r.hasTech).length} had Binance D1. Showing top ${Math.min(rows, scored.length)}.)`);
+  const noHist = scored.filter((r) => !r.hasTech).length;
+  console.log(`\n(${scored.length} Binance coins scored${noHist ? `; ${noHist} too newly listed for a full technical read` : ''}. Showing top ${Math.min(rows, scored.length)}.)`);
   console.log('Reminder: technical timing only — validate each with the fundamental DD checklist (team, investors, tokenomics, unlocks).\n');
 }
 main().catch((e) => { console.error(e); process.exit(1); });

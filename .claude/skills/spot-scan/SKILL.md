@@ -11,7 +11,14 @@ coins are in a ZEC-like accumulation → early breakout right now. **Layer 2 (yo
 due diligence:** which of those actually deserve a buy. Technicals say *when*; fundamentals say *which*.
 
 The ZEC template (measured): $15.78 → $1,535 (~97×). Deep drawdown from ATH → long tight base near
-the lows → reclaim of the 200-day SMA → volume expansion → base breakout while still early.
+the lows → reclaim of the 200-day SMA → volume expansion → base breakout while still early. ZEC's
+market cap when the move began was only **~$267M** (and ~$369M when it first listed on Binance in
+2019) — the opportunity lives at a few hundred $M, not at its current ~$25B. That is why the default
+cap window is small/mid-cap.
+
+**Universe = Binance-listed USDT pairs only** (from Binance `exchangeInfo`, ~490 TRADING pairs),
+intersected with the CoinGecko cap window. There is no point scanning all ~21k CoinGecko coins —
+99% are dead/illiquid; the tradable, on-exchange subset in the cap window is only a few hundred.
 
 ## Execute
 
@@ -65,8 +72,9 @@ The full checklist + red flags + source table also live in the **"Spot Scan" str
 `/strategy` (the app). Keep the two in sync if the method changes.
 
 ## Notes
-- No API keys needed: CoinGecko `/coins/markets` (needs a `User-Agent`, already set) for the
-  universe + fundamentals; Binance public klines for technicals. ~71/120 coins in a typical window
-  trade on Binance; the rest show as `fund-only` (no technical score).
+- No API keys needed: Binance `exchangeInfo` for the tradable USDT universe + public klines for
+  technicals; CoinGecko `/coins/markets` (needs a `User-Agent`, already set) for market cap +
+  fundamentals. Only Binance-listed coins are scanned. A very newly-listed coin (< 220 daily bars)
+  scores on fundamentals only and is marked "mới list (thiếu lịch sử D1)".
 - It is a **research filter, not a buy signal**. Most deep-drawdown coins never become ZEC; the
   filter only raises the odds. Always confirm fundamentals before buying spot.
