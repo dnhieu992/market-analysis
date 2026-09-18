@@ -107,6 +107,64 @@ short +10% = 71.5% vs long 41.1%). In 2024 (up year) long was better. So the "be
 a **regime read**, not a fixed property of the signal — both sides sit ~50% at +10% once you average
 across regimes. `undecided` counts are tiny (<3%), so the sample is well-resolved.
 
+---
+
+## H4 timeframe (same study)
+
+Same script, `interval = 4h`. Far more signals (QQE flips ~6× as often on H4) and the swing
+low/high pivot sits much closer, so win rates are markedly lower and the hard-fail rate ~doubles.
+
+Command: `... scripts/run-qqe-d1-oldlow-winrate.ts 4h 2023-01-01 5 [--short]`
+
+**LONG ▲ (pivot 5, 10,005 signals):**
+
+| Target | win | fail | undecided | **win rate** |
+|-------:|----:|-----:|----------:|-------------:|
+| +5%    |4818 |5177  | 10        | **48.2%** |
+| +10%   |3461 |6510  | 34        | **34.7%** |
+| +15%   |2716 |7237  | 52        | **27.3%** |
+
+- Hard fail (broke old low before +5%): **51.7%**. Median time to break: **12 bars (~2 days)**.
+
+**SHORT ▼ (pivot 5, 9,852 signals):**
+
+| Target | win | fail | undecided | **win rate** |
+|-------:|----:|-----:|----------:|-------------:|
+| −5%    |4793 |5052  | 7         | **48.7%** |
+| −10%   |3344 |6487  | 21        | **34.0%** |
+| −15%   |2670 |7151  | 31        | **27.2%** |
+
+- Hard fail (broke old high before −5%): **51.3%**. Median time to break: **11 bars**.
+
+**Per year (win rate, pivot 5):**
+
+| year | LONG +5/+10/+15 | SHORT −5/−10/−15 |
+|-----:|:---------------:|:----------------:|
+| 2023 | 48.6/36.0/30.1 | 43.0/27.7/21.1 |
+| 2024 | 53.0/40.3/32.5 | 50.2/35.5/27.8 |
+| 2025 | 46.1/31.3/22.5 | 53.6/39.9/33.6 |
+| 2026 | 44.4/30.4/23.7 | 46.3/31.1/24.5 |
+
+**Pivot sensitivity (H4 aggregate win rate):**
+
+| pivot | LONG +5/+10/+15 | SHORT −5/−10/−15 | hard-fail L/S |
+|------:|:---------------:|:----------------:|:-------------:|
+| 3     | 48.4/34.0/26.5 | 48.8/33.4/26.2 | 51.6 / 51.2 |
+| **5** | **48.2/34.7/27.3** | **48.7/34.0/27.2** | **51.7 / 51.3** |
+| 10    | 54.7/41.2/33.4 | 57.7/44.0/36.7 | 45.2 / 42.2 |
+
+### D1 vs H4 (pivot 5, +10% / −10%)
+| Side | D1 | H4 |
+|-----:|---:|---:|
+| LONG +10%  | **51.9%** | 34.7% |
+| SHORT −10% | **57.6%** | 34.0% |
+
+**Takeaway (H4):** on H4 the QQE flip is a **coin-flip at best** — +5% before breaking the recent
+low/high is ~48% (worse than 50/50 once you count the ~52% that break first), and +10% drops to
+~34%. The edge that D1 shows (~52–58% at ±10%) **evaporates on H4**: more signals, more noise, the
+guard is nearer, and half break before even +5%. Practically, **trade this signal on D1, not H4**;
+if used on H4 it needs a much tighter target (≤+5%) and quick exits, and even then it's marginal.
+
 ## Takeaway
 On D1, a QQE bull flip reaches **+5% before breaking the recent strong low ~66% of the time**,
 **+10% ~52%**, and **+15% ~43%** — robust across pivot definitions (±2–6pp). The "break the old
