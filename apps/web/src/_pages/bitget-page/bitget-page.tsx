@@ -38,7 +38,7 @@ async function loadData(): Promise<{
   const client = createServerApiClient();
   const [positions, history] = await Promise.all([
     client.fetchBitgetPositions().catch(() => EMPTY_POSITIONS),
-    client.fetchBitgetHistory({ limit: 200 }).catch(() => EMPTY_HISTORY),
+    client.fetchBitgetHistory({ limit: 'all' }).catch(() => EMPTY_HISTORY),
   ]);
   return { positions, history };
 }

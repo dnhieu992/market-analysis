@@ -54,9 +54,15 @@ export class BitgetController {
   @Get('history')
   @ApiOperation({ summary: 'Closed-trade history + realized PnL summary (from DB)' })
   getHistory(@Query('limit') limit?: string, @Query('symbol') symbol?: string) {
+    const sym = symbol?.trim() || undefined;
+    // `limit=all` (or 0) returns the full closed history uncapped; the UI's
+    // Lịch sử tab requests this so stats + pagination span every trade.
+    if (limit === 'all' || limit === '0') {
+      return this.service.getClosedHistory(null, sym);
+    }
     const parsed = Number(limit);
     const take = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 500) : 200;
-    return this.service.getClosedHistory(take, symbol?.trim() || undefined);
+    return this.service.getClosedHistory(take, sym);
   }
 
   @Post('positions/close')

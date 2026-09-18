@@ -236,7 +236,7 @@ export class BitgetService {
    * `configured` reflects whether the same account credentials the worker syncs
    * with are present, so the page can explain an empty list.
    */
-  async getClosedHistory(limit = 200, symbol?: string): Promise<BitgetHistoryResult> {
+  async getClosedHistory(limit: number | null = 200, symbol?: string): Promise<BitgetHistoryResult> {
     const fetchedAt = new Date().toISOString();
     const rows = await this.tradeRepo.findRecentClosed(limit, symbol);
 

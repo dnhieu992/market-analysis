@@ -132,7 +132,7 @@ export function BitgetHistoryFeed({ initial, embedded = false, onCount }: Props)
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const next = await clientRef.current.fetchBitgetHistory({ limit: 200 });
+      const next = await clientRef.current.fetchBitgetHistory({ limit: 'all' });
       setData(next);
       setError(null);
     } catch {

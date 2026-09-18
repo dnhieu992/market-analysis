@@ -83,12 +83,15 @@ export function createBitgetTradeRepository(client = prisma) {
       return client.bitgetTrade.create({ data: { ...input, status: 'closed' } });
     },
 
-    /** Newest-closed first, capped. Optional symbol filter. */
-    findRecentClosed(limit = 200, symbol?: string) {
+    /**
+     * Newest-closed first. Optional symbol filter. Pass `limit = null` (or
+     * undefined) to return the full closed history uncapped; a number caps it.
+     */
+    findRecentClosed(limit: number | null = 200, symbol?: string) {
       return client.bitgetTrade.findMany({
         where: { status: 'closed', ...(symbol ? { symbol } : {}) },
         orderBy: { closedAt: 'desc' },
-        take: limit,
+        ...(limit != null ? { take: limit } : {}),
       });
     },
 

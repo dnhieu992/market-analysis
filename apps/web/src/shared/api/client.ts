@@ -1281,7 +1281,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    async fetchBitgetHistory(params: { limit?: number; symbol?: string } = {}): Promise<BitgetHistoryResponse> {
+    async fetchBitgetHistory(
+      params: { limit?: number | 'all'; symbol?: string } = {},
+    ): Promise<BitgetHistoryResponse> {
       const qs = new URLSearchParams();
       if (params.limit) qs.set('limit', String(params.limit));
       if (params.symbol) qs.set('symbol', params.symbol);
