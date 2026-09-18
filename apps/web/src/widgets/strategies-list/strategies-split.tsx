@@ -14,7 +14,10 @@ type StrategiesSplitProps = Readonly<{
 
 export function StrategiesSplit({ strategies, selectedId, onCreateClick }: StrategiesSplitProps) {
   const router = useRouter();
-  const selected = strategies.find((s) => s.id === selectedId) ?? null;
+  // Default to the first strategy when the URL has no (or an unknown) id, so the
+  // panel is never empty while strategies exist.
+  const selected =
+    strategies.find((s) => s.id === selectedId) ?? strategies[0] ?? null;
 
   function selectStrategy(id: string) {
     router.push(`/strategy?id=${id}`);
@@ -24,37 +27,34 @@ export function StrategiesSplit({ strategies, selectedId, onCreateClick }: Strat
     <div className="strat-page">
       <div className="strat-page-header">
         <h1 className="strat-page-title">Strategy Analysis</h1>
-        <button className="btn btn--primary" onClick={onCreateClick}>+ Add Strategy</button>
+        <button className="btn btn--primary btn--sm" onClick={onCreateClick}>+ Add Strategy</button>
       </div>
 
-      <div className="strat-split">
-        {/* Left: list */}
-        <div className="strat-list">
-          {strategies.length === 0 ? (
-            <div className="strat-empty">No strategies yet.</div>
-          ) : (
-            strategies.map((strategy) => (
-              <button
-                key={strategy.id}
-                className={`strat-list-item${strategy.id === selectedId ? ' strat-list-item--active' : ''}`}
-                onClick={() => selectStrategy(strategy.id)}
-              >
-                <span className="strat-list-item-name">{strategy.name}</span>
-                <span className="strat-list-item-meta">v{strategy.version}</span>
-              </button>
-            ))
-          )}
+      {/* Strategy selector — chip buttons on the first row */}
+      {strategies.length > 0 && (
+        <div className="strat-chip-row" role="tablist" aria-label="Chọn chiến lược">
+          {strategies.map((strategy) => (
+            <button
+              key={strategy.id}
+              role="tab"
+              aria-selected={strategy.id === selected?.id}
+              className={`strat-chip${strategy.id === selected?.id ? ' strat-chip--active' : ''}`}
+              onClick={() => selectStrategy(strategy.id)}
+            >
+              <span className="strat-chip-name">{strategy.name}</span>
+              <span className="strat-chip-ver">v{strategy.version}</span>
+            </button>
+          ))}
         </div>
+      )}
 
-        {/* Right: detail panel */}
-        {selected ? (
-          <StrategyDetailPanel key={selected.id} strategy={selected} />
-        ) : (
-          <div className="strat-detail-placeholder">
-            Select a strategy to view details
-          </div>
-        )}
-      </div>
+      {selected ? (
+        <StrategyDetailPanel key={selected.id} strategy={selected} />
+      ) : (
+        <div className="strat-detail-placeholder">
+          No strategies yet. Add one to get started.
+        </div>
+      )}
     </div>
   );
 }

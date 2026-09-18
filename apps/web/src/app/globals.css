@@ -4827,6 +4827,57 @@ a.metric-card--link:hover {
   margin: 0;
 }
 
+/* Strategy selector chips (replaces the old left-hand list) */
+.strat-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.strat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.strat-chip:hover {
+  border-color: rgba(31, 111, 91, 0.4);
+}
+
+.strat-chip--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(31, 111, 91, 0.22);
+}
+
+.strat-chip-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.strat-chip-ver {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.strat-chip--active .strat-chip-name {
+  color: #fff;
+}
+
+.strat-chip--active .strat-chip-ver {
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .strat-split {
   display: none;
 }
@@ -4970,7 +5021,7 @@ a.metric-card--link:hover {
 /* Panel becomes its own scroll container so header + tabs stay put while the
    long backtest scrolls underneath. */
 .strat-detail {
-  max-height: calc(100vh - 128px);
+  max-height: calc(100vh - 176px);
   overflow: hidden;
   padding: 0;
   gap: 0;

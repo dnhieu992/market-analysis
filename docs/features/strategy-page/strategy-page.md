@@ -1,12 +1,12 @@
 ## Description
-The `/strategy` page (nav label **"Strategy Analysis"**, positioned right under Overview) manages trading strategies. On desktop it shows a split layout: strategy list on the left, a sectioned detail panel on the right. On mobile it shows a 2-column card grid; tapping a card navigates to `/strategy/[id]` for the full detail view.
+The `/strategy` page (nav label **"Strategy Analysis"**, positioned right under Overview) manages trading strategies. On desktop the strategy selector is a **row of chip buttons on the first row** (under the page header); the selected strategy renders full-width below in a sectioned detail panel. On mobile it shows a 2-column card grid; tapping a card navigates to `/strategy/[id]` for the full detail view.
 
 The detail panel has three parts: a **header** (name, version, created/updated dates, Edit/Delete), a **📊 Backtest & mô tả** section rendering `content` as markdown (tables/headings via `renderMarkdown`), and a **📝 Ghi chú của tôi** section — a persisted personal note (`TradingStrategy.note`, separate from `content`) with inline add/edit/save.
 
 ## Main Flow
 1. Server Component (`_pages/strategy-page/strategy-page.tsx`) fetches all strategies and reads `searchParams.id`.
 2. Passes `strategies` + `selectedId` to `StrategiesList` (client).
-3. **Desktop** (`≥768px`): `StrategiesSplit` renders list + detail panel. Clicking a list item pushes `?id=xxx` to the router. `StrategyDetailPanel` handles edit/delete dialogs.
+3. **Desktop** (`≥768px`): `StrategiesSplit` renders the chip selector row + full-width detail panel. Clicking a chip pushes `?id=xxx`; when the URL has no/unknown id it falls back to the first strategy so the panel is never empty. `StrategyDetailPanel` (tabbed: Backtest | Ghi chú) handles edit/delete dialogs.
 4. **Mobile** (`<768px`): `StrategiesCardGrid` renders cards as `<Link href="/strategy/[id]">`. Tapping navigates to the detail route.
 5. `/strategy/[id]` (Server Component) fetches the strategy by id via `.catch(() => null)` and calls `notFound()` if missing, otherwise renders `StrategyDetailPanel` with a Back link.
 
