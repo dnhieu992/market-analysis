@@ -23,7 +23,7 @@ export function StrategiesSplit({ strategies, selectedId, onCreateClick }: Strat
   return (
     <div className="strat-page">
       <div className="strat-page-header">
-        <h1 className="strat-page-title">Strategies</h1>
+        <h1 className="strat-page-title">Strategy Analysis</h1>
         <button className="btn btn--primary" onClick={onCreateClick}>+ Add Strategy</button>
       </div>
 

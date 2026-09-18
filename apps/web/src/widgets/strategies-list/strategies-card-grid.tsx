@@ -9,11 +9,23 @@ type StrategiesCardGridProps = Readonly<{
   onCreateClick: () => void;
 }>;
 
+/** Plain-text snippet for the mobile preview card — strips markdown so a table/heading
+ *  blob doesn't render as raw `#`/`|` noise. */
+function previewText(content: string): string {
+  return content
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/^[#>\-*|\s]+/gm, ' ')
+    .replace(/[*_`#|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180);
+}
+
 export function StrategiesCardGrid({ strategies, onCreateClick }: StrategiesCardGridProps) {
   return (
     <div className="strat-page">
       <div className="strat-page-header">
-        <h1 className="strat-page-title">Strategies</h1>
+        <h1 className="strat-page-title">Strategy Analysis</h1>
         <button className="btn btn--primary" onClick={onCreateClick}>+ Add Strategy</button>
       </div>
 
@@ -27,7 +39,7 @@ export function StrategiesCardGrid({ strategies, onCreateClick }: StrategiesCard
                 <span className="sgrid-card-name">{strategy.name}</span>
                 <span className="strat-ver-badge">{strategy.version}</span>
               </div>
-              <p className="sgrid-card-preview">{strategy.content}</p>
+              <p className="sgrid-card-preview">{previewText(strategy.content)}</p>
               <span className="sgrid-card-date">
                 {new Date(strategy.createdAt).toLocaleDateString()}
               </span>

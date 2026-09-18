@@ -23,6 +23,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Dashboard summary'
   },
   {
+    href: '/strategy',
+    label: 'Strategy Analysis',
+    description: 'Chiến lược giao dịch & kết quả backtest'
+  },
+  {
     href: '/journal',
     label: 'Trading Journal',
     description: 'Nhật ký phân tích & cảm xúc hàng ngày + ảnh mô hình'
@@ -61,11 +66,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/tracking-coins',
     label: 'Tracking Coins · Gom đáy',
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
-  },
-  {
-    href: '/strategy',
-    label: 'Strategies',
-    description: 'Manage trading strategies'
   },
   {
     href: '/strategy-test',

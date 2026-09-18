@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { EditStrategyForm } from '@web/features/edit-strategy/edit-strategy-form';
 import { createApiClient } from '@web/shared/api/client';
+import { renderMarkdown } from '@web/shared/lib/markdown';
 import type { TradingStrategy } from '@web/shared/api/types';
 
 type StrategyDetailPanelProps = Readonly<{
@@ -44,7 +45,10 @@ export function StrategyDetailPanel({ strategy }: StrategyDetailPanelProps) {
           </span>
         </div>
 
-        <p className="strat-detail-content">{strategy.content}</p>
+        <div
+          className="strat-detail-content strat-detail-content--md"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(strategy.content) }}
+        />
 
         <div className="strat-detail-actions">
           <button className="btn btn--secondary" onClick={() => setEditOpen(true)}>

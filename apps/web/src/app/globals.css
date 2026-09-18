@@ -4926,6 +4926,22 @@ a.metric-card--link:hover {
   flex: 1;
 }
 
+/* Markdown-rendered strategy content (headings, tables, lists from renderMarkdown). */
+.strat-detail-content--md {
+  white-space: normal;
+  overflow-x: auto;
+}
+
+.strat-detail-content--md table {
+  color: #111827; /* renderMarkdown table cells use light backgrounds — keep text dark in both themes */
+}
+
+.strat-detail-content--md h1,
+.strat-detail-content--md h2,
+.strat-detail-content--md h3 {
+  color: var(--foreground);
+}
+
 .strat-detail-actions {
   display: flex;
   gap: 8px;
