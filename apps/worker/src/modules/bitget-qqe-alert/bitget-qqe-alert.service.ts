@@ -21,21 +21,37 @@ const FETCH_CONCURRENCY = 6;
 
 const bareSymbol = (s: string) => s.trim().toUpperCase().replace(/USDT$/, '');
 
+/**
+ * Timeframes we run the QQE flip scan on — a subset of Binance's kline intervals,
+ * so the value doubles as the `fetchKlines` timeframe. Same params/logic, different candle.
+ */
+export type QqeTimeframe = '4h' | '1d';
+
+/**
+ * Per-timeframe display metadata. `label` is what the Telegram header shows so
+ * the trader can tell an H4 alert from a D1 one at a glance.
+ */
+const TF_META: Record<QqeTimeframe, { label: string; candleName: string }> = {
+  '4h': { label: 'H4', candleName: 'H4' },
+  '1d': { label: 'D1', candleName: 'D1 (ngày)' },
+};
+
 type QqeState = 'long' | 'short';
 type QqeAlert = { symbol: string; state: QqeState };
 
 /**
- * Post-H4-close QQE alerter for the /bitget Setup tab. On each closed 4h candle
- * it recomputes colinmck QQE for every distinct coin the trader keeps in the
- * Setup tab and Telegrams the ones whose just-closed candle IS a fresh Long
- * (bull) / Short (bear) flip.
+ * Post-candle-close QQE alerter for the /bitget Setup tab. On each closed candle
+ * (H4 or D1) it recomputes colinmck QQE for every distinct coin the trader keeps
+ * in the Setup tab and Telegrams the ones whose just-closed candle IS a fresh
+ * Long (bull) / Short (bear) flip. The message header names the timeframe.
  */
 @Injectable()
 export class BitgetQqeAlertService {
   private readonly logger = new Logger(BitgetQqeAlertService.name);
   private readonly setupRepo = createBitgetSetupConfigRepository();
-  /** Overlap guard — an H4 tick must never stack on a still-running one. */
-  private running = false;
+  /** Overlap guard, per timeframe — a tick must never stack on a still-running
+   * one of the SAME timeframe, but H4 and D1 (both near 00:00 UTC) may overlap. */
+  private readonly running = new Set<QqeTimeframe>();
 
   constructor(
     private readonly binance: BinanceMarketDataService,
@@ -48,47 +64,48 @@ export class BitgetQqeAlertService {
    * gates a send, so each flip alerts exactly once — no dedup store is needed:
    * the next tick sees a different "last closed candle" and won't re-fire it.
    */
-  async checkAndAlert(): Promise<void> {
-    if (this.running) {
-      this.logger.warn('QQE H4 alert already running — skipping this tick');
+  async checkAndAlert(timeframe: QqeTimeframe = '4h'): Promise<void> {
+    const { label } = TF_META[timeframe];
+    if (this.running.has(timeframe)) {
+      this.logger.warn(`QQE ${label} alert already running — skipping this tick`);
       return;
     }
-    this.running = true;
+    this.running.add(timeframe);
     try {
       const configs = await this.setupRepo.findAll();
       const symbols = [...new Set(configs.map((c) => bareSymbol(c.symbol)))].filter(Boolean);
       if (symbols.length === 0) {
-        this.logger.log('QQE H4 alert — Setup tab is empty, nothing to scan');
+        this.logger.log(`QQE ${label} alert — Setup tab is empty, nothing to scan`);
         return;
       }
 
       const alerts: QqeAlert[] = [];
       await this.runPooled(symbols, async (bare) => {
-        const state = await this.crossFor(bare, 'fresh');
+        const state = await this.crossFor(bare, 'fresh', timeframe);
         if (state) alerts.push({ symbol: bare, state });
       });
 
       if (alerts.length === 0) {
-        this.logger.log(`QQE H4 alert — ${symbols.length} coins scanned, no fresh flips`);
+        this.logger.log(`QQE ${label} alert — ${symbols.length} coins scanned, no fresh flips`);
         return;
       }
 
       alerts.sort((a, b) => a.symbol.localeCompare(b.symbol));
       const res = await this.telegram.sendToChat(
         process.env.TELEGRAM_CHAT_ID ?? '',
-        this.formatMessage(alerts),
+        this.formatMessage(alerts, timeframe),
       );
       this.logger.log(
-        `QQE H4 alert — ${alerts.length} fresh flip(s): ${alerts
+        `QQE ${label} alert — ${alerts.length} fresh flip(s): ${alerts
           .map((a) => `${a.symbol}:${a.state}`)
           .join(', ')} (telegram ${res.success ? 'sent' : 'failed'})`,
       );
     } catch (err) {
       this.logger.error(
-        `QQE H4 alert failed: ${err instanceof Error ? err.message : String(err)}`,
+        `QQE ${label} alert failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     } finally {
-      this.running = false;
+      this.running.delete(timeframe);
     }
   }
 
@@ -99,12 +116,12 @@ export class BitgetQqeAlertService {
    * manual run exercise the full DB → Binance → QQE → Telegram path on demand.
    * Returns the states; the caller decides how to format/send them.
    */
-  async previewCurrentStates(): Promise<QqeAlert[]> {
+  async previewCurrentStates(timeframe: QqeTimeframe = '4h'): Promise<QqeAlert[]> {
     const configs = await this.setupRepo.findAll();
     const symbols = [...new Set(configs.map((c) => bareSymbol(c.symbol)))].filter(Boolean);
     const states: QqeAlert[] = [];
     await this.runPooled(symbols, async (bare) => {
-      const state = await this.crossFor(bare, 'current');
+      const state = await this.crossFor(bare, 'current', timeframe);
       if (state) states.push({ symbol: bare, state });
     });
     states.sort((a, b) => a.symbol.localeCompare(b.symbol));
@@ -112,16 +129,21 @@ export class BitgetQqeAlertService {
   }
 
   /**
-   * The QQE state for a coin's closed 4h candles. `cross[]` is aligned 1:1 with the
-   * closed-candle closes. `mode: 'fresh'` returns a state only when the LAST candle
-   * is itself the flip bar (a brand-new signal); `mode: 'current'` returns the last
-   * non-null cross, i.e. the regime the coin is in right now. Null on any failure.
+   * The QQE state for a coin's closed candles on `timeframe` (H4 or D1). `cross[]`
+   * is aligned 1:1 with the closed-candle closes. `mode: 'fresh'` returns a state
+   * only when the LAST candle is itself the flip bar (a brand-new signal);
+   * `mode: 'current'` returns the last non-null cross, i.e. the regime the coin is
+   * in right now. Null on any failure.
    */
-  private async crossFor(bare: string, mode: 'fresh' | 'current'): Promise<QqeState | null> {
+  private async crossFor(
+    bare: string,
+    mode: 'fresh' | 'current',
+    timeframe: QqeTimeframe,
+  ): Promise<QqeState | null> {
     try {
       const klines = await this.binance.fetchKlines({
         symbol: `${bare}USDT`,
-        timeframe: '4h',
+        timeframe,
         limit: KLINE_LIMIT,
       });
       const now = Date.now();
@@ -153,18 +175,19 @@ export class BitgetQqeAlertService {
     }
   }
 
-  private formatMessage(alerts: QqeAlert[]): string {
+  private formatMessage(alerts: QqeAlert[], timeframe: QqeTimeframe): string {
+    const { label, candleName } = TF_META[timeframe];
     const lines = alerts.map((a) =>
       a.state === 'long'
         ? `🟢 <b>${a.symbol}</b> — QQE báo <b>BULL</b> (Long)`
         : `🔴 <b>${a.symbol}</b> — QQE báo <b>BEAR</b> (Short)`,
     );
     return [
-      '🔔 <b>QQE H4 — tín hiệu mới (Setup tab)</b>',
+      `🔔 <b>[${label}] QQE — tín hiệu mới (Setup tab)</b>`,
       '',
       ...lines,
       '',
-      '⏱ Nến H4 vừa đóng cửa',
+      `⏱ Nến ${candleName} vừa đóng cửa`,
     ].join('\n');
   }
 

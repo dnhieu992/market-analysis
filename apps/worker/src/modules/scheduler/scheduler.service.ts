@@ -158,10 +158,25 @@ export class SchedulerService {
   @Cron('15 0 0,4,8,12,16,20 * * *', { timeZone: 'UTC' })
   async runBitgetQqeH4Alert() {
     try {
-      await this.bitgetQqeAlertService.checkAndAlert();
+      await this.bitgetQqeAlertService.checkAndAlert('4h');
     } catch (err) {
       this.logger.error(
         `Bitget QQE H4 alert failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  // Runs 30s after the daily (D1) candle close at 00:00 UTC — the same QQE scan
+  // as the H4 alert but on the just-closed daily candle. The 30s offset lets the
+  // closed candle land on Binance first. Message is labelled "[D1]" so it is easy
+  // to tell apart from the "[H4]" alert that also fires around 00:00 UTC.
+  @Cron('30 0 0 * * *', { timeZone: 'UTC' })
+  async runBitgetQqeD1Alert() {
+    try {
+      await this.bitgetQqeAlertService.checkAndAlert('1d');
+    } catch (err) {
+      this.logger.error(
+        `Bitget QQE D1 alert failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
