@@ -24,15 +24,18 @@ export type ScalpDirection = 'LONG' | 'SHORT';
 export type ScalpTrend = 'uptrend' | 'downtrend' | 'sideway';
 
 /**
- * What Claude is asked to decide each tick. The monitor is limit-order based: when
- * flat Claude pre-computes a resting limit (`PLACE_LIMIT_*`); a candle touching that
- * limit fills it into an open trade mechanically (no model call). While a limit is
- * resting Claude can `KEEP`, `UPDATE_LIMIT`, or `CANCEL` it; once open it manages
- * with `HOLD` / `ADJUST` / `CLOSE_NOW`.
+ * What Claude is asked to decide each tick. The monitor is limit-first: when flat Claude
+ * usually pre-computes a resting limit (`PLACE_LIMIT_*`) that a candle touching it fills
+ * into an open trade mechanically (no model call). On a genuine breakout it may instead
+ * enter at market (`PLACE_MARKET_*`), opening immediately at the current price. While a
+ * limit is resting Claude can `KEEP`, `UPDATE_LIMIT`, or `CANCEL` it; once open (whether a
+ * limit filled or a market entry) it manages with `HOLD` / `ADJUST` / `CLOSE_NOW`.
  */
 export type ScalpAction =
   | 'PLACE_LIMIT_LONG'
   | 'PLACE_LIMIT_SHORT'
+  | 'PLACE_MARKET_LONG'
+  | 'PLACE_MARKET_SHORT'
   | 'NO_TRADE'
   | 'KEEP'
   | 'UPDATE_LIMIT'

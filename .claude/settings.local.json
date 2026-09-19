@@ -228,7 +228,21 @@
       "Bash(systemctl list-timers *)",
       "Bash(crontab -l)",
       "Bash(pm2 info *)",
-      "Bash(xargs -I{} wc -l {})"
+      "Bash(xargs -I{} wc -l {})",
+      "Bash(systemctl status *)",
+      "Bash(journalctl -u scalp-monitor.service --no-pager -n 60)",
+      "Read(//var/log/**)",
+      "Bash(find / -path /proc -prune -o -name \"scalp*.log\" -print)",
+      "Bash(systemctl stop *)",
+      "Bash(systemctl disable *)",
+      "Bash(systemctl is-active *)",
+      "Read(//packages/db/src/**)",
+      "Read(//packages/db/src/repositories/**)",
+      "Bash(sudo systemctl stop scalp-monitor.timer)",
+      "Bash(sudo systemctl disable scalp-monitor.timer)",
+      "Bash(systemctl is-enabled *)",
+      "Bash(sudo systemctl stop scalp-watch.timer; sudo systemctl disable scalp-watch.timer; echo \"---STATUS---\"; echo \"watch.timer: $\\(systemctl is-active scalp-watch.timer\\) / $\\(systemctl is-enabled scalp-watch.timer\\)\"; echo \"monitor.timer: $\\(systemctl is-active scalp-monitor.timer\\) / $\\(systemctl is-enabled scalp-monitor.timer\\)\")",
+      "Read(//etc/systemd/system/**)"
     ],
     "defaultMode": "acceptEdits"
   }

@@ -116,7 +116,9 @@ export class BingxHistoryService implements OnModuleInit {
   private readonly logger = new Logger(BingxHistoryService.name);
   private readonly orderRepo = createOrderRepository();
   private readonly stateRepo = createBingxSyncStateRepository();
-  private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 10_000 });
+  // 20s (was 10s): BingX's positions endpoint intermittently took >10s, timing out and
+  // triggering the false-close path above. A longer ceiling cuts the transient timeouts.
+  private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 20_000 });
 
   private readonly apiKey = process.env.BINGX_API_KEY ?? '';
   private readonly apiSecret = process.env.BINGX_API_SECRET ?? '';
@@ -155,22 +157,39 @@ export class BingxHistoryService implements OnModuleInit {
     try {
       // Fetch live positions from both products. Each is independent and
       // non-fatal: a Standard-futures outage must not stall the swap sync.
-      const [swap, std] = await Promise.all([
-        this.fetchSwapPositions().catch((err) => {
-          this.logger.warn(`BingX swap positions fetch failed: ${(err as Error).message}`);
-          return [] as LivePosition[];
-        }),
-        this.fetchStandardPositions().catch((err) => {
-          this.logger.warn(`BingX standard positions fetch failed: ${(err as Error).message}`);
-          return [] as LivePosition[];
-        }),
+      // CRITICAL: a failed fetch must be distinguished from an empty one. A timeout
+      // returning [] used to be read as "no positions open" → every open order of that
+      // product got flipped to `closed`, then re-opened on the next clean sync — the
+      // trade flickered out of /trades for ~5 min. `ok` carries that distinction so the
+      // close-reconcile below skips a product whose read failed.
+      const [swapRes, stdRes] = await Promise.all([
+        this.fetchSwapPositions()
+          .then((rows) => ({ ok: true, rows }))
+          .catch((err) => {
+            this.logger.warn(`BingX swap positions fetch failed: ${(err as Error).message}`);
+            return { ok: false, rows: [] as LivePosition[] };
+          }),
+        this.fetchStandardPositions()
+          .then((rows) => ({ ok: true, rows }))
+          .catch((err) => {
+            this.logger.warn(`BingX standard positions fetch failed: ${(err as Error).message}`);
+            return { ok: false, rows: [] as LivePosition[] };
+          }),
       ]);
-      const live = [...swap, ...std];
+      const swapOk = swapRes.ok;
+      const stdOk = stdRes.ok;
+      const live = [...swapRes.rows, ...stdRes.rows];
       const liveIds = new Set(live.map((p) => p.externalId));
 
       // First run: anchor the start line + baseline, ingest nothing (no backfill).
       const state = await this.stateRepo.get();
       if (!state || state.historyStartAt == null) {
+        // Anchor only on a clean read of BOTH products — anchoring off a failed fetch would
+        // baseline an incomplete set and later mis-ingest the missing positions as "new".
+        if (!swapOk || !stdOk) {
+          this.logger.warn('BingX sync: skipping first-run anchor — a position fetch failed');
+          return { opened: 0, closed: 0, updated: 0 };
+        }
         await this.stateRepo.anchor(new Date(), [...liveIds]);
         this.logger.log(`BingX sync anchored — ignoring ${liveIds.size} pre-existing position(s)`);
         return { opened: 0, closed: 0, updated: 0 };
@@ -250,6 +269,11 @@ export class BingxHistoryService implements OnModuleInit {
       }>;
       for (const o of openOrders) {
         if (!o.externalId || liveIds.has(o.externalId)) continue;
+        // Only close an order whose product was read successfully this run. If that
+        // product's fetch failed, its absence from `liveIds` means nothing — leave the
+        // order open and wait for a clean read (the false-close/reopen flicker fix).
+        const isStandard = o.broker === BROKER_STD;
+        if (isStandard ? !stdOk : !swapOk) continue;
         const close = await this.resolveClose(o).catch((err) => {
           this.logger.warn(`BingX close lookup failed for ${o.symbol}: ${(err as Error).message}`);
           return null;

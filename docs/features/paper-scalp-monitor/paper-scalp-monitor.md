@@ -8,8 +8,21 @@ to it); but on a genuine breakout — where waiting for a pullback to a limit wo
 move — Claude may instead enter at **market**, opening immediately at the current price.
 Fully simulated — no exchange orders are ever placed.
 Deliberately separate from the worker's scheduled analysis pipeline and from
-`/strategy-backtest` (which is for the trader's own hand-written setups). Never more than
-one active order/position at a time.
+`/strategy-backtest` (which is for the trader's own hand-written setups).
+
+**Two strategies run side by side (since 2026-09-14), each with its own live trade** — so at
+most TWO trades are active at once, at most ONE per strategy:
+- `PRICE_ACTION` — the original discretionary price-action setups (trend-following +
+  clean-range fade).
+- `SUPERTREND` — the Supertrend(10,3) M30 pullback + reversal-candle setup (added
+  2026-09-14): trade only with the M30 Supertrend direction, enter when price pulls back to
+  the line and a reversal candle prints, stop ~100 beyond the line, TP 1.5R–2R (or 1R into a
+  near resistance/support), move to breakeven at +1R.
+
+There is no `strategy` column; each trade is tagged by a machine-readable prefix on its
+`reasoning`/`lastNote` (`[PriceAction]` / `[SuperTrend]`, via `strategy.mjs`) so it can be
+attributed and the trader can filter by strategy. Legacy untagged rows count as
+`PRICE_ACTION`. Telegram alerts carry a `🏷️ Chiến lược:` line.
 
 **Two clocks, a clean split of labour (since 2026-09-12):**
 - **Claude = the analyst / market watcher**, on a **30-min** tick (`scalp-monitor.timer`
@@ -62,6 +75,16 @@ What is left to Claude's judgment vs. enforced in code:
   1:1.5 reward:risk (entry→stop vs entry→target) or else `NO_TRADE`; and only trail to
   breakeven after a *full* +1R (not +0.5R). Computed H4/H1 swing-structure labels are
   informational hints in the snapshot.
+  **Additional setup — Supertrend M30 pullback (A2 in `prompt.md`, does not replace the
+  price-action rules above):** trend engine is **Supertrend(10,3) on M30** (line annotated
+  per candle in `m30Candles` + a `supertrendM30` summary); trade **only with** the M30
+  Supertrend direction (bull → long-only, bear → short-only); enter when price **pulls back
+  close to the line** (`distanceToLinePct` ≲ ~0.15%) **AND a reversal candle prints there**
+  (bullish engulfing/hammer for longs, bearish engulfing/shooting-star for shorts) — no
+  reversal candle = wait; **stop ~100 price units beyond the Supertrend line** (line−100 for
+  longs, line+100 for shorts); **target 1.5R–2R, or just 1R when a resistance zone (bull) /
+  strong support zone (bear) is close ahead**; **move the stop to breakeven once +1R is
+  reached**.
 - **Enforced in code (the realtime watcher / `mechanical.mjs`), never left to the model:**
   position sizing (a stop-out always costs exactly $1 — `SCALP_RISK_USD`), a resting limit
   must sit on the correct side of the current price (buy-limit below / sell-limit above)
@@ -119,23 +142,30 @@ logged and swallowed, never breaking a tick.
 1. `scalp-monitor.timer` (systemd, `OnCalendar=*-*-* *:0/30:00 UTC`) fires
    `scalp-monitor.service` every 30 minutes, 24/7, one-shot.
 2. The service runs `claude-cron/scalp-monitor/run.sh`, which:
-   a. Runs `node snapshot.mjs` — deterministic, **read-only** now: fetches fresh H4+H1+M15
-      Binance candles, reads the single active `ScalpPaperTrade` in whatever state the
-      watcher has already settled it to, and writes `/var/tmp/scalp-monitor/snapshot.json`
-      (current price, H4+H1 trend hints, last 30 H4 / 40 H1 / 60 M15 candles as text, plus
-      `pendingLimit` — including `ageMinutes`/`maxAgeMinutes` — and/or `openPosition`). It
-      no longer detects fills or closes and only writes a `skip-claude` sentinel when
-      Binance returned no candles.
+   a. Runs `node snapshot.mjs` — deterministic, **read-only** now: fetches fresh
+      H4+H1+M30+M15 Binance candles, reads **all** active `ScalpPaperTrade` rows in whatever
+      state the watcher has already settled them to, and writes
+      `/var/tmp/scalp-monitor/snapshot.json` (current price, H4+H1 trend hints, last 30 H4 /
+      40 H1 / 60 M15 candles as text; last 48 **M30** candles with the **Supertrend(10,3)
+      line annotated per candle** plus a `supertrendM30` summary — trend/line/distance — for
+      the Supertrend pullback setup; plus a **`strategies` block with one slot per strategy**
+      (`PRICE_ACTION`, `SUPERTREND`), each carrying its `state` and its own `pendingLimit`
+      — with `ageMinutes`/`maxAgeMinutes` — and/or `openPosition`). It no longer detects
+      fills or closes and only writes a `skip-claude` sentinel when Binance returned no candles.
    b. If no sentinel, runs `claude -p "$(cat prompt.md)" --model claude-opus-4-8 --add-dir
       /var/tmp/scalp-monitor --allowedTools "Bash(node:*) Write"` — a headless session that
-      reads the snapshot and decides (analyst only): flat →
+      reads the snapshot and decides (analyst only) **per strategy slot**, writing an **array**
+      of decisions (one per slot, each tagged with `strategy`) to
+      `/var/tmp/scalp-monitor/decision.json`: flat →
       `PLACE_LIMIT_LONG`/`PLACE_LIMIT_SHORT`/`PLACE_MARKET_LONG`/`PLACE_MARKET_SHORT`/`NO_TRADE`;
-      resting limit → `KEEP`/`UPDATE_LIMIT`/`CANCEL`; open → `HOLD`/`ADJUST`/`CLOSE_NOW` —
-      writing `/var/tmp/scalp-monitor/decision.json`.
-   c. Runs `node apply-decision.mjs`, which re-reads current DB state, validates the
-      decision (`validateLimit` for a new/updated limit; stop-only-tightens for ADJUST),
-      applies sizing, and writes the result via **status-guarded CAS** (a manage action that
-      the watcher already settled under it is a logged no-op). A `PLACE_LIMIT_*` becomes a
+      resting limit → `KEEP`/`UPDATE_LIMIT`/`CANCEL`; open → `HOLD`/`ADJUST`/`CLOSE_NOW`.
+   c. Runs `node apply-decision.mjs`, which iterates the decision array (a bad entry for one
+      strategy is caught and skipped, never blocking the other), and for each re-reads current
+      DB state, resolves the trade for that `strategy`, validates it (`validateLimit` for a
+      new/updated limit; stop-only-tightens for ADJUST; **one trade per strategy** — a
+      `PLACE_*` into an occupied slot is rejected), applies sizing, tags the note with the
+      strategy, and writes the result via **status-guarded CAS** (a manage action that the
+      watcher already settled under it is a logged no-op). A `PLACE_LIMIT_*` becomes a
       **PENDING** row + 📌 alert; a `PLACE_MARKET_*` becomes an **OPEN** row (entry = current
       price) + 🟢 alert; `CANCEL` → CANCELLED + ❌ alert; `CLOSE_NOW` → CLOSED_EARLY
       + ⚪ alert. The entry chart itself is rendered by the watcher on fill (`POST
@@ -208,9 +238,10 @@ logged and swallowed, never breaking a tick.
   sends the market-event Telegram alerts (🟢 fill / ✅ TP / 🛑 SL / ⏱️ expiry) + attaches the
   entry chart on fill. Quiet on no-op minutes.
 - `claude-cron/scalp-monitor/mechanical.mjs` — the shared, LLM-free execution engine:
-  `runMechanical` (fill / stop / target / stale-expiry detection, all as status-guarded CAS
-  writes) + `LIMIT_MAX_AGE_MIN`. Returns the events that actually committed, for the caller
-  to alert.
+  `runMechanical` settles **every** active trade (up to one per strategy) via a per-trade
+  `settleTrade` (fill / stop / target / stale-expiry detection, all as status-guarded CAS
+  writes) + `LIMIT_MAX_AGE_MIN`. Returns the events that actually committed, each tagged with
+  its `strategy`/`strategyLabel`, for the caller to alert.
 - `claude-cron/scalp-monitor/systemd/scalp-watch.{service,timer}` — reference copies of the
   units installed at `/etc/systemd/system/scalp-watch.*` (every minute — `OnCalendar=*-*-*
   *:*:00 UTC`).
@@ -222,18 +253,25 @@ logged and swallowed, never breaking a tick.
   current-state read; builds `snapshot.json` for Claude. No fill detection, no alerts.
 - `claude-cron/scalp-monitor/prompt.md` — the instructions the headless session follows
   (analyst role: decide setups / manage risk / comment; never execute or notify).
-- `claude-cron/scalp-monitor/apply-decision.mjs` — validates and applies Claude's decision
-  via status-guarded CAS; owns the decision guardrails (sizing, stop-only-tightens,
-  `validateLimit` for a resting limit / `validateMarket` for an immediate market entry);
-  creates a `PLACE_MARKET_*` directly as an OPEN row at the current price; sends the decision
-  Telegram alerts (📌 limit placed / 🟢 market entry / ❌ manual cancel / ⚪ early close).
+- `claude-cron/scalp-monitor/apply-decision.mjs` — iterates the decision **array** (one entry
+  per strategy; a bad entry is caught and skipped), resolves each to the trade for its
+  `strategy`, validates and applies via status-guarded CAS; owns the decision guardrails
+  (sizing, stop-only-tightens, `validateLimit` / `validateMarket`, and **one trade per
+  strategy** — a `PLACE_*` into an occupied slot is rejected); tags the trade note with the
+  strategy; creates a `PLACE_MARKET_*` directly as an OPEN row at the current price; sends the
+  decision Telegram alerts (📌 limit placed / 🟢 market entry / ❌ manual cancel / ⚪ early close).
 - `/etc/systemd/system/scalp-monitor.service`, `/etc/systemd/system/scalp-monitor.timer` —
   scheduling (every 30 min, 24/7 — `OnCalendar=*-*-* *:0/30:00 UTC`).
 
 **Shared:**
+- `claude-cron/scalp-monitor/strategy.mjs` — strategy identity (`PRICE_ACTION` /
+  `SUPERTREND`): `normalizeStrategy`, `detectStrategy` (reads the `[PriceAction]`/`[SuperTrend]`
+  tag off a trade's `reasoning`; untagged = `PRICE_ACTION`), `tagNote` (prepends the tag, no
+  double-tagging), and the `STRATEGY_TAG` / `STRATEGY_LABEL` maps. Imported by `snapshot.mjs`,
+  `apply-decision.mjs`, and `mechanical.mjs`.
 - `claude-cron/scalp-monitor/notify.mjs` — Telegram alert helper (`sendScalpAlert` +
-  per-event message builders in Vietnamese); best-effort, never throws. Used by both
-  `watch.mjs` and `apply-decision.mjs`.
+  per-event message builders in Vietnamese, each with a `🏷️ Chiến lược:` line); best-effort,
+  never throws. Used by both `watch.mjs` and `apply-decision.mjs`.
 - `packages/core/src/setups/scalp-paper-trade.ts` — the parts NOT left to the model:
   sizing/PnL math, `clampStopTighten`, `checkLimitFill` (did a candle touch the resting
   limit), `checkStopTakeProfitHit` (did a candle hit the stop/target), and `detectTrend`
