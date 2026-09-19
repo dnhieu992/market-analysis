@@ -60,6 +60,8 @@ export type JournalEntryDto = {
   scope: string;
   date: string; // ISO date YYYY-MM-DD
   content: string;
+  /** 'USER' = the trader wrote/edited it; 'LLM' = the daily market-journal cron generated it. */
+  author: string;
   images: string[];
   tags: string[];
   createdAt: string;
@@ -70,6 +72,7 @@ export type JournalEntryDto = {
 export type JournalRevisionDto = {
   id: string;
   content: string;
+  author: string;
   images: string[];
   tags: string[];
   createdAt: string;
@@ -91,6 +94,7 @@ type JournalRow = {
   scope: string;
   date: Date;
   content: string;
+  author: string;
   images: unknown;
   tags: unknown;
   createdAt: Date;
@@ -100,6 +104,7 @@ type JournalRow = {
 type JournalRevisionRow = {
   id: string;
   content: string;
+  author: string;
   images: unknown;
   tags: unknown;
   createdAt: Date;
@@ -115,6 +120,7 @@ export class JournalService {
       scope: r.scope,
       date: r.date.toISOString().slice(0, 10),
       content: r.content,
+      author: r.author ?? 'USER',
       images: toStringArray(r.images),
       tags: toStringArray(r.tags),
       createdAt: r.createdAt.toISOString(),
@@ -126,6 +132,7 @@ export class JournalService {
     return {
       id: r.id,
       content: r.content,
+      author: r.author ?? 'USER',
       images: toStringArray(r.images),
       tags: toStringArray(r.tags),
       createdAt: r.createdAt.toISOString(),
@@ -150,7 +157,12 @@ export class JournalService {
     return rows.map((r: JournalRevisionRow) => this.mapRevision(r));
   }
 
-  /** Create or update the entry for a calendar day; the repository snapshots it as a revision. */
+  /**
+   * Create or update the entry for a calendar day; the repository snapshots it as a revision.
+   * Every save through this API is the trader editing in /journal, so it is always authored USER —
+   * an entry the daily cron drafted (author LLM) flips to USER the moment the trader saves it.
+   * The cron itself writes directly to the DB (author LLM), never through this endpoint.
+   */
   async upsert(input: { scope?: string; date: string; content: string; images?: string[]; tags?: string[] }): Promise<JournalEntryDto> {
     const row = await this.repo.upsertByDate({
       scope: normalizeScope(input.scope),
@@ -158,6 +170,7 @@ export class JournalService {
       content: input.content,
       images: input.images ?? [],
       tags: (input.tags ?? []).map((t) => t.trim()).filter(Boolean),
+      author: 'USER',
     });
     return this.map(row);
   }

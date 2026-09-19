@@ -42,7 +42,16 @@ export function JournalEntryDialog({
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog dialog--wide tj-view" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
-          <span className="dialog-title tj-view-title">{formatDate(entry.date)}</span>
+          <span className="dialog-title tj-view-title">
+            {formatDate(entry.date)}
+            <span
+              className={`tj-author ${entry.author === 'LLM' ? 'tj-author-llm' : 'tj-author-user'}`}
+              style={{ marginLeft: 8 }}
+              title={entry.author === 'LLM' ? 'Bản phân tích do Claude tạo tự động' : 'Do bạn viết / chỉnh sửa'}
+            >
+              {entry.author === 'LLM' ? '🤖 Claude' : '✍️ Bạn'}
+            </span>
+          </span>
           <button className="dialog-close" onClick={onClose} aria-label="Đóng">✕</button>
         </div>
 

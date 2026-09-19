@@ -9,6 +9,8 @@ export type TradingJournalUpsert = {
   content: string;
   images?: string[];
   tags?: string[];
+  /** Who is writing this save: 'USER' (the trader in /journal) or 'LLM' (the daily cron). */
+  author?: string;
 };
 
 /** Two snapshots are the same save if content, images and tags all match (order included). */
@@ -56,11 +58,12 @@ export function createTradingJournalRepository(client = prisma) {
       const images = input.images ?? [];
       const tags = input.tags ?? [];
       const scope = input.scope ?? DEFAULT_JOURNAL_SCOPE;
+      const author = input.author ?? 'USER';
       return client.$transaction(async (tx) => {
         const entry = await tx.tradingJournalEntry.upsert({
           where: { scope_date: { scope, date: input.date } },
-          create: { scope, date: input.date, content: input.content, images, tags },
-          update: { content: input.content, images, tags },
+          create: { scope, date: input.date, content: input.content, images, tags, author },
+          update: { content: input.content, images, tags, author },
         });
 
         const latest = await tx.tradingJournalRevision.findFirst({
@@ -70,7 +73,7 @@ export function createTradingJournalRepository(client = prisma) {
 
         if (!latest || !sameSnapshot(latest, { content: input.content, images, tags })) {
           await tx.tradingJournalRevision.create({
-            data: { entryId: entry.id, content: input.content, images, tags },
+            data: { entryId: entry.id, content: input.content, images, tags, author },
           });
         }
 

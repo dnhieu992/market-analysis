@@ -115,6 +115,10 @@ model TradingJournalEntry {
   scope     String   @default("GENERAL") @db.VarChar(24)
   date      DateTime @db.Date
   content   String   @db.LongText
+  // Who last wrote this day: USER = the trader edited it in /journal, LLM = the daily
+  // market-journal cron generated it. Legacy rows default to USER (all were hand-written).
+  // The clone-training corpus filters on this so LLM-generated macro notes don't pollute it.
+  author    String   @default("USER") @db.VarChar(8)
   images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
   tags      Json     @default("[]") // string[] of freeform tags
   createdAt DateTime @default(now())
@@ -130,6 +134,9 @@ model TradingJournalRevision {
   id        String   @id @default(cuid())
   entryId   String
   content   String   @db.LongText
+  // Who made this save: USER or LLM. Lets the intra-day history show "✍️ Bạn" vs "🤖 Claude"
+  // per mốc, so a day the cron drafted and the trader then edited reads as two distinct authors.
+  author    String   @default("USER") @db.VarChar(8)
   images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
   tags      Json     @default("[]") // string[] of freeform tags
   createdAt DateTime @default(now())

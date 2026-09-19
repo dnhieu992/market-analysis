@@ -9475,6 +9475,13 @@ a.metric-card--link:hover {
 .tj-hist-note { color: var(--muted); }
 .tj-hist-preview { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tj-hist-caret { color: var(--muted); font-size: 11px; }
+/* Author badge: who wrote a day / a save — 🤖 Claude (LLM) vs ✍️ Bạn (USER). */
+.tj-author { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; line-height: 1.4; white-space: nowrap; border-radius: 4px; padding: 1px 6px; border: 1px solid transparent; }
+.tj-author-llm { color: #7c3aed; background: rgba(124,58,237,0.12); border-color: rgba(124,58,237,0.35); }
+.tj-author-user { color: #0d9488; background: rgba(13,148,136,0.12); border-color: rgba(13,148,136,0.35); }
+/* Editor banner shown when the open day was drafted by the cron and not yet reviewed. */
+.tj-llm-banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--fg); background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.35); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+.tj-llm-banner b { color: #7c3aed; }
 .tj-hist-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 14px; }
 .tj-hist-diff { border: 1px solid var(--border); border-radius: 8px; padding: 8px 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; max-height: 340px; overflow: auto; }
 .tj-diff-line { display: flex; gap: 8px; padding: 0 10px; white-space: pre-wrap; word-break: break-word; }

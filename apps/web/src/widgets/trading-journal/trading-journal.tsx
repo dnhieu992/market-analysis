@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { createApiClient } from '@web/shared/api/client';
 import type { TradingJournalEntry, TradingJournalRevision } from '@web/shared/api/types';
 
+import { AnalysisMethodDialog } from './analysis-method-dialog';
 import { diffLines, diffStat } from './diff-lines';
 import { JournalEntryDialog } from './journal-entry-dialog';
 import { formatDate, todayIso } from './journal-format';
@@ -44,6 +45,19 @@ function truncate(s: string, max = 90): string {
 
 function sameList(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/** Badge marking who wrote a day / a save: 🤖 Claude (cron draft) vs ✍️ Bạn (the trader). */
+function AuthorBadge({ author }: { author?: 'USER' | 'LLM' }) {
+  const isLlm = author === 'LLM';
+  return (
+    <span
+      className={`tj-author ${isLlm ? 'tj-author-llm' : 'tj-author-user'}`}
+      title={isLlm ? 'Bản phân tích do Claude tạo tự động' : 'Do bạn viết / chỉnh sửa'}
+    >
+      {isLlm ? '🤖 Claude' : '✍️ Bạn'}
+    </span>
+  );
 }
 
 /** One row of the intra-day history: a save, and what it changed vs the save before it. */
@@ -91,6 +105,7 @@ function RevisionRow({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}>
         <span className={`tj-hist-dot ${isLatest ? 'tj-hist-dot-now' : ''}`} aria-hidden />
         <span className="tj-hist-time">{formatRevisionTime(revision.createdAt, entryDate)}</span>
+        <AuthorBadge author={revision.author} />
         {isLatest && <span className="tj-hist-now">hiện tại</span>}
         <span className="tj-hist-stat">
           {stat.added > 0 && <b className="tj-diff-plus">+{stat.added}</b>}
@@ -186,6 +201,8 @@ export function TradingJournal({
   // Which past entry is open in the read-only dialog. Held by id, not by object,
   // so the dialog keeps showing the fresh row after a save re-creates the entry.
   const [viewEntryId, setViewEntryId] = useState<string | null>(null);
+  // Whether the "how the analysis works" explainer dialog is open.
+  const [showMethod, setShowMethod] = useState(false);
 
   // Scroll target for "Sửa": the editor sits above the list, off-screen by then.
   const editorRef = useRef<HTMLElement | null>(null);
@@ -347,7 +364,17 @@ export function TradingJournal({
   return (
     <div className="tj-page">
       <header className="tj-header">
-        <h1 className="tj-title">{title}</h1>
+        <div className="tj-row tj-between">
+          <h1 className="tj-title">{title}</h1>
+          <button
+            type="button"
+            className="tj-btn tj-btn-ghost tj-btn-sm"
+            onClick={() => setShowMethod(true)}
+            title="Xem cách bản phân tích hàng ngày được dựng"
+          >
+            👁 View
+          </button>
+        </div>
         <p className="tj-sub">{subtitle}</p>
       </header>
 
@@ -356,6 +383,15 @@ export function TradingJournal({
 
       {/* Editor */}
       <section className="tj-card tj-editor" ref={editorRef}>
+        {currentEntry?.author === 'LLM' && (
+          <div className="tj-llm-banner">
+            <span aria-hidden>🤖</span>
+            <span>
+              Bản phân tích ngày này do <b>Claude</b> tạo tự động. Đọc lại, sửa nếu cần rồi bấm{' '}
+              <b>Cập nhật</b> — sau khi lưu nó sẽ được đánh dấu là <b>✍️ Bạn</b> để phân biệt với bản gốc của Claude.
+            </span>
+          </div>
+        )}
         <div className="tj-row tj-between">
           <label className="tj-datefield">
             <span>Ngày</span>
@@ -493,6 +529,7 @@ export function TradingJournal({
                 <div className="tj-item-head">
                   <b>{formatDate(e.date)}</b>
                   <span className="tj-item-meta">
+                    <AuthorBadge author={e.author} />
                     {e.images.length > 0 && <span className="tj-item-imgs">🖼 {e.images.length}</span>}
                     <button
                       type="button"
@@ -522,6 +559,8 @@ export function TradingJournal({
           onClose={() => setViewEntryId(null)}
         />
       )}
+
+      {showMethod && <AnalysisMethodDialog onClose={() => setShowMethod(false)} />}
     </div>
   );
 }

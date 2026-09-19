@@ -1104,6 +1104,8 @@ export type TradingJournalEntry = {
   scope?: string; // GENERAL (/journal) | STRATEGY_BACKTEST — omitted by older callers
   date: string; // YYYY-MM-DD
   content: string;
+  /** 'USER' = the trader wrote/edited it; 'LLM' = the daily market-journal cron. Missing → USER. */
+  author?: 'USER' | 'LLM';
   images: string[];
   tags: string[];
   createdAt: string;
@@ -1114,6 +1116,8 @@ export type TradingJournalEntry = {
 export type TradingJournalRevision = {
   id: string;
   content: string;
+  /** 'USER' or 'LLM' — who made this particular save. Missing → USER. */
+  author?: 'USER' | 'LLM';
   images: string[];
   tags: string[];
   createdAt: string; // ISO timestamp of the save
