@@ -1065,3 +1065,66 @@ model ScalpPaperTrade {
   @@index([createdAt(sort: Desc)])
   @@map("scalp_paper_trades")
 }
+
+// A simulated (paper) trade of the PDH/PDL breakout day-trade strategy, written
+// entirely by the hourly StrategyPaperTradesService engine (no exchange). One trade
+// per side per UTC day; every trade force-closes by end of its own UTC day (no overnight).
+model StrategyPaperTrade {
+  id              String    @id @default(cuid())
+  symbol          String    @default("BTCUSDT") @db.VarChar(20)
+  timeframe       String    @default("1h") @db.VarChar(6)
+  // UTC day (YYYY-MM-DD) of the entry signal — used to dedupe one trade per side per day.
+  tradeDate       String    @db.VarChar(10)
+  direction       String    @db.VarChar(5) // LONG | SHORT
+  status          String    @default("OPEN") @db.VarChar(12) // OPEN | CLOSED_TP | CLOSED_SL | CLOSED_EOD
+  // The two levels the strategy watches: previous UTC day's high / low.
+  pdh             Float
+  pdl             Float
+  // The 1h close that broke the level and triggered the entry.
+  signalClose     Float
+  entryPrice      Float
+  initialStopLoss Float
+  stopLoss        Float
+  takeProfit      Float
+  riskUsd         Float     @default(10)
+  quantity        Float
+  rrPlanned       Float     @default(2)
+  openedAt        DateTime
+  closedAt        DateTime?
+  exitPrice       Float?
+  exitReason      String?   @db.VarChar(12) // TP | SL | EOD
+  pnlUsd          Float?
+  rMultiple       Float?
+  lastPrice       Float?
+  lastCheckedAt   DateTime?
+  // The trader's own review of the trade — a 1..5 rating and a free-text note.
+  feedbackRating  Int?
+  feedbackNote    String?   @db.Text
+  feedbackAt      DateTime?
+  // 1h setup-chart snapshot rendered right after entry and uploaded to R2 (null until rendered).
+  chartUrl        String?   @db.Text
+  chartObjectKey  String?   @db.VarChar(300)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([tradeDate, direction])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("strategy_paper_trades")
+}
+
+// Singleton config + editable, plain-language description for the PDH/PDL strategy page.
+model StrategyPaperConfig {
+  id          String   @id @default("pdhl-btc")
+  name        String   @default("BTC — Phá đỉnh/đáy ngày hôm trước")
+  enabled     Boolean  @default(true)
+  symbol      String   @default("BTCUSDT") @db.VarChar(20)
+  timeframe   String   @default("1h") @db.VarChar(6)
+  riskUsd     Float    @default(10)
+  rrPlanned   Float    @default(2)
+  // Markdown the trader can edit from the "Chi tiết chiến lược" dialog.
+  docMarkdown String   @db.LongText
+  updatedAt   DateTime @updatedAt
+
+  @@map("strategy_paper_config")
+}

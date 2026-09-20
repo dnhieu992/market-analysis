@@ -96,3 +96,9 @@ export {
   SCALP_PAPER_TRADE_OPEN_STATUS,
 } from './repositories/scalp-paper-trade.repository';
 export type { ScalpPaperTradeInput } from './repositories/scalp-paper-trade.repository';
+export {
+  createStrategyPaperTradeRepository,
+  STRATEGY_PAPER_TRADE_OPEN_STATUS,
+  DEFAULT_STRATEGY_DOC,
+} from './repositories/strategy-paper-trade.repository';
+export type { StrategyPaperTradeInput } from './repositories/strategy-paper-trade.repository';
