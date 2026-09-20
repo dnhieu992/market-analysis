@@ -36,7 +36,7 @@ async function loadDashboardData() {
     );
 
     // aggregate by coinId across all portfolios; keep first portfolioId per coin for navigation
-    const map = new Map<string, { totalAmount: number; totalCost: number; realizedPnl: number; portfolioId: string }>();
+    const map = new Map<string, { totalAmount: number; totalCost: number; grossInvested: number; realizedPnl: number; portfolioId: string }>();
     portfolios.forEach((portfolio, i) => {
       const holdings = holdingsByPortfolio[i] ?? [];
       for (const h of holdings) {
@@ -44,9 +44,10 @@ async function loadDashboardData() {
         if (existing) {
           existing.totalAmount += h.totalAmount;
           existing.totalCost += h.totalInvested;
+          existing.grossInvested += h.grossInvested;
           existing.realizedPnl += h.realizedPnl;
         } else {
-          map.set(h.coinId, { totalAmount: h.totalAmount, totalCost: h.totalInvested, realizedPnl: h.realizedPnl, portfolioId: portfolio.id });
+          map.set(h.coinId, { totalAmount: h.totalAmount, totalCost: h.totalInvested, grossInvested: h.grossInvested, realizedPnl: h.realizedPnl, portfolioId: portfolio.id });
         }
       }
     });
@@ -55,6 +56,7 @@ async function loadDashboardData() {
       coinId,
       totalAmount: v.totalAmount,
       totalCost: v.totalCost,
+      grossInvested: v.grossInvested,
       avgCost: v.totalAmount > 0 ? v.totalCost / v.totalAmount : 0,
       realizedPnl: v.realizedPnl,
       portfolioId: v.portfolioId,

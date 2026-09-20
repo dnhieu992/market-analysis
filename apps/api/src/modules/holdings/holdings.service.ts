@@ -26,6 +26,12 @@ export type HoldingWithPnl = {
   updatedAt: Date;
   unrealizedPnl: number | null;
   currentValue: number | null;
+  /**
+   * Total money ever spent buying this coin — the sum of every buy's value, before
+   * sells net `totalCost` back down. This is the denominator for a true ROI %:
+   * profit measured against the capital deployed, not against what is still held.
+   */
+  grossInvested: number;
 };
 
 /** One zone the review named, as stored in `buyZonesJson` / `sellZonesJson`. */
@@ -108,6 +114,23 @@ export class HoldingsService {
   async getByPortfolio(portfolioId: string, currentPrices: Record<string, number> = {}): Promise<HoldingWithPnl[]> {
     const holdings = await this.holdingRepository.listByPortfolio(portfolioId);
 
+    // Gross money spent on buys, per coin — the sum of every buy's value before sells
+    // net the cost basis down. Transfer-booked buys (note prefixed `[transfer]`) are
+    // excluded so an internal move between portfolios is not counted as fresh capital.
+    const buyGroups = await prisma.coinTransaction.groupBy({
+      by: ['coinId'],
+      where: {
+        portfolioId,
+        type: 'buy',
+        deletedAt: null,
+        // note IS NULL never matches a `startsWith`, so cover it explicitly rather than
+        // let `NOT (note LIKE ...)` drop every real (note-less) buy on a NULL note.
+        OR: [{ note: null }, { note: { not: { startsWith: TRANSFER_NOTE_PREFIX } } }]
+      },
+      _sum: { totalValue: true }
+    });
+    const grossByCoin = new Map(buyGroups.map((g) => [g.coinId, Number(g._sum.totalValue ?? 0)]));
+
     return holdings.map((h) => {
       const price = currentPrices[h.coinId];
       const totalAmount = Number(h.totalAmount);
@@ -115,8 +138,10 @@ export class HoldingsService {
 
       const unrealizedPnl = price != null ? (price - avgCost) * totalAmount : null;
       const currentValue = price != null ? price * totalAmount : null;
+      // Fall back to the remaining cost basis when a coin has no (non-transfer) buy rows.
+      const grossInvested = grossByCoin.get(h.coinId) ?? Number(h.totalCost);
 
-      return { ...h, unrealizedPnl, currentValue };
+      return { ...h, unrealizedPnl, currentValue, grossInvested };
     });
   }
 

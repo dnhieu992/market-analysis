@@ -11,6 +11,7 @@ type HoldingEntry = {
   coinId: string;
   totalAmount: number;
   totalCost: number;
+  grossInvested: number;
   realizedPnl: number;
   portfolioId: string;
 };
@@ -47,6 +48,8 @@ type HighProfitEntry = {
 type ComputedData = {
   totalValue: number;
   totalCost: number;
+  /** Gross money spent on all buys — the ROI % denominator, not the netted-down cost. */
+  totalGrossInvested: number;
   totalRealizedPnl: number;
   change24hUsd: number;
   change24hPct: number;
@@ -128,7 +131,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
   const reprice = useCallback(() => {
     if (holdings.length === 0) {
       setComputed({
-        totalValue: 0, totalCost: 0, totalRealizedPnl: 0, change24hUsd: 0, change24hPct: 0,
+        totalValue: 0, totalCost: 0, totalGrossInvested: 0, totalRealizedPnl: 0, change24hUsd: 0, change24hPct: 0,
         chart: [], topHoldings: [], topGainers: [], topLosers: [], highProfitHoldings: [], topHoldingLosers: [], holdingCount: 0, cashValue: 0,
       });
       return;
@@ -155,6 +158,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
         const totalValue = entries.reduce((s, e) => s + e.value, 0);
         const totalCost = holdings.reduce((s, h) => s + h.totalCost, 0);
+        const totalGrossInvested = holdings.reduce((s, h) => s + h.grossInvested, 0);
         const totalRealizedPnl = holdings.reduce((s, h) => s + h.realizedPnl, 0);
         const change24hUsd = entries.reduce((s, e) => s + e.change24hUsd, 0);
         const prevValue = totalValue - change24hUsd;
@@ -222,6 +226,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
         setComputed({
           totalValue,
           totalCost,
+          totalGrossInvested,
           totalRealizedPnl,
           change24hUsd,
           change24hPct,
@@ -245,7 +250,7 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
   // Keyed on content, not on array identity: the 15s server refresh hands down a new `holdings`
   // array even when nothing moved, and re-pricing on that would double up with the poll below.
   const signature = holdings
-    .map((h) => `${h.coinId}:${h.totalAmount}:${h.totalCost}:${h.realizedPnl}`)
+    .map((h) => `${h.coinId}:${h.totalAmount}:${h.totalCost}:${h.grossInvested}:${h.realizedPnl}`)
     .join('|');
 
   const repriceRef = useRef(reprice);
@@ -259,7 +264,9 @@ export function HoldingsAllocationChart({ holdings, portfolioCount }: Props) {
 
   const d = computed;
   const allTimePnl = d ? (d.totalValue - d.totalCost) + d.totalRealizedPnl : 0;
-  const allTimePnlPct = d && d.totalCost > 0 ? (allTimePnl / d.totalCost) * 100 : 0;
+  // ROI against the total capital ever deployed (gross of all buys), not against the
+  // cost basis that shrinks each time profit is taken — the latter over-states the %.
+  const allTimePnlPct = d && d.totalGrossInvested > 0 ? (allTimePnl / d.totalGrossInvested) * 100 : 0;
   const isPnlPositive = allTimePnl >= 0;
   const is24hPositive = d ? d.change24hUsd >= 0 : true;
 

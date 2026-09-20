@@ -84,6 +84,9 @@ import type {
   CreateStrategyBacktestSetupInput,
   UpdateStrategyBacktestSetupInput,
   ScalpPaperTradeBoard,
+  StrategyPaperBoard,
+  StrategyPaperTrade,
+  StrategyPaperConfig,
 } from './types';
 
 
@@ -331,6 +334,7 @@ function mapHolding(row: JsonRecord): Holding {
     totalAmount: Number(row.totalAmount),
     avgCost: Number(row.avgCost),
     totalInvested: Number(row.totalCost ?? row.totalInvested),
+    grossInvested: Number(row.grossInvested ?? row.totalCost ?? row.totalInvested),
     realizedPnl: Number(row.realizedPnl),
     note: row.note == null ? null : String(row.note)
   };
@@ -1872,6 +1876,55 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/scalp-paper-trades`,
         withDefaults(),
+      );
+    },
+
+    /** The PDH/PDL breakout strategy board (open trades, history, stats, strategy doc). */
+    async fetchStrategyPaperBoard(): Promise<StrategyPaperBoard> {
+      return fetchJson<StrategyPaperBoard>(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades`,
+        withDefaults(),
+      );
+    },
+
+    /** Save the traderʼs review (1..5 rating + note) on a strategy paper trade. */
+    async saveStrategyPaperFeedback(
+      id: string,
+      input: { rating?: number | null; note?: string | null },
+    ): Promise<StrategyPaperTrade> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/${encodeURIComponent(id)}/feedback`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    /** Run one engine tick now (manage open trades + look for a new breakout). */
+    async runStrategyPaperScan(): Promise<{ opened: number; closed: number; price: number | null }> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/scan`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
+    /** Update the editable strategy description / params. */
+    async updateStrategyPaperDoc(
+      input: { docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number },
+    ): Promise<StrategyPaperConfig> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/doc`,
+        withDefaults({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
       );
     },
   };

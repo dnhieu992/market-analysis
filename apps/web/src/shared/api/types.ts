@@ -262,6 +262,8 @@ export type Holding = {
   totalAmount: number;
   avgCost: number;
   totalInvested: number;
+  /** Total money ever spent buying this coin (gross of sells) — the ROI % denominator. */
+  grossInvested: number;
   realizedPnl: number;
   note: string | null;
 };
@@ -1402,4 +1404,72 @@ export type ScalpPaperTradeBoard = {
   openTrade: ScalpPaperTrade | null;
   history: ScalpPaperTrade[];
   stats: ScalpPaperTradeStats;
+};
+
+/**
+ * A simulated (paper) trade of the PDH/PDL breakout day-trade strategy, written by the
+ * hourly StrategyPaperTradesService engine (no exchange). Read-only except for feedback.
+ */
+export type StrategyPaperTrade = {
+  id: string;
+  symbol: string;
+  timeframe: string;
+  tradeDate: string;
+  direction: 'LONG' | 'SHORT';
+  status: 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EOD';
+  pdh: number;
+  pdl: number;
+  signalClose: number;
+  entryPrice: number;
+  initialStopLoss: number;
+  stopLoss: number;
+  takeProfit: number;
+  riskUsd: number;
+  quantity: number;
+  rrPlanned: number;
+  openedAt: string;
+  closedAt: string | null;
+  exitPrice: number | null;
+  exitReason: 'TP' | 'SL' | 'EOD' | null;
+  pnlUsd: number | null;
+  rMultiple: number | null;
+  lastPrice: number | null;
+  lastCheckedAt: string | null;
+  feedbackRating: number | null;
+  feedbackNote: string | null;
+  feedbackAt: string | null;
+  createdAt: string;
+  unrealizedPnlUsd: number | null;
+  unrealizedR: number | null;
+  chartUrl: string | null;
+};
+
+export type StrategyPaperTradeStats = {
+  closedCount: number;
+  wins: number;
+  losses: number;
+  eod: number;
+  winRate: number | null;
+  totalPnlUsd: number;
+  totalR: number;
+};
+
+export type StrategyPaperConfig = {
+  name: string;
+  enabled: boolean;
+  symbol: string;
+  timeframe: string;
+  riskUsd: number;
+  rrPlanned: number;
+  docMarkdown: string;
+};
+
+export type StrategyPaperBoard = {
+  symbol: string;
+  price: number | null;
+  config: StrategyPaperConfig;
+  openTrades: StrategyPaperTrade[];
+  history: StrategyPaperTrade[];
+  stats: StrategyPaperTradeStats;
+  levels: { pdh: number; pdl: number; day: string } | null;
 };

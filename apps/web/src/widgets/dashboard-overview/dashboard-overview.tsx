@@ -16,6 +16,7 @@ type HoldingEntry = {
   coinId: string;
   totalAmount: number;
   totalCost: number;
+  grossInvested: number;
   realizedPnl: number;
   portfolioId: string;
 };
