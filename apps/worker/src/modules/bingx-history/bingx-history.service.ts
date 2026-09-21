@@ -201,8 +201,12 @@ export class BingxHistoryService implements OnModuleInit {
       let opened = 0;
       let updated = 0;
       for (const pos of live) {
-        if (baseline.has(pos.externalId)) continue;
         const existing = await this.orderRepo.findByExternalId(pos.externalId);
+        // Reconcile an already-tracked order even if the position is in the baseline:
+        // the baseline only suppresses INGESTING pre-existing positions as brand-new
+        // orders — once an order exists for this externalId, its size/entry/leverage
+        // must stay in sync when the trader adds volume to a baselined position.
+        if (!existing && baseline.has(pos.externalId)) continue;
         if (existing) {
           // The externalId already has an Order. A live position can carry a
           // CLOSED order — e.g. the one-off backfill mis-ingested a still-open

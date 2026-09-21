@@ -30,6 +30,10 @@ same false-close protection. Read-only: only GET calls, never places or cancels 
 - **Net vs long/short mode**: side comes from `posSide` when explicit, else the sign of `pos`.
 - **posId re-open**: a live position whose stored Order is `closed` is reconciled back to open and
   its stale close fields cleared.
+- **Baseline vs. reconcile**: the baseline only suppresses *creating* new orders for pre-existing
+  positions. If an order already exists for a baselined position's externalId (e.g. a manual order
+  linked to it), it is still reconciled — so adding volume to a baselined position updates the row
+  (`findByExternalId` runs before the baseline skip). Same fix applied to the BingX sync.
 - **Overlap-guarded** with an in-flight flag so a slow run can't overlap the next tick.
 - Realized PnL prefers OKX's `realizedPnl` (incl. fees/funding), then `pnl`, then a price-derived fallback.
 

@@ -187,8 +187,12 @@ export class OkxHistoryService implements OnModuleInit {
       let opened = 0;
       let updated = 0;
       for (const pos of live) {
-        if (baseline.has(pos.externalId)) continue;
         const existing = await this.orderRepo.findByExternalId(pos.externalId);
+        // Reconcile an already-tracked order even if the position is in the baseline:
+        // the baseline only suppresses INGESTING pre-existing positions as brand-new
+        // orders — once an order exists for this externalId (e.g. a manual order linked
+        // to it), its size/entry/leverage must stay in sync when the trader adds volume.
+        if (!existing && baseline.has(pos.externalId)) continue;
         if (existing) {
           if (existing.status === 'closed') {
             // Reported live NOW but our row is closed (e.g. same posId re-opened) —
