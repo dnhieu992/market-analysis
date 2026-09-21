@@ -1128,3 +1128,16 @@ model StrategyPaperConfig {
 
   @@map("strategy_paper_config")
 }
+
+/// Free-form trading log for the PDH/PDL strategy board — one row per saved note,
+/// each with body text and optional Cloudflare R2 image URLs. Shown in the "Ghi chú" dialog.
+model StrategyPaperNote {
+  id        String   @id @default(cuid())
+  body      String   @db.Text
+  images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt(sort: Desc)])
+  @@map("strategy_paper_notes")
+}

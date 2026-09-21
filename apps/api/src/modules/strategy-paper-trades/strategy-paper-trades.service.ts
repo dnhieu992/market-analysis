@@ -1,7 +1,7 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import type { AnalysisTimeframe } from '@app/config';
-import { createStrategyPaperTradeRepository, DEFAULT_STRATEGY_DOC } from '@app/db';
+import { createStrategyPaperNoteRepository, createStrategyPaperTradeRepository, DEFAULT_STRATEGY_DOC } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { StorageService } from '../storage/storage.service';
@@ -70,6 +70,13 @@ export type StrategyPaperConfigDto = {
   docMarkdown: string;
 };
 
+export type StrategyPaperNoteDto = {
+  id: string;
+  body: string;
+  images: string[];
+  createdAt: string;
+};
+
 export type StrategyPaperBoard = {
   symbol: string;
   price: number | null;
@@ -90,6 +97,7 @@ const utcDayStr = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 export class StrategyPaperTradesService implements OnModuleInit {
   private readonly logger = new Logger(StrategyPaperTradesService.name);
   private readonly repo = createStrategyPaperTradeRepository();
+  private readonly notesRepo = createStrategyPaperNoteRepository();
 
   constructor(
     private readonly binance: BinanceMarketDataService,
@@ -425,6 +433,40 @@ export class StrategyPaperTradesService implements OnModuleInit {
   /** Reset the editable doc back to the built-in default. */
   async resetDoc(): Promise<StrategyPaperConfigDto> {
     return this.updateDoc({ docMarkdown: DEFAULT_STRATEGY_DOC });
+  }
+
+  // ---------------- trading-log notes ----------------
+
+  /** Newest-first free-text log for the strategy board (shown in the "Ghi chú" dialog). */
+  async listNotes(): Promise<StrategyPaperNoteDto[]> {
+    const rows = await this.notesRepo.list();
+    return rows.map((r) => this.toNoteDto(r));
+  }
+
+  /** Save one new note (body required, images optional) and return it. */
+  async createNote(input: { body?: string; images?: unknown }): Promise<StrategyPaperNoteDto> {
+    const body = (input.body ?? '').trim();
+    if (!body) throw new BadRequestException('Nội dung ghi chú không được để trống');
+    const images = Array.isArray(input.images)
+      ? input.images.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+      : [];
+    const row = await this.notesRepo.create({ body, images });
+    return this.toNoteDto(row);
+  }
+
+  async deleteNote(id: string): Promise<{ deleted: boolean }> {
+    const count = await this.notesRepo.remove(id);
+    if (count === 0) throw new NotFoundException(`Strategy paper note ${id} not found`);
+    return { deleted: true };
+  }
+
+  private toNoteDto(row: { id: string; body: string; images: unknown; createdAt: Date }): StrategyPaperNoteDto {
+    return {
+      id: row.id,
+      body: row.body,
+      images: Array.isArray(row.images) ? (row.images as unknown[]).filter((u): u is string => typeof u === 'string') : [],
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   private toDto(row: TradeRow, price: number | null): StrategyPaperTradeDto {

@@ -102,3 +102,5 @@ export {
   DEFAULT_STRATEGY_DOC,
 } from './repositories/strategy-paper-trade.repository';
 export type { StrategyPaperTradeInput } from './repositories/strategy-paper-trade.repository';
+export { createStrategyPaperNoteRepository } from './repositories/strategy-paper-note.repository';
+export type { StrategyPaperNoteInput } from './repositories/strategy-paper-note.repository';

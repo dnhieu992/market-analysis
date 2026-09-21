@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Put } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Public } from '../auth/public.decorator';
@@ -37,6 +37,24 @@ export class StrategyPaperTradesController {
   @ApiOperation({ summary: 'Attach the traderʼs review (1..5 rating + note) to a trade.' })
   saveFeedback(@Param('id') id: string, @Body() body: { rating?: number | null; note?: string | null }) {
     return this.service.saveFeedback(id, body?.rating ?? null, body?.note ?? null);
+  }
+
+  @Get('notes')
+  @ApiOperation({ summary: 'The trader’s free-text log for this strategy (newest first).' })
+  listNotes() {
+    return this.service.listNotes();
+  }
+
+  @Post('notes')
+  @ApiOperation({ summary: 'Save one new note (body + optional image URLs) to the strategy log.' })
+  createNote(@Body() body: { body?: string; images?: string[] }) {
+    return this.service.createNote(body ?? {});
+  }
+
+  @Delete('notes/:id')
+  @ApiOperation({ summary: 'Delete one note from the strategy log.' })
+  deleteNote(@Param('id') id: string) {
+    return this.service.deleteNote(id);
   }
 
   @Get('doc')

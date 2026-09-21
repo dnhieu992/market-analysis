@@ -1473,3 +1473,11 @@ export type StrategyPaperBoard = {
   stats: StrategyPaperTradeStats;
   levels: { pdh: number; pdl: number; day: string } | null;
 };
+
+/** One free-text log entry for the strategy board — body + optional R2 image URLs. */
+export type StrategyPaperNote = {
+  id: string;
+  body: string;
+  images: string[];
+  createdAt: string;
+};

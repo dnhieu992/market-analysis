@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { StrategyPaperBoard as BoardData, StrategyPaperTrade } from '@web/shared/api/types';
+import type { StrategyPaperBoard as BoardData, StrategyPaperNote, StrategyPaperTrade } from '@web/shared/api/types';
+import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
 const apiClient = createApiClient();
 
@@ -229,9 +230,141 @@ function StrategyDialog({ initialDoc, onClose, onSaved }: { initialDoc: string; 
   );
 }
 
+function fmtNoteTime(iso: string): string {
+  return new Date(iso).toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/** Free-text trading log: a preview list on top, a common note+image composer below. */
+function NotesDialog({ onClose }: { onClose: () => void }) {
+  const [notes, setNotes] = useState<StrategyPaperNote[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [body, setBody] = useState('');
+  const [images, setImages] = useState<ImageUploadValue>({ existingUrls: [], newFiles: [] });
+  const [uploaderKey, setUploaderKey] = useState(0); // bump to reset ImageUpload after a save
+  const [saving, setSaving] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiClient
+      .fetchStrategyPaperNotes()
+      .then((rows) => alive && setNotes(rows))
+      .catch(() => alive && (setNotes([]), setLoadError(true)));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const canSave = body.trim().length > 0 && !saving;
+
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      let imageUrls: string[] = [];
+      if (images.newFiles.length > 0) {
+        imageUrls = await apiClient.uploadImages(images.newFiles, 'BTCUSDT');
+      }
+      const created = await apiClient.createStrategyPaperNote({ body: body.trim(), images: imageUrls });
+      setNotes((prev) => [created, ...(prev ?? [])]);
+      setBody('');
+      setImages({ existingUrls: [], newFiles: [] });
+      setUploaderKey((k) => k + 1);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    const prev = notes;
+    setNotes((cur) => (cur ?? []).filter((n) => n.id !== id));
+    try {
+      await apiClient.deleteStrategyPaperNote(id);
+    } catch {
+      setNotes(prev); // restore on failure
+    }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, maxWidth: 720, width: '100%', maxHeight: '85vh', overflow: 'auto', padding: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Ghi chú</h2>
+          <button type="button" onClick={onClose} style={{ fontSize: 13, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>Đóng</button>
+        </div>
+
+        {/* Preview: saved notes, newest first */}
+        <div>
+          {notes == null ? (
+            <p style={{ color: '#6b7280', fontSize: 14, margin: 0 }}>Đang tải…</p>
+          ) : notes.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: 14, margin: 0 }}>
+              {loadError ? 'Không tải được ghi chú. Thử lại sau.' : 'Chưa có ghi chú nào. Thêm ghi chú đầu tiên bên dưới.'}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {notes.map((n) => (
+                <div key={n.id} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, background: '#fafafa' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: '#6b7280' }}>{fmtNoteTime(n.createdAt)}</span>
+                    <button type="button" onClick={() => remove(n.id)} title="Xoá ghi chú" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#9ca3af', padding: 0 }}>🗑️</button>
+                  </div>
+                  <div style={{ fontSize: 14, color: '#111827', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{n.body}</div>
+                  {n.images.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      {n.images.map((url) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={url} src={url} alt="note attachment" onClick={() => setLightboxUrl(url)} style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb', cursor: 'zoom-in' }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Composer: common textarea + image upload + save */}
+        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Thêm ghi chú mới…"
+            rows={3}
+            style={{ width: '100%', fontSize: 14, border: '1px solid #d1d5db', borderRadius: 8, padding: 10, boxSizing: 'border-box', resize: 'vertical' }}
+          />
+          <div style={{ marginTop: 8 }}>
+            <ImageUpload key={uploaderKey} onChange={setImages} uploading={saving} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+            <button type="button" onClick={save} disabled={!canSave} style={{ fontSize: 14, padding: '7px 18px', borderRadius: 8, border: 'none', background: canSave ? '#2563eb' : '#93c5fd', color: '#fff', cursor: canSave ? 'pointer' : 'default', fontWeight: 600 }}>
+              {saving ? 'Đang lưu…' : 'Lưu ghi chú'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {lightboxUrl && (
+        <div onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }} className="lightbox-backdrop">
+          <button className="lightbox-close" onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }} aria-label="Close">✕</button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightboxUrl} alt="preview" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
   const [board, setBoard] = useState<BoardData>(initialBoard);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -282,6 +415,9 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button type="button" onClick={() => setDialogOpen(true)} style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid #2563eb', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 600 }}>
             📖 Chi tiết chiến lược
+          </button>
+          <button type="button" onClick={() => setNotesOpen(true)} style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontWeight: 600 }}>
+            📝 Ghi chú
           </button>
           <button type="button" onClick={scanNow} disabled={busy} style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
             {busy ? 'Đang quét…' : '↻ Quét ngay'}
@@ -384,6 +520,8 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
           onSaved={(doc) => setBoard((b) => ({ ...b, config: { ...b.config, docMarkdown: doc } }))}
         />
       )}
+
+      {notesOpen && <NotesDialog onClose={() => setNotesOpen(false)} />}
     </div>
   );
 }

@@ -87,6 +87,7 @@ import type {
   StrategyPaperBoard,
   StrategyPaperTrade,
   StrategyPaperConfig,
+  StrategyPaperNote,
 } from './types';
 
 
@@ -1925,6 +1926,37 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(input),
         }),
+      );
+    },
+
+    /** The trader's free-text log for the strategy board (newest first). */
+    async fetchStrategyPaperNotes(): Promise<StrategyPaperNote[]> {
+      return fetchJson<StrategyPaperNote[]>(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/notes`,
+        withDefaults(),
+      );
+    },
+
+    /** Save one new note (body + optional image URLs) to the strategy log. */
+    async createStrategyPaperNote(input: { body: string; images?: string[] }): Promise<StrategyPaperNote> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/notes`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+    },
+
+    /** Delete one note from the strategy log. */
+    async deleteStrategyPaperNote(id: string): Promise<{ deleted: boolean }> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/notes/${encodeURIComponent(id)}`,
+        withDefaults({ method: 'DELETE' }),
       );
     },
   };
