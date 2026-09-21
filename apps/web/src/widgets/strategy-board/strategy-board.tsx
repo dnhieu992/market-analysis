@@ -1,10 +1,19 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { StrategyPaperBoard as BoardData, StrategyPaperNote, StrategyPaperTrade } from '@web/shared/api/types';
+import { renderMarkdown as renderNoteMarkdown } from '@web/shared/lib/markdown';
 import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
+
+// Lazy-load the shared TipTap editor so its bundle only loads when the notes
+// dialog opens — same editor and pattern as the /bitget note dialogs.
+const MarkdownEditor = dynamic(
+  () => import('@web/shared/ui/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  { ssr: false },
+);
 
 const apiClient = createApiClient();
 
@@ -315,7 +324,7 @@ function NotesDialog({ onClose }: { onClose: () => void }) {
                     <span style={{ fontSize: 12, color: '#6b7280' }}>{fmtNoteTime(n.createdAt)}</span>
                     <button type="button" onClick={() => remove(n.id)} title="Xoá ghi chú" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#9ca3af', padding: 0 }}>🗑️</button>
                   </div>
-                  <div style={{ fontSize: 14, color: '#111827', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{n.body}</div>
+                  <div className="bg-gallery-note" style={{ fontSize: 14, color: '#111827', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: renderNoteMarkdown(n.body) }} />
                   {n.images.length > 0 && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                       {n.images.map((url) => (
@@ -330,14 +339,13 @@ function NotesDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* Composer: common textarea + image upload + save */}
+        {/* Composer: shared Markdown editor (same as /bitget) + image upload + save */}
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
-          <textarea
+          <MarkdownEditor
             value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Thêm ghi chú mới…"
-            rows={3}
-            style={{ width: '100%', fontSize: 14, border: '1px solid #d1d5db', borderRadius: 8, padding: 10, boxSizing: 'border-box', resize: 'vertical' }}
+            onChange={setBody}
+            placeholder="Thêm ghi chú mới… (hỗ trợ Markdown)"
+            minHeight={140}
           />
           <div style={{ marginTop: 8 }}>
             <ImageUpload key={uploaderKey} onChange={setImages} uploading={saving} />

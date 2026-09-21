@@ -7,13 +7,14 @@ a common composer below (a textarea + optional image upload). Each save appends 
 1. On `/trading-analysis`, the trader clicks **📝 Ghi chú** in the board header.
 2. The dialog opens and loads the log via `GET /strategy-paper-trades/notes` (newest first) into the
    preview list.
-3. The trader types the note body and (optionally) attaches images with the shared `ImageUpload`.
+3. The trader writes the note body in the shared TipTap `MarkdownEditor` (same editor as the /bitget
+   note dialogs — formatting toolbar, Markdown output) and (optionally) attaches images with the shared `ImageUpload`.
 4. On **Lưu ghi chú**:
    - If images were attached, they upload first via `POST /upload/images` → Cloudflare R2, returning URLs.
    - `POST /strategy-paper-trades/notes` saves `{ body, images }` and returns the created note.
    - The new note is prepended to the preview list; the composer (text + uploader) resets.
-5. Each preview row shows the timestamp, body text (line breaks preserved), image thumbnails
-   (click to zoom via the shared lightbox), and a 🗑️ delete action
+5. Each preview row shows the timestamp, the body rendered from Markdown (shared `renderMarkdown`),
+   image thumbnails (click to zoom via the shared lightbox), and a 🗑️ delete action
    (`DELETE /strategy-paper-trades/notes/:id`, optimistic with restore on failure).
 
 ## Edge Cases
@@ -21,10 +22,12 @@ a common composer below (a textarea + optional image upload). Each save appends 
 - **Image-only** is not allowed — body is required; images are optional.
 - **Notes fetch fails**: the list shows a non-blocking "Không tải được ghi chú" message; the composer stays usable.
 - **Delete fails**: the removed row is restored from the pre-delete snapshot.
-- Body is stored/rendered as plain text (`whiteSpace: pre-wrap`) — no markdown/HTML injection.
+- Body is Markdown; rendered through the shared `renderMarkdown` sanitizer (no raw HTML injection).
 
 ## Related Files (FE / BE / Worker / DB)
 - `apps/web/src/widgets/strategy-board/strategy-board.tsx` — "📝 Ghi chú" button + `NotesDialog` (preview list + composer)
+- `apps/web/src/shared/ui/markdown-editor/markdown-editor.tsx` — shared TipTap editor reused for the note body (same as /bitget)
+- `apps/web/src/shared/lib/markdown.ts` — `renderMarkdown` used to render saved notes in the preview list
 - `apps/web/src/shared/ui/image-upload/image-upload.tsx` — reused image picker/upload component
 - `apps/web/src/shared/api/client.ts` — `fetchStrategyPaperNotes` / `createStrategyPaperNote` / `deleteStrategyPaperNote`
 - `apps/web/src/shared/api/types.ts` — `StrategyPaperNote` type
