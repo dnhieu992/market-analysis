@@ -809,6 +809,19 @@ model BingxSyncState {
   @@map("bingx_sync_state")
 }
 
+// Singleton anchor/baseline for the read-only OKX order sync into /trades.
+// Same shape as BingxSyncState. A fresh table name (not the retired `okx_sync_state`
+// from the removed /okx dashboard) so it never collides with that dead schema.
+model OkxOrderSyncState {
+  id             String    @id @default("singleton")
+  historyStartAt DateTime?
+  baseline       Json      @default("[]") // string[] of externalIds open at first sync
+  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime  @default(now())
+
+  @@map("okx_order_sync_state")
+}
+
 // One log item on a MEXC trade's timeline — see `BitgetTradeJournal`.
 model MexcTradeJournal {
   id        String   @id @default(cuid())

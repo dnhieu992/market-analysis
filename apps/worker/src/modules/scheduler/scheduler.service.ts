@@ -7,6 +7,7 @@ import { BingxHistoryService } from '../bingx-history/bingx-history.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { BitgetQqeAlertService } from '../bitget-qqe-alert/bitget-qqe-alert.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
+import { OkxHistoryService } from '../okx-history/okx-history.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { StrategyBacktestScanService } from '../strategy-backtest/strategy-backtest-scan.service';
 
@@ -22,6 +23,7 @@ export class SchedulerService {
     private readonly bitgetQqeAlertService: BitgetQqeAlertService,
     private readonly mexcHistoryService: MexcHistoryService,
     private readonly bingxHistoryService: BingxHistoryService,
+    private readonly okxHistoryService: OkxHistoryService,
     private readonly strategyBacktestScanService: StrategyBacktestScanService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
@@ -133,7 +135,22 @@ export class SchedulerService {
     }
   }
 
-  // The OKX twin of these syncs was removed with the /okx page (2026-08-20).
+  // Runs every 5 minutes — read-only reconcile of live OKX USDT-perpetual positions
+  // into the generic Order table (source='okx') so they show on /trades, exactly
+  // like the BingX sync above. No backfill: the first run only anchors the start line.
+  @Cron('*/5 * * * *', { timeZone: 'UTC' })
+  async runOkxOrderSync() {
+    try {
+      const res = await this.okxHistoryService.sync();
+      if (res.opened > 0 || res.closed > 0 || res.updated > 0) {
+        this.logger.log(
+          `OKX order sync — opened ${res.opened}, closed ${res.closed}, updated ${res.updated}`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(`OKX order sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   // Runs every 5 minutes — advance the manual setups on /strategy-backtest against
   // fresh 5m candles (PENDING→ENTERED→TP/SL). Matched to the 5m candle so each pass

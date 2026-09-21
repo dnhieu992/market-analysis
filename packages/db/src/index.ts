@@ -55,6 +55,7 @@ export type {
 } from './repositories/mexc-trade.repository';
 export { createMexcSyncStateRepository } from './repositories/mexc-sync-state.repository';
 export { createBingxSyncStateRepository } from './repositories/bingx-sync-state.repository';
+export { createOkxOrderSyncStateRepository } from './repositories/okx-order-sync-state.repository';
 export { createMexcTradeJournalRepository } from './repositories/mexc-trade-journal.repository';
 export type {
   MexcTradeJournalInput,
