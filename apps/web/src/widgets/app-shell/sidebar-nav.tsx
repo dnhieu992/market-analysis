@@ -38,11 +38,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Nhật ký phân tích & ra quyết định giao dịch mỗi ngày · kho dữ liệu để Claude học hành vi'
   },
   {
-    href: '/paper-scalp',
-    label: 'Paper Scalp',
-    description: 'Monitor M15 tự vào lệnh giả định theo price action · trend H1'
-  },
-  {
     href: '/portfolio',
     label: 'Portfolio',
     description: 'Coin holdings & PnL tracker'

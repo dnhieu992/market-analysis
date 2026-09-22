@@ -1026,59 +1026,6 @@ model StrategyBacktestSetup {
   @@map("strategy_backtest_setups")
 }
 
-// One simulated (paper) trade from the M15 scalp monitor — BTCUSDT only. Claude decides
-// every entry, hold/adjust, and early-close call each tick by reading raw H1+M15
-// candles itself (no fixed entry rule); the stop-loss is still mechanically enforced by
-// replaying candles (see `checkStopTakeProfitHit` in @app/core), so `riskUsd` is a real
-// ceiling even though the model picks where the stop sits. Written by the standalone
-// scripts/run-scalp-paper-monitor.ts loop, never by hand. Deliberately standalone: no
-// relation to Order/Signal — this is a monitoring experiment, not a live trading pipeline.
-model ScalpPaperTrade {
-  id              String    @id @default(cuid())
-  symbol          String    @default("BTCUSDT") @db.VarChar(20)
-  direction       String    @db.VarChar(5) // LONG | SHORT
-  status          String    @default("OPEN") @db.VarChar(12) // PENDING | OPEN | CLOSED_TP | CLOSED_SL | CLOSED_EARLY | CANCELLED
-  // While PENDING this is the resting LIMIT price Claude pre-computed; once the
-  // limit is touched by a candle the trade flips to OPEN and this becomes the fill
-  // (entry) price — they are the same number by construction.
-  entryPrice      Float
-  // Original stop — kept forever so rMultiple always measures against the risk the
-  // trade was actually taken with, even after `stopLoss` is tightened later.
-  initialStopLoss Float
-  stopLoss        Float
-  takeProfit      Float
-  riskUsd         Float     @default(1)
-  quantity        Float
-  rrPlanned       Float
-  h1Trend         String    @db.VarChar(10)
-  // Claude's reasoning for taking the trade, written at entry.
-  reasoning       String    @db.Text
-  // Claude's latest commentary from a HOLD/ADJUST tick while the trade is open — the
-  // entry `reasoning` never changes, this does, every tick.
-  lastNote        String?   @db.Text
-  model           String?   @db.VarChar(60)
-  // Null while PENDING (the limit hasn't filled yet); set to the fill time when a
-  // candle touches the limit and the trade flips to OPEN. `createdAt` is the
-  // placement time. `closedAt` doubles as the cancel time for a CANCELLED limit.
-  openedAt        DateTime?
-  closedAt        DateTime?
-  exitPrice       Float?
-  pnlUsd          Float?
-  rMultiple       Float?
-  lastPrice       Float?
-  lastCheckedAt   DateTime?
-  // Snapshot of the 15m chart at the moment the trade was opened — rendered and
-  // uploaded to R2 right AFTER the entry is recorded (never blocks the entry).
-  chartUrl        String?   @db.Text
-  chartObjectKey  String?   @db.VarChar(300)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@index([status])
-  @@index([createdAt(sort: Desc)])
-  @@map("scalp_paper_trades")
-}
-
 // A simulated (paper) trade of the PDH/PDL breakout day-trade strategy, written
 // entirely by the hourly StrategyPaperTradesService engine (no exchange). One trade
 // per side per UTC day; every trade force-closes by end of its own UTC day (no overnight).

@@ -29,7 +29,6 @@ import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-backtest.module';
-import { ScalpPaperTradesModule } from './modules/scalp-paper-trades/scalp-paper-trades.module';
 import { StrategyPaperTradesModule } from './modules/strategy-paper-trades/strategy-paper-trades.module';
 
 @Module({
@@ -61,7 +60,6 @@ import { StrategyPaperTradesModule } from './modules/strategy-paper-trades/strat
     JournalModule,
     AssetModule,
     StrategyBacktestModule,
-    ScalpPaperTradesModule,
     StrategyPaperTradesModule,
   ],
   providers: [

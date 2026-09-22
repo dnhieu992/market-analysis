@@ -97,22 +97,3 @@ export {
   computeDistanceToEntryPct,
 } from './setups/strategy-backtest-math';
 export type { SetupDirection } from './setups/strategy-backtest-math';
-export {
-  SCALP_RISK_USD,
-  SCALP_FEE_PCT_PER_SIDE,
-  detectTrend as detectScalpTrend,
-  computeScalpQuantity,
-  computeScalpPnlUsd,
-  computeScalpRMultiple,
-  clampStopTighten,
-  checkStopTakeProfitHit,
-  checkLimitFill,
-} from './setups/scalp-paper-trade';
-export type {
-  ScalpDirection,
-  ScalpTrend,
-  ScalpAction,
-  ScalpDecision,
-  ScalpFill,
-  ScalpLimitFill,
-} from './setups/scalp-paper-trade';

@@ -83,7 +83,6 @@ import type {
   StrategyBacktestBoard,
   CreateStrategyBacktestSetupInput,
   UpdateStrategyBacktestSetupInput,
-  ScalpPaperTradeBoard,
   StrategyPaperBoard,
   StrategyPaperTrade,
   StrategyPaperConfig,
@@ -1868,15 +1867,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(exitPrice != null ? { exitPrice } : {}),
         }),
-      );
-    },
-
-    /** The /paper-scalp board: open paper trade (if any), closed history and stats. */
-    async fetchScalpPaperTradeBoard(): Promise<ScalpPaperTradeBoard> {
-      return fetchJson<ScalpPaperTradeBoard>(
-        fetchImpl,
-        `${baseUrl}/scalp-paper-trades`,
-        withDefaults(),
       );
     },
 

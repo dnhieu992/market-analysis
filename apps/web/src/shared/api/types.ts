@@ -1352,59 +1352,6 @@ export type UpdateStrategyBacktestSetupInput = {
   reviewImages?: string[];
 };
 
-/**
- * A simulated (paper) trade from the M15 scalp monitor — written entirely by
- * `scripts/run-scalp-paper-monitor.ts`, never by hand. Read-only on this page.
- */
-export type ScalpPaperTrade = {
-  id: string;
-  symbol: string;
-  direction: 'LONG' | 'SHORT';
-  status: 'PENDING' | 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EARLY' | 'CANCELLED';
-  entryPrice: number;
-  initialStopLoss: number;
-  stopLoss: number;
-  takeProfit: number;
-  riskUsd: number;
-  quantity: number;
-  rrPlanned: number;
-  h1Trend: string;
-  reasoning: string;
-  /** Claude's latest commentary from a HOLD/ADJUST tick — null until the first one. */
-  lastNote: string | null;
-  model: string | null;
-  openedAt: string | null;
-  closedAt: string | null;
-  exitPrice: number | null;
-  pnlUsd: number | null;
-  rMultiple: number | null;
-  lastPrice: number | null;
-  lastCheckedAt: string | null;
-  createdAt: string;
-  unrealizedPnlUsd: number | null;
-  unrealizedR: number | null;
-  /** R2 URL of the 15m entry-moment chart snapshot — null until it's rendered. */
-  chartUrl: string | null;
-};
-
-export type ScalpPaperTradeStats = {
-  closedCount: number;
-  wins: number;
-  losses: number;
-  closedEarly: number;
-  winRate: number | null;
-  totalPnlUsd: number;
-  totalR: number;
-};
-
-export type ScalpPaperTradeBoard = {
-  symbol: string;
-  price: number | null;
-  pendingOrder: ScalpPaperTrade | null;
-  openTrade: ScalpPaperTrade | null;
-  history: ScalpPaperTrade[];
-  stats: ScalpPaperTradeStats;
-};
 
 /**
  * A simulated (paper) trade of the PDH/PDL breakout day-trade strategy, written by the
