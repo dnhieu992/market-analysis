@@ -68,11 +68,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
-    href: '/strategy-test',
-    label: 'Strategy Lab',
-    description: 'Back-test trading strategies'
-  },
-  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'
