@@ -25,6 +25,17 @@ function parsePrice(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : NaN;
 }
 
+/** TP preset marks — raw price move %, BEFORE leverage (ROE = mark × leverage). */
+const TP_PCT_MARKS = [1, 2, 3, 5, 7, 10];
+
+/** Round a computed price to a sensible precision for the number input. */
+function roundPrice(n: number): number {
+  if (n >= 1000) return Math.round(n * 100) / 100;
+  if (n >= 1) return Math.round(n * 1000) / 1000;
+  if (n >= 0.01) return Math.round(n * 1e5) / 1e5;
+  return Number(n.toPrecision(4));
+}
+
 type Props = {
   position: BitgetPosition;
   saving: boolean;
@@ -44,6 +55,9 @@ export function TpslDialog({ position: p, saving, onSave, onClose }: Props) {
   // nudged from where the market is instead of typed from scratch.
   const [tp, setTp] = useState(String(p.takeProfitPrice ?? p.markPrice));
   const [sl, setSl] = useState(p.stopLossPrice != null ? String(p.stopLossPrice) : '');
+  // Which preset % is currently applied to TP (for highlighting). Cleared to
+  // null as soon as the TP field is edited by hand.
+  const [tpPct, setTpPct] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -55,6 +69,14 @@ export function TpslDialog({ position: p, saving, onSave, onClose }: Props) {
   const isLong = p.holdSide === 'long';
   const tpValue = parsePrice(tp);
   const slValue = parsePrice(sl);
+
+  // A TP mark = a raw price move off the ENTRY price (long → up, short → down).
+  // ROE at that level is `pct × leverage`, so the marks are "before leverage".
+  const applyTpPct = (pct: number) => {
+    const target = p.entryPrice * (1 + (isLong ? 1 : -1) * (pct / 100));
+    setTp(String(roundPrice(target)));
+    setTpPct(pct);
+  };
 
   // Projected PnL / ROE if the trigger fires, so the levels can be judged in
   // money rather than price alone (fees excluded — this is the gross move).
@@ -117,8 +139,26 @@ export function TpslDialog({ position: p, saving, onSave, onClose }: Props) {
               step="any"
               value={tp}
               placeholder={isLong ? 'cao hơn giá hiện tại' : 'thấp hơn giá hiện tại'}
-              onChange={(e) => setTp(e.target.value)}
+              onChange={(e) => {
+                setTp(e.target.value);
+                setTpPct(null);
+              }}
             />
+            <div className="bg-tpsl-marks" role="group" aria-label="Chọn nhanh % lời cho TP">
+              {TP_PCT_MARKS.map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  className={`bg-tpsl-mark${tpPct === pct ? ' bg-tpsl-mark--on' : ''}`}
+                  onClick={() => applyTpPct(pct)}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+            <span className="bg-tpsl-hint bg-tpsl-hint--muted">
+              % lời so với giá vào ({fmtPrice(p.entryPrice)}), chưa tính đòn bẩy — ROE = % × đòn bẩy.
+            </span>
             {tpWrongSide ? (
               <span className="bg-tpsl-hint bg-tpsl-hint--bad">
                 TP phải {isLong ? 'cao hơn' : 'thấp hơn'} giá hiện tại ({fmtPrice(p.markPrice)}).

@@ -9976,6 +9976,29 @@ a.metric-card--link:hover {
 .bg-tpsl-hint--tp { color: #1f8a5b; }
 .bg-tpsl-hint--sl { color: #c2453a; }
 .bg-tpsl-hint--bad { color: #b45309; }
+.bg-tpsl-hint--muted { color: var(--muted); font-weight: 500; }
+
+/* TP quick-pick % marks (raw price move, before leverage). */
+.bg-tpsl-marks { display: flex; flex-wrap: wrap; gap: 6px; }
+.bg-tpsl-mark {
+  flex: 1 1 0;
+  min-width: 44px;
+  padding: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--foreground);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.bg-tpsl-mark:hover { background: rgba(23, 18, 13, 0.05); }
+.bg-tpsl-mark--on {
+  border-color: #1f8a5b;
+  background: rgba(31, 138, 91, 0.12);
+  color: #1f8a5b;
+}
 
 .bg-journal-btn {
   padding: 4px 9px;
