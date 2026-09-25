@@ -40,6 +40,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - **Vị thế đóng một phần**: history chỉ nhận `state = 3` (đóng hẳn); size lấy `closeVol` vì `holdVol` đã về 0.
 - **Đóng/mở giữa 2 lần poll**: insert thẳng `status=closed` kèm cả log mở lẫn log đóng.
 - **Trùng nhịp sync**: cờ `syncing` chặn chạy chồng; `positionId` unique nên close là idempotent.
+- **Chọn nhanh % TP**: dưới ô Take Profit có hàng nút mốc **1% / 2% / 3% / 5% / 7% / 10%**. Bấm một mốc = đặt giá TP theo **mức lời so với giá vào** (`entryPrice`), long → cộng %, short → trừ %. Đây là **% biến động giá, CHƯA tính đòn bẩy** → ROE hiển thị ở hint = `% × đòn bẩy`. Mốc đang chọn được tô xanh; **gõ tay vào ô TP sẽ bỏ tô sáng** (`tpPct=null`). Vì tính từ giá vào chứ không phải giá hiện tại, nếu lệnh đã lời sẵn thì một mốc % nhỏ có thể rơi vào sai chiều so với mark price → hint đỏ hiện như thường, chọn mốc lớn hơn.
 - **Cập nhật TP/SL khi đã có lệnh**: MEXC chỉ cho **1 lệnh TP/SL trên mỗi vị thế**, `stoporder/place` lần 2 bị từ chối với lỗi `5005 "there is already a position TP/SL order"`. Vì vậy update = sửa giá trên lệnh cũ (vị thế không có khoảng trống không bảo vệ), không phải đặt thêm lệnh mới.
 - **Fallback khi không sửa được tại chỗ**: xoá hẳn 1 chiều TP hoặc SL (endpoint sửa giá chỉ set được giá, không xoá được), có >1 lệnh live, hoặc call sửa lỗi → huỷ lệnh cũ rồi place lại. MEXC giải phóng slot TP/SL bất đồng bộ nên nếu place vẫn dính 5005 thì chờ 800ms và thử lại 1 lần.
 - **Mốc ROE khi thiếu `unRealizedPnl`**: bỏ qua vị thế đó thay vì đoán — thà thiếu log còn hơn log sai.
