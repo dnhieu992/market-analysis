@@ -57,6 +57,33 @@ export type BitgetPlanOrder = {
 /** Position-level TP/SL trigger type. Mark price matches the "Giá hiện tại" column in the dashboard. */
 const TPSL_TRIGGER_TYPE = 'mark_price';
 
+/**
+ * One pending (unfilled) regular order from `/api/v2/mix/order/orders-pending`.
+ * A limit entry sits here until the market reaches its price, then becomes a
+ * position. Only the fields the dashboard reads are typed.
+ */
+export type BitgetPendingOrder = {
+  orderId: string;
+  clientOid: string;
+  symbol: string;
+  /** Base-asset order size. */
+  size: string;
+  /** Limit price the order waits to fill at. */
+  price: string;
+  /** 'buy' | 'sell'. Combined with `tradeSide`/`posSide` to derive the position side. */
+  side: string;
+  /** 'open' | 'close' in hedge mode; may be '' in one-way mode. */
+  tradeSide: string;
+  /** 'long' | 'short' in hedge mode; may be '' otherwise. */
+  posSide: string;
+  orderType: string;
+  /** 'limit' orders carry a status of 'live' or 'partially_filled' while pending. */
+  status: string;
+  leverage: string;
+  marginMode: string;
+  cTime: string;
+};
+
 /** Contract precision + minimums read from `/api/v2/mix/market/contracts`. */
 export type BitgetContractSpec = {
   /** Decimal places allowed for order size (base asset). */
@@ -162,6 +189,60 @@ export class BitgetTradeClient {
     // Hedge mode requires the open/close intent explicitly; one-way mode forbids it.
     if (this.hedgeMode) body.tradeSide = 'open';
     await this.request<unknown>('POST', '/api/v2/mix/order/place-order', undefined, body);
+  }
+
+  /**
+   * Place a LIMIT order in CROSS mode — a resting entry that Bitget fills when
+   * the market reaches `price`, then it becomes a position (no preset TP/SL).
+   * `force: 'gtc'` keeps it resting until filled or cancelled. Size and price
+   * must already be rounded to the contract's precision.
+   */
+  async placeLimitOrder(params: {
+    symbol: string;
+    holdSide: 'long' | 'short';
+    size: string;
+    price: string;
+    clientOid: string;
+  }): Promise<{ orderId: string; clientOid: string }> {
+    const body: Record<string, string> = {
+      symbol: params.symbol,
+      productType: this.productType,
+      marginMode: 'crossed',
+      marginCoin: MARGIN_COIN,
+      size: params.size,
+      price: params.price,
+      side: params.holdSide === 'long' ? 'buy' : 'sell',
+      orderType: 'limit',
+      force: 'gtc',
+      clientOid: params.clientOid,
+    };
+    if (this.hedgeMode) body.tradeSide = 'open';
+    return this.request<{ orderId: string; clientOid: string }>(
+      'POST',
+      '/api/v2/mix/order/place-order',
+      undefined,
+      body,
+    );
+  }
+
+  /** Every pending (unfilled) regular order across all symbols, or [] if none. */
+  async getPendingOrders(): Promise<BitgetPendingOrder[]> {
+    const data = await this.request<{ entrustedList: BitgetPendingOrder[] | null }>(
+      'GET',
+      '/api/v2/mix/order/orders-pending',
+      { productType: this.productType },
+    );
+    return data?.entrustedList ?? [];
+  }
+
+  /** Cancel one pending regular order by id. */
+  async cancelOrder(symbol: string, orderId: string): Promise<void> {
+    await this.request<unknown>('POST', '/api/v2/mix/order/cancel-order', undefined, {
+      symbol,
+      productType: this.productType,
+      marginCoin: MARGIN_COIN,
+      orderId,
+    });
   }
 
   /** The open position for a side, or null if the exchange is flat on that side. */

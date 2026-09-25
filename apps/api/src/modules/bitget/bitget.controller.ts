@@ -20,6 +20,8 @@ import { BitgetSetupChartService } from './bitget-setup-chart.service';
 import { BitgetAutoTradeService } from './bitget-auto-trade.service';
 import { ClosePositionDto } from './dto/close-position.dto';
 import { OpenPositionDto } from './dto/open-position.dto';
+import { PlaceLimitDto } from './dto/place-limit.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { SetTpslDto } from './dto/set-tpsl.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
@@ -77,6 +79,26 @@ export class BitgetController {
   })
   openPosition(@Body() dto: OpenPositionDto) {
     return this.service.openPosition(dto);
+  }
+
+  @Post('positions/limit')
+  @ApiOperation({
+    summary: 'Place a resting LIMIT entry (cross margin) from the Setup tab — fills into a position at the trigger price',
+  })
+  placeLimit(@Body() dto: PlaceLimitDto) {
+    return this.service.placeLimitOrder(dto);
+  }
+
+  @Get('positions/pending')
+  @ApiOperation({ summary: 'List all resting (unfilled) LIMIT orders across the account' })
+  getPendingOrders() {
+    return this.service.listPendingLimitOrders();
+  }
+
+  @Post('positions/cancel-order')
+  @ApiOperation({ summary: 'Cancel one pending (unfilled) LIMIT order by id' })
+  cancelOrder(@Body() dto: CancelOrderDto) {
+    return this.service.cancelLimitOrder(dto);
   }
 
   @Post('positions/tpsl')

@@ -43,6 +43,8 @@ import type {
   BitgetPositionsResponse,
   BitgetHistoryResponse,
   BitgetOpenResult,
+  BitgetLimitResult,
+  BitgetPendingOrdersResponse,
   BitgetTpslResult,
   BitgetSetupConfig,
   BitgetAutoTrade,
@@ -1042,6 +1044,59 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Mở lệnh thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetOpenResult;
+    },
+
+    /**
+     * Place a resting LIMIT entry (cross) from the Setup tab. Fills into a
+     * position at `price`; sits in the "Lệnh chờ" panel until then.
+     */
+    async placeBitgetLimitOrder(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      marginUsd: number;
+      leverage: number;
+      price: number;
+    }): Promise<BitgetLimitResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/positions/limit`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đặt lệnh limit thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetLimitResult;
+    },
+
+    /** All resting (unfilled) LIMIT orders across the account, newest first. */
+    async fetchBitgetPendingOrders(): Promise<BitgetPendingOrdersResponse> {
+      return fetchJson<BitgetPendingOrdersResponse>(
+        fetchImpl,
+        `${baseUrl}/bitget/positions/pending`,
+        withDefaults({}),
+      );
+    },
+
+    /** Cancel one pending LIMIT order by id. */
+    async cancelBitgetOrder(symbol: string, orderId: string): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/positions/cancel-order`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, orderId }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Huỷ lệnh chờ thất bại (HTTP ${response.status})`);
+      }
     },
 
     /**

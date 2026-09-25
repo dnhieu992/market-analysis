@@ -689,6 +689,42 @@ export type BitgetOpenResult = {
   marginUsd: number;
 };
 
+/** Result of placing a resting LIMIT entry on Bitget (as accepted by the exchange). */
+export type BitgetLimitResult = {
+  placed: true;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  size: number;
+  price: number;
+  leverage: number;
+  marginUsd: number;
+  notionalUsd: number;
+  orderId: string;
+};
+
+/** One resting (unfilled) LIMIT order shown in the "Lệnh chờ (limit)" panel. */
+export type BitgetPendingOrder = {
+  orderId: string;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  /** Limit price the order waits to fill at. */
+  price: number;
+  /** Base-asset size. */
+  size: number;
+  leverage: number;
+  /** size × price. */
+  notionalUsd: number;
+  /** notional ÷ leverage. */
+  marginUsd: number;
+  createdAt: string | null;
+};
+
+export type BitgetPendingOrdersResponse = {
+  configured: boolean;
+  orders: BitgetPendingOrder[];
+  fetchedAt: string;
+};
+
 /** Result of syncing a position's TP/SL to Bitget (prices as accepted by the exchange). */
 export type BitgetTpslResult = {
   ok: true;

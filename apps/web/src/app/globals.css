@@ -10065,6 +10065,46 @@ a.metric-card--link:hover {
 .bg-side-cfg-row { display: flex; align-items: center; gap: 8px; min-height: 18px; }
 .bg-side-cfg { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bg-side-cfg--empty { font-style: italic; opacity: 0.8; }
+
+/* Setup side cell: Market (filled) sits beside Limit (outlined, same hue). The
+   Limit button opens the resting-order ticket instead of firing a market order. */
+.bg-limit-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-limit-btn:hover:not(:disabled) { background: rgba(23, 18, 13, 0.05); }
+.bg-limit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.bg-limit-btn--long { border-color: rgba(31, 138, 91, 0.5); color: #1f8a5b; }
+.bg-limit-btn--short { border-color: rgba(194, 69, 58, 0.5); color: #c2453a; }
+
+/* Limit-order dialog: leverage + margin share one row like the bulk dialog. */
+.bg-limit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ── "Lệnh chờ (limit)" panel on the positions tab ── */
+.bg-pending { margin-bottom: 20px; }
+.bg-pending-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.bg-pending-title { margin: 0; font-size: 15px; font-weight: 800; color: var(--foreground); }
+.bg-pending-hint { font-size: 12px; color: var(--muted); }
+.bg-cancel-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bg-cancel-btn:hover:not(:disabled) { background: rgba(23, 18, 13, 0.05); }
+.bg-cancel-btn:disabled { opacity: 0.5; cursor: default; }
 .bg-setup-btn { padding: 5px 10px; }
 
 /* Symbol cell: coin ticker over a small "view chart" button. */

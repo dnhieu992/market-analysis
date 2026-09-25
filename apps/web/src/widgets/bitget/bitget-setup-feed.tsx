@@ -26,6 +26,7 @@ import { QqeCell, bareQqeSymbol as bareSymbol, type QqeMap } from './qqe-cell';
 import { SymbolChipFilter, matchesSymbolSelection } from './symbol-filter-input';
 import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
 import { CoinSetupDialog, type CoinSetupInput } from './coin-setup-dialog';
+import { LimitOrderDialog } from './limit-order-dialog';
 import { ChartNoteView } from './chart-note-dialog';
 import { SymbolNoteDialog, notePreview } from './symbol-note-dialog';
 
@@ -169,6 +170,10 @@ export function BitgetSetupFeed({
   const [chartTarget, setChartTarget] = useState<ChartTarget | null>(null);
   const [refSymbol, setRefSymbol] = useState<string | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
+  // The coin+side whose limit-order dialog is open, plus its save state.
+  const [limitTarget, setLimitTarget] = useState<{ symbol: string; holdSide: HoldSide } | null>(null);
+  const [limitSaving, setLimitSaving] = useState(false);
+  const [limitError, setLimitError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [qqe, setQqe] = useState<QqeMap>({});
@@ -591,6 +596,33 @@ export function BitgetSetupFeed({
     [configs, openSides, refreshPositions],
   );
 
+  /**
+   * Place a resting LIMIT entry for the coin+side of the open dialog. Unlike a
+   * market open this does not become a position yet, so there is nothing to
+   * refresh here — the "Lệnh chờ (limit)" panel on the positions tab polls it.
+   */
+  const placeLimit = useCallback(
+    async (symbol: string, holdSide: HoldSide, input: { leverage: number; marginUsd: number; price: number }) => {
+      setLimitSaving(true);
+      setLimitError(null);
+      setError(null);
+      setNotice(null);
+      try {
+        const res = await clientRef.current.placeBitgetLimitOrder({ symbol, holdSide, ...input });
+        setLimitTarget(null);
+        setNotice(
+          `Đã đặt lệnh limit ${res.holdSide.toUpperCase()} ${symbol}: size ${res.size} @ ${res.price} ` +
+            `(ký quỹ $${res.marginUsd} · ${res.leverage}× cross). Xem ở tab “Vị thế đang mở” → Lệnh chờ.`,
+        );
+      } catch (err) {
+        setLimitError(err instanceof Error ? err.message : 'Đặt lệnh limit thất bại. Thử lại sau.');
+      } finally {
+        setLimitSaving(false);
+      }
+    },
+    [],
+  );
+
   const configured = history.configured || positions.configured;
   const sides: HoldSide[] = ['long', 'short'];
 
@@ -807,8 +839,8 @@ export function BitgetSetupFeed({
                               )}
                             </div>
                             <div className="bg-setup-actions">
-                              {/* Always clickable — on an already-open side it adds
-                                  volume to that position instead of opening a new one. */}
+                              {/* Market: always clickable — on an already-open side it
+                                  adds volume to that position instead of opening a new one. */}
                               <button
                                 type="button"
                                 className={`bg-open-btn ${isLong ? 'bg-open-btn--long' : 'bg-open-btn--short'} ${
@@ -818,13 +850,26 @@ export function BitgetSetupFeed({
                                 disabled={opening || openingKey !== null}
                                 title={
                                   isOpen
-                                    ? `Thêm volume vào vị thế ${isLong ? 'LONG' : 'SHORT'} đang mở`
+                                    ? `Thêm volume vào vị thế ${isLong ? 'LONG' : 'SHORT'} đang mở theo giá market`
                                     : !configuredSide
                                       ? 'Cấu hình ký quỹ trước'
-                                      : `Mở lệnh ${isLong ? 'LONG' : 'SHORT'} market`
+                                      : `Mở lệnh ${isLong ? 'LONG' : 'SHORT'} theo giá market`
                                 }
                               >
-                                {opening ? '…' : isOpen ? `+ ${isLong ? 'Long' : 'Short'}` : isLong ? 'Long' : 'Short'}
+                                {opening ? '…' : isOpen ? '+ Market' : 'Market'}
+                              </button>
+                              {/* Limit: opens the order-ticket dialog to place a resting
+                                  entry at a chosen price (config prefilled but editable). */}
+                              <button
+                                type="button"
+                                className={`bg-limit-btn ${isLong ? 'bg-limit-btn--long' : 'bg-limit-btn--short'}`}
+                                onClick={() => {
+                                  setLimitError(null);
+                                  setLimitTarget({ symbol, holdSide });
+                                }}
+                                title={`Đặt lệnh ${isLong ? 'LONG' : 'SHORT'} limit chờ khớp tại giá tự chọn`}
+                              >
+                                Limit
                               </button>
                             </div>
                           </div>
@@ -868,6 +913,20 @@ export function BitgetSetupFeed({
           error={editError}
           onSave={(input) => void saveCoinSetup(editing, input)}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {limitTarget && (
+        <LimitOrderDialog
+          symbol={limitTarget.symbol}
+          holdSide={limitTarget.holdSide}
+          currentPrice={livePrices[limitTarget.symbol] ?? null}
+          initialLeverage={configs[cfgKey(limitTarget.symbol, limitTarget.holdSide)]?.leverage ?? 0}
+          initialMarginUsd={configs[cfgKey(limitTarget.symbol, limitTarget.holdSide)]?.marginUsd ?? 0}
+          saving={limitSaving}
+          error={limitError}
+          onPlace={(input) => void placeLimit(limitTarget.symbol, limitTarget.holdSide, input)}
+          onClose={() => setLimitTarget(null)}
         />
       )}
 
