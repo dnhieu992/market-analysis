@@ -60,6 +60,8 @@ import type {
   MexcPositionsResponse,
   MexcHistoryResponse,
   MexcOpenResult,
+  MexcLimitResult,
+  MexcPendingOrdersResponse,
   MexcTpslResult,
   MexcSetupConfig,
   MexcSymbolPriority,
@@ -1471,6 +1473,59 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Mở lệnh thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as MexcOpenResult;
+    },
+
+    /**
+     * Place a resting LIMIT entry (cross) from the Setup tab. Fills into a
+     * position at `price`; sits in the "Lệnh chờ" panel until then.
+     */
+    async placeMexcLimitOrder(input: {
+      symbol: string;
+      holdSide: 'long' | 'short';
+      marginUsd: number;
+      leverage: number;
+      price: number;
+    }): Promise<MexcLimitResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/positions/limit`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Đặt lệnh limit thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcLimitResult;
+    },
+
+    /** All resting (unfilled) LIMIT orders across the account, newest first. */
+    async fetchMexcPendingOrders(): Promise<MexcPendingOrdersResponse> {
+      return fetchJson<MexcPendingOrdersResponse>(
+        fetchImpl,
+        `${baseUrl}/mexc/positions/pending`,
+        withDefaults({}),
+      );
+    },
+
+    /** Cancel one pending LIMIT order by id. */
+    async cancelMexcOrder(symbol: string, orderId: string): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/positions/cancel-order`,
+        withDefaults({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, orderId }),
+        }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Huỷ lệnh chờ thất bại (HTTP ${response.status})`);
+      }
     },
 
     /**

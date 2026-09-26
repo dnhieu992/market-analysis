@@ -39,6 +39,8 @@ const SIDE_OPEN_SHORT = 3;
 const SIDE_CLOSE_LONG = 4;
 /** `type` code for a market order. */
 const ORDER_TYPE_MARKET = 5;
+/** `type` code for a price-limited (resting) order. */
+const ORDER_TYPE_LIMIT = 1;
 /** `openType` code for cross margin (the mode the Setup tab opens in). */
 const OPEN_TYPE_CROSS = 2;
 /**
@@ -114,6 +116,28 @@ export type MexcStopOrder = {
   takeProfitPrice: number | null;
   stopLossPrice: number | null;
   holdSide: 'long' | 'short';
+  createTime: number;
+};
+
+/**
+ * One resting (unfilled) order from `/api/v1/private/order/list/open_orders`, in
+ * app terms — a limit entry sits here until the market reaches its price, then
+ * becomes a position. `size` is already converted to the BASE asset (contracts ×
+ * contractSize) so callers never see contracts. Only the fields the dashboard
+ * reads are kept.
+ */
+export type MexcPendingOrder = {
+  orderId: string;
+  /** App-format symbol (`BTCUSDT`). */
+  symbol: string;
+  holdSide: 'long' | 'short';
+  /** Limit price the order waits to fill at. */
+  price: number;
+  /** Order size in the BASE asset (contracts × contractSize). */
+  size: number;
+  leverage: number;
+  /** MEXC order-type code — 1 = limit (the only resting type the tab places). */
+  orderType: number;
   createTime: number;
 };
 
@@ -269,6 +293,82 @@ export class MexcTradeClient {
       openType: OPEN_TYPE_CROSS,
       externalOid: params.externalOid,
     });
+  }
+
+  /**
+   * Place a resting LIMIT order in CROSS mode — the exchange fills it when the
+   * market reaches `price`, then it becomes a position (no preset TP/SL). `vol`
+   * is in CONTRACTS (already floored to `volScale`); `price` must be rounded to
+   * the contract's price precision. Returns the exchange order id.
+   */
+  async placeLimitOrder(params: {
+    symbol: string;
+    holdSide: 'long' | 'short';
+    /** Order size in CONTRACTS (already floored to `volScale`). */
+    vol: number;
+    price: number;
+    leverage: number;
+    externalOid: string;
+  }): Promise<{ orderId: string }> {
+    const data = await this.request<number | string | { orderId?: number | string }>(
+      'POST',
+      '/api/v1/private/order/create',
+      undefined,
+      {
+        symbol: toMexcSymbol(params.symbol),
+        price: params.price,
+        vol: params.vol,
+        leverage: Math.round(params.leverage),
+        side: params.holdSide === 'long' ? SIDE_OPEN_LONG : SIDE_OPEN_SHORT,
+        type: ORDER_TYPE_LIMIT,
+        openType: OPEN_TYPE_CROSS,
+        externalOid: params.externalOid,
+      },
+    );
+    const orderId =
+      data != null && typeof data === 'object' ? String(data.orderId ?? '') : String(data ?? '');
+    return { orderId };
+  }
+
+  /**
+   * Every resting (unfilled) LIMIT order across all symbols, in app terms — or []
+   * if none. `size` is converted from contracts to the base asset here (one spec
+   * lookup per distinct symbol), so callers work in base asset like everywhere.
+   */
+  async getPendingOrders(): Promise<MexcPendingOrder[]> {
+    const data = await this.request<RawOpenOrderRow[]>(
+      'GET',
+      '/api/v1/private/order/list/open_orders',
+    );
+    const rows = (data ?? []).filter((o) => Number(o.orderType) === ORDER_TYPE_LIMIT);
+    const sizes = new Map<string, number>();
+    for (const app of new Set(rows.map((r) => fromMexcSymbol(r.symbol ?? '')))) {
+      if (app) sizes.set(app, await this.getContractSize(app));
+    }
+    return rows.map((o) => this.mapPendingOrder(o, sizes.get(fromMexcSymbol(o.symbol ?? '')) ?? 1));
+  }
+
+  /** Cancel one resting order by id. */
+  async cancelOrder(orderId: string): Promise<void> {
+    await this.request<unknown>('POST', '/api/v1/private/order/cancel', undefined, [Number(orderId)]);
+  }
+
+  /** Shape one raw open-order row, converting contracts → base asset. */
+  private mapPendingOrder(o: RawOpenOrderRow, contractSize: number): MexcPendingOrder {
+    // side: 1 open long / 4 close long → long; 3 open short / 2 close short → short.
+    const side = Number(o.side);
+    const holdSide: 'long' | 'short' = side === 1 || side === 4 ? 'long' : 'short';
+    const vol = Number(o.vol);
+    return {
+      orderId: String(o.orderId ?? ''),
+      symbol: fromMexcSymbol(o.symbol ?? ''),
+      holdSide,
+      price: Number(o.price),
+      size: (Number.isFinite(vol) ? vol : 0) * (contractSize > 0 ? contractSize : 1),
+      leverage: Number(o.leverage),
+      orderType: Number(o.orderType),
+      createTime: Number(o.createTime),
+    };
   }
 
   /** Every open position across all symbols, or [] if the account is flat. */
@@ -524,6 +624,20 @@ type RawPositionRow = {
   unrealizedPnl?: number;
   createTime?: number;
   updateTime?: number;
+};
+
+/** Raw open (unfilled) order row from `order/list/open_orders`. */
+type RawOpenOrderRow = {
+  orderId?: number | string;
+  symbol?: string;
+  price?: number;
+  vol?: number;
+  leverage?: number;
+  /** 1 open long, 2 close short, 3 open short, 4 close long. */
+  side?: number;
+  /** 1 limit, 5 market, … — resting orders are always limit. */
+  orderType?: number;
+  createTime?: number;
 };
 
 /** Raw TP/SL order row from `stoporder/open_orders`. */

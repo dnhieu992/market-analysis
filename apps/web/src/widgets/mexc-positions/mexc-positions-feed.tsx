@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { MexcPosition, MexcPositionsResponse } from '@web/shared/api/types';
+import type { MexcPendingOrder, MexcPosition, MexcPositionsResponse } from '@web/shared/api/types';
 
 import { BtcPriceTile } from '../btc-price-tile/btc-price-tile';
 import { ChartIcon } from '../mexc/chart-icon';
@@ -76,6 +76,9 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
   const [journalKey, setJournalKey] = useState<{ symbol: string; holdSide: 'long' | 'short' } | null>(null);
   // Which coin's live chart dialog is open (icon button next to the symbol).
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  // Resting (unfilled) limit orders + which one is being cancelled.
+  const [pending, setPending] = useState<MexcPendingOrder[]>([]);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
   // Coin-name filter (empty selection = all coins), chip multi-select.
   const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
   const toggleSymbol = useCallback((symbol: string) => {
@@ -163,10 +166,48 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
     [refresh],
   );
 
+  // Resting limit orders — fetched on mount, on each refresh tick, and after a
+  // cancel. Non-fatal: a failure just leaves the panel showing the last list.
+  const refreshPending = useCallback(async () => {
+    try {
+      const res = await clientRef.current.fetchMexcPendingOrders();
+      setPending(res.orders);
+    } catch {
+      /* keep last-known pending list */
+    }
+  }, []);
+
+  const cancelPending = useCallback(
+    async (order: MexcPendingOrder) => {
+      if (
+        !window.confirm(
+          `Huỷ lệnh chờ ${order.holdSide.toUpperCase()} ${order.symbol} @ ${fmtPrice(order.price)}?`,
+        )
+      ) {
+        return;
+      }
+      setCancelingId(order.orderId);
+      setError(null);
+      try {
+        await clientRef.current.cancelMexcOrder(order.symbol, order.orderId);
+        await refreshPending();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Huỷ lệnh chờ thất bại. Thử lại sau.');
+      } finally {
+        setCancelingId(null);
+      }
+    },
+    [refreshPending],
+  );
+
   useEffect(() => {
-    const id = setInterval(refresh, REFRESH_MS);
+    void refreshPending();
+    const id = setInterval(() => {
+      void refresh();
+      void refreshPending();
+    }, REFRESH_MS);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, refreshPending]);
 
   const {
     configured,
@@ -181,8 +222,16 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
   // client-side so the table tracks price between the 15s authoritative refreshes.
   // BTCUSDT rides along on the same socket for the BTC tile, so the page keeps a
   // live feed (and a lit LIVE badge) even with no position open.
+  // Subscribe to BTC (for its tile), every open position, and every coin with a
+  // resting limit order — the pending panel shows a live distance-to-price.
   const { prices: livePrices, live } = useMexcLivePrices(
-    useMemo(() => [BTC_SYMBOL, ...rawPositions.map((p) => p.symbol)], [rawPositions]),
+    useMemo(
+      () =>
+        Array.from(
+          new Set([BTC_SYMBOL, ...rawPositions.map((p) => p.symbol), ...pending.map((o) => o.symbol)]),
+        ),
+      [rawPositions, pending],
+    ),
   );
 
   const positions = useMemo(
@@ -338,6 +387,16 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
             <BtcPriceTile priceUsd={livePrices[BTC_SYMBOL] ?? null} />
           </div>
 
+          {pending.length > 0 && (
+            <PendingOrdersPanel
+              orders={pending}
+              livePrices={livePrices}
+              cancelingId={cancelingId}
+              disabled={cancelingId !== null}
+              onCancel={cancelPending}
+            />
+          )}
+
           {positions.length === 0 ? (
             <div className="bg-alert">Không có vị thế nào đang mở.</div>
           ) : (
@@ -441,6 +500,101 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
           onClose={() => setTpslKey(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** Short local time (HH:mm) for the "Đặt lúc" column. */
+function fmtTime(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Resting (unfilled) LIMIT orders — placed from the Setup tab, waiting for the
+ * market to reach their price. Each row shows the live distance to that price
+ * (recomputed from the WS feed) and a Huỷ button to cancel it on the exchange.
+ * Hidden entirely when there are no pending orders.
+ */
+function PendingOrdersPanel({
+  orders,
+  livePrices,
+  cancelingId,
+  disabled,
+  onCancel,
+}: {
+  orders: MexcPendingOrder[];
+  livePrices: Record<string, number>;
+  cancelingId: string | null;
+  disabled: boolean;
+  onCancel: (order: MexcPendingOrder) => void;
+}) {
+  return (
+    <div className="bg-pending">
+      <div className="bg-pending-head">
+        <h3 className="bg-pending-title">Lệnh chờ (limit)</h3>
+        <span className="bg-pending-hint">
+          Chưa khớp · MEXC tự mở vị thế khi giá chạm mức · bấm Huỷ để gỡ
+        </span>
+      </div>
+      <div className="bg-table-wrap">
+        <table className="bg-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Hướng</th>
+              <th className="bg-num">Giá limit</th>
+              <th className="bg-num" title="Khoảng cách từ giá hiện tại tới giá limit">
+                Khoảng cách
+              </th>
+              <th className="bg-num">Đòn bẩy</th>
+              <th className="bg-num">Size</th>
+              <th className="bg-num">Giá trị</th>
+              <th className="bg-num">Đặt lúc</th>
+              <th className="bg-num">Huỷ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((o) => {
+              const live = livePrices[o.symbol];
+              const dist =
+                live != null && Number.isFinite(live) && live > 0
+                  ? ((o.price - live) / live) * 100
+                  : null;
+              const isLong = o.holdSide === 'long';
+              return (
+                <tr key={o.orderId}>
+                  <td className="bg-symbol">{o.symbol}</td>
+                  <td>
+                    <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>
+                      {isLong ? 'LONG' : 'SHORT'}
+                    </span>
+                  </td>
+                  <td className="bg-num">{fmtPrice(o.price)}</td>
+                  <td className="bg-num">{dist == null ? '—' : fmtPct(dist)}</td>
+                  <td className="bg-num">{o.leverage > 0 ? `${o.leverage}×` : '—'}</td>
+                  <td className="bg-num">{fmtQty(o.size)}</td>
+                  <td className="bg-num">{fmtUsdPlain(o.notionalUsd)}</td>
+                  <td className="bg-num bg-time">{fmtTime(o.createdAt)}</td>
+                  <td className="bg-num">
+                    <button
+                      type="button"
+                      className="bg-cancel-btn"
+                      onClick={() => onCancel(o)}
+                      disabled={disabled}
+                      title="Huỷ lệnh chờ này trên MEXC"
+                    >
+                      {cancelingId === o.orderId ? '…' : 'Huỷ'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

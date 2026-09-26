@@ -15,6 +15,7 @@ import {
 import {
   MexcTradeClient,
   buildExternalOid,
+  type MexcPendingOrder,
   type MexcRawPosition,
   type MexcStopOrder,
 } from './mexc-trade.client';
@@ -399,6 +400,184 @@ export class MexcService {
       this.logger.error(`Failed to open ${holdSide} ${symbol}: ${msg}`);
       throw new ServiceUnavailableException(`Không mở được vị thế trên MEXC: ${msg}`);
     }
+  }
+
+  /**
+   * Place a resting LIMIT entry from the Setup tab: the order waits on the
+   * exchange until price reaches `price`, then fills into a position. Size is
+   * derived the same way as a market open (margin × leverage ÷ price ÷
+   * contractSize, floored to the contract's precision), but off the LIMIT price,
+   * not the live price. Leverage is set only while the side is flat (a limit that
+   * merges into an already-open position inherits that position's leverage).
+   */
+  async placeLimitOrder(input: {
+    symbol: string;
+    holdSide: 'long' | 'short';
+    marginUsd: number;
+    leverage: number;
+    price: number;
+  }): Promise<{
+    placed: true;
+    symbol: string;
+    holdSide: 'long' | 'short';
+    size: number;
+    price: number;
+    leverage: number;
+    marginUsd: number;
+    notionalUsd: number;
+    orderId: string;
+  }> {
+    const { symbol, holdSide, marginUsd } = input;
+    if (!this.client.isConfigured()) {
+      throw new ServiceUnavailableException('MEXC credentials not configured — cannot place a limit order');
+    }
+    if (!(marginUsd > 0)) throw new BadRequestException('Ký quỹ phải lớn hơn 0.');
+    if (!(input.leverage >= 1)) throw new BadRequestException('Đòn bẩy phải ≥ 1.');
+    if (!(input.price > 0)) throw new BadRequestException('Giá limit phải lớn hơn 0.');
+
+    try {
+      const existing = await this.client.getPosition(symbol, holdSide);
+      const existingSize = existing ? existing.size : 0;
+      const isAdd = existingSize > 0;
+      const existingLeverage = existing ? existing.leverage : NaN;
+      const leverage =
+        isAdd && Number.isFinite(existingLeverage) && existingLeverage >= 1 ? existingLeverage : input.leverage;
+
+      const spec = await this.client.getContractSpec(symbol);
+      if (!spec.apiAllowed) {
+        throw new BadRequestException(`MEXC không cho phép giao dịch ${symbol} qua API.`);
+      }
+      const price = Number(input.price.toFixed(spec.priceScale));
+      if (!(price > 0)) throw new BadRequestException('Giá limit không hợp lệ.');
+
+      // notional = margin × leverage; base size = notional ÷ LIMIT price;
+      // contracts = base size ÷ contractSize, floored to `volScale` so MEXC
+      // accepts it (sizing off the limit price, not the live one).
+      const baseSize = (marginUsd * leverage) / price;
+      const rawVol = baseSize / spec.contractSize;
+      const factor = 10 ** spec.volScale;
+      const vol = Math.floor(rawVol * factor) / factor;
+      if (vol < spec.minVol || vol <= 0) {
+        throw new BadRequestException(
+          `Ký quỹ quá nhỏ: ${vol} hợp đồng < tối thiểu ${spec.minVol} cho ${symbol}. Tăng ký quỹ hoặc đòn bẩy.`,
+        );
+      }
+      const size = vol * spec.contractSize;
+
+      // Leverage is only settable while flat — skip when the side is already open.
+      if (!isAdd) await this.client.setCrossLeverage(symbol, holdSide, leverage);
+      const externalOid = buildExternalOid(symbol, holdSide);
+      const res = await this.client.placeLimitOrder({ symbol, holdSide, vol, price, leverage, externalOid });
+
+      this.logger.log(
+        `Placed MEXC LIMIT order: ${holdSide} ${symbol} size ${size} (${vol} contracts) @ ${price} ` +
+          `(margin $${marginUsd}, ${leverage}x cross, orderId ${res.orderId})`,
+      );
+
+      return {
+        placed: true,
+        symbol,
+        holdSide,
+        size,
+        price,
+        leverage,
+        marginUsd,
+        notionalUsd: size * price,
+        orderId: res.orderId,
+      };
+    } catch (err) {
+      if (
+        err instanceof ConflictException ||
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
+        throw err;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to place limit ${holdSide} ${symbol}: ${msg}`);
+      throw new ServiceUnavailableException(`Không đặt được lệnh limit trên MEXC: ${msg}`);
+    }
+  }
+
+  /**
+   * All resting LIMIT orders (unfilled) across the account, newest first — the
+   * "Lệnh chờ (limit)" panel on the positions tab. Returns `configured: false`
+   * (with an empty list) when no API keys are set, so the panel simply hides.
+   */
+  async listPendingLimitOrders(): Promise<{
+    configured: boolean;
+    orders: Array<{
+      orderId: string;
+      symbol: string;
+      holdSide: 'long' | 'short';
+      price: number;
+      size: number;
+      leverage: number;
+      notionalUsd: number;
+      marginUsd: number;
+      createdAt: string | null;
+    }>;
+    fetchedAt: string;
+  }> {
+    const fetchedAt = new Date().toISOString();
+    if (!this.client.isConfigured()) {
+      return { configured: false, orders: [], fetchedAt };
+    }
+    try {
+      const raw = await this.client.getPendingOrders();
+      const orders = raw
+        .map((o) => this.mapPendingOrder(o))
+        .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+      return { configured: true, orders, fetchedAt };
+    } catch (err) {
+      this.logger.warn(`Failed to list pending limit orders: ${(err as Error).message}`);
+      return { configured: true, orders: [], fetchedAt };
+    }
+  }
+
+  /** Cancel one pending limit order by id. */
+  async cancelLimitOrder(input: { symbol: string; orderId: string }): Promise<{ ok: true; orderId: string }> {
+    if (!this.client.isConfigured()) {
+      throw new ServiceUnavailableException('MEXC credentials not configured — cannot cancel an order');
+    }
+    try {
+      await this.client.cancelOrder(input.orderId);
+      this.logger.log(`Cancelled MEXC limit order ${input.orderId} on ${input.symbol}`);
+      return { ok: true, orderId: input.orderId };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to cancel order ${input.orderId} on ${input.symbol}: ${msg}`);
+      throw new ServiceUnavailableException(`Không huỷ được lệnh chờ trên MEXC: ${msg}`);
+    }
+  }
+
+  /** Map a raw pending order to the clean shape the dashboard renders. */
+  private mapPendingOrder(o: MexcPendingOrder): {
+    orderId: string;
+    symbol: string;
+    holdSide: 'long' | 'short';
+    price: number;
+    size: number;
+    leverage: number;
+    notionalUsd: number;
+    marginUsd: number;
+    createdAt: string | null;
+  } {
+    const price = Number(o.price);
+    const size = Number(o.size);
+    const leverage = Number(o.leverage);
+    const notionalUsd = Number.isFinite(price) && Number.isFinite(size) ? price * size : 0;
+    return {
+      orderId: o.orderId,
+      symbol: o.symbol,
+      holdSide: o.holdSide,
+      price: Number.isFinite(price) ? price : 0,
+      size: Number.isFinite(size) ? size : 0,
+      leverage: Number.isFinite(leverage) && leverage >= 1 ? leverage : 0,
+      notionalUsd,
+      marginUsd: Number.isFinite(leverage) && leverage >= 1 ? notionalUsd / leverage : notionalUsd,
+      createdAt: Number.isFinite(o.createTime) && o.createTime > 0 ? new Date(o.createTime).toISOString() : null,
+    };
   }
 
   /**

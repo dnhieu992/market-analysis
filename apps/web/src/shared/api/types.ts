@@ -919,6 +919,42 @@ export type MexcOpenResult = {
   marginUsd: number;
 };
 
+/** Result of placing a resting LIMIT entry on MEXC (as accepted by the exchange). */
+export type MexcLimitResult = {
+  placed: true;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  size: number;
+  price: number;
+  leverage: number;
+  marginUsd: number;
+  notionalUsd: number;
+  orderId: string;
+};
+
+/** One resting (unfilled) LIMIT order shown in the "Lệnh chờ (limit)" panel. */
+export type MexcPendingOrder = {
+  orderId: string;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  /** Limit price the order waits to fill at. */
+  price: number;
+  /** Base-asset size. */
+  size: number;
+  leverage: number;
+  /** size × price. */
+  notionalUsd: number;
+  /** notional ÷ leverage. */
+  marginUsd: number;
+  createdAt: string | null;
+};
+
+export type MexcPendingOrdersResponse = {
+  configured: boolean;
+  orders: MexcPendingOrder[];
+  fetchedAt: string;
+};
+
 /** Result of syncing a position's TP/SL to MEXC (prices as accepted by the exchange). */
 export type MexcTpslResult = {
   ok: true;
