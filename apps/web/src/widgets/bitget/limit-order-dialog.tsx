@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 /** Limit-price preset marks — % offset from the current price. */
-const PRICE_PCT_MARKS = [1, 2, 3, 5, 7, 10];
+const PRICE_PCT_MARKS = [1, 2, 3, 5, 7, 10, 15, 20];
 
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';

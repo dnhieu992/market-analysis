@@ -26,7 +26,7 @@ function parsePrice(raw: string): number | null {
 }
 
 /** TP preset marks — raw price move %, BEFORE leverage (ROE = mark × leverage). */
-const TP_PCT_MARKS = [1, 2, 3, 5, 7, 10];
+const TP_PCT_MARKS = [1, 2, 3, 5, 7, 10, 15, 20];
 
 /** Round a computed price to a sensible precision for the number input. */
 function roundPrice(n: number): number {

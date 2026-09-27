@@ -5,7 +5,7 @@ Bổ sung bên cạnh lệnh **market** đang có: mỗi coin × hướng ở ta
 
 ## Main Flow
 1. **Setup tab** (`mexc-setup-feed`): trong cột **Long**/**Short** của mỗi coin có 2 nút — **Market** (`openMexcPosition`, giữ nguyên hành vi cũ: chưa mở → mở mới, đã mở → `+ Market` thêm volume) và **Limit**.
-2. Bấm **Limit** → mở `LimitOrderDialog`: prefill **đòn bẩy/ký quỹ** từ cấu hình đã lưu của coin+hướng (vẫn sửa được), ô **Giá limit** prefill giá hiện tại (WS) kèm hàng mốc nhanh **1/2/3/5/7/10%** — LONG lệch **xuống** (`−%`, mua thấp hơn), SHORT lệch **lên** (`+%`, bán cao hơn). Ước tính size ≈ `ký quỹ × đòn bẩy ÷ giá limit`.
+2. Bấm **Limit** → mở `LimitOrderDialog`: prefill **đòn bẩy/ký quỹ** từ cấu hình đã lưu của coin+hướng (vẫn sửa được), ô **Giá limit** prefill giá hiện tại (WS) kèm hàng mốc nhanh **1/2/3/5/7/10/15/20%** — LONG lệch **xuống** (`−%`, mua thấp hơn), SHORT lệch **lên** (`+%`, bán cao hơn). Ước tính size ≈ `ký quỹ × đòn bẩy ÷ giá limit`.
 3. Bấm **Đặt lệnh chờ** → `POST /mexc/positions/limit` → `MexcService.placeLimitOrder`:
    - Kiểm tra vị thế hiện có của hướng đó: **đang mở** → dùng đòn bẩy của vị thế; **flat** → `setCrossLeverage` trước.
    - Chặn contract không cho phép API (`apiAllowed === false`), làm tròn giá theo `priceScale`.
