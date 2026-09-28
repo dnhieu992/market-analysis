@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Public } from '../auth/public.decorator';
+import { RsiVolumePaperEngineService } from './rsi-volume-paper-engine.service';
 import { StrategyPaperTradesService } from './strategy-paper-trades.service';
 
 @ApiTags('Strategy Paper Trades')
@@ -11,19 +12,22 @@ export class StrategyPaperTradesController {
   constructor(
     @Inject(StrategyPaperTradesService)
     private readonly service: StrategyPaperTradesService,
+    @Inject(RsiVolumePaperEngineService)
+    private readonly rsiEngine: RsiVolumePaperEngineService,
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'PDH/PDL breakout paper-trade board: open trades, closed history, stats, and the strategy doc.' })
+  @ApiOperation({ summary: 'Multi-strategy paper-trade board: strategies (+ per-strategy stats), open trades, closed history.' })
   getBoard() {
     return this.service.getBoard();
   }
 
   @Post('scan')
   @Public() // safe to trigger manually; pure simulation over public Binance data, no exchange
-  @ApiOperation({ summary: 'Run one engine tick now (manage open trades + look for a new PDH/PDL breakout).' })
-  scan() {
-    return this.service.runScanTick();
+  @ApiOperation({ summary: 'Run one tick of every engine now (PDH/PDL + RSI/volume strategies).' })
+  async scan() {
+    const [pdhl, rsi] = await Promise.all([this.service.runScanTick(), this.rsiEngine.runTick()]);
+    return { opened: pdhl.opened + rsi.opened, closed: pdhl.closed + rsi.closed, price: pdhl.price };
   }
 
   @Post(':id/chart')
@@ -59,19 +63,19 @@ export class StrategyPaperTradesController {
 
   @Get('doc')
   @ApiOperation({ summary: 'The editable strategy description + params.' })
-  getDoc() {
-    return this.service.getDoc();
+  getDoc(@Query('strategyId') strategyId?: string) {
+    return this.service.getDoc(strategyId || undefined);
   }
 
   @Put('doc')
   @ApiOperation({ summary: 'Update the editable strategy description / params.' })
-  updateDoc(@Body() body: { docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number }) {
+  updateDoc(@Body() body: { strategyId?: string; docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number }) {
     return this.service.updateDoc(body ?? {});
   }
 
   @Post('doc/reset')
   @ApiOperation({ summary: 'Reset the strategy description back to the built-in default.' })
-  resetDoc() {
-    return this.service.resetDoc();
+  resetDoc(@Query('strategyId') strategyId?: string) {
+    return this.service.resetDoc(strategyId || undefined);
   }
 }

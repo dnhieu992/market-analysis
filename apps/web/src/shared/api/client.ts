@@ -1980,7 +1980,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    /** The PDH/PDL breakout strategy board (open trades, history, stats, strategy doc). */
+    /** The multi-strategy paper-trade board (strategies + stats, open trades, history). */
     async fetchStrategyPaperBoard(): Promise<StrategyPaperBoard> {
       return fetchJson<StrategyPaperBoard>(
         fetchImpl,
@@ -2014,9 +2014,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    /** Update the editable strategy description / params. */
+    /** Update one strategy's editable description / params (defaults to PDH/PDL). */
     async updateStrategyPaperDoc(
-      input: { docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number },
+      input: { strategyId?: string; docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number },
     ): Promise<StrategyPaperConfig> {
       return mutationJson(
         fetchImpl,

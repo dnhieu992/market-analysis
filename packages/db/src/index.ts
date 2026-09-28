@@ -94,6 +94,7 @@ export {
 export type { StrategyBacktestSetupInput } from './repositories/strategy-backtest.repository';
 export {
   createStrategyPaperTradeRepository,
+  PDHL_STRATEGY_ID,
   STRATEGY_PAPER_TRADE_OPEN_STATUS,
   DEFAULT_STRATEGY_DOC,
 } from './repositories/strategy-paper-trade.repository';

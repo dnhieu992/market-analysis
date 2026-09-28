@@ -1031,16 +1031,19 @@ model StrategyBacktestSetup {
 // per side per UTC day; every trade force-closes by end of its own UTC day (no overnight).
 model StrategyPaperTrade {
   id              String    @id @default(cuid())
+  // Which paper strategy opened this trade (= StrategyPaperConfig.id). Each strategy runs
+  // independently with at most one OPEN trade at a time, so several can run in parallel.
+  strategyId      String    @default("pdhl-btc") @db.VarChar(40)
   symbol          String    @default("BTCUSDT") @db.VarChar(20)
   timeframe       String    @default("1h") @db.VarChar(6)
-  // UTC day (YYYY-MM-DD) of the entry signal — used to dedupe one trade per side per day.
+  // UTC day (YYYY-MM-DD) of the entry signal — PDH/PDL dedupes one trade per side per day on it.
   tradeDate       String    @db.VarChar(10)
   direction       String    @db.VarChar(5) // LONG | SHORT
   status          String    @default("OPEN") @db.VarChar(12) // OPEN | CLOSED_TP | CLOSED_SL | CLOSED_EOD
-  // The two levels the strategy watches: previous UTC day's high / low.
-  pdh             Float
-  pdl             Float
-  // The 1h close that broke the level and triggered the entry.
+  // PDH/PDL strategy only: previous UTC day's high / low (null for other strategies).
+  pdh             Float?
+  pdl             Float?
+  // Close of the signal candle that triggered the entry.
   signalClose     Float
   entryPrice      Float
   initialStopLoss Float
@@ -1067,7 +1070,8 @@ model StrategyPaperTrade {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  @@unique([tradeDate, direction])
+  @@unique([strategyId, openedAt, direction])
+  @@index([strategyId, status])
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@map("strategy_paper_trades")

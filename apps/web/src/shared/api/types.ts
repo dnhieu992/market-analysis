@@ -1426,18 +1426,22 @@ export type UpdateStrategyBacktestSetupInput = {
 
 
 /**
- * A simulated (paper) trade of the PDH/PDL breakout day-trade strategy, written by the
- * hourly StrategyPaperTradesService engine (no exchange). Read-only except for feedback.
+ * A simulated (paper) trade of one of the board's strategies (PDH/PDL breakout or an
+ * RSI/volume strategy), written by the API engines (no exchange). Read-only except for feedback.
  */
 export type StrategyPaperTrade = {
   id: string;
+  /** The strategy that opened this trade (= StrategyPaperStrategy.id). */
+  strategyId: string;
+  strategyName: string;
   symbol: string;
   timeframe: string;
   tradeDate: string;
   direction: 'LONG' | 'SHORT';
   status: 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EOD';
-  pdh: number;
-  pdl: number;
+  /** PDH/PDL strategy only. */
+  pdh: number | null;
+  pdl: number | null;
   signalClose: number;
   entryPrice: number;
   initialStopLoss: number;
@@ -1474,6 +1478,7 @@ export type StrategyPaperTradeStats = {
 };
 
 export type StrategyPaperConfig = {
+  id: string;
   name: string;
   enabled: boolean;
   symbol: string;
@@ -1483,10 +1488,20 @@ export type StrategyPaperConfig = {
   docMarkdown: string;
 };
 
+/** One strategy card on /trading-analysis: config + rules + backtest reference + live stats. */
+export type StrategyPaperStrategy = StrategyPaperConfig & {
+  direction: 'LONG' | 'SHORT' | 'BOTH';
+  rules: string;
+  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string } | null;
+  openCount: number;
+  stats: StrategyPaperTradeStats;
+};
+
 export type StrategyPaperBoard = {
   symbol: string;
   price: number | null;
   config: StrategyPaperConfig;
+  strategies: StrategyPaperStrategy[];
   openTrades: StrategyPaperTrade[];
   history: StrategyPaperTrade[];
   stats: StrategyPaperTradeStats;

@@ -6,6 +6,7 @@ const EMPTY_BOARD: StrategyPaperBoard = {
   symbol: 'BTCUSDT',
   price: null,
   config: {
+    id: 'pdhl-btc',
     name: 'BTC — Phá đỉnh/đáy ngày hôm trước',
     enabled: true,
     symbol: 'BTCUSDT',
@@ -14,6 +15,7 @@ const EMPTY_BOARD: StrategyPaperBoard = {
     rrPlanned: 2,
     docMarkdown: '',
   },
+  strategies: [],
   openTrades: [],
   history: [],
   stats: { closedCount: 0, wins: 0, losses: 0, eod: 0, winRate: null, totalPnlUsd: 0, totalR: 0 },

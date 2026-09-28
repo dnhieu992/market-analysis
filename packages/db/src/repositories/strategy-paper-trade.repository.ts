@@ -36,8 +36,12 @@ export const DEFAULT_STRATEGY_DOC = `## Chiến lược: Phá đỉnh/đáy củ
 - Lợi thế mỏng (cứ 100 đồng rủi ro lãi trung bình ~16 đồng), sẽ có chuỗi thua — vào lệnh nhỏ, coi là công cụ timing.
 `;
 
+/** Config row id of the original PDH/PDL breakout strategy. */
+export const PDHL_STRATEGY_ID = 'pdhl-btc';
+
 export type StrategyPaperTradeInput = Pick<
   Prisma.StrategyPaperTradeUncheckedCreateInput,
+  | 'strategyId'
   | 'symbol'
   | 'timeframe'
   | 'tradeDate'
@@ -67,23 +71,29 @@ export function createStrategyPaperTradeRepository(client = prisma) {
       return client.strategyPaperTrade.findUnique({ where: { id } });
     },
 
-    /** All currently OPEN trades (engine keeps ≤1 in practice, but return the list). */
-    findOpen() {
+    /** OPEN trades — of one strategy when `strategyId` is given, otherwise of all. */
+    findOpen(strategyId?: string) {
       return client.strategyPaperTrade.findMany({
-        where: { status: STRATEGY_PAPER_TRADE_OPEN_STATUS },
+        where: { status: STRATEGY_PAPER_TRADE_OPEN_STATUS, ...(strategyId ? { strategyId } : {}) },
         orderBy: { openedAt: 'asc' },
       });
     },
 
-    /** Has this side already been taken for this UTC day? (dedupe guard) */
-    findByDateDirection(tradeDate: string, direction: string) {
-      return client.strategyPaperTrade.findUnique({
-        where: { tradeDate_direction: { tradeDate, direction } },
+    /** Has this strategy already taken this side on this UTC day? (PDH/PDL dedupe guard) */
+    findByDateDirection(strategyId: string, tradeDate: string, direction: string) {
+      return client.strategyPaperTrade.findFirst({ where: { strategyId, tradeDate, direction } });
+    },
+
+    /** The most recently closed trade of a strategy — a new entry must come after its exit. */
+    findLastClosed(strategyId: string) {
+      return client.strategyPaperTrade.findFirst({
+        where: { strategyId, status: { not: STRATEGY_PAPER_TRADE_OPEN_STATUS } },
+        orderBy: { closedAt: 'desc' },
       });
     },
 
     /** Newest first — the page reads the whole history, it stays small. */
-    list(limit = 300) {
+    list(limit = 1000) {
       return client.strategyPaperTrade.findMany({
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -94,18 +104,20 @@ export function createStrategyPaperTradeRepository(client = prisma) {
       return client.strategyPaperTrade.update({ where: { id }, data });
     },
 
-    /** The singleton config row, created with the default doc on first read. */
-    async getConfig(defaultDoc = DEFAULT_STRATEGY_DOC) {
-      const id = 'pdhl-btc';
+    /** A strategy's config row, created from `defaults` on first read. */
+    async getConfig(
+      id = PDHL_STRATEGY_ID,
+      defaults: Partial<Prisma.StrategyPaperConfigUncheckedCreateInput> = {},
+    ) {
       const existing = await client.strategyPaperConfig.findUnique({ where: { id } });
       if (existing) return existing;
-      return client.strategyPaperConfig.create({ data: { id, docMarkdown: defaultDoc } });
+      return client.strategyPaperConfig.create({ data: { docMarkdown: DEFAULT_STRATEGY_DOC, ...defaults, id } });
     },
 
-    updateConfig(data: Record<string, unknown>) {
+    updateConfig(id: string, data: Record<string, unknown>) {
       return client.strategyPaperConfig.upsert({
-        where: { id: 'pdhl-btc' },
-        create: { id: 'pdhl-btc', docMarkdown: DEFAULT_STRATEGY_DOC, ...data } as Prisma.StrategyPaperConfigUncheckedCreateInput,
+        where: { id },
+        create: { id, docMarkdown: DEFAULT_STRATEGY_DOC, ...data } as Prisma.StrategyPaperConfigUncheckedCreateInput,
         update: data as Prisma.StrategyPaperConfigUncheckedUpdateInput,
       });
     },

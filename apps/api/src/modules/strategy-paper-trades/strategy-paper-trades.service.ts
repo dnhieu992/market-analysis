@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import type { AnalysisTimeframe } from '@app/config';
-import { createStrategyPaperNoteRepository, createStrategyPaperTradeRepository, DEFAULT_STRATEGY_DOC } from '@app/db';
+import { createStrategyPaperNoteRepository, createStrategyPaperTradeRepository, DEFAULT_STRATEGY_DOC, PDHL_STRATEGY_ID } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { StorageService } from '../storage/storage.service';
 import { renderSetupChart, SETUP_CHART_TF_CONFIG, type OhlcCandle } from '../bitget/setup-chart-renderer';
+import { RSI_VOLUME_STRATEGIES, defaultDocFor } from './rsi-volume-strategies';
 
 const SYMBOL = 'BTCUSDT';
 const TF: AnalysisTimeframe = '1h';
@@ -16,13 +17,15 @@ type Candle = { t: number; closeT: number; open: number; high: number; low: numb
 
 export type StrategyPaperTradeDto = {
   id: string;
+  strategyId: string;
+  strategyName: string;
   symbol: string;
   timeframe: string;
   tradeDate: string;
   direction: 'LONG' | 'SHORT';
   status: string;
-  pdh: number;
-  pdl: number;
+  pdh: number | null;
+  pdl: number | null;
   signalClose: number;
   entryPrice: number;
   initialStopLoss: number;
@@ -61,6 +64,7 @@ export type StrategyPaperTradeStats = {
 };
 
 export type StrategyPaperConfigDto = {
+  id: string;
   name: string;
   enabled: boolean;
   symbol: string;
@@ -77,10 +81,21 @@ export type StrategyPaperNoteDto = {
   createdAt: string;
 };
 
+/** One strategy card on the board: its config, rules, backtest reference and live stats. */
+export type StrategyPaperStrategyDto = StrategyPaperConfigDto & {
+  direction: 'LONG' | 'SHORT' | 'BOTH';
+  rules: string;
+  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string } | null;
+  openCount: number;
+  stats: StrategyPaperTradeStats;
+};
+
 export type StrategyPaperBoard = {
   symbol: string;
   price: number | null;
+  /** The PDH/PDL strategy config (kept for the doc dialog of older clients). */
   config: StrategyPaperConfigDto;
+  strategies: StrategyPaperStrategyDto[];
   openTrades: StrategyPaperTradeDto[];
   history: StrategyPaperTradeDto[];
   stats: StrategyPaperTradeStats;
@@ -166,7 +181,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
    * then, if flat, look at the most recent CLOSED 1h candle for a fresh PDH/PDL breakout.
    */
   async runScanTick(): Promise<{ opened: number; closed: number; price: number | null }> {
-    const config = await this.repo.getConfig();
+    const config = await this.repo.getConfig(PDHL_STRATEGY_ID);
     const candles = await this.fetchCandles();
     if (candles.length < 60) return { opened: 0, closed: 0, price: null };
 
@@ -178,7 +193,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
     let closedCount = 0;
 
     // 1) Manage open trades.
-    const open = await this.repo.findOpen();
+    const open = await this.repo.findOpen(PDHL_STRATEGY_ID);
     for (const trade of open) {
       const res = this.simulateOpenTrade(trade, closed);
       if (res.exit) {
@@ -207,7 +222,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
     }
 
     // 2) Only look for a new entry if we are flat (one position at a time, as backtested).
-    const stillOpen = await this.repo.findOpen();
+    const stillOpen = await this.repo.findOpen(PDHL_STRATEGY_ID);
     if (config.enabled && stillOpen.length === 0) {
       openedCount += await this.tryOpenFromLastClosed(closed, atr, config.riskUsd, config.rrPlanned, price);
     }
@@ -266,7 +281,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
     if (!direction) return 0;
 
     const tradeDate = utcDayStr(sig.t);
-    const dup = await this.repo.findByDateDirection(tradeDate, direction);
+    const dup = await this.repo.findByDateDirection(PDHL_STRATEGY_ID, tradeDate, direction);
     if (dup) return 0; // this side already taken today
 
     const entry = sig.close; // next-bar open ≈ signal close on 1h
@@ -276,6 +291,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
     const quantity = riskUsd / risk;
 
     const created = await this.repo.create({
+      strategyId: PDHL_STRATEGY_ID,
       symbol: SYMBOL,
       timeframe: '1h',
       tradeDate,
@@ -311,7 +327,8 @@ export class StrategyPaperTradesService implements OnModuleInit {
     const trade = await this.repo.findById(tradeId);
     if (!trade) throw new NotFoundException(`Strategy paper trade ${tradeId} not found`);
 
-    const tf = trade.timeframe in SETUP_CHART_TF_CONFIG ? trade.timeframe : '1h';
+    // 5m has no setup-chart preset → show the 15m chart for 5m strategies.
+    const tf = trade.timeframe === '5m' ? '15m' : trade.timeframe in SETUP_CHART_TF_CONFIG ? trade.timeframe : '1h';
     const { limit, display } = SETUP_CHART_TF_CONFIG[tf] ?? SETUP_CHART_TF_CONFIG['1h']!;
     const raw = await this.binance.fetchKlines({ symbol: trade.symbol, timeframe: tf as AnalysisTimeframe, limit });
     if (raw.length === 0) throw new NotFoundException(`No ${tf} candles for ${trade.symbol}`);
@@ -350,8 +367,39 @@ export class StrategyPaperTradesService implements OnModuleInit {
 
   // ---------------- read / write for the UI ----------------
 
+  /** Config rows of every strategy on the board (PDH/PDL first), created on first read. */
+  private async allConfigs() {
+    const pdhl = await this.repo.getConfig(PDHL_STRATEGY_ID);
+    const others = [];
+    for (const def of RSI_VOLUME_STRATEGIES) {
+      others.push(
+        await this.repo.getConfig(def.id, {
+          name: def.name,
+          timeframe: def.timeframe,
+          rrPlanned: def.rr,
+          docMarkdown: defaultDocFor(def),
+        }),
+      );
+    }
+    return [pdhl, ...others];
+  }
+
+  private computeStats(closed: StrategyPaperTradeDto[]): StrategyPaperTradeStats {
+    const wins = closed.filter((t) => t.status === 'CLOSED_TP' || (t.pnlUsd ?? 0) > 0).length;
+    return {
+      closedCount: closed.length,
+      wins,
+      losses: closed.filter((t) => (t.pnlUsd ?? 0) < 0).length,
+      eod: closed.filter((t) => t.status === 'CLOSED_EOD').length,
+      winRate: closed.length > 0 ? (wins / closed.length) * 100 : null,
+      totalPnlUsd: closed.reduce((s, t) => s + (t.pnlUsd ?? 0), 0),
+      totalR: closed.reduce((s, t) => s + (t.rMultiple ?? 0), 0),
+    };
+  }
+
   async getBoard(): Promise<StrategyPaperBoard> {
-    const [rows, config] = await Promise.all([this.repo.list(), this.repo.getConfig()]);
+    const [rows, configs] = await Promise.all([this.repo.list(), this.allConfigs()]);
+    const names = new Map(configs.map((c) => [c.id, c.name]));
     let price: number | null = null;
     let levels: { pdh: number; pdl: number; day: string } | null = null;
     try {
@@ -365,40 +413,33 @@ export class StrategyPaperTradesService implements OnModuleInit {
       this.logger.warn(`live price/levels unavailable (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 
-    const dtos = rows.map((r) => this.toDto(r, price));
+    const dtos = rows.map((r) => this.toDto(r, price, names.get(r.strategyId) ?? r.strategyId));
     const openTrades = dtos.filter((t) => t.status === 'OPEN');
     const history = dtos.filter((t) => t.status !== 'OPEN');
-    const closed = history;
-    const wins = closed.filter((t) => t.status === 'CLOSED_TP' || (t.pnlUsd ?? 0) > 0).length;
-    const losses = closed.filter((t) => (t.pnlUsd ?? 0) < 0).length;
-    const eod = closed.filter((t) => t.status === 'CLOSED_EOD').length;
-    const totalPnlUsd = closed.reduce((s, t) => s + (t.pnlUsd ?? 0), 0);
-    const totalR = closed.reduce((s, t) => s + (t.rMultiple ?? 0), 0);
+
+    const strategies: StrategyPaperStrategyDto[] = configs.map((c) => {
+      const def = RSI_VOLUME_STRATEGIES.find((d) => d.id === c.id);
+      return {
+        ...this.toConfigDto(c),
+        direction: def ? def.direction : 'BOTH',
+        rules: def
+          ? def.rules
+          : '1h đóng cửa vượt đỉnh/thủng đáy ngày hôm trước · SL phía đối diện biên hôm qua · TP 2R · đóng cuối ngày',
+        backtest: def ? def.backtest : null,
+        openCount: openTrades.filter((t) => t.strategyId === c.id).length,
+        stats: this.computeStats(history.filter((t) => t.strategyId === c.id)),
+      };
+    });
 
     return {
       symbol: SYMBOL,
       price,
-      config: {
-        name: config.name,
-        enabled: config.enabled,
-        symbol: config.symbol,
-        timeframe: config.timeframe,
-        riskUsd: config.riskUsd,
-        rrPlanned: config.rrPlanned,
-        docMarkdown: config.docMarkdown,
-      },
+      config: this.toConfigDto(configs[0]!),
+      strategies,
       openTrades,
       history,
       levels,
-      stats: {
-        closedCount: closed.length,
-        wins,
-        losses,
-        eod,
-        winRate: closed.length > 0 ? (wins / closed.length) * 100 : null,
-        totalPnlUsd,
-        totalR,
-      },
+      stats: this.computeStats(history),
     };
   }
 
@@ -411,28 +452,42 @@ export class StrategyPaperTradesService implements OnModuleInit {
       feedbackNote: note?.trim() ? note.trim() : null,
       feedbackAt: new Date(),
     });
-    return this.toDto(updated, null);
+    const cfg = await this.repo.getConfig(updated.strategyId);
+    return this.toDto(updated, null, cfg.name);
   }
 
-  async getDoc(): Promise<StrategyPaperConfigDto> {
-    const c = await this.repo.getConfig();
-    return { name: c.name, enabled: c.enabled, symbol: c.symbol, timeframe: c.timeframe, riskUsd: c.riskUsd, rrPlanned: c.rrPlanned, docMarkdown: c.docMarkdown };
+  private toConfigDto(c: { id: string; name: string; enabled: boolean; symbol: string; timeframe: string; riskUsd: number; rrPlanned: number; docMarkdown: string }): StrategyPaperConfigDto {
+    return { id: c.id, name: c.name, enabled: c.enabled, symbol: c.symbol, timeframe: c.timeframe, riskUsd: c.riskUsd, rrPlanned: c.rrPlanned, docMarkdown: c.docMarkdown };
   }
 
-  async updateDoc(input: { docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number }): Promise<StrategyPaperConfigDto> {
+  private isKnownStrategy(id: string): boolean {
+    return id === PDHL_STRATEGY_ID || RSI_VOLUME_STRATEGIES.some((d) => d.id === id);
+  }
+
+  async getDoc(strategyId = PDHL_STRATEGY_ID): Promise<StrategyPaperConfigDto> {
+    if (!this.isKnownStrategy(strategyId)) throw new NotFoundException(`Unknown strategy ${strategyId}`);
+    await this.allConfigs(); // make sure the row exists with its defaults
+    return this.toConfigDto(await this.repo.getConfig(strategyId));
+  }
+
+  async updateDoc(input: { strategyId?: string; docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number }): Promise<StrategyPaperConfigDto> {
+    const strategyId = input.strategyId || PDHL_STRATEGY_ID;
+    if (!this.isKnownStrategy(strategyId)) throw new NotFoundException(`Unknown strategy ${strategyId}`);
+    await this.allConfigs();
     const data: Record<string, unknown> = {};
     if (typeof input.docMarkdown === 'string') data.docMarkdown = input.docMarkdown;
     if (typeof input.name === 'string' && input.name.trim()) data.name = input.name.trim();
     if (typeof input.enabled === 'boolean') data.enabled = input.enabled;
     if (typeof input.riskUsd === 'number' && input.riskUsd > 0) data.riskUsd = input.riskUsd;
-    if (typeof input.rrPlanned === 'number' && input.rrPlanned > 0) data.rrPlanned = input.rrPlanned;
-    const c = await this.repo.updateConfig(data);
-    return { name: c.name, enabled: c.enabled, symbol: c.symbol, timeframe: c.timeframe, riskUsd: c.riskUsd, rrPlanned: c.rrPlanned, docMarkdown: c.docMarkdown };
+    // RR is fixed by the backtested rules for the RSI/volume strategies — only PDH/PDL's is editable.
+    if (strategyId === PDHL_STRATEGY_ID && typeof input.rrPlanned === 'number' && input.rrPlanned > 0) data.rrPlanned = input.rrPlanned;
+    return this.toConfigDto(await this.repo.updateConfig(strategyId, data));
   }
 
   /** Reset the editable doc back to the built-in default. */
-  async resetDoc(): Promise<StrategyPaperConfigDto> {
-    return this.updateDoc({ docMarkdown: DEFAULT_STRATEGY_DOC });
+  async resetDoc(strategyId = PDHL_STRATEGY_ID): Promise<StrategyPaperConfigDto> {
+    const def = RSI_VOLUME_STRATEGIES.find((d) => d.id === strategyId);
+    return this.updateDoc({ strategyId, docMarkdown: def ? defaultDocFor(def) : DEFAULT_STRATEGY_DOC });
   }
 
   // ---------------- trading-log notes ----------------
@@ -469,7 +524,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
     };
   }
 
-  private toDto(row: TradeRow, price: number | null): StrategyPaperTradeDto {
+  private toDto(row: TradeRow, price: number | null, strategyName: string): StrategyPaperTradeDto {
     const direction = row.direction === 'SHORT' ? 'SHORT' : 'LONG';
     const isOpen = row.status === 'OPEN';
     const live = isOpen ? price : null;
@@ -484,6 +539,8 @@ export class StrategyPaperTradesService implements OnModuleInit {
     }
     return {
       id: row.id,
+      strategyId: row.strategyId,
+      strategyName,
       symbol: row.symbol,
       timeframe: row.timeframe,
       tradeDate: row.tradeDate,

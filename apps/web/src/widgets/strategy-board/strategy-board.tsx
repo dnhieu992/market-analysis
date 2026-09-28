@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { StrategyPaperBoard as BoardData, StrategyPaperNote, StrategyPaperTrade } from '@web/shared/api/types';
+import type { StrategyPaperBoard as BoardData, StrategyPaperNote, StrategyPaperStrategy, StrategyPaperTrade } from '@web/shared/api/types';
 import { renderMarkdown as renderNoteMarkdown } from '@web/shared/lib/markdown';
 import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
@@ -17,7 +17,7 @@ const MarkdownEditor = dynamic(
 
 const apiClient = createApiClient();
 
-/** The engine runs hourly; the board re-reads every 60s so open trades stay live-ish. */
+/** Engines run every 5 min (RSI/volume) and hourly (PDH/PDL); the board re-reads every 60s. */
 const REFRESH_MS = 60_000;
 
 const STATUS_LABEL: Record<StrategyPaperTrade['status'], string> = {
@@ -108,12 +108,65 @@ function StatTile({ label, value, color }: { label: string; value: string; color
   );
 }
 
-function ChartLink({ url }: { url: string | null }) {
+function ChartLink({ url, timeframe }: { url: string | null; timeframe: string }) {
   if (!url) return <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>;
+  // 5m trades are rendered on the 15m setup chart (no 5m preset).
+  const tf = timeframe === '5m' ? '15m' : timeframe;
   return (
     <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1d4ed8', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>
-      📈 Xem chart 1h
+      📈 Xem chart {tf}
     </a>
+  );
+}
+
+/** Short label of a strategy ("A", "B", … or "PDH/PDL") used as a badge on every trade. */
+function strategyTag(name: string): string {
+  const m = name.match(/^([A-Z])\s·/);
+  return m ? m[1]! : name.startsWith('BTC — Phá') ? 'PDH/PDL' : name.slice(0, 12);
+}
+
+function StrategyBadge({ trade }: { trade: StrategyPaperTrade }) {
+  return (
+    <span title={trade.strategyName} style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: '#eef2ff', color: '#4338ca', whiteSpace: 'nowrap' }}>
+      {strategyTag(trade.strategyName)} · {trade.timeframe}
+    </span>
+  );
+}
+
+function StrategyCard({ s, active, onSelect, onDoc }: { s: StrategyPaperStrategy; active: boolean; onSelect: () => void; onDoc: () => void }) {
+  const st = s.stats;
+  const side = s.direction === 'LONG' ? 'MUA' : s.direction === 'SHORT' ? 'BÁN' : 'MUA + BÁN';
+  const sideColor = s.direction === 'LONG' ? '#16a34a' : s.direction === 'SHORT' ? '#dc2626' : '#6b7280';
+  return (
+    <div
+      onClick={onSelect}
+      style={{ cursor: 'pointer', border: active ? '2px solid #2563eb' : '1px solid #e5e7eb', background: active ? '#f8fbff' : '#fff', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{s.name}</div>
+        {!s.enabled && <span style={{ fontSize: 11, color: '#dc2626', whiteSpace: 'nowrap' }}>● tắt</span>}
+      </div>
+      <div style={{ fontSize: 12, color: '#6b7280' }}>
+        <b style={{ color: sideColor }}>{side}</b> · khung {s.timeframe} · TP {s.rrPlanned}R · rủi ro {s.riskUsd}$
+      </div>
+      <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.4 }}>{s.rules}</div>
+      {s.backtest && (
+        <div style={{ fontSize: 12, color: '#6b7280' }}>
+          Backtest: WR <b>{s.backtest.winRate}%</b> · {s.backtest.perDay} lệnh/ngày · +{s.backtest.totalR}R
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13, borderTop: '1px dashed #e5e7eb', paddingTop: 6 }}>
+        <span>Mở: <b style={{ color: '#2563eb' }}>{s.openCount}</b></span>
+        <span>Đóng: <b>{st.closedCount}</b></span>
+        <span>WR: <b>{st.winRate == null ? '—' : `${st.winRate.toFixed(0)}%`}</b></span>
+        <span>Tổng: <b style={{ color: pnlColor(st.totalR) }}>{fmtR(st.totalR)}</b></span>
+      </div>
+      <div>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onDoc(); }} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid #2563eb', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 600 }}>
+          📖 Chi tiết
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -196,7 +249,7 @@ function FeedbackCell({ trade, onSaved }: { trade: StrategyPaperTrade; onSaved: 
   );
 }
 
-function StrategyDialog({ initialDoc, onClose, onSaved }: { initialDoc: string; onClose: () => void; onSaved: (doc: string) => void }) {
+function StrategyDialog({ strategyId, title, initialDoc, onClose, onSaved }: { strategyId: string; title: string; initialDoc: string; onClose: () => void; onSaved: (doc: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(initialDoc);
   const [saving, setSaving] = useState(false);
@@ -204,7 +257,7 @@ function StrategyDialog({ initialDoc, onClose, onSaved }: { initialDoc: string; 
   const save = async () => {
     setSaving(true);
     try {
-      const res = await apiClient.updateStrategyPaperDoc({ docMarkdown: draft });
+      const res = await apiClient.updateStrategyPaperDoc({ strategyId, docMarkdown: draft });
       onSaved(res.docMarkdown);
       setEditing(false);
     } finally {
@@ -216,7 +269,7 @@ function StrategyDialog({ initialDoc, onClose, onSaved }: { initialDoc: string; 
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, maxWidth: 720, width: '100%', maxHeight: '85vh', overflow: 'auto', padding: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Chi tiết chiến lược</h2>
+          <h2 style={{ margin: 0, fontSize: 18 }}>{title}</h2>
           <div style={{ display: 'flex', gap: 8 }}>
             {!editing && <button type="button" onClick={() => { setDraft(initialDoc); setEditing(true); }} style={{ fontSize: 13, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>✏️ Sửa</button>}
             <button type="button" onClick={onClose} style={{ fontSize: 13, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>Đóng</button>
@@ -371,7 +424,8 @@ function NotesDialog({ onClose }: { onClose: () => void }) {
 
 export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
   const [board, setBoard] = useState<BoardData>(initialBoard);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [docFor, setDocFor] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string>('ALL');
   const [notesOpen, setNotesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -407,23 +461,26 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
     }));
   };
 
-  const { config, stats, levels } = board;
+  const { levels } = board;
+  const strategies = board.strategies ?? [];
+  const sel = strategies.find((x) => x.id === selected) ?? null;
+  const stats = sel ? sel.stats : board.stats;
+  const openTrades = sel ? board.openTrades.filter((t) => t.strategyId === sel.id) : board.openTrades;
+  const history = sel ? board.history.filter((t) => t.strategyId === sel.id) : board.history;
+  const docStrategy = strategies.find((x) => x.id === docFor) ?? null;
+  const showLevels = levels && (!sel || sel.id === 'pdhl-btc');
 
   return (
     <div style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 16px', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#111827' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 8 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22 }}>{config.name}</h1>
+          <h1 style={{ margin: 0, fontSize: 22 }}>Paper-trade chiến lược BTC</h1>
           <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
-            {config.symbol} · khung {config.timeframe} · rủi ro {config.riskUsd}$/lệnh · chốt lời {config.rrPlanned}R · <b>backtest chạy giả, không nối sàn</b>
-            {!config.enabled && <span style={{ color: '#dc2626', marginLeft: 8 }}>● đang tắt</span>}
+            {strategies.length} chiến lược chạy song song · mỗi chiến lược tối đa 1 lệnh mở cùng lúc · <b>backtest chạy giả, không nối sàn</b>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button type="button" onClick={() => setDialogOpen(true)} style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid #2563eb', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 600 }}>
-            📖 Chi tiết chiến lược
-          </button>
           <button type="button" onClick={() => setNotesOpen(true)} style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontWeight: 600 }}>
             📝 Ghi chú
           </button>
@@ -436,7 +493,7 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
       {/* Live context */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: '#374151', marginBottom: 16 }}>
         <span>Giá hiện tại: <b>{fmtPrice(board.price)}</b></span>
-        {levels && (
+        {showLevels && levels && (
           <>
             <span>Đỉnh hôm qua (mua khi vượt): <b style={{ color: '#16a34a' }}>{fmtPrice(levels.pdh)}</b></span>
             <span>Đáy hôm qua (bán khi thủng): <b style={{ color: '#dc2626' }}>{fmtPrice(levels.pdl)}</b></span>
@@ -445,9 +502,23 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
         )}
       </div>
 
+      {/* Strategy list — click a card to filter stats + trades to that strategy */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 8px' }}>
+        <h2 style={{ fontSize: 16, margin: 0 }}>Chiến lược</h2>
+        <button type="button" onClick={() => setSelected('ALL')} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 999, border: selected === 'ALL' ? '1px solid #2563eb' : '1px solid #d1d5db', background: selected === 'ALL' ? '#2563eb' : '#fff', color: selected === 'ALL' ? '#fff' : '#374151', cursor: 'pointer' }}>
+          Tất cả
+        </button>
+        {sel && <span style={{ fontSize: 12, color: '#6b7280' }}>Đang lọc: <b>{sel.name}</b></span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10, marginBottom: 20 }}>
+        {strategies.map((x) => (
+          <StrategyCard key={x.id} s={x} active={selected === x.id} onSelect={() => setSelected(selected === x.id ? 'ALL' : x.id)} onDoc={() => setDocFor(x.id)} />
+        ))}
+      </div>
+
       {/* Stats */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-        <StatTile label="Đang mở" value={String(board.openTrades.length)} color="#2563eb" />
+        <StatTile label="Đang mở" value={String(openTrades.length)} color="#2563eb" />
         <StatTile label="Lệnh đã đóng" value={String(stats.closedCount)} />
         <StatTile label="Tỷ lệ thắng" value={stats.winRate == null ? '—' : `${stats.winRate.toFixed(0)}%`} />
         <StatTile label="Tổng R" value={fmtR(stats.totalR)} color={pnlColor(stats.totalR)} />
@@ -455,14 +526,15 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
       </div>
 
       {/* Open trades */}
-      <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>Lệnh đang mở ({board.openTrades.length})</h2>
-      {board.openTrades.length === 0 ? (
-        <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 20px' }}>Chưa có lệnh nào đang mở. Máy quét mỗi giờ; khi giá phá đỉnh/đáy hôm qua sẽ tự vào lệnh.</p>
+      <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>Lệnh đang mở ({openTrades.length})</h2>
+      {openTrades.length === 0 ? (
+        <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 20px' }}>Chưa có lệnh nào đang mở. Máy quét mỗi 5 phút (PDH/PDL mỗi giờ); có tín hiệu sẽ tự vào lệnh.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-          {board.openTrades.map((t) => (
+          {openTrades.map((t) => (
             <div key={t.id} style={{ border: '1px solid #bfdbfe', background: '#f8fbff', borderRadius: 10, padding: 14 }}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                <StrategyBadge trade={t} />
                 <DirBadge dir={t.direction} />
                 <span style={{ fontSize: 13 }}>Vào <b>{fmtPrice(t.entryPrice)}</b></span>
                 <span style={{ fontSize: 13, color: '#dc2626' }}>Cắt lỗ {fmtPrice(t.stopLoss)}</span>
@@ -471,8 +543,8 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
                 <span style={{ marginLeft: 'auto', fontSize: 12, color: '#6b7280' }}>Mở lúc {fmtTime(t.openedAt)}</span>
               </div>
               <div style={{ fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span>Mốc ngày hôm qua: đỉnh {fmtPrice(t.pdh)} / đáy {fmtPrice(t.pdl)} · rủi ro {t.riskUsd}$</span>
-                <ChartLink url={t.chartUrl} />
+                <span>{t.strategyName}{t.pdh != null && t.pdl != null ? ` · mốc hôm qua: đỉnh ${fmtPrice(t.pdh)} / đáy ${fmtPrice(t.pdl)}` : ''} · rủi ro {t.riskUsd}$</span>
+                <ChartLink url={t.chartUrl} timeframe={t.timeframe} />
                 <FeedbackCell trade={t} onSaved={onTradeUpdated} />
               </div>
             </div>
@@ -481,15 +553,16 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
       )}
 
       {/* History */}
-      <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>Lịch sử lệnh ({board.history.length})</h2>
-      {board.history.length === 0 ? (
+      <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>Lịch sử lệnh ({history.length})</h2>
+      {history.length === 0 ? (
         <p style={{ color: '#6b7280', fontSize: 14 }}>Chưa có lệnh nào đã đóng.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ textAlign: 'left', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '8px 10px' }}>Ngày</th>
+                <th style={{ padding: '8px 10px' }}>Đóng lúc</th>
+                <th style={{ padding: '8px 10px' }}>Chiến lược</th>
                 <th style={{ padding: '8px 10px' }}>Chiều</th>
                 <th style={{ padding: '8px 10px' }}>Vào</th>
                 <th style={{ padding: '8px 10px' }}>Cắt lỗ</th>
@@ -502,9 +575,10 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
               </tr>
             </thead>
             <tbody>
-              {board.history.map((t) => (
+              {history.map((t) => (
                 <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{t.tradeDate}</td>
+                  <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmtTime(t.closedAt)}</td>
+                  <td style={{ padding: '8px 10px' }}><StrategyBadge trade={t} /></td>
                   <td style={{ padding: '8px 10px' }}><DirBadge dir={t.direction} /></td>
                   <td style={{ padding: '8px 10px' }}>{fmtPrice(t.entryPrice)}</td>
                   <td style={{ padding: '8px 10px', color: '#dc2626' }}>{fmtPrice(t.stopLoss)}</td>
@@ -512,7 +586,7 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
                   <td style={{ padding: '8px 10px' }}>{fmtPrice(t.exitPrice)}</td>
                   <td style={{ padding: '8px 10px', fontWeight: 700, color: pnlColor(t.rMultiple) }}>{fmtR(t.rMultiple)}<br /><span style={{ fontWeight: 400, fontSize: 12 }}>{fmtUsd(t.pnlUsd)}</span></td>
                   <td style={{ padding: '8px 10px' }}><span style={{ color: STATUS_COLOR[t.status], fontWeight: 600, fontSize: 12 }}>{STATUS_LABEL[t.status]}</span></td>
-                  <td style={{ padding: '8px 10px' }}><ChartLink url={t.chartUrl} /></td>
+                  <td style={{ padding: '8px 10px' }}><ChartLink url={t.chartUrl} timeframe={t.timeframe} /></td>
                   <td style={{ padding: '8px 10px' }}><FeedbackCell trade={t} onSaved={onTradeUpdated} /></td>
                 </tr>
               ))}
@@ -521,11 +595,18 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
         </div>
       )}
 
-      {dialogOpen && (
+      {docStrategy && (
         <StrategyDialog
-          initialDoc={config.docMarkdown}
-          onClose={() => setDialogOpen(false)}
-          onSaved={(doc) => setBoard((b) => ({ ...b, config: { ...b.config, docMarkdown: doc } }))}
+          strategyId={docStrategy.id}
+          title={docStrategy.name}
+          initialDoc={docStrategy.docMarkdown}
+          onClose={() => setDocFor(null)}
+          onSaved={(doc) =>
+            setBoard((b) => ({
+              ...b,
+              strategies: b.strategies.map((x) => (x.id === docStrategy.id ? { ...x, docMarkdown: doc } : x)),
+            }))
+          }
         />
       )}
 
