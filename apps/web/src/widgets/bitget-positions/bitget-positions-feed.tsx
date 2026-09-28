@@ -79,6 +79,8 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
   // Resting (unfilled) limit orders + which one is being cancelled.
   const [pending, setPending] = useState<BitgetPendingOrder[]>([]);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  // True while the "Huỷ tất cả" bulk-cancel loop is running.
+  const [cancelingAll, setCancelingAll] = useState(false);
   // Coin-name filter (empty selection = all coins), chip multi-select.
   const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
   const toggleSymbol = useCallback((symbol: string) => {
@@ -199,6 +201,32 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
     },
     [refreshPending],
   );
+
+  // Cancel every resting limit order in one go. Confirms once, then cancels
+  // sequentially (best-effort: a single failure is reported but the rest still
+  // run) and refreshes the list at the end.
+  const cancelAllPending = useCallback(async () => {
+    const orders = pending;
+    if (orders.length === 0) return;
+    if (!window.confirm(`Huỷ tất cả ${orders.length} lệnh chờ (limit)?`)) {
+      return;
+    }
+    setCancelingAll(true);
+    setError(null);
+    let failed = 0;
+    for (const order of orders) {
+      try {
+        await clientRef.current.cancelBitgetOrder(order.symbol, order.orderId);
+      } catch {
+        failed += 1;
+      }
+    }
+    await refreshPending();
+    if (failed > 0) {
+      setError(`Huỷ ${failed}/${orders.length} lệnh chờ thất bại. Thử lại sau.`);
+    }
+    setCancelingAll(false);
+  }, [pending, refreshPending]);
 
   useEffect(() => {
     void refreshPending();
@@ -394,8 +422,10 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
               orders={pending}
               livePrices={livePrices}
               cancelingId={cancelingId}
-              disabled={cancelingId !== null}
+              cancelingAll={cancelingAll}
+              disabled={cancelingId !== null || cancelingAll}
               onCancel={cancelPending}
+              onCancelAll={cancelAllPending}
             />
           )}
 
@@ -524,14 +554,18 @@ function PendingOrdersPanel({
   orders,
   livePrices,
   cancelingId,
+  cancelingAll,
   disabled,
   onCancel,
+  onCancelAll,
 }: {
   orders: BitgetPendingOrder[];
   livePrices: Record<string, number>;
   cancelingId: string | null;
+  cancelingAll: boolean;
   disabled: boolean;
   onCancel: (order: BitgetPendingOrder) => void;
+  onCancelAll: () => void;
 }) {
   return (
     <div className="bg-pending">
@@ -540,6 +574,15 @@ function PendingOrdersPanel({
         <span className="bg-pending-hint">
           Chưa khớp · Bitget tự mở vị thế khi giá chạm mức · bấm Huỷ để gỡ
         </span>
+        <button
+          type="button"
+          className="bg-cancel-btn bg-cancel-all-btn"
+          onClick={onCancelAll}
+          disabled={disabled}
+          title="Huỷ tất cả lệnh chờ trên Bitget"
+        >
+          {cancelingAll ? 'Đang huỷ…' : 'Huỷ tất cả'}
+        </button>
       </div>
       <div className="bg-table-wrap">
         <table className="bg-table">

@@ -10105,6 +10105,8 @@ a.metric-card--link:hover {
 }
 .bg-cancel-btn:hover:not(:disabled) { background: rgba(23, 18, 13, 0.05); }
 .bg-cancel-btn:disabled { opacity: 0.5; cursor: default; }
+.bg-cancel-all-btn { margin-left: auto; border-color: var(--loss, #d64545); color: var(--loss, #d64545); }
+.bg-cancel-all-btn:hover:not(:disabled) { background: rgba(214, 69, 69, 0.08); }
 .bg-setup-btn { padding: 5px 10px; }
 
 /* Symbol cell: coin ticker over a small "view chart" button. */
