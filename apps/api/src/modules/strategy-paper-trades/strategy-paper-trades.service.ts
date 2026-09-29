@@ -108,6 +108,11 @@ type TradeRow = Awaited<ReturnType<ReturnType<typeof createStrategyPaperTradeRep
 const utcDayIndex = (ms: number) => Math.floor(ms / 864e5);
 const utcDayStr = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
+/** Candle length per setup-chart timeframe, used to window charts around a trade. */
+const CHART_TF_MS: Record<string, number> = {
+  '5m': 3e5, '15m': 9e5, 'M30': 18e5, '1h': 36e5, '4h': 144e5, '1d': 864e5, '1w': 6048e5,
+};
+
 @Injectable()
 export class StrategyPaperTradesService implements OnModuleInit {
   private readonly logger = new Logger(StrategyPaperTradesService.name);
@@ -327,10 +332,29 @@ export class StrategyPaperTradesService implements OnModuleInit {
     const trade = await this.repo.findById(tradeId);
     if (!trade) throw new NotFoundException(`Strategy paper trade ${tradeId} not found`);
 
-    // 5m has no setup-chart preset → show the 15m chart for 5m strategies.
-    const tf = trade.timeframe === '5m' ? '15m' : trade.timeframe in SETUP_CHART_TF_CONFIG ? trade.timeframe : '1h';
+    // Render on the trade's own timeframe (1h fallback when there is no preset).
+    const tf = trade.timeframe in SETUP_CHART_TF_CONFIG ? trade.timeframe : '1h';
     const { limit, display } = SETUP_CHART_TF_CONFIG[tf] ?? SETUP_CHART_TF_CONFIG['1h']!;
-    const raw = await this.binance.fetchKlines({ symbol: trade.symbol, timeframe: tf as AnalysisTimeframe, limit });
+    const closed = trade.status !== 'OPEN' && trade.exitPrice != null;
+
+    // Window the candles around the trade (not simply the latest ones) so the entry
+    // candle stays on screen even when the chart is (re)rendered hours later.
+    const tfMs = CHART_TF_MS[tf] ?? CHART_TF_MS['1h']!;
+    const now = Date.now();
+    const openT = Math.floor(trade.openedAt.getTime() / tfMs) * tfMs;
+    const closeT = closed && trade.closedAt ? Math.floor(trade.closedAt.getTime() / tfMs) * tfMs : null;
+    const PAD_BARS = 20; // bars shown after the entry (or exit) when the window can't reach "now"
+    let endT: number;
+    if (closeT != null) endT = Math.min(now, closeT + PAD_BARS * tfMs);
+    else if (now - openT < (display - PAD_BARS) * tfMs) endT = now;
+    else endT = openT + PAD_BARS * tfMs;
+    const raw = await this.binance.fetchKlinesInRange({
+      symbol: trade.symbol,
+      timeframe: tf as AnalysisTimeframe,
+      startTime: endT - (limit - 1) * tfMs,
+      endTime: endT,
+      limit,
+    });
     if (raw.length === 0) throw new NotFoundException(`No ${tf} candles for ${trade.symbol}`);
 
     const candles: OhlcCandle[] = raw.map((k) => ({
@@ -342,7 +366,10 @@ export class StrategyPaperTradesService implements OnModuleInit {
       volume: parseFloat(String(k[5])),
     }));
     const side = trade.direction === 'SHORT' ? 'short' : 'long';
-    const closed = trade.status !== 'OPEN' && trade.exitPrice != null;
+    // Candle indices into the displayed slice (the renderer plots the last `display` bars).
+    const shown = candles.slice(-display);
+    const openIndex = shown.findIndex((c) => c.time === openT);
+    const closeIndex = closeT != null ? shown.findIndex((c) => c.time === closeT) : -1;
     const buffer = await renderSetupChart({
       symbol: trade.symbol,
       timeframe: tf,
@@ -352,7 +379,10 @@ export class StrategyPaperTradesService implements OnModuleInit {
       markers: closed
         ? [{ kind: 'closed', holdSide: side, entryPrice: trade.entryPrice, closePrice: trade.exitPrice!, pnlUsd: trade.pnlUsd ?? 0 }]
         : [{ kind: 'open', holdSide: side, entryPrice: trade.entryPrice }],
-      entryMarker: { price: trade.entryPrice, side },
+      entryMarker: { price: trade.entryPrice, side, ...(openIndex >= 0 ? { index: openIndex } : {}) },
+      ...(closed && openIndex >= 0 && closeIndex >= 0
+        ? { tradeSpan: { openIndex, closeIndex, win: (trade.pnlUsd ?? 0) > 0 } }
+        : {}),
     });
 
     const objectKey = `strategy-charts/${trade.id}.png`;

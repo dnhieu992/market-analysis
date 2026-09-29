@@ -110,11 +110,9 @@ function StatTile({ label, value, color }: { label: string; value: string; color
 
 function ChartLink({ url, timeframe }: { url: string | null; timeframe: string }) {
   if (!url) return <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>;
-  // 5m trades are rendered on the 15m setup chart (no 5m preset).
-  const tf = timeframe === '5m' ? '15m' : timeframe;
   return (
     <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1d4ed8', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>
-      📈 Xem chart {tf}
+      📈 Xem chart {timeframe}
     </a>
   );
 }

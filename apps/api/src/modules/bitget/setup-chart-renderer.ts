@@ -37,6 +37,7 @@ export const UT_BOT_PARAMS = {
  * all look consistent — change candle density here, once.
  */
 export const SETUP_CHART_TF_CONFIG: Record<string, { limit: number; display: number }> = {
+  '5m':  { limit: 500, display: 80 },
   '15m': { limit: 500, display: 80 },
   'M30': { limit: 500, display: 80 },
   '1h':  { limit: 400, display: 80 },
@@ -91,7 +92,7 @@ export type SetupChartInput = {
   /** For an entry snapshot: pinpoint the exact entry candle (the most recent bar)
    *  and price with a vertical line + arrow, so the entry is unmistakable rather
    *  than just a horizontal price level. */
-  entryMarker?: { price: number; side: 'long' | 'short' };
+  entryMarker?: { price: number; side: 'long' | 'short'; /** candle index into the displayed slice; defaults to the most recent bar */ index?: number };
 };
 
 // Widened 1.5× (1200 → 1800): the panes are ~square, so in the fullscreen dialog
@@ -860,7 +861,7 @@ function tradeSpanPlugin(span: NonNullable<SetupChartInput['tradeSpan']>): Plugi
  * a horizontal price line alone doesn't say *when* the trade was opened.
  */
 function entryMarkerPlugin(
-  candleCount: number,
+  candleIndex: number,
   marker: NonNullable<SetupChartInput['entryMarker']>,
 ): Plugin {
   return {
@@ -869,9 +870,9 @@ function entryMarkerPlugin(
       const { ctx, scales, chartArea } = chart;
       const xScale = scales['x'];
       const yScale = scales['y'];
-      if (!xScale || !yScale || candleCount === 0) return;
+      if (!xScale || !yScale || candleIndex < 0) return;
 
-      const x = xScale.getPixelForValue(candleCount - 1);
+      const x = xScale.getPixelForValue(candleIndex);
       const y = yScale.getPixelForValue(marker.price);
       const isLong = marker.side === 'long';
       const color = isLong ? '#16a34a' : '#dc2626';
@@ -1089,7 +1090,7 @@ export async function renderSetupChart(input: SetupChartInput): Promise<Buffer> 
       volumePlugin(candles, volMa),
       ...(input.tradeSpan ? [tradeSpanPlugin(input.tradeSpan)] : []),
       positionMarkerPlugin(markers),
-      ...(input.entryMarker ? [entryMarkerPlugin(candles.length, input.entryMarker)] : []),
+      ...(input.entryMarker ? [entryMarkerPlugin(input.entryMarker.index ?? candles.length - 1, input.entryMarker)] : []),
     ],
   };
 
