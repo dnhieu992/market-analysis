@@ -11826,3 +11826,14 @@ a.metric-card--link:hover {
   .sbt-review-btn { margin-left: 0; }
   .sbt-review-strip { gap: 14px; }
 }
+
+/* iOS Safari auto-zooms the page when a focused field's font-size is < 16px.
+   Touch devices get 16px fields so focusing never zooms; pinch-zoom still works. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  select,
+  textarea,
+  [contenteditable='true'] {
+    font-size: 16px !important;
+  }
+}
