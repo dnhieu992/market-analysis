@@ -7,7 +7,8 @@ import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import { MexcJournalDrawer, type JournalTarget } from '@web/widgets/mexc-positions/mexc-journal-drawer';
 import type { MexcClosedTrade, MexcHistoryResponse, MexcTradeChart } from '@web/shared/api/types';
 
-import { SymbolChipFilter, matchesSymbolSelection } from '@web/widgets/mexc/symbol-filter-input';
+import { matchesSymbolSelection } from '@web/widgets/mexc/symbol-filter-input';
+import { SymbolSearchFilter } from '@web/shared/ui/symbol-search-filter/symbol-search-filter';
 import { ChartIcon } from '@web/widgets/mexc/chart-icon';
 import { ChartNoteDialog, ChartNoteView } from '@web/widgets/mexc/chart-note-dialog';
 
@@ -285,7 +286,7 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
             <div className="bg-table-toolbar">
               <div className="bg-toolbar-filter pf-coin-filter">
                 <span className="bg-toolbar-label">Lọc coin:</span>
-                <SymbolChipFilter
+                <SymbolSearchFilter
                   symbols={availableSymbols}
                   selected={selectedSymbols}
                   onToggle={toggleSymbol}

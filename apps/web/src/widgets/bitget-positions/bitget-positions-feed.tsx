@@ -7,7 +7,8 @@ import type { BitgetPendingOrder, BitgetPosition, BitgetPositionsResponse } from
 
 import { ChartIcon } from '../bitget/chart-icon';
 import { SetupChartDialog } from '../bitget/setup-chart-dialog';
-import { SymbolChipFilter, matchesSymbolSelection } from '../bitget/symbol-filter-input';
+import { matchesSymbolSelection } from '../bitget/symbol-filter-input';
+import { SymbolSearchFilter } from '@web/shared/ui/symbol-search-filter/symbol-search-filter';
 import { BtcPriceTile } from '../btc-price-tile/btc-price-tile';
 
 import { BitgetJournalDrawer, tradeKeyOf } from './bitget-journal-drawer';
@@ -436,7 +437,7 @@ export function BitgetPositionsFeed({ initial, embedded = false, onCount }: Prop
               <div className="bg-table-toolbar">
                 <div className="bg-toolbar-filter pf-coin-filter">
                   <span className="bg-toolbar-label">Lọc coin:</span>
-                  <SymbolChipFilter
+                  <SymbolSearchFilter
                     symbols={availableSymbols}
                     selected={selectedSymbols}
                     onToggle={toggleSymbol}

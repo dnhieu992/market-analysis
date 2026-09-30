@@ -7,7 +7,8 @@ import { createApiClient, resolveApiBaseUrl } from '@web/shared/api/client';
 import { BitgetJournalDrawer, type JournalTarget } from '@web/widgets/bitget-positions/bitget-journal-drawer';
 import type { BitgetClosedTrade, BitgetHistoryResponse, BitgetTradeChart } from '@web/shared/api/types';
 
-import { SymbolChipFilter, matchesSymbolSelection } from '@web/widgets/bitget/symbol-filter-input';
+import { matchesSymbolSelection } from '@web/widgets/bitget/symbol-filter-input';
+import { SymbolSearchFilter } from '@web/shared/ui/symbol-search-filter/symbol-search-filter';
 import { ChartIcon } from '@web/widgets/bitget/chart-icon';
 import { ChartNoteDialog, ChartNoteView } from '@web/widgets/bitget/chart-note-dialog';
 
@@ -285,7 +286,7 @@ export function BitgetHistoryFeed({ initial, embedded = false, onCount }: Props)
             <div className="bg-table-toolbar">
               <div className="bg-toolbar-filter pf-coin-filter">
                 <span className="bg-toolbar-label">Lọc coin:</span>
-                <SymbolChipFilter
+                <SymbolSearchFilter
                   symbols={availableSymbols}
                   selected={selectedSymbols}
                   onToggle={toggleSymbol}

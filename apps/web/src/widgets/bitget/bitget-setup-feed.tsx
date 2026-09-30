@@ -23,7 +23,8 @@ import {
   tfLabelOf,
 } from './setup-chart-dialog';
 import { QqeCell, bareQqeSymbol as bareSymbol, type QqeMap } from './qqe-cell';
-import { SymbolChipFilter, matchesSymbolSelection } from './symbol-filter-input';
+import { matchesSymbolSelection } from './symbol-filter-input';
+import { SymbolSearchFilter } from '@web/shared/ui/symbol-search-filter/symbol-search-filter';
 import { BulkSetupDialog, type BulkSideInput } from './bulk-setup-dialog';
 import { CoinSetupDialog, type CoinSetupInput } from './coin-setup-dialog';
 import { LimitOrderDialog } from './limit-order-dialog';
@@ -670,7 +671,7 @@ export function BitgetSetupFeed({
         <div className="bg-table-toolbar">
           <div className="bg-toolbar-filter pf-coin-filter">
             <span className="bg-toolbar-label">Lọc coin:</span>
-            <SymbolChipFilter
+            <SymbolSearchFilter
               symbols={symbols}
               selected={selectedSymbols}
               onToggle={toggleSymbol}

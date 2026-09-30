@@ -11837,3 +11837,76 @@ a.metric-card--link:hover {
     font-size: 16px !important;
   }
 }
+
+/* Coin search filter with auto-suggestion (SymbolSearchFilter) — Bitget / MEXC
+   Positions, History and Setup tabs. */
+.ssf { position: relative; display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; max-width: 420px; }
+.ssf-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: text;
+}
+.ssf-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ssf-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ssf-tag-x {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.ssf-tag-x:hover { opacity: 1; }
+.ssf-input {
+  flex: 1 1 80px;
+  min-width: 80px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  padding: 3px 0;
+  text-transform: uppercase;
+}
+.ssf-input::placeholder { text-transform: none; color: var(--muted); }
+.ssf-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  width: min(260px, 100%);
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+.ssf-option { padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ssf-option--active { background: var(--accent-soft); color: var(--accent); }
+.ssf-empty { padding: 6px 10px; font-size: 12.5px; color: var(--muted); }
