@@ -19,6 +19,7 @@ Bổ sung bên cạnh lệnh **market** đang có: mỗi coin × hướng ở ta
 - **Gõ tay vào ô giá** → bỏ tô sáng mốc % (`pricePct = null`); mốc chỉ tô khi bấm nút.
 - **Ký quỹ quá nhỏ** → `vol < minVol` → API trả 400 với thông báo tiếng Việt, dialog hiện lỗi, không gửi lên sàn.
 - **Contract không cho phép API** (`apiAllowed === false`) → 400, không gửi lệnh.
+- **Order id vượt `Number.MAX_SAFE_INTEGER`** (~8.6e17): id được ghi nguyên văn vào body `order/cancel` (`[<id>]`), không qua `Number()` — trước đây id bị làm tròn nên lệnh không huỷ được. MEXC trả `success:true` kể cả khi huỷ thất bại, nên client kiểm `data[].errorCode` và báo lỗi thật thay vì log "Cancelled".
 - **Chưa cấu hình coin+hướng** → nút Limit vẫn bấm được; dialog để đòn bẩy mặc định 10 và ô ký quỹ trống để nhập tay.
 - **Đặt limit khi đã có vị thế cùng hướng** → dùng đòn bẩy của vị thế đang mở, không set lại; khi khớp sẽ gộp volume vào vị thế đó.
 - **Chưa cấu hình API key** → `GET /positions/pending` trả `configured: false` + list rỗng → panel tự ẩn (không lỗi).

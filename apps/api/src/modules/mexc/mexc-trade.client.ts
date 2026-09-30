@@ -30,6 +30,11 @@ const BASE_URL = process.env.MEXC_API_BASE_URL ?? 'https://api.mexc.com';
 const MARGIN_COIN = 'USDT';
 
 /** MEXC wraps every response in `{ success, code, data }`; `code: 0` is OK. */
+/** A pre-serialized JSON body, sent (and signed) as-is — for payloads JSON.stringify would corrupt. */
+class RawJson {
+  constructor(readonly json: string) {}
+}
+
 type MexcEnvelope<T> = { success?: boolean; code?: number; message?: string; msg?: string; data: T };
 
 /** `side` codes for `/order/create`. */
@@ -348,9 +353,24 @@ export class MexcTradeClient {
     return rows.map((o) => this.mapPendingOrder(o, sizes.get(fromMexcSymbol(o.symbol ?? '')) ?? 1));
   }
 
-  /** Cancel one resting order by id. */
+  /**
+   * Cancel one resting order by id. MEXC order ids (~8.6e17) exceed
+   * Number.MAX_SAFE_INTEGER, so the id is written into the JSON body verbatim —
+   * `Number(id)` would round it and cancel nothing. MEXC answers success:true
+   * even when the cancel fails, with the real outcome per id in `data[].errorCode`.
+   */
   async cancelOrder(orderId: string): Promise<void> {
-    await this.request<unknown>('POST', '/api/v1/private/order/cancel', undefined, [Number(orderId)]);
+    if (!/^\d+$/.test(orderId)) throw new Error(`Invalid MEXC order id: ${orderId}`);
+    const data = await this.request<{ orderId?: number | string; errorCode?: number; errorMsg?: string }[]>(
+      'POST',
+      '/api/v1/private/order/cancel',
+      undefined,
+      new RawJson(`[${orderId}]`),
+    );
+    const failed = (data ?? []).find((r) => r.errorCode != null && Number(r.errorCode) !== 0);
+    if (failed) {
+      throw new Error(`MEXC cancel error ${failed.errorCode}: ${failed.errorMsg ?? 'unknown error'}`);
+    }
   }
 
   /** Shape one raw open-order row, converting contracts → base asset. */
@@ -579,7 +599,7 @@ export class MexcTradeClient {
       .map(([k, v]) => `${k}=${v}`)
       .join('&');
     const requestPath = queryString ? `${path}?${queryString}` : path;
-    const bodyString = body !== undefined ? JSON.stringify(body) : '';
+    const bodyString = body instanceof RawJson ? body.json : body !== undefined ? JSON.stringify(body) : '';
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (signed) {
