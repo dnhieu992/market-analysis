@@ -8,8 +8,7 @@ import type { MexcPendingOrder, MexcPosition, MexcPositionsResponse } from '@web
 import { BtcPriceTile } from '../btc-price-tile/btc-price-tile';
 import { ChartIcon } from '../mexc/chart-icon';
 import { SetupChartDialog } from '../mexc/setup-chart-dialog';
-import { matchesSymbolSelection } from '../mexc/symbol-filter-input';
-import { SymbolSearchFilter } from '@web/shared/ui/symbol-search-filter/symbol-search-filter';
+import { SymbolChipFilter, matchesSymbolSelection } from '../bitget/symbol-filter-input';
 
 import { MexcJournalDrawer, tradeKeyOf } from './mexc-journal-drawer';
 import { TpslDialog } from './tpsl-dialog';
@@ -435,7 +434,7 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
               <div className="bg-table-toolbar">
                 <div className="bg-toolbar-filter pf-coin-filter">
                   <span className="bg-toolbar-label">Lọc coin:</span>
-                  <SymbolSearchFilter
+                  <SymbolChipFilter
                     symbols={availableSymbols}
                     selected={selectedSymbols}
                     onToggle={toggleSymbol}

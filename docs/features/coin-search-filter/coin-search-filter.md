@@ -1,5 +1,5 @@
 ## Description
-Bộ lọc coin dạng **ô nhập text có gợi ý tự động** (`SymbolSearchFilter`) trên cả `/bitget` và `/mexc` — tab Vị thế, Lịch sử và Setup. Thay cho hàng chip (`SymbolChipFilter`, 2026-09-30) vì khi nhiều coin, hàng chip dài và khó tìm, nhất là trên mobile. Portfolio holdings vẫn dùng chip.
+Bộ lọc coin dạng **ô nhập text có gợi ý tự động** (`SymbolSearchFilter`) trên cả `/bitget` và `/mexc` — tab Lịch sử và Setup. Thay cho hàng chip (`SymbolChipFilter`, 2026-09-30) vì khi nhiều coin, hàng chip dài và khó tìm, nhất là trên mobile. Portfolio holdings vẫn dùng chip. **Tab Vị thế đang mở dùng lại chip** (2026-10-14): số coin đang hold ít, hiện hết thành chip bấm chọn nhiều nhanh hơn gõ tìm.
 
 ## Main Flow
 1. Focus vào ô "Gõ tên coin…" → dropdown hiện tất cả coin chưa chọn, A→Z theo tên rút gọn (bỏ `USDT`).
@@ -18,8 +18,9 @@ Bộ lọc coin dạng **ô nhập text có gợi ý tự động** (`SymbolSear
 
 ## Related Files (FE / BE / Worker)
 - `apps/web/src/shared/ui/symbol-search-filter/symbol-search-filter.tsx` — component input + dropdown gợi ý + tag.
-- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx`, `apps/web/src/widgets/bitget-positions/bitget-positions-feed.tsx`, `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — tab /bitget dùng `SymbolSearchFilter`.
-- `apps/web/src/widgets/mexc/mexc-setup-feed.tsx`, `apps/web/src/widgets/mexc-positions/mexc-positions-feed.tsx`, `apps/web/src/widgets/mexc-history/mexc-history-feed.tsx` — tab /mexc dùng `SymbolSearchFilter`.
-- `apps/web/src/widgets/{bitget,mexc}/symbol-filter-input.tsx` — `matchesSymbolSelection`; bản bitget còn giữ `SymbolChipFilter` cho Portfolio.
+- `apps/web/src/widgets/bitget/bitget-setup-feed.tsx`, `apps/web/src/widgets/bitget-history/bitget-history-feed.tsx` — tab /bitget dùng `SymbolSearchFilter`.
+- `apps/web/src/widgets/mexc/mexc-setup-feed.tsx`, `apps/web/src/widgets/mexc-history/mexc-history-feed.tsx` — tab /mexc dùng `SymbolSearchFilter`.
+- `apps/web/src/widgets/{bitget,mexc}-positions/*-positions-feed.tsx` — tab Vị thế dùng `SymbolChipFilter` (bản bitget).
+- `apps/web/src/widgets/{bitget,mexc}/symbol-filter-input.tsx` — `matchesSymbolSelection`; bản bitget còn giữ `SymbolChipFilter` cho Portfolio + tab Vị thế.
 - `apps/web/src/app/globals.css` — style `.ssf-*`.
 - BE / Worker: không thay đổi.
