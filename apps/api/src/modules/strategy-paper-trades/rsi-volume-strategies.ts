@@ -9,7 +9,9 @@
  *  - SL = fixed % from entry, TP = rr × risk, SL checked before TP inside a candle.
  */
 
-export type PaperCandle = { t: number; closeT: number; open: number; high: number; low: number; close: number; volume: number };
+import { PAPER_SYMBOLS } from './paper-symbols';
+
+export type PaperCandle ={ t: number; closeT: number; open: number; high: number; low: number; close: number; volume: number };
 
 export type RsiVolumeStrategyDef = {
   id: string;
@@ -31,9 +33,21 @@ export type RsiVolumeStrategyDef = {
   /** Inclusive RSI14 bounds of the 1h / 1d candle (undefined = no bound). */
   h1Rsi?: { min?: number; max?: number };
   d1Rsi?: { min?: number; max?: number };
+  /**
+   * 1h trend filter (2026-10-15 review): skip a LONG when the last closed 1h candle is in a
+   * downtrend, skip a SHORT when it is in an uptrend. See `h1TrendAt`.
+   */
+  trendFilter?: boolean;
+  /** Anti-chase (LONG only): skip when the 1h close is up ≥ this % vs 24 closed 1h candles earlier. */
+  maxRise24hPct?: number;
+  /** Once price has run `atR` in favour, move the stop to entry + `lockR` (closes as 'BE'). */
+  breakeven?: { atR: number; lockR: number };
+  /** Close at the candle close once the trade has been open this long (closes as 'TIME'). */
+  maxHoldHours?: number;
   slPct: number;
   rr: number;
-  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string };
+  /** BTC backtest of the shipped rules (scripts/run-paper-strategies-backtest.ts); `coins` = the other coins. */
+  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string; coins: string };
   rules: string;
 };
 
@@ -51,7 +65,7 @@ export const RSI_VOLUME_STRATEGIES: RsiVolumeStrategyDef[] = [
     d1Rsi: { max: 60 },
     slPct: 0.01,
     rr: 1,
-    backtest: { trades: 726, perDay: 0.73, winRate: 56.9, totalR: 27.4, byYear: '57.6 / 55.6 / 57.6' },
+    backtest: { trades: 727, perDay: 0.71, winRate: 57.1, totalR: 30.4, byYear: '57.5 / 55.6 / 58.4', coins: 'ETH 946 lệnh · WR 53.5% · −28.6R | SOL 1265 lệnh · WR 51.2% · −95.5R' },
     rules: 'Nến 5m đỏ đóng cửa làm RSI(14) cắt xuống dưới 45 · RSI14 1h ≤ 40 · RSI14 1D ≤ 60 · SL 1% · TP 1R',
   },
   {
@@ -67,7 +81,7 @@ export const RSI_VOLUME_STRATEGIES: RsiVolumeStrategyDef[] = [
     d1Rsi: { min: 50 },
     slPct: 0.015,
     rr: 1,
-    backtest: { trades: 707, perDay: 0.71, winRate: 54.6, totalR: 17.9, byYear: '54.8 / 54.8 / 53.8' },
+    backtest: { trades: 720, perDay: 0.71, winRate: 54.7, totalR: 20.0, byYear: '55.2 / 54.8 / 53.5', coins: 'ETH 1016 lệnh · WR 51.9% · −29.8R | SOL 1524 lệnh · WR 50.3% · −91.6R' },
     rules: 'Nến 5m xanh đóng cửa làm RSI(7) cắt ngược lên trên 30 · RSI14 1h ≥ 40 · RSI14 1D ≥ 50 · SL 1.5% · TP 1R',
   },
   {
@@ -81,10 +95,12 @@ export const RSI_VOLUME_STRATEGIES: RsiVolumeStrategyDef[] = [
     divN: 20,
     volume: 'below_ma',
     h1Rsi: { min: 40 },
+    trendFilter: true,
+    maxRise24hPct: 1,
     slPct: 0.015,
     rr: 1.5,
-    backtest: { trades: 666, perDay: 0.67, winRate: 44.0, totalR: 21.7, byYear: '46.6 / 43.3 / 40.8' },
-    rules: 'Giá tạo đáy mới 20 nến nhưng RSI(7) cao hơn đáy RSI trước (<30) · nến 5m xanh · volume < MA20 · RSI14 1h ≥ 40 · SL 1.5% · TP 1.5R',
+    backtest: { trades: 280, perDay: 0.28, winRate: 45.4, totalR: 18.8, byYear: '48.6 / 45.8 / 39.7', coins: 'ETH 317 lệnh · WR 43.2% · +4.4R | SOL 372 lệnh · WR 40.1% · −24.3R' },
+    rules: 'Giá tạo đáy mới 20 nến nhưng RSI(7) cao hơn đáy RSI trước (<30) · nến 5m xanh · volume < MA20 · RSI14 1h ≥ 40 · 1h không ở xu hướng giảm (giá & EMA50 dưới EMA200) · giá 1h tăng < 1% so với 24h trước · SL 1.5% · TP 1.5R',
   },
   {
     id: 'rsi-15m-long-2r',
@@ -97,10 +113,12 @@ export const RSI_VOLUME_STRATEGIES: RsiVolumeStrategyDef[] = [
     volume: 'below_ma',
     h1Rsi: { min: 40 },
     d1Rsi: { min: 30 },
+    trendFilter: true,
+    maxRise24hPct: 1,
     slPct: 0.015,
     rr: 2,
-    backtest: { trades: 662, perDay: 0.66, winRate: 36.9, totalR: 25.9, byYear: '39.6 / 35.3 / 33.3' },
-    rules: 'Nến 15m xanh đóng cửa làm RSI(7) cắt lên trên 50 · volume < MA20 · RSI14 1h ≥ 40 · RSI14 1D ≥ 30 · SL 1.5% · TP 2R',
+    backtest: { trades: 295, perDay: 0.29, winRate: 37.3, totalR: 15.3, byYear: '42.1 / 35.6 / 30.7', coins: 'ETH 379 lệnh · WR 34.8% · −8.3R | SOL 472 lệnh · WR 36.2% · +9.5R' },
+    rules: 'Nến 15m xanh đóng cửa làm RSI(7) cắt lên trên 50 · volume < MA20 · RSI14 1h ≥ 40 · RSI14 1D ≥ 30 · 1h không ở xu hướng giảm (giá & EMA50 dưới EMA200) · giá 1h tăng < 1% so với 24h trước · SL 1.5% · TP 2R',
   },
 ];
 
@@ -124,8 +142,20 @@ export function wilderRsi(closes: number[], p: number): number[] {
   return out;
 }
 
-/** RSI14 of the last higher-TF candle closed at or before `closeT` (null if none). */
-export function htfRsiAt(htf: PaperCandle[], htfRsi: number[], closeT: number): number | null {
+/** EMA seeded with the first value. */
+export function ema(values: number[], p: number): number[] {
+  const out = new Array<number>(values.length);
+  const a = 2 / (p + 1);
+  let e = values[0] ?? 0;
+  for (let i = 0; i < values.length; i += 1) {
+    e = a * values[i]! + (1 - a) * e;
+    out[i] = e;
+  }
+  return out;
+}
+
+/** Index of the last higher-TF candle closed at or before `closeT` (-1 if none). */
+export function htfIndexAt(htf: PaperCandle[], closeT: number): number {
   let lo = 0;
   let hi = htf.length - 1;
   let found = -1;
@@ -133,7 +163,23 @@ export function htfRsiAt(htf: PaperCandle[], htfRsi: number[], closeT: number): 
     const mid = (lo + hi) >> 1;
     if (htf[mid]!.closeT <= closeT) { found = mid; lo = mid + 1; } else hi = mid - 1;
   }
+  return found;
+}
+
+/** RSI14 of the last higher-TF candle closed at or before `closeT` (null if none). */
+export function htfRsiAt(htf: PaperCandle[], htfRsi: number[], closeT: number): number | null {
+  const found = htfIndexAt(htf, closeT);
   return found >= 0 ? htfRsi[found]! : null;
+}
+
+/** 1h trend at candle `j`: UP = close and EMA50 both above EMA200, DOWN = both below, else MIX. */
+export function h1TrendAt(ctx: SignalContext, j: number): 'UP' | 'DOWN' | 'MIX' {
+  const c = ctx.h1[j]!.close;
+  const e50 = ctx.h1Ema50[j]!;
+  const e200 = ctx.h1Ema200[j]!;
+  if (c > e200 && e50 > e200) return 'UP';
+  if (c < e200 && e50 < e200) return 'DOWN';
+  return 'MIX';
 }
 
 const inBounds = (x: number | null, b?: { min?: number; max?: number }) =>
@@ -144,9 +190,26 @@ export type SignalContext = {
   ltfRsi: number[];
   h1: PaperCandle[];
   h1Rsi: number[];
+  h1Ema50: number[];
+  h1Ema200: number[];
   d1: PaperCandle[];
   d1Rsi: number[];
 };
+
+/** Build the context from closed candles (shared by the live engine and the backtest script). */
+export function buildContext(def: RsiVolumeStrategyDef, ltf: PaperCandle[], h1: PaperCandle[], d1: PaperCandle[]): SignalContext {
+  const h1Close = h1.map((c) => c.close);
+  return {
+    ltf,
+    ltfRsi: wilderRsi(ltf.map((c) => c.close), def.rsiPeriod),
+    h1,
+    h1Rsi: wilderRsi(h1Close, 14),
+    h1Ema50: ema(h1Close, 50),
+    h1Ema200: ema(h1Close, 200),
+    d1,
+    d1Rsi: wilderRsi(d1.map((c) => c.close), 14),
+  };
+}
 
 /** Does candle `i` of `ctx.ltf` (closed) fire the strategy? Needs ≥ 60 bars of history. */
 export function firesAt(def: RsiVolumeStrategyDef, ctx: SignalContext, i: number): boolean {
@@ -189,6 +252,20 @@ export function firesAt(def: RsiVolumeStrategyDef, ctx: SignalContext, i: number
 
   if (!inBounds(htfRsiAt(ctx.h1, ctx.h1Rsi, bar.closeT), def.h1Rsi)) return false;
   if (!inBounds(htfRsiAt(ctx.d1, ctx.d1Rsi, bar.closeT), def.d1Rsi)) return false;
+
+  if (def.trendFilter || def.maxRise24hPct != null) {
+    const j = htfIndexAt(ctx.h1, bar.closeT);
+    if (j < 0) return false;
+    if (def.trendFilter) {
+      const trend = h1TrendAt(ctx, j);
+      if (def.direction === 'LONG' ? trend === 'DOWN' : trend === 'UP') return false;
+    }
+    if (def.maxRise24hPct != null && def.direction === 'LONG') {
+      if (j < 24) return false;
+      const rise = (ctx.h1[j]!.close / ctx.h1[j - 24]!.close - 1) * 100;
+      if (rise >= def.maxRise24hPct) return false;
+    }
+  }
   return true;
 }
 
@@ -199,22 +276,75 @@ export function levelsFor(def: RsiVolumeStrategyDef, entry: number): { stop: num
   return { stop: entry - dir * risk, takeProfit: entry + dir * def.rr * risk, risk };
 }
 
+export type ExitReason = 'TP' | 'SL' | 'BE' | 'TIME';
+
+export type OpenPosition = {
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  initialStopLoss: number;
+  stopLoss: number;
+  takeProfit: number;
+  openedAt: number; // ms, open time of the entry candle
+};
+
+/**
+ * Advance an open position by one CLOSED candle. Order inside the candle: stop (SL, or 'BE' once
+ * the stop was moved) → take-profit → max-hold time exit at the close → breakeven trigger (the
+ * moved stop only applies from the NEXT candle, so a candle never both arms and hits it).
+ */
+export function stepPosition(
+  def: Pick<RsiVolumeStrategyDef, 'breakeven' | 'maxHoldHours'>,
+  pos: OpenPosition,
+  c: PaperCandle,
+): { exit: { price: number; reason: ExitReason; at: number } | null; stopLoss: number } {
+  const long = pos.direction === 'LONG';
+  const moved = pos.stopLoss !== pos.initialStopLoss;
+  if (long ? c.low <= pos.stopLoss : c.high >= pos.stopLoss) {
+    return { exit: { price: pos.stopLoss, reason: moved ? 'BE' : 'SL', at: c.closeT }, stopLoss: pos.stopLoss };
+  }
+  if (long ? c.high >= pos.takeProfit : c.low <= pos.takeProfit) {
+    return { exit: { price: pos.takeProfit, reason: 'TP', at: c.closeT }, stopLoss: pos.stopLoss };
+  }
+  if (def.maxHoldHours != null && c.closeT + 1 - pos.openedAt >= def.maxHoldHours * 36e5) {
+    return { exit: { price: c.close, reason: 'TIME', at: c.closeT }, stopLoss: pos.stopLoss };
+  }
+  let stopLoss = pos.stopLoss;
+  if (def.breakeven && !moved) {
+    const risk = Math.abs(pos.entryPrice - pos.initialStopLoss);
+    const fav = long ? c.high - pos.entryPrice : pos.entryPrice - c.low;
+    if (fav >= def.breakeven.atR * risk) {
+      stopLoss = long ? pos.entryPrice + def.breakeven.lockR * risk : pos.entryPrice - def.breakeven.lockR * risk;
+    }
+  }
+  return { exit: null, stopLoss };
+}
+
 /** Default "Chi tiết chiến lược" markdown for a strategy. */
 export function defaultDocFor(def: RsiVolumeStrategyDef): string {
   const side = def.direction === 'LONG' ? 'MUA' : 'BÁN';
+  const coins = PAPER_SYMBOLS.map((s) => s.short).join(', ');
+  const reviewNote = def.trendFilter || def.maxRise24hPct != null
+    ? `\n**Cập nhật 2026-10-15 (sau review 89 lệnh paper)**
+- Lệnh thua live tập trung ở pha **mua đuổi** (giá 1h đã tăng ≥ 1% trong 24h) và **mua ngược xu hướng giảm 1h**.
+- Đã thêm 2 bộ lọc: bỏ tín hiệu khi 1h đang giảm (giá & EMA50 dưới EMA200), bỏ tín hiệu khi giá 1h tăng ≥ 1% so với 24h trước.
+- Backtest dài hạn: hai bộ lọc giảm số lệnh ~55% nhưng tăng kỳ vọng/lệnh và giảm mạnh drawdown.
+`
+    : '';
   return `## ${def.name}
 
-**Quy tắc vào lệnh (${side}, BTC khung ${def.timeframe})**
+**Quy tắc vào lệnh (${side}, khung ${def.timeframe}, chạy trên ${coins})**
 ${def.rules.split(' · ').map((x) => `- ${x}`).join('\n')}
 - Vào lệnh ở giá mở cửa của nến kế tiếp sau nến tín hiệu.
 
 **Quản lý lệnh**
 - Cắt lỗ cố định ${(def.slPct * 100).toFixed(1)}% từ giá vào, chốt lời ${def.rr}R. Không đóng cuối ngày, không dời SL.
-- Mỗi chiến lược chỉ giữ **1 lệnh tại một thời điểm**; các chiến lược chạy song song, độc lập.
-
-**Backtest 2024-01 → 2026-09 (phí 0.05%/chiều)**
-- ${def.backtest.trades} lệnh (~${def.backtest.perDay} lệnh/ngày), win rate **${def.backtest.winRate}%**, tổng **+${def.backtest.totalR}R**.
-- Win rate theo năm 2024 / 2025 / 2026: ${def.backtest.byYear}%.
+- Mỗi chiến lược chỉ giữ **1 lệnh tại một thời điểm trên mỗi coin**; các chiến lược chạy song song, độc lập.
+${reviewNote}
+**Backtest 2024-01 → 2026-10 (phí 0.05%/chiều, \`scripts/run-paper-strategies-backtest.ts\`)**
+- BTC: ${def.backtest.trades} lệnh (~${def.backtest.perDay} lệnh/ngày), win rate **${def.backtest.winRate}%**, tổng **+${def.backtest.totalR}R**.
+- BTC win rate theo năm 2024 / 2025 / 2026: ${def.backtest.byYear}%.
+- Coin khác: ${def.backtest.coins.split(' | ').join(' · ')}.
+- Chiến lược được dò trên BTC — ETH/SOL chạy để kiểm chứng, kết quả âm ở coin nào thì coi như chưa có edge ở coin đó.
 - Edge mỏng — đây là paper-trade để kiểm chứng trên dữ liệu thật, không nối sàn.
 `;
 }

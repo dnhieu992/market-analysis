@@ -1,3 +1,6 @@
+> **Superseded:** `/trading-analysis` now renders the strategy paper-trade board — see
+> `docs/features/strategy-paper-trades/strategy-paper-trades.md`. This doc describes the earlier journal version.
+
 ## Description
 The `/trading-analysis` page (route renamed from `/strategy-backtest`) is a daily analysis journal: the
 trader writes, each day, the reasoning behind their trading — how they read the chart, why they did/didn't

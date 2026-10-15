@@ -5,7 +5,7 @@ import { prisma } from '../client';
 export const STRATEGY_PAPER_TRADE_OPEN_STATUS = 'OPEN';
 
 /** Seed text for the editable "Chi tiết chiến lược" dialog — plain Vietnamese, bullet points. */
-export const DEFAULT_STRATEGY_DOC = `## Chiến lược: Phá đỉnh/đáy của ngày hôm trước (BTC, khung 1 giờ)
+export const DEFAULT_STRATEGY_DOC = `## Chiến lược: Phá đỉnh/đáy của ngày hôm trước (khung 1 giờ, chạy trên BTC, ETH, SOL)
 
 **Ý tưởng**
 - Mỗi ngày giá có một đỉnh và một đáy mà cả thị trường đều nhìn thấy.
@@ -18,7 +18,7 @@ export const DEFAULT_STRATEGY_DOC = `## Chiến lược: Phá đỉnh/đáy củ
 - Xem nến **1 giờ vừa đóng cửa**:
   - Đóng cửa **cao hơn đỉnh hôm qua** → mở **lệnh mua**.
   - Đóng cửa **thấp hơn đáy hôm qua** → mở **lệnh bán**.
-- Mỗi chiều chỉ vào **1 lần trong ngày**, và mỗi lúc chỉ giữ **1 lệnh**.
+- Mỗi chiều chỉ vào **1 lần trong ngày**, và mỗi lúc chỉ giữ **1 lệnh trên mỗi coin**.
 
 **Quản lý lệnh**
 - **Cắt lỗ**: đặt ở **phía đối diện của biên ngày hôm qua**, cộng một khoảng đệm nhỏ:
@@ -31,9 +31,18 @@ export const DEFAULT_STRATEGY_DOC = `## Chiến lược: Phá đỉnh/đáy củ
 **Vốn**
 - Mỗi lệnh chỉ đặt cược một số tiền cố định nhỏ (mặc định 10 đô). Khối lượng tính ngược từ khoảng cắt lỗ.
 
+**Backtest 2024-01 → 2026-10 (phí 0.05%/chiều, \`scripts/run-paper-strategies-backtest.ts\`)**
+- BTC: 738 lệnh, win rate **44.9%**, tổng **+20.4R**, drawdown tối đa −10.5R.
+- ETH: 741 lệnh, win rate 44.8%, +9.9R · SOL: 800 lệnh, win rate 45.9%, −0.9R (hoà vốn).
+
+**Đã thử và bỏ (review 2026-10-15)**
+- Dời SL về hoà vốn khi lời +0.7R: win rate tăng nhẹ nhưng tổng giảm (+29.5R → +12.2R trên 3 coin) — cắt mất các lệnh chạy tới 2R.
+- Chỉ vào khi đóng cửa vượt biên ≥ 0.2%: tổng giảm (+29.5R → +12.2R).
+- → Giữ nguyên quy tắc gốc (TP 2R + đóng cuối ngày).
+
 **Lưu ý**
 - Đây là backtest chạy giả, **không nối sàn thật**.
-- Lợi thế mỏng (cứ 100 đồng rủi ro lãi trung bình ~16 đồng), sẽ có chuỗi thua — vào lệnh nhỏ, coi là công cụ timing.
+- Lợi thế mỏng (kỳ vọng ~+0.03R/lệnh trên BTC), sẽ có chuỗi thua — vào lệnh nhỏ, coi là công cụ timing.
 `;
 
 /** Config row id of the original PDH/PDL breakout strategy. */
@@ -71,23 +80,23 @@ export function createStrategyPaperTradeRepository(client = prisma) {
       return client.strategyPaperTrade.findUnique({ where: { id } });
     },
 
-    /** OPEN trades — of one strategy when `strategyId` is given, otherwise of all. */
-    findOpen(strategyId?: string) {
+    /** OPEN trades — narrowed to one strategy / symbol when given, otherwise of all. */
+    findOpen(strategyId?: string, symbol?: string) {
       return client.strategyPaperTrade.findMany({
-        where: { status: STRATEGY_PAPER_TRADE_OPEN_STATUS, ...(strategyId ? { strategyId } : {}) },
+        where: { status: STRATEGY_PAPER_TRADE_OPEN_STATUS, ...(strategyId ? { strategyId } : {}), ...(symbol ? { symbol } : {}) },
         orderBy: { openedAt: 'asc' },
       });
     },
 
     /** Has this strategy already taken this side on this UTC day? (PDH/PDL dedupe guard) */
-    findByDateDirection(strategyId: string, tradeDate: string, direction: string) {
-      return client.strategyPaperTrade.findFirst({ where: { strategyId, tradeDate, direction } });
+    findByDateDirection(strategyId: string, tradeDate: string, direction: string, symbol?: string) {
+      return client.strategyPaperTrade.findFirst({ where: { strategyId, tradeDate, direction, ...(symbol ? { symbol } : {}) } });
     },
 
-    /** The most recently closed trade of a strategy — a new entry must come after its exit. */
-    findLastClosed(strategyId: string) {
+    /** The most recently closed trade of a strategy (on one symbol) — a new entry must come after its exit. */
+    findLastClosed(strategyId: string, symbol?: string) {
       return client.strategyPaperTrade.findFirst({
-        where: { strategyId, status: { not: STRATEGY_PAPER_TRADE_OPEN_STATUS } },
+        where: { strategyId, status: { not: STRATEGY_PAPER_TRADE_OPEN_STATUS }, ...(symbol ? { symbol } : {}) },
         orderBy: { closedAt: 'desc' },
       });
     },

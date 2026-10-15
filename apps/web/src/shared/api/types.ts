@@ -1438,7 +1438,7 @@ export type StrategyPaperTrade = {
   timeframe: string;
   tradeDate: string;
   direction: 'LONG' | 'SHORT';
-  status: 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EOD';
+  status: 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EOD' | 'CLOSED_BE' | 'CLOSED_TIME';
   /** PDH/PDL strategy only. */
   pdh: number | null;
   pdl: number | null;
@@ -1453,7 +1453,7 @@ export type StrategyPaperTrade = {
   openedAt: string;
   closedAt: string | null;
   exitPrice: number | null;
-  exitReason: 'TP' | 'SL' | 'EOD' | null;
+  exitReason: 'TP' | 'SL' | 'EOD' | 'BE' | 'TIME' | null;
   pnlUsd: number | null;
   rMultiple: number | null;
   lastPrice: number | null;
@@ -1492,7 +1492,11 @@ export type StrategyPaperConfig = {
 export type StrategyPaperStrategy = StrategyPaperConfig & {
   direction: 'LONG' | 'SHORT' | 'BOTH';
   rules: string;
-  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string } | null;
+  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string; summary?: string } | null;
+  /** Replaces the "TP xR" label when the target is not a fixed R multiple. */
+  tpNote?: string;
+  /** Coins the strategy runs on (short names, e.g. BTC, ETH). */
+  symbols?: string[];
   openCount: number;
   stats: StrategyPaperTradeStats;
 };

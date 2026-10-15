@@ -1031,8 +1031,8 @@ model StrategyBacktestSetup {
 // per side per UTC day; every trade force-closes by end of its own UTC day (no overnight).
 model StrategyPaperTrade {
   id              String    @id @default(cuid())
-  // Which paper strategy opened this trade (= StrategyPaperConfig.id). Each strategy runs
-  // independently with at most one OPEN trade at a time, so several can run in parallel.
+  // Which paper strategy opened this trade (= StrategyPaperConfig.id). Each strategy runs on
+  // several symbols, independently, with at most one OPEN trade per (strategy, symbol).
   strategyId      String    @default("pdhl-btc") @db.VarChar(40)
   symbol          String    @default("BTCUSDT") @db.VarChar(20)
   timeframe       String    @default("1h") @db.VarChar(6)
@@ -1070,7 +1070,7 @@ model StrategyPaperTrade {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  @@unique([strategyId, openedAt, direction])
+  @@unique([strategyId, symbol, openedAt, direction])
   @@index([strategyId, status])
   @@index([status])
   @@index([createdAt(sort: Desc)])

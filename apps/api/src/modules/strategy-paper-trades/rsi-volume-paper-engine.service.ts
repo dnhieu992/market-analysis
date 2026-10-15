@@ -4,27 +4,30 @@ import type { AnalysisTimeframe } from '@app/config';
 import { createStrategyPaperTradeRepository } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { PAPER_SYMBOLS, type PaperSymbol } from './paper-symbols';
 import {
   RSI_VOLUME_STRATEGIES,
   TF_MS,
+  buildContext,
   defaultDocFor,
   firesAt,
   levelsFor,
-  wilderRsi,
+  stepPosition,
+  type ExitReason,
   type PaperCandle,
   type RsiVolumeStrategyDef,
 } from './rsi-volume-strategies';
 import { StrategyPaperTradesService } from './strategy-paper-trades.service';
 
-const SYMBOL = 'BTCUSDT';
 const FEE_PCT = 0.0005; // 0.05% per side, same as the backtest
 
 type TradeRow = NonNullable<Awaited<ReturnType<ReturnType<typeof createStrategyPaperTradeRepository>['findById']>>>;
 
 /**
- * Paper-trades the RSI + FxCanli Volume strategies (see rsi-volume-strategies.ts) on BTC.
- * Every 5 minutes, per strategy and independently: manage its one OPEN trade (SL before TP,
- * no end-of-day close), then — if flat — check whether the last CLOSED candle fires and open
+ * Paper-trades the RSI + FxCanli Volume strategies (see rsi-volume-strategies.ts) on every
+ * PAPER_SYMBOLS coin. One config per strategy; at most one open trade per (strategy, coin).
+ * Every 5 minutes, per strategy and independently: manage its one OPEN trade (`stepPosition`:
+ * SL before TP, no end-of-day close), then — if flat — check whether the last CLOSED candle fires and open
  * at the next candle's open. Strategies run in parallel; each holds at most one trade.
  */
 @Injectable()
@@ -55,10 +58,10 @@ export class RsiVolumePaperEngineService implements OnModuleInit {
     }
   }
 
-  private async fetch(tf: AnalysisTimeframe, limit: number, startTime?: number): Promise<PaperCandle[]> {
+  private async fetch(symbol: string, tf: AnalysisTimeframe, limit: number, startTime?: number): Promise<PaperCandle[]> {
     const raw = startTime != null
-      ? await this.binance.fetchKlinesInRange({ symbol: SYMBOL, timeframe: tf, startTime, endTime: Date.now(), limit })
-      : await this.binance.fetchKlines({ symbol: SYMBOL, timeframe: tf, limit });
+      ? await this.binance.fetchKlinesInRange({ symbol, timeframe: tf, startTime, endTime: Date.now(), limit })
+      : await this.binance.fetchKlines({ symbol, timeframe: tf, limit });
     return raw.map((k) => ({
       t: Number(k[0]),
       closeT: Number(k[6]),
@@ -81,25 +84,39 @@ export class RsiVolumePaperEngineService implements OnModuleInit {
   }
 
   private async tick(): Promise<{ opened: number; closed: number }> {
+    let opened = 0;
+    let closed = 0;
+    for (const sym of PAPER_SYMBOLS) {
+      try {
+        const r = await this.tickSymbol(sym);
+        opened += r.opened;
+        closed += r.closed;
+      } catch (e) {
+        this.logger.warn(`[${sym.symbol}] rsi-volume tick failed: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    return { opened, closed };
+  }
+
+  private async tickSymbol(sym: PaperSymbol): Promise<{ opened: number; closed: number }> {
     const now = Date.now();
     const onlyClosed = (c: PaperCandle[]) => c.filter((x) => x.closeT <= now);
     const [c5, c15, h1All, d1All] = await Promise.all([
-      this.fetch('5m', 1000),
-      this.fetch('15m', 1000),
-      this.fetch('1h', 500),
-      this.fetch('1d', 500),
+      this.fetch(sym.symbol, '5m', 1000),
+      this.fetch(sym.symbol, '15m', 1000),
+      this.fetch(sym.symbol, '1h', 1000), // ≥ 1000 so the EMA200 trend filter is warmed up
+      this.fetch(sym.symbol, '1d', 500),
     ]);
     const all: Record<string, PaperCandle[]> = { '5m': c5, '15m': c15 };
     const h1 = onlyClosed(h1All);
     const d1 = onlyClosed(d1All);
-    const h1Rsi = wilderRsi(h1.map((c) => c.close), 14);
-    const d1Rsi = wilderRsi(d1.map((c) => c.close), 14);
     const price = c5[c5.length - 1]?.close ?? null;
 
     let opened = 0;
     let closedN = 0;
     for (const def of RSI_VOLUME_STRATEGIES) {
-      const config = await this.repo.getConfig(def.id, {
+      const id = def.id;
+      const config = await this.repo.getConfig(id, {
         name: def.name,
         timeframe: def.timeframe,
         rrPlanned: def.rr,
@@ -107,30 +124,29 @@ export class RsiVolumePaperEngineService implements OnModuleInit {
       });
 
       // 1) Manage this strategy's open trade(s).
-      for (const trade of await this.repo.findOpen(def.id)) {
+      for (const trade of await this.repo.findOpen(id, sym.symbol)) {
         if (await this.manage(def, trade, price)) closedN += 1;
       }
 
       // 2) Flat → does the last closed candle fire?
-      if (!config.enabled || (await this.repo.findOpen(def.id)).length > 0) continue;
+      if (!config.enabled || (await this.repo.findOpen(id, sym.symbol)).length > 0) continue;
       const candles = all[def.timeframe]!;
       const ltf = onlyClosed(candles);
       const i = ltf.length - 1;
       const sig = ltf[i];
       if (!sig || now - sig.closeT > TF_MS[def.timeframe]!) continue; // stale data — skip
-      const last = await this.repo.findLastClosed(def.id);
+      const last = await this.repo.findLastClosed(id, sym.symbol);
       if (last?.closedAt && sig.closeT <= last.closedAt.getTime()) continue; // signal must come after the last exit
 
-      const ctx = { ltf, ltfRsi: wilderRsi(ltf.map((c) => c.close), def.rsiPeriod), h1, h1Rsi, d1, d1Rsi };
-      if (!firesAt(def, ctx, i)) continue;
+      if (!firesAt(def, buildContext(def, ltf, h1, d1), i)) continue;
 
       const next = candles.find((c) => c.t === sig.closeT + 1);
       const entry = next?.open ?? sig.close;
       const { stop, takeProfit, risk } = levelsFor(def, entry);
       try {
         const created = await this.repo.create({
-          strategyId: def.id,
-          symbol: SYMBOL,
+          strategyId: id,
+          symbol: sym.symbol,
           timeframe: def.timeframe,
           tradeDate: new Date(sig.t).toISOString().slice(0, 10),
           direction: def.direction,
@@ -149,36 +165,48 @@ export class RsiVolumePaperEngineService implements OnModuleInit {
           lastCheckedAt: new Date(),
         });
         opened += 1;
-        this.logger.log(`[${def.id}] opened ${def.direction} @ ${entry.toFixed(1)} SL ${stop.toFixed(1)} TP ${takeProfit.toFixed(1)}`);
+        this.logger.log(`[${id} ${sym.short}] opened ${def.direction} @ ${entry.toFixed(1)} SL ${stop.toFixed(1)} TP ${takeProfit.toFixed(1)}`);
         this.board.renderAndAttachEntryChart(created.id).catch((e) =>
           this.logger.warn(`chart render failed for ${created.id}: ${e instanceof Error ? e.message : e}`),
         );
       } catch (e) {
         // Unique (strategyId, openedAt, direction) → this candle was already taken by an overlapping tick.
-        this.logger.warn(`[${def.id}] open skipped: ${e instanceof Error ? e.message : e}`);
+        this.logger.warn(`[${id} ${sym.short}] open skipped: ${e instanceof Error ? e.message : e}`);
       }
     }
     return { opened, closed: closedN };
   }
 
-  /** Walk closed candles from the entry candle on; SL is checked before TP inside a candle. */
+  /** Walk closed candles from the entry candle on with `stepPosition` (SL before TP inside a candle). */
   private async manage(def: RsiVolumeStrategyDef, trade: TradeRow, price: number | null): Promise<boolean> {
     const tfMs = TF_MS[trade.timeframe] ?? TF_MS[def.timeframe]!;
     const openedMs = trade.openedAt.getTime();
-    // Candles before lastCheckedAt were already checked without a hit; re-check a small overlap.
-    const from = Math.max(openedMs, (trade.lastCheckedAt?.getTime() ?? openedMs) - 3 * tfMs);
-    const candles = (await this.fetch(trade.timeframe as AnalysisTimeframe, 1000, from)).filter(
-      (c) => c.t >= openedMs && c.closeT <= Date.now(),
+    // Candles before lastCheckedAt were already checked without a hit; re-check a small overlap —
+    // unless the stop was already moved (breakeven), since those older candles predate the move.
+    const moved = trade.stopLoss !== trade.initialStopLoss;
+    const checkedMs = trade.lastCheckedAt?.getTime() ?? openedMs;
+    const from = Math.max(openedMs, moved ? checkedMs : checkedMs - 3 * tfMs);
+    const candles = (await this.fetch(trade.symbol, trade.timeframe as AnalysisTimeframe, 1000, from)).filter(
+      (c) => c.t >= from && c.closeT <= Date.now(),
     );
     const long = trade.direction === 'LONG';
-    let exit: { price: number; reason: 'TP' | 'SL'; at: number } | null = null;
+    const pos = {
+      direction: long ? ('LONG' as const) : ('SHORT' as const),
+      entryPrice: trade.entryPrice,
+      initialStopLoss: trade.initialStopLoss,
+      stopLoss: trade.stopLoss,
+      takeProfit: trade.takeProfit,
+      openedAt: openedMs,
+    };
+    let exit: { price: number; reason: ExitReason; at: number } | null = null;
     for (const c of candles) {
-      if (long ? c.low <= trade.stopLoss : c.high >= trade.stopLoss) { exit = { price: trade.stopLoss, reason: 'SL', at: c.closeT }; break; }
-      if (long ? c.high >= trade.takeProfit : c.low <= trade.takeProfit) { exit = { price: trade.takeProfit, reason: 'TP', at: c.closeT }; break; }
+      const step = stepPosition(def, pos, c);
+      if (step.exit) { exit = step.exit; break; }
+      pos.stopLoss = step.stopLoss;
     }
     const checkedUpTo = candles.length ? new Date(candles[candles.length - 1]!.closeT + 1) : trade.lastCheckedAt ?? new Date(openedMs);
     if (!exit) {
-      await this.repo.update(trade.id, { lastPrice: price, lastCheckedAt: checkedUpTo });
+      await this.repo.update(trade.id, { stopLoss: pos.stopLoss, lastPrice: price, lastCheckedAt: checkedUpTo });
       return false;
     }
     const dirSign = long ? 1 : -1;
@@ -186,7 +214,7 @@ export class RsiVolumePaperEngineService implements OnModuleInit {
     const fee = (trade.quantity * trade.entryPrice + trade.quantity * exit.price) * FEE_PCT;
     const pnl = gross - fee;
     await this.repo.update(trade.id, {
-      status: exit.reason === 'TP' ? 'CLOSED_TP' : 'CLOSED_SL',
+      status: `CLOSED_${exit.reason}`,
       exitPrice: exit.price,
       exitReason: exit.reason,
       pnlUsd: pnl,
@@ -195,7 +223,7 @@ export class RsiVolumePaperEngineService implements OnModuleInit {
       lastPrice: price,
       lastCheckedAt: new Date(),
     });
-    this.logger.log(`[${def.id}] closed ${trade.direction} ${exit.reason} @ ${exit.price.toFixed(1)} → ${(pnl / trade.riskUsd).toFixed(2)}R`);
+    this.logger.log(`[${trade.strategyId} ${trade.symbol}] closed ${trade.direction} ${exit.reason} @ ${exit.price.toFixed(1)} → ${(pnl / trade.riskUsd).toFixed(2)}R`);
     this.board.renderAndAttachEntryChart(trade.id).catch((e) =>
       this.logger.warn(`close-chart render failed for ${trade.id}: ${e instanceof Error ? e.message : e}`),
     );

@@ -25,12 +25,16 @@ const STATUS_LABEL: Record<StrategyPaperTrade['status'], string> = {
   CLOSED_TP: 'Chạm chốt lời',
   CLOSED_SL: 'Dính cắt lỗ',
   CLOSED_EOD: 'Đóng cuối ngày',
+  CLOSED_BE: 'Hoà vốn',
+  CLOSED_TIME: 'Hết thời gian giữ',
 };
 const STATUS_COLOR: Record<StrategyPaperTrade['status'], string> = {
   OPEN: '#2563eb',
   CLOSED_TP: '#16a34a',
   CLOSED_SL: '#dc2626',
   CLOSED_EOD: '#6b7280',
+  CLOSED_BE: '#6b7280',
+  CLOSED_TIME: '#6b7280',
 };
 
 function fmtUsd(n: number | null): string {
@@ -126,7 +130,7 @@ function strategyTag(name: string): string {
 function StrategyBadge({ trade }: { trade: StrategyPaperTrade }) {
   return (
     <span title={trade.strategyName} style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: '#eef2ff', color: '#4338ca', whiteSpace: 'nowrap' }}>
-      {strategyTag(trade.strategyName)} · {trade.timeframe}
+      {trade.symbol.replace(/USDT$/, '')} · {strategyTag(trade.strategyName)} · {trade.timeframe}
     </span>
   );
 }
@@ -145,12 +149,12 @@ function StrategyCard({ s, active, onSelect, onDoc }: { s: StrategyPaperStrategy
         {!s.enabled && <span style={{ fontSize: 11, color: '#dc2626', whiteSpace: 'nowrap' }}>● tắt</span>}
       </div>
       <div style={{ fontSize: 12, color: '#6b7280' }}>
-        <b style={{ color: sideColor }}>{side}</b> · khung {s.timeframe} · TP {s.rrPlanned}R · rủi ro {s.riskUsd}$
+        <b style={{ color: sideColor }}>{side}</b> · {s.symbols?.length ? `${s.symbols.join(', ')} · ` : ''}khung {s.timeframe} · {s.tpNote ?? `TP ${s.rrPlanned}R`} · rủi ro {s.riskUsd}$
       </div>
       <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.4 }}>{s.rules}</div>
       {s.backtest && (
         <div style={{ fontSize: 12, color: '#6b7280' }}>
-          Backtest: WR <b>{s.backtest.winRate}%</b> · {s.backtest.perDay} lệnh/ngày · +{s.backtest.totalR}R
+          {s.backtest.summary ?? <>Backtest: WR <b>{s.backtest.winRate}%</b> · {s.backtest.perDay} lệnh/ngày · +{s.backtest.totalR}R</>}
         </div>
       )}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13, borderTop: '1px dashed #e5e7eb', paddingTop: 6 }}>

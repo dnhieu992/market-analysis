@@ -7,6 +7,8 @@ import { BinanceMarketDataService } from '../market/binance-market-data.service'
 import { StorageService } from '../storage/storage.service';
 import { renderSetupChart, SETUP_CHART_TF_CONFIG, type OhlcCandle } from '../bitget/setup-chart-renderer';
 import { RSI_VOLUME_STRATEGIES, defaultDocFor } from './rsi-volume-strategies';
+import { PAPER_SYMBOLS, type PaperSymbol } from './paper-symbols';
+import { pdhlSignal, prevDayLevels } from './pdhl-rules';
 
 const SYMBOL = 'BTCUSDT';
 const TF: AnalysisTimeframe = '1h';
@@ -85,7 +87,11 @@ export type StrategyPaperNoteDto = {
 export type StrategyPaperStrategyDto = StrategyPaperConfigDto & {
   direction: 'LONG' | 'SHORT' | 'BOTH';
   rules: string;
-  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string } | null;
+  backtest: { trades: number; perDay: number; winRate: number; totalR: number; byYear: string; summary?: string } | null;
+  /** Replaces the "TP xR" label when the target is not a fixed R multiple. */
+  tpNote?: string;
+  /** Coins the strategy runs on (short names, e.g. BTC, ETH). */
+  symbols: string[];
   openCount: number;
   stats: StrategyPaperTradeStats;
 };
@@ -144,24 +150,8 @@ export class StrategyPaperTradesService implements OnModuleInit {
 
   // ---------------- engine ----------------
 
-  private atr14(c: Candle[]): number[] {
-    const out = new Array(c.length).fill(NaN);
-    const tr = new Array(c.length).fill(0);
-    for (let i = 1; i < c.length; i += 1) {
-      const cur = c[i]!;
-      const prev = c[i - 1]!;
-      tr[i] = Math.max(cur.high - cur.low, Math.abs(cur.high - prev.close), Math.abs(cur.low - prev.close));
-    }
-    const p = 14;
-    if (c.length <= p) return out;
-    let a = tr.slice(1, p + 1).reduce((x: number, y: number) => x + y, 0) / p;
-    out[p] = a;
-    for (let i = p + 1; i < c.length; i += 1) { a = (a * (p - 1) + tr[i]) / p; out[i] = a; }
-    return out;
-  }
-
-  private async fetchCandles(): Promise<Candle[]> {
-    const raw = await this.binance.fetchKlines({ symbol: SYMBOL, timeframe: TF, limit: KLINE_LIMIT });
+  private async fetchCandles(symbol = SYMBOL): Promise<Candle[]> {
+    const raw = await this.binance.fetchKlines({ symbol, timeframe: TF, limit: KLINE_LIMIT });
     return raw.map((k) => ({
       t: Number(k[0]),
       open: parseFloat(String(k[1])),
@@ -172,33 +162,42 @@ export class StrategyPaperTradesService implements OnModuleInit {
     }));
   }
 
-  /** Previous UTC day's high/low relative to a given day index, from the candles. */
-  private prevDayLevels(closed: Candle[], dayIdx: number): { pdh: number; pdl: number } | null {
-    let hi = -Infinity, lo = Infinity, found = false;
-    for (const c of closed) {
-      if (utcDayIndex(c.t) === dayIdx - 1) { found = true; if (c.high > hi) hi = c.high; if (c.low < lo) lo = c.low; }
-    }
-    return found ? { pdh: hi, pdl: lo } : null;
-  }
-
   /**
    * One engine tick: manage every OPEN trade against the closed candles (SL / TP / end-of-day),
    * then, if flat, look at the most recent CLOSED 1h candle for a fresh PDH/PDL breakout.
    */
   async runScanTick(): Promise<{ opened: number; closed: number; price: number | null }> {
+    let opened = 0;
+    let closedN = 0;
+    let btcPrice: number | null = null;
+    for (const sym of PAPER_SYMBOLS) {
+      try {
+        const r = await this.runPdhlTick(sym);
+        opened += r.opened;
+        closedN += r.closed;
+        if (sym.symbol === SYMBOL) btcPrice = r.price;
+      } catch (e) {
+        this.logger.warn(`[${sym.symbol}] PDH/PDL tick failed: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    return { opened, closed: closedN, price: btcPrice };
+  }
+
+  /** One PDH/PDL tick on one coin — the strategy's single config, one open trade per coin. */
+  private async runPdhlTick(sym: PaperSymbol): Promise<{ opened: number; closed: number; price: number | null }> {
+    const strategyId = PDHL_STRATEGY_ID;
     const config = await this.repo.getConfig(PDHL_STRATEGY_ID);
-    const candles = await this.fetchCandles();
+    const candles = await this.fetchCandles(sym.symbol);
     if (candles.length < 60) return { opened: 0, closed: 0, price: null };
 
     const now = Date.now();
     const closed = candles.filter((c) => c.closeT <= now);
     const price = candles[candles.length - 1]?.close ?? null;
-    const atr = this.atr14(closed);
     let openedCount = 0;
     let closedCount = 0;
 
     // 1) Manage open trades.
-    const open = await this.repo.findOpen(PDHL_STRATEGY_ID);
+    const open = await this.repo.findOpen(strategyId, sym.symbol);
     for (const trade of open) {
       const res = this.simulateOpenTrade(trade, closed);
       if (res.exit) {
@@ -227,9 +226,9 @@ export class StrategyPaperTradesService implements OnModuleInit {
     }
 
     // 2) Only look for a new entry if we are flat (one position at a time, as backtested).
-    const stillOpen = await this.repo.findOpen(PDHL_STRATEGY_ID);
+    const stillOpen = await this.repo.findOpen(strategyId, sym.symbol);
     if (config.enabled && stillOpen.length === 0) {
-      openedCount += await this.tryOpenFromLastClosed(closed, atr, config.riskUsd, config.rrPlanned, price);
+      openedCount += await this.tryOpenFromLastClosed(closed, config.riskUsd, config.rrPlanned, price, strategyId, sym.symbol);
     }
 
     return { opened: openedCount, closed: closedCount, price };
@@ -265,28 +264,18 @@ export class StrategyPaperTradesService implements OnModuleInit {
     return { exit: null };
   }
 
-  private async tryOpenFromLastClosed(closed: Candle[], atr: number[], riskUsd: number, rr: number, price: number | null): Promise<number> {
-    const i = closed.length - 1;
-    const sig = closed[i];
-    if (!sig) return 0;
-    const dayIdx = utcDayIndex(sig.t);
-    // Don't open in the last hour of the day — no room to run before the forced EOD close.
-    const hourOfDay = Math.floor((sig.t % 864e5) / 36e5);
-    if (hourOfDay >= 23) return 0;
-
-    const lv = this.prevDayLevels(closed, dayIdx);
-    if (!lv) return 0;
-    const atrHere = atr[i];
-    const a = atrHere != null && Number.isFinite(atrHere) ? atrHere : sig.close * 0.003;
-
-    let direction: 'LONG' | 'SHORT' | null = null;
-    let stop = 0;
-    if (sig.close > lv.pdh) { direction = 'LONG'; stop = Math.min(sig.low, lv.pdl) - 0.1 * a; }
-    else if (sig.close < lv.pdl) { direction = 'SHORT'; stop = Math.max(sig.high, lv.pdh) + 0.1 * a; }
-    if (!direction) return 0;
+  private async tryOpenFromLastClosed(
+    closed: Candle[], riskUsd: number, rr: number, price: number | null,
+    strategyId = PDHL_STRATEGY_ID, symbol = SYMBOL,
+  ): Promise<number> {
+    const sig = closed[closed.length - 1];
+    // Breakout of yesterday's range; no entry in the last hour of the day (see pdhl-rules.ts).
+    const signal = sig ? pdhlSignal(closed) : null;
+    if (!sig || !signal) return 0;
+    const { direction, stop, ...lv } = signal;
 
     const tradeDate = utcDayStr(sig.t);
-    const dup = await this.repo.findByDateDirection(PDHL_STRATEGY_ID, tradeDate, direction);
+    const dup = await this.repo.findByDateDirection(strategyId, tradeDate, direction, symbol);
     if (dup) return 0; // this side already taken today
 
     const entry = sig.close; // next-bar open ≈ signal close on 1h
@@ -296,8 +285,8 @@ export class StrategyPaperTradesService implements OnModuleInit {
     const quantity = riskUsd / risk;
 
     const created = await this.repo.create({
-      strategyId: PDHL_STRATEGY_ID,
-      symbol: SYMBOL,
+      strategyId,
+      symbol,
       timeframe: '1h',
       tradeDate,
       direction,
@@ -315,7 +304,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
       lastPrice: price,
       lastCheckedAt: new Date(),
     });
-    this.logger.log(`opened ${direction} @ ${entry.toFixed(1)} SL ${stop.toFixed(1)} TP ${takeProfit.toFixed(1)} (PDH ${lv.pdh.toFixed(0)} / PDL ${lv.pdl.toFixed(0)})`);
+    this.logger.log(`[${strategyId} ${symbol}] opened ${direction} @ ${entry.toFixed(1)} SL ${stop.toFixed(1)} TP ${takeProfit.toFixed(1)} (PDH ${lv.pdh.toFixed(0)} / PDL ${lv.pdl.toFixed(0)})`);
     // Render the 1h setup chart AFTER the entry is saved — never block or fail the entry over it.
     this.renderAndAttachEntryChart(created.id).catch((e) =>
       this.logger.warn(`chart render failed for ${created.id}: ${e instanceof Error ? e.message : e}`),
@@ -432,23 +421,36 @@ export class StrategyPaperTradesService implements OnModuleInit {
     const names = new Map(configs.map((c) => [c.id, c.name]));
     let price: number | null = null;
     let levels: { pdh: number; pdl: number; day: string } | null = null;
+    const prices = new Map<string, number | null>();
+    await Promise.all(
+      PAPER_SYMBOLS.filter((s) => s.symbol !== SYMBOL).map(async (s) => {
+        try {
+          const raw = await this.binance.fetchKlines({ symbol: s.symbol, timeframe: TF, limit: 2 });
+          prices.set(s.symbol, raw.length ? parseFloat(String(raw[raw.length - 1]![4])) : null);
+        } catch {
+          prices.set(s.symbol, null);
+        }
+      }),
+    );
     try {
       const candles = await this.fetchCandles();
       const closed = candles.filter((c) => c.closeT <= Date.now());
       price = candles[candles.length - 1]?.close ?? null;
       const today = utcDayIndex(Date.now());
-      const lv = this.prevDayLevels(closed, today);
+      const lv = prevDayLevels(closed, today);
       if (lv) levels = { ...lv, day: utcDayStr(Date.now() - 864e5) };
     } catch (e) {
       this.logger.warn(`live price/levels unavailable (non-fatal): ${e instanceof Error ? e.message : e}`);
     }
 
-    const dtos = rows.map((r) => this.toDto(r, price, names.get(r.strategyId) ?? r.strategyId));
+    prices.set(SYMBOL, price);
+    const dtos = rows.map((r) => this.toDto(r, prices.get(r.symbol) ?? null, names.get(r.strategyId) ?? r.strategyId));
     const openTrades = dtos.filter((t) => t.status === 'OPEN');
     const history = dtos.filter((t) => t.status !== 'OPEN');
 
     const strategies: StrategyPaperStrategyDto[] = configs.map((c) => {
       const def = RSI_VOLUME_STRATEGIES.find((d) => d.id === c.id);
+      const symbols = PAPER_SYMBOLS.map((s) => s.short);
       return {
         ...this.toConfigDto(c),
         direction: def ? def.direction : 'BOTH',
@@ -456,6 +458,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
           ? def.rules
           : '1h đóng cửa vượt đỉnh/thủng đáy ngày hôm trước · SL phía đối diện biên hôm qua · TP 2R · đóng cuối ngày',
         backtest: def ? def.backtest : null,
+        symbols,
         openCount: openTrades.filter((t) => t.strategyId === c.id).length,
         stats: this.computeStats(history.filter((t) => t.strategyId === c.id)),
       };
@@ -517,7 +520,8 @@ export class StrategyPaperTradesService implements OnModuleInit {
   /** Reset the editable doc back to the built-in default. */
   async resetDoc(strategyId = PDHL_STRATEGY_ID): Promise<StrategyPaperConfigDto> {
     const def = RSI_VOLUME_STRATEGIES.find((d) => d.id === strategyId);
-    return this.updateDoc({ strategyId, docMarkdown: def ? defaultDocFor(def) : DEFAULT_STRATEGY_DOC });
+    const doc = def ? defaultDocFor(def) : DEFAULT_STRATEGY_DOC;
+    return this.updateDoc({ strategyId, docMarkdown: doc });
   }
 
   // ---------------- trading-log notes ----------------

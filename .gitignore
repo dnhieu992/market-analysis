@@ -31,3 +31,6 @@ backups/
 # from absolute paths in the working tree (git pull never touches untracked files).
 claude-cron/
 docs/features/portfolio-daily-review/
+
+# Backtest kline caches (re-fetched by the scripts)
+claude-backtest/data/
