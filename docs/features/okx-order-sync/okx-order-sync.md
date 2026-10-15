@@ -28,8 +28,17 @@ same false-close protection. Read-only: only GET calls, never places or cancels 
 - **First-run anchor** is skipped if the positions fetch failed, so the baseline is never captured
   from an incomplete set.
 - **Net vs long/short mode**: side comes from `posSide` when explicit, else the sign of `pos`.
-- **posId re-open**: a live position whose stored Order is `closed` is reconciled back to open and
-  its stale close fields cleared.
+- **OKX recycles `posId`**: every new position on the same instrument + side reuses the old posId,
+  so `okx-<posId>` is NOT unique per trade. Two cases are handled:
+  - stored Order is `closed` and the live position opened at/after its `closedAt` → it's a new trade:
+    the closed row is archived under `okx-<posId>-<closedAtMs>` and a fresh open Order is created.
+    (Before 2026-10-15 the closed row was flipped back to open and overwritten — the closed trade
+    vanished from /trades history.) Only a live position that *predates* the close (a false close)
+    reopens the row.
+  - stored Order is still `open` but the live position's `cTime` is later than its `openedAt` →
+    `positions-history` is checked for a close of this posId in between; if found, the old row is
+    closed with that close price/PnL, archived, and the new position ingested (close + re-open
+    within one 5-min sync window). No close found → normal size/entry reconcile (manual-linked rows).
 - **Baseline vs. reconcile**: the baseline only suppresses *creating* new orders for pre-existing
   positions. If an order already exists for a baselined position's externalId (e.g. a manual order
   linked to it), it is still reconciled — so adding volume to a baselined position updates the row
@@ -47,6 +56,7 @@ Signing: base64 HMAC-SHA256 over `ISO-timestamp + "GET" + requestPath(+query)`; 
 
 ## Related Files (Worker / DB)
 - `apps/worker/src/modules/okx-history/okx-history.service.ts` — the sync engine (fetch/anchor/insert/close)
+- `apps/worker/test/okx-history.service.spec.ts` — recycled-posId cases (closed → new trade, close+reopen between syncs, manual-link reconcile)
 - `apps/worker/src/modules/okx-history/okx-history.module.ts` — Nest module
 - `apps/worker/src/modules/scheduler/scheduler.service.ts` — `runOkxOrderSync` cron + DI
 - `apps/worker/src/modules/scheduler/scheduler.module.ts` — imports `OkxHistoryModule`

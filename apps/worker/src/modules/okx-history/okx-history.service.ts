@@ -103,6 +103,12 @@ function qtyEq(a: number | null | undefined, b: number): boolean {
   return Math.abs(a - b) <= Math.max(1e-8, Math.abs(b) * 1e-6);
 }
 
+/** Unique key for a closed row whose posId OKX has handed to a newer position
+ *  (fits the VarChar(64) column: "okx-" + 19-digit posId + "-" + 13-digit ms). */
+function archivedExternalId(externalId: string, closedAtMs: number): string {
+  return `${externalId}-${Math.round(closedAtMs)}`;
+}
+
 function sideOf(direction?: string, signedPos = 0): 'long' | 'short' | null {
   const s = (direction ?? '').toLowerCase();
   if (s === 'long' || s === 'short') return s;
@@ -195,8 +201,19 @@ export class OkxHistoryService implements OnModuleInit {
         if (!existing && baseline.has(pos.externalId)) continue;
         if (existing) {
           if (existing.status === 'closed') {
-            // Reported live NOW but our row is closed (e.g. same posId re-opened) —
-            // reconcile back to open and clear the stale close fields.
+            // OKX REUSES posId for every new position on the same instrument+side, so a
+            // live posId whose row is already closed is normally a brand-new trade:
+            // archive the closed row under a unique key and ingest the new one fresh.
+            const closedAtMs = existing.closedAt ? existing.closedAt.getTime() : NaN;
+            if (Number.isFinite(closedAtMs) && pos.openedAtMs >= closedAtMs - 5_000) {
+              await this.orderRepo.update(existing.id, {
+                externalId: archivedExternalId(pos.externalId, closedAtMs),
+              });
+              await this.createOrder(pos);
+              opened++;
+              continue;
+            }
+            // Live position predates our close → it was a false close; reopen the row.
             await this.orderRepo.update(existing.id, {
               status: 'open',
               closePrice: null,
@@ -210,6 +227,26 @@ export class OkxHistoryService implements OnModuleInit {
             opened++;
             continue;
           }
+          // Same posId but a later open time: the old position was closed and a new
+          // one opened between two syncs. Close + archive the old row, ingest the new.
+          if (pos.openedAtMs > existing.openedAt.getTime() + 1_000) {
+            const cycle = await this.findCycleClose(pos, existing.openedAt.getTime()).catch((err) => {
+              this.logger.warn(`OKX cycle lookup failed for ${pos.symbol}: ${(err as Error).message}`);
+              return null;
+            });
+            if (cycle) {
+              await this.orderRepo.update(existing.id, {
+                externalId: archivedExternalId(pos.externalId, cycle.closedAt.getTime()),
+                status: 'closed',
+                closePrice: cycle.closePrice ?? undefined,
+                pnl: cycle.pnl ?? undefined,
+                closedAt: cycle.closedAt,
+              });
+              await this.createOrder(pos);
+              opened++;
+              continue;
+            }
+          }
           const patch: Record<string, number> = {};
           if (!priceEq(existing.entryPrice, pos.entryPrice)) patch.entryPrice = pos.entryPrice;
           if (!qtyEq(existing.quantity, pos.quantity)) patch.quantity = pos.quantity;
@@ -220,20 +257,7 @@ export class OkxHistoryService implements OnModuleInit {
           }
           continue;
         }
-        await this.orderRepo.create({
-          source: 'okx',
-          externalId: pos.externalId,
-          symbol: pos.symbol,
-          side: pos.side,
-          entryPrice: pos.entryPrice,
-          quantity: pos.quantity,
-          leverage: pos.leverage ?? undefined,
-          exchange: EXCHANGE,
-          broker: BROKER,
-          orderType: 'perpetual',
-          status: 'open',
-          openedAt: new Date(pos.openedAtMs),
-        });
+        await this.createOrder(pos);
         opened++;
       }
 
@@ -273,6 +297,23 @@ export class OkxHistoryService implements OnModuleInit {
     } finally {
       this.syncing = false;
     }
+  }
+
+  private async createOrder(pos: LivePosition): Promise<void> {
+    await this.orderRepo.create({
+      source: 'okx',
+      externalId: pos.externalId,
+      symbol: pos.symbol,
+      side: pos.side,
+      entryPrice: pos.entryPrice,
+      quantity: pos.quantity,
+      leverage: pos.leverage ?? undefined,
+      exchange: EXCHANGE,
+      broker: BROKER,
+      orderType: 'perpetual',
+      status: 'open',
+      openedAt: new Date(pos.openedAtMs),
+    });
   }
 
   // ── Fetch: live positions ─────────────────────────────────────────────────
@@ -356,6 +397,34 @@ export class OkxHistoryService implements OnModuleInit {
           ? rawPnl
           : this.pnlFromPrices(order, closePrice),
       closedAt: Number.isFinite(closedAtMs) && closedAtMs > 0 ? new Date(closedAtMs) : new Date(),
+    };
+  }
+
+  /**
+   * A close of this posId in `positions-history` after the tracked row opened and
+   * no later than the live position's open — proof the posId was recycled.
+   */
+  private async findCycleClose(
+    pos: LivePosition,
+    trackedOpenMs: number,
+  ): Promise<{ closePrice: number | null; pnl: number | null; closedAt: Date } | null> {
+    const posId = pos.externalId.replace('okx-', '');
+    const rows = await this.signedGet<ClosedRaw[] | null>(POSITIONS_HISTORY_PATH, {
+      instType: INST_TYPE,
+      instId: toOkxInstId(pos.symbol),
+    });
+    const match = (rows ?? []).find((r) => {
+      const u = num(r.uTime);
+      return String(r.posId ?? '') === posId && u > trackedOpenMs && u <= pos.openedAtMs;
+    });
+    if (!match) return null;
+    const closePrice = num(match.closeAvgPx);
+    const reported = num(match.realizedPnl);
+    const rawPnl = num(match.pnl);
+    return {
+      closePrice: closePrice > 0 ? closePrice : null,
+      pnl: Number.isFinite(reported) ? reported : Number.isFinite(rawPnl) ? rawPnl : null,
+      closedAt: new Date(num(match.uTime)),
     };
   }
 
