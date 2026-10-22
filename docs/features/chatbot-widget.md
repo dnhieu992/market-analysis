@@ -134,11 +134,10 @@ của user chạy pm2 — `root`). Nếu hết hạn login: SSH vào và chạy 
 
 - `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` bị loại khỏi env của subprocess để luôn dùng subscription.
 - Built-in tools của Claude Code (Bash, Read, Write…) bị tắt; `settingSources: []` nên không load `~/.claude` settings/CLAUDE.md.
-- `generateTitle` dùng model `haiku`.
+- Model chat cố định `claude-opus-5-5` (không đọc `CLAUDE_MODEL` — biến đó dùng chung với các call API trả phí của worker). `generateTitle` dùng `haiku`.
 
 **Env vars:**
 ```env
-CLAUDE_MODEL=claude-sonnet-4-6   # optional, alias (sonnet/opus/haiku) hoặc full model ID; default: sonnet
 CLAUDE_CODE_PATH=/root/.nvm/versions/node/v25.9.0/bin/claude   # optional, mặc định dùng binary đi kèm SDK
 ```
 

@@ -21,9 +21,8 @@ const MCP_SERVER_NAME = 'trading';
 const MAX_TOOL_ITERATIONS = 5;
 const QUERY_TIMEOUT_MS = 5 * 60 * 1000;
 
-function resolveModel(): string {
-  return process.env.CLAUDE_MODEL ?? 'sonnet';
-}
+// Pinned on purpose: CLAUDE_MODEL is shared with the worker's paid API calls, so it must not drive this.
+const CHAT_MODEL = 'claude-opus-5-5';
 
 // ESM-only package — load lazily so the CommonJS build (and jest) only touch it at call time.
 const loadSdk = () => import('@anthropic-ai/claude-agent-sdk');
@@ -86,12 +85,7 @@ function buildEnv(): Record<string, string> {
 @Injectable()
 export class ClaudeChatProvider extends ChatProvider {
   private readonly logger = new Logger(ClaudeChatProvider.name);
-  private readonly model: string;
-
-  constructor() {
-    super();
-    this.model = resolveModel();
-  }
+  private readonly model = CHAT_MODEL;
 
   /** Simple chat (no tools) — satisfies ChatProvider contract */
   async chat(messages: readonly ChatMessage[]) {
