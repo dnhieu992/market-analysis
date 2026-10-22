@@ -128,24 +128,25 @@ model ConversationMessage {
 
 ### Provider: `ClaudeChatProvider`
 
-Gọi trực tiếp `https://api.anthropic.com/v1/messages` bằng raw fetch (không dùng SDK).
+Chạy qua **Claude Code** (`@anthropic-ai/claude-agent-sdk`), **không dùng API key**. Mỗi request spawn một
+session Claude Code headless, xác thực bằng tài khoản claude.ai đã login trên VPS (`~/.claude/.credentials.json`
+của user chạy pm2 — `root`). Nếu hết hạn login: SSH vào và chạy `claude` → `/login`.
 
-**Env vars cần thiết:**
+- `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` bị loại khỏi env của subprocess để luôn dùng subscription.
+- Built-in tools của Claude Code (Bash, Read, Write…) bị tắt; `settingSources: []` nên không load `~/.claude` settings/CLAUDE.md.
+- `generateTitle` dùng model `haiku`.
+
+**Env vars:**
 ```env
-CLAUDE_API_KEY=sk-ant-...
-CLAUDE_MODEL=claude-sonnet-4-6   # full model ID, dùng trực tiếp
-LLM_PROVIDER=claude
+CLAUDE_MODEL=claude-sonnet-4-6   # optional, alias (sonnet/opus/haiku) hoặc full model ID; default: sonnet
+CLAUDE_CODE_PATH=/root/.nvm/versions/node/v25.9.0/bin/claude   # optional, mặc định dùng binary đi kèm SDK
 ```
-
-> `CLAUDE_MODEL` được đọc trực tiếp làm model ID (không map qua alias). Default fallback: `claude-sonnet-4-6`.
 
 ### Agentic Tool-Use Loop
 
-Khi Claude cần dữ liệu thị trường, nó trả về `stop_reason: "tool_use"`. Server tự động:
-1. Detect tool_use blocks trong response
-2. Execute tool (gọi Binance API)
-3. Gửi tool_result về Claude
-4. Lặp tối đa **5 vòng** cho đến khi Claude trả về `stop_reason: "end_turn"`
+Trading tools (`ChatToolRegistry`) được expose cho Claude Code qua một in-process MCP server (`mcp__trading__*`).
+Claude Code tự chạy vòng tool-use; `maxTurns` = 6 (tối đa ~5 vòng tool). Lịch sử hội thoại được replay
+dưới dạng transcript trong prompt (Claude Code nhận một prompt duy nhất mỗi lần gọi).
 
 ```
 User message → Claude
