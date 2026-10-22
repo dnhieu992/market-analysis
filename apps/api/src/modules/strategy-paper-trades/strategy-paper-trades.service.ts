@@ -9,6 +9,7 @@ import { renderSetupChart, SETUP_CHART_TF_CONFIG, type OhlcCandle } from '../bit
 import { RSI_VOLUME_STRATEGIES, defaultDocFor } from './rsi-volume-strategies';
 import { PAPER_SYMBOLS, type PaperSymbol } from './paper-symbols';
 import { pdhlSignal, prevDayLevels } from './pdhl-rules';
+import { SCALP_SKILL_DOC, SCALP_SKILL_STRATEGY, SCALP_SKILL_STRATEGY_ID } from './scalp-skill-strategy';
 
 const SYMBOL = 'BTCUSDT';
 const TF: AnalysisTimeframe = '1h';
@@ -53,6 +54,12 @@ export type StrategyPaperTradeDto = {
   unrealizedR: number | null;
   /** R2 URL of the 1h setup-chart snapshot at entry — null until rendered. */
   chartUrl: string | null;
+  /** Scalping-skill trades: order type, pending-order expiry and the partial TP1. */
+  orderType: string | null;
+  expiresAt: string | null;
+  takeProfit1: number | null;
+  tp1HitAt: string | null;
+  realizedPnlUsd: number | null;
 };
 
 export type StrategyPaperTradeStats = {
@@ -400,7 +407,13 @@ export class StrategyPaperTradesService implements OnModuleInit {
         }),
       );
     }
-    return [pdhl, ...others];
+    const scalp = await this.repo.getConfig(SCALP_SKILL_STRATEGY_ID, {
+      name: SCALP_SKILL_STRATEGY.name,
+      timeframe: SCALP_SKILL_STRATEGY.timeframe,
+      rrPlanned: SCALP_SKILL_STRATEGY.rr,
+      docMarkdown: SCALP_SKILL_DOC,
+    });
+    return [pdhl, ...others, scalp];
   }
 
   private computeStats(closed: StrategyPaperTradeDto[]): StrategyPaperTradeStats {
@@ -444,11 +457,38 @@ export class StrategyPaperTradesService implements OnModuleInit {
     }
 
     prices.set(SYMBOL, price);
+    // Scalping-skill trades can be on any coin — price the open ones the loop above didn't cover.
+    const extraSymbols = [...new Set(rows.filter((r) => r.status === 'OPEN' && !prices.has(r.symbol)).map((r) => r.symbol))];
+    if (extraSymbols.length > 0) {
+      try {
+        const live = await this.binance.fetchCurrentPrices(extraSymbols);
+        for (const sym of extraSymbols) prices.set(sym, live[sym] ?? null);
+      } catch (e) {
+        this.logger.warn(`live prices for ${extraSymbols.join(',')} unavailable: ${e instanceof Error ? e.message : e}`);
+      }
+    }
     const dtos = rows.map((r) => this.toDto(r, prices.get(r.symbol) ?? null, names.get(r.strategyId) ?? r.strategyId));
-    const openTrades = dtos.filter((t) => t.status === 'OPEN');
-    const history = dtos.filter((t) => t.status !== 'OPEN');
+    // PENDING = an accepted scalping LIMIT/STOP order still waiting for its entry.
+    const isActive = (t: StrategyPaperTradeDto) => t.status === 'OPEN' || t.status === 'PENDING';
+    const openTrades = dtos.filter(isActive);
+    const history = dtos.filter((t) => !isActive(t));
+    // Cancelled / expired orders never traded — keep them in the list but out of the stats.
+    const traded = history.filter((t) => t.status !== 'CANCELLED' && t.status !== 'EXPIRED');
 
     const strategies: StrategyPaperStrategyDto[] = configs.map((c) => {
+      if (c.id === SCALP_SKILL_STRATEGY_ID) {
+        const coins = [...new Set(dtos.filter((t) => t.strategyId === c.id).map((t) => t.symbol.replace(/USDT$/, '')))];
+        return {
+          ...this.toConfigDto(c),
+          direction: 'BOTH' as const,
+          rules: SCALP_SKILL_STRATEGY.rules,
+          backtest: null,
+          tpNote: SCALP_SKILL_STRATEGY.tpNote,
+          symbols: coins.length > 0 ? coins : ['mọi coin'],
+          openCount: openTrades.filter((t) => t.strategyId === c.id).length,
+          stats: this.computeStats(traded.filter((t) => t.strategyId === c.id)),
+        };
+      }
       const def = RSI_VOLUME_STRATEGIES.find((d) => d.id === c.id);
       const symbols = PAPER_SYMBOLS.map((s) => s.short);
       return {
@@ -460,7 +500,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
         backtest: def ? def.backtest : null,
         symbols,
         openCount: openTrades.filter((t) => t.strategyId === c.id).length,
-        stats: this.computeStats(history.filter((t) => t.strategyId === c.id)),
+        stats: this.computeStats(traded.filter((t) => t.strategyId === c.id)),
       };
     });
 
@@ -472,7 +512,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
       openTrades,
       history,
       levels,
-      stats: this.computeStats(history),
+      stats: this.computeStats(traded),
     };
   }
 
@@ -494,7 +534,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
   }
 
   private isKnownStrategy(id: string): boolean {
-    return id === PDHL_STRATEGY_ID || RSI_VOLUME_STRATEGIES.some((d) => d.id === id);
+    return id === PDHL_STRATEGY_ID || id === SCALP_SKILL_STRATEGY_ID || RSI_VOLUME_STRATEGIES.some((d) => d.id === id);
   }
 
   async getDoc(strategyId = PDHL_STRATEGY_ID): Promise<StrategyPaperConfigDto> {
@@ -520,7 +560,7 @@ export class StrategyPaperTradesService implements OnModuleInit {
   /** Reset the editable doc back to the built-in default. */
   async resetDoc(strategyId = PDHL_STRATEGY_ID): Promise<StrategyPaperConfigDto> {
     const def = RSI_VOLUME_STRATEGIES.find((d) => d.id === strategyId);
-    const doc = def ? defaultDocFor(def) : DEFAULT_STRATEGY_DOC;
+    const doc = def ? defaultDocFor(def) : strategyId === SCALP_SKILL_STRATEGY_ID ? SCALP_SKILL_DOC : DEFAULT_STRATEGY_DOC;
     return this.updateDoc({ strategyId, docMarkdown: doc });
   }
 
@@ -566,9 +606,11 @@ export class StrategyPaperTradesService implements OnModuleInit {
     let unrealizedPnlUsd: number | null = null;
     let unrealizedR: number | null = null;
     if (isOpen && live != null) {
-      const gross = row.quantity * (live - row.entryPrice) * dirSign;
-      const fee = (row.quantity * row.entryPrice + row.quantity * live) * FEE_PCT;
-      unrealizedPnlUsd = gross - fee;
+      // After a partial TP1 only half the size is still running; the other half is already banked.
+      const qty = row.tp1HitAt ? row.quantity / 2 : row.quantity;
+      const gross = qty * (live - row.entryPrice) * dirSign;
+      const fee = (qty * row.entryPrice + qty * live) * FEE_PCT;
+      unrealizedPnlUsd = gross - fee + (row.tp1HitAt ? row.realizedPnlUsd ?? 0 : 0);
       unrealizedR = unrealizedPnlUsd / row.riskUsd;
     }
     return {
@@ -605,6 +647,11 @@ export class StrategyPaperTradesService implements OnModuleInit {
       unrealizedPnlUsd,
       unrealizedR,
       chartUrl: row.chartUrl ?? null,
+      orderType: row.orderType ?? null,
+      expiresAt: row.expiresAt?.toISOString() ?? null,
+      takeProfit1: row.takeProfit1 ?? null,
+      tp1HitAt: row.tp1HitAt?.toISOString() ?? null,
+      realizedPnlUsd: row.realizedPnlUsd ?? null,
     };
   }
 }

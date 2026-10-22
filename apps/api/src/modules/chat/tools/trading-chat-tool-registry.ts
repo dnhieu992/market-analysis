@@ -5,6 +5,7 @@ import type { ChatTool } from '../contracts/chat-tool';
 import { get24hTickerTool, getKlinesTool, getTickerPriceTool } from './binance.tool';
 import { analyzeMarketStructureTool } from './market-structure.tool';
 import { getScalpChartDataTool } from './scalp-chart.tool';
+import { createProposeTradeSetupTool } from './trade-setup.tool';
 
 @Injectable()
 export class TradingChatToolRegistry extends ChatToolRegistry {
@@ -13,7 +14,8 @@ export class TradingChatToolRegistry extends ChatToolRegistry {
     [getTickerPriceTool.name,          getTickerPriceTool],
     [get24hTickerTool.name,            get24hTickerTool],
     [analyzeMarketStructureTool.name,  analyzeMarketStructureTool],
-    [getScalpChartDataTool.name,       getScalpChartDataTool]
+    [getScalpChartDataTool.name,       getScalpChartDataTool],
+    ['propose_trade_setup',            createProposeTradeSetupTool()]
   ]);
 
   listTools(): readonly ChatTool[] {

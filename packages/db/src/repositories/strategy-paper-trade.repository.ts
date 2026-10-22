@@ -68,7 +68,8 @@ export type StrategyPaperTradeInput = Pick<
   | 'openedAt'
   | 'lastPrice'
   | 'lastCheckedAt'
->;
+> &
+  Partial<Pick<Prisma.StrategyPaperTradeUncheckedCreateInput, 'status' | 'orderType' | 'expiresAt' | 'takeProfit1'>>;
 
 export function createStrategyPaperTradeRepository(client = prisma) {
   return {
@@ -85,6 +86,14 @@ export function createStrategyPaperTradeRepository(client = prisma) {
       return client.strategyPaperTrade.findMany({
         where: { status: STRATEGY_PAPER_TRADE_OPEN_STATUS, ...(strategyId ? { strategyId } : {}), ...(symbol ? { symbol } : {}) },
         orderBy: { openedAt: 'asc' },
+      });
+    },
+
+    /** A strategy's trades in any of `statuses` (e.g. PENDING + OPEN for the scalping monitor). */
+    findByStatuses(strategyId: string, statuses: string[]) {
+      return client.strategyPaperTrade.findMany({
+        where: { strategyId, status: { in: statuses } },
+        orderBy: { createdAt: 'asc' },
       });
     },
 

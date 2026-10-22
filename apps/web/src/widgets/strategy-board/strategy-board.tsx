@@ -17,11 +17,14 @@ const MarkdownEditor = dynamic(
 
 const apiClient = createApiClient();
 
-/** Engines run every 5 min (RSI/volume) and hourly (PDH/PDL); the board re-reads every 60s. */
-const REFRESH_MS = 60_000;
+/** Engines run every minute (scalping skill), 5 min (RSI/volume) and hourly (PDH/PDL); the board re-reads every 30s. */
+const REFRESH_MS = 30_000;
 
 const STATUS_LABEL: Record<StrategyPaperTrade['status'], string> = {
   OPEN: 'Đang mở',
+  PENDING: 'Chờ khớp',
+  CANCELLED: 'Đã huỷ',
+  EXPIRED: 'Hết hạn (không khớp)',
   CLOSED_TP: 'Chạm chốt lời',
   CLOSED_SL: 'Dính cắt lỗ',
   CLOSED_EOD: 'Đóng cuối ngày',
@@ -30,6 +33,9 @@ const STATUS_LABEL: Record<StrategyPaperTrade['status'], string> = {
 };
 const STATUS_COLOR: Record<StrategyPaperTrade['status'], string> = {
   OPEN: '#2563eb',
+  PENDING: '#d97706',
+  CANCELLED: '#9ca3af',
+  EXPIRED: '#9ca3af',
   CLOSED_TP: '#16a34a',
   CLOSED_SL: '#dc2626',
   CLOSED_EOD: '#6b7280',
@@ -124,6 +130,7 @@ function ChartLink({ url, timeframe }: { url: string | null; timeframe: string }
 /** Short label of a strategy ("A", "B", … or "PDH/PDL") used as a badge on every trade. */
 function strategyTag(name: string): string {
   const m = name.match(/^([A-Z])\s·/);
+  if (name.startsWith('Scalping Skill')) return 'Scalp AI';
   return m ? m[1]! : name.startsWith('BTC — Phá') ? 'PDH/PDL' : name.slice(0, 12);
 }
 
@@ -534,15 +541,25 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
           {openTrades.map((t) => (
-            <div key={t.id} style={{ border: '1px solid #bfdbfe', background: '#f8fbff', borderRadius: 10, padding: 14 }}>
+            <div key={t.id} style={{ border: t.status === 'PENDING' ? '1px dashed #f59e0b' : '1px solid #bfdbfe', background: t.status === 'PENDING' ? '#fffbeb' : '#f8fbff', borderRadius: 10, padding: 14 }}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
                 <StrategyBadge trade={t} />
                 <DirBadge dir={t.direction} />
+                {t.status === 'PENDING' && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR.PENDING }}>⏳ Chờ khớp {t.orderType ?? ''}</span>
+                )}
                 <span style={{ fontSize: 13 }}>Vào <b>{fmtPrice(t.entryPrice)}</b></span>
-                <span style={{ fontSize: 13, color: '#dc2626' }}>Cắt lỗ {fmtPrice(t.stopLoss)}</span>
-                <span style={{ fontSize: 13, color: '#16a34a' }}>Chốt lời {fmtPrice(t.takeProfit)}</span>
-                <span style={{ fontSize: 13 }}>Đang lời/lỗ: <b style={{ color: pnlColor(t.unrealizedR) }}>{fmtR(t.unrealizedR)} ({fmtUsd(t.unrealizedPnlUsd)})</b></span>
-                <span style={{ marginLeft: 'auto', fontSize: 12, color: '#6b7280' }}>Mở lúc {fmtTime(t.openedAt)}</span>
+                <span style={{ fontSize: 13, color: '#dc2626' }}>Cắt lỗ {fmtPrice(t.stopLoss)}{t.tp1HitAt ? ' (hoà vốn)' : ''}</span>
+                {t.takeProfit1 != null && (
+                  <span style={{ fontSize: 13, color: '#16a34a' }}>TP1 {fmtPrice(t.takeProfit1)}{t.tp1HitAt ? ' ✓ đã chốt 50%' : ' (50%)'}</span>
+                )}
+                <span style={{ fontSize: 13, color: '#16a34a' }}>{t.takeProfit1 != null ? 'TP2' : 'Chốt lời'} {fmtPrice(t.takeProfit)}</span>
+                {t.status === 'PENDING' ? (
+                  <span style={{ fontSize: 13, color: '#6b7280' }}>Hết hạn lúc {fmtTime(t.expiresAt)}</span>
+                ) : (
+                  <span style={{ fontSize: 13 }}>Đang lời/lỗ: <b style={{ color: pnlColor(t.unrealizedR) }}>{fmtR(t.unrealizedR)} ({fmtUsd(t.unrealizedPnlUsd)})</b></span>
+                )}
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: '#6b7280' }}>{t.status === 'PENDING' ? 'Đặt lúc' : 'Mở lúc'} {fmtTime(t.openedAt)}</span>
               </div>
               <div style={{ fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span>{t.strategyName}{t.pdh != null && t.pdl != null ? ` · mốc hôm qua: đỉnh ${fmtPrice(t.pdh)} / đáy ${fmtPrice(t.pdl)}` : ''} · rủi ro {t.riskUsd}$</span>
@@ -584,7 +601,7 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
                   <td style={{ padding: '8px 10px' }}><DirBadge dir={t.direction} /></td>
                   <td style={{ padding: '8px 10px' }}>{fmtPrice(t.entryPrice)}</td>
                   <td style={{ padding: '8px 10px', color: '#dc2626' }}>{fmtPrice(t.stopLoss)}</td>
-                  <td style={{ padding: '8px 10px', color: '#16a34a' }}>{fmtPrice(t.takeProfit)}</td>
+                  <td style={{ padding: '8px 10px', color: '#16a34a' }}>{t.takeProfit1 != null ? <>{fmtPrice(t.takeProfit1)}{t.tp1HitAt ? ' ✓' : ''} / </> : null}{fmtPrice(t.takeProfit)}</td>
                   <td style={{ padding: '8px 10px' }}>{fmtPrice(t.exitPrice)}</td>
                   <td style={{ padding: '8px 10px', fontWeight: 700, color: pnlColor(t.rMultiple) }}>{fmtR(t.rMultiple)}<br /><span style={{ fontWeight: 400, fontSize: 12 }}>{fmtUsd(t.pnlUsd)}</span></td>
                   <td style={{ padding: '8px 10px' }}><span style={{ color: STATUS_COLOR[t.status], fontWeight: 600, fontSize: 12 }}>{STATUS_LABEL[t.status]}</span></td>

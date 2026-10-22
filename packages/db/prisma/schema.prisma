@@ -1067,6 +1067,14 @@ model StrategyPaperTrade {
   // 1h setup-chart snapshot rendered right after entry and uploaded to R2 (null until rendered).
   chartUrl        String?   @db.Text
   chartObjectKey  String?   @db.VarChar(300)
+  // Trades accepted from a chat skill setup (strategyId "scalping-skill"); null for engine trades.
+  // A LIMIT/STOP order waits as PENDING until price reaches entryPrice, or EXPIRED at expiresAt.
+  orderType       String?   @db.VarChar(8) // MARKET | LIMIT | STOP
+  expiresAt       DateTime?
+  // Partial take profit: half the size closes at takeProfit1 and the stop moves to break-even.
+  takeProfit1     Float?
+  tp1HitAt        DateTime?
+  realizedPnlUsd  Float?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -1075,6 +1083,35 @@ model StrategyPaperTrade {
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@map("strategy_paper_trades")
+}
+
+// A trade setup a chat skill (e.g. Scalping) proposed through the propose_trade_setup tool.
+// Shown under the assistant message with Accept / Cancel; accepting creates a paper trade.
+model SkillTradeSetup {
+  id             String    @id @default(cuid())
+  conversationId String    @db.Char(36)
+  // Assistant message the setup belongs to — attached once the reply is saved.
+  messageId      String?   @db.Char(36)
+  skillId        String    @db.VarChar(50)
+  symbol         String    @db.VarChar(20)
+  direction      String    @db.VarChar(5) // LONG | SHORT
+  orderType      String    @db.VarChar(8) // MARKET | LIMIT | STOP
+  entryPrice     Float
+  stopLoss       Float
+  takeProfit1    Float
+  takeProfit2    Float?
+  setupType      String?   @db.VarChar(80)
+  confidence     String?   @db.VarChar(20)
+  note           String?   @db.Text
+  status         String    @default("PROPOSED") @db.VarChar(12) // PROPOSED | ACCEPTED | CANCELLED
+  paperTradeId   String?   @db.VarChar(30)
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([conversationId])
+  @@index([messageId])
+  @@map("skill_trade_setups")
 }
 
 // Singleton config + editable, plain-language description for the PDH/PDL strategy page.

@@ -380,6 +380,40 @@ export type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
+  /** Trade setups the skill proposed in this reply (Accept / Cancel cards). */
+  setups?: SkillTradeSetup[];
+};
+
+/** A trade setup proposed by a chat skill; accepting it opens a scalping-skill paper trade. */
+export type SkillTradeSetup = {
+  id: string;
+  conversationId: string;
+  messageId: string | null;
+  skillId: string;
+  symbol: string;
+  direction: 'LONG' | 'SHORT';
+  orderType: 'MARKET' | 'LIMIT' | 'STOP';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number | null;
+  setupType: string | null;
+  confidence: string | null;
+  note: string | null;
+  status: 'PROPOSED' | 'ACCEPTED' | 'CANCELLED';
+  paperTradeId: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  /** The paper trade created on Accept, with its live status. */
+  trade: {
+    id: string;
+    status: StrategyPaperTrade['status'];
+    entryPrice: number;
+    stopLoss: number;
+    exitPrice: number | null;
+    pnlUsd: number | null;
+    rMultiple: number | null;
+  } | null;
 };
 
 
@@ -1438,7 +1472,7 @@ export type StrategyPaperTrade = {
   timeframe: string;
   tradeDate: string;
   direction: 'LONG' | 'SHORT';
-  status: 'OPEN' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EOD' | 'CLOSED_BE' | 'CLOSED_TIME';
+  status: 'OPEN' | 'PENDING' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_EOD' | 'CLOSED_BE' | 'CLOSED_TIME' | 'CANCELLED' | 'EXPIRED';
   /** PDH/PDL strategy only. */
   pdh: number | null;
   pdl: number | null;
@@ -1465,6 +1499,12 @@ export type StrategyPaperTrade = {
   unrealizedPnlUsd: number | null;
   unrealizedR: number | null;
   chartUrl: string | null;
+  /** Scalping-skill trades: order type, pending-order expiry and the partial TP1 (50%). */
+  orderType: 'MARKET' | 'LIMIT' | 'STOP' | null;
+  expiresAt: string | null;
+  takeProfit1: number | null;
+  tp1HitAt: string | null;
+  realizedPnlUsd: number | null;
 };
 
 export type StrategyPaperTradeStats = {

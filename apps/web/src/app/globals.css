@@ -4680,6 +4680,54 @@ a.metric-card--link:hover {
   padding: 0 4px;
 }
 
+/* Skill trade setup cards (Accept / Cancel under an assistant reply) */
+.tsc-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.tsc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid #16a34a;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.tsc--short { border-left-color: #dc2626; }
+.tsc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tsc-dir { font-weight: 700; font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; color: #fff; }
+.tsc-dir--long { background: #16a34a; }
+.tsc-dir--short { background: #dc2626; }
+.tsc-symbol { font-weight: 700; }
+.tsc-order, .tsc-conf { color: var(--muted); font-size: 0.78rem; }
+.tsc-type { font-weight: 600; }
+.tsc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.tsc-grid > div { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 8px; background: var(--accent-soft); }
+.tsc-grid span { font-size: 0.7rem; color: var(--muted); }
+.tsc-grid small { font-size: 0.7rem; color: var(--muted); }
+.tsc-grid .tsc-loss b { color: #dc2626; }
+.tsc-grid .tsc-win b { color: #16a34a; }
+.tsc-note { color: var(--muted); font-size: 0.8rem; }
+.tsc-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tsc-btn {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.tsc-btn:disabled { opacity: 0.6; cursor: wait; }
+.tsc-btn--accept { background: #16a34a; color: #fff; }
+.tsc-btn--cancel { background: transparent; color: var(--foreground); border-color: var(--border); }
+.tsc-state { font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+.tsc-state--info { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+.tsc-state--win { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
+.tsc-state--loss { background: rgba(220, 38, 38, 0.12); color: #dc2626; }
+.tsc-state--muted { background: var(--accent-soft); color: var(--muted); }
+.tsc-link { font-size: 0.78rem; color: var(--accent); text-decoration: none; font-weight: 600; margin-left: auto; }
+.tsc-error { color: #dc2626; font-size: 0.78rem; }
+
 /* Typing indicator */
 .chat-typing {
   display: flex;

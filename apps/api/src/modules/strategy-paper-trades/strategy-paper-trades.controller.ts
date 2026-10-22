@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import type { AuthenticatedRequest } from '../auth/auth.types';
 import { Public } from '../auth/public.decorator';
 import { RsiVolumePaperEngineService } from './rsi-volume-paper-engine.service';
+import { ScalpSkillPaperService } from './scalp-skill-paper.service';
 import { StrategyPaperTradesService } from './strategy-paper-trades.service';
 
 @ApiTags('Strategy Paper Trades')
@@ -14,6 +16,8 @@ export class StrategyPaperTradesController {
     private readonly service: StrategyPaperTradesService,
     @Inject(RsiVolumePaperEngineService)
     private readonly rsiEngine: RsiVolumePaperEngineService,
+    @Inject(ScalpSkillPaperService)
+    private readonly scalpSkill: ScalpSkillPaperService,
   ) {}
 
   @Get()
@@ -24,10 +28,22 @@ export class StrategyPaperTradesController {
 
   @Post('scan')
   @Public() // safe to trigger manually; pure simulation over public Binance data, no exchange
-  @ApiOperation({ summary: 'Run one tick of every engine now (PDH/PDL + RSI/volume strategies).' })
+  @ApiOperation({ summary: 'Run one tick of every engine now (PDH/PDL + RSI/volume strategies + scalping-skill monitor).' })
   async scan() {
-    const [pdhl, rsi] = await Promise.all([this.service.runScanTick(), this.rsiEngine.runTick()]);
-    return { opened: pdhl.opened + rsi.opened, closed: pdhl.closed + rsi.closed, price: pdhl.price };
+    const [pdhl, rsi, scalp] = await Promise.all([this.service.runScanTick(), this.rsiEngine.runTick(), this.scalpSkill.runTick()]);
+    return { opened: pdhl.opened + rsi.opened + scalp.opened, closed: pdhl.closed + rsi.closed + scalp.closed, price: pdhl.price };
+  }
+
+  @Post('skill-setups/:id/accept')
+  @ApiOperation({ summary: 'Accept a chat skill setup: open (MARKET) or place (LIMIT/STOP) a scalping-skill paper trade.' })
+  acceptSkillSetup(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.scalpSkill.accept(id, req.authUser!.id);
+  }
+
+  @Post('skill-setups/:id/cancel')
+  @ApiOperation({ summary: 'Cancel a chat skill setup (or its still-unfilled pending order).' })
+  cancelSkillSetup(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.scalpSkill.cancel(id, req.authUser!.id);
   }
 
   @Post(':id/chart')

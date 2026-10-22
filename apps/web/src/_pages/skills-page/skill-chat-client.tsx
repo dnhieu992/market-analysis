@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
-import type { Skill, Conversation, ChatMessage } from '@web/shared/api/types';
+import type { Skill, Conversation, ChatMessage, SkillTradeSetup } from '@web/shared/api/types';
 
 import { renderMarkdown } from '@web/shared/lib/markdown';
+
+import { TradeSetupCard } from './trade-setup-card';
 
 function TypingIndicator() {
   return <div className="chat-typing"><span /><span /><span /></div>;
@@ -284,6 +286,16 @@ export function SkillChatClient({
     }
   }
 
+  function handleSetupChange(updated: SkillTradeSetup) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.setups?.some((s) => s.id === updated.id)
+          ? { ...m, setups: m.setups.map((s) => (s.id === updated.id ? updated : s)) }
+          : m
+      )
+    );
+  }
+
   function handleQuickAction(question: string) {
     setInput(question);
     inputRef.current?.focus();
@@ -386,6 +398,13 @@ export function SkillChatClient({
                   />
                 ) : (
                   <div className="chat-msg-text">{msg.content}</div>
+                )}
+                {msg.setups && msg.setups.length > 0 && (
+                  <div className="tsc-list">
+                    {msg.setups.map((s) => (
+                      <TradeSetupCard key={s.id} setup={s} onChange={handleSetupChange} />
+                    ))}
+                  </div>
                 )}
                 <span className="chat-msg-time">{formatTime(msg.createdAt)}</span>
               </div>

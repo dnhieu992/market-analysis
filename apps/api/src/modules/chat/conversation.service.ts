@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { createSkillTradeSetupRepository, createStrategyPaperTradeRepository } from '@app/db';
 import { getSkillById } from '@app/skills';
 
 import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
@@ -13,6 +14,8 @@ type CoinTransactionRepo = ReturnType<typeof import('@app/db').createCoinTransac
 @Injectable()
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
+  private readonly setupRepo = createSkillTradeSetupRepository();
+  private readonly paperTradeRepo = createStrategyPaperTradeRepository();
 
   constructor(
     @Inject(CONVERSATION_REPOSITORY)
@@ -41,7 +44,30 @@ export class ConversationService {
   async getConversationMessages(id: string, userId: string) {
     const conv = await this.convRepo.findById(id);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
-    return this.convRepo.listMessages(id);
+    const [messages, setups] = await Promise.all([
+      this.convRepo.listMessages(id),
+      this.setupRepo.listByConversation(id)
+    ]);
+    if (setups.length === 0) return messages;
+
+    // Accepted setups carry their paper trade's live status so the chat can show progress.
+    const trades = await Promise.all(
+      setups.map((s) => (s.paperTradeId ? this.paperTradeRepo.findById(s.paperTradeId) : Promise.resolve(null)))
+    );
+    const byMessage = new Map<string, unknown[]>();
+    setups.forEach((s, i) => {
+      if (!s.messageId) return;
+      const t = trades[i];
+      const list = byMessage.get(s.messageId) ?? [];
+      list.push({
+        ...s,
+        trade: t
+          ? { id: t.id, status: t.status, entryPrice: t.entryPrice, stopLoss: t.stopLoss, exitPrice: t.exitPrice, pnlUsd: t.pnlUsd, rMultiple: t.rMultiple }
+          : null
+      });
+      byMessage.set(s.messageId, list);
+    });
+    return messages.map((m) => (byMessage.has(m.id) ? { ...m, setups: byMessage.get(m.id) } : m));
   }
 
   async deleteConversation(id: string, userId: string) {
@@ -88,6 +114,7 @@ export class ConversationService {
     skillId: string | undefined,
     meta: Record<string, string> | null
   ): Promise<void> {
+    const startedAt = new Date();
     try {
       const history = await this.convRepo.listMessages(conversationId);
       const skill = skillId ? getSkillById(skillId) : undefined;
@@ -95,9 +122,10 @@ export class ConversationService {
       const portfolioId = meta?.portfolioId;
       const systemPrompt = await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
       const allTools = this.toolRegistry.listTools();
+      // propose_trade_setup creates Accept/Cancel cards — only for skills that opt into it.
       const tools = skill
         ? allTools.filter((t) => skill.tools.includes(t.name))
-        : allTools;
+        : allTools.filter((t) => t.name !== 'propose_trade_setup');
 
       const reply = await this.claude.chatAgentLoop(
         systemPrompt,
@@ -106,12 +134,13 @@ export class ConversationService {
         async (name, input) => {
           const tool = this.toolRegistry.getTool(name);
           if (!tool) return `Tool "${name}" not found`;
-          const result = await tool.execute(input);
+          const result = await tool.execute(input, { conversationId, skillId });
           return typeof result === 'string' ? result : JSON.stringify(result);
         }
       );
 
-      await this.convRepo.addMessage(conversationId, 'assistant', reply);
+      const assistantMsg = await this.convRepo.addMessage(conversationId, 'assistant', reply);
+      await this.setupRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.convRepo.touch(conversationId);
     } catch (error) {
       this.logger.error(`LLM processing failed for conversation ${conversationId}: ${String(error)}`);

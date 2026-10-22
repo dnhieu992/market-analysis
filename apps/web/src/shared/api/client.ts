@@ -89,6 +89,7 @@ import type {
   UpdateStrategyBacktestSetupInput,
   StrategyPaperBoard,
   StrategyPaperTrade,
+  SkillTradeSetup,
   StrategyPaperConfig,
   StrategyPaperNote,
 } from './types';
@@ -2006,6 +2007,24 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     /** Run one engine tick now (manage open trades + look for a new breakout). */
+    /** Accept a chat skill setup → opens / places a scalping-skill paper trade. */
+    async acceptSkillSetup(id: string): Promise<{ setup: SkillTradeSetup }> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/skill-setups/${encodeURIComponent(id)}/accept`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
+    /** Cancel a chat skill setup (or its still-pending order). */
+    async cancelSkillSetup(id: string): Promise<{ setup: SkillTradeSetup }> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/skill-setups/${encodeURIComponent(id)}/cancel`,
+        withDefaults({ method: 'POST' }),
+      );
+    },
+
     async runStrategyPaperScan(): Promise<{ opened: number; closed: number; price: number | null }> {
       return mutationJson(
         fetchImpl,
