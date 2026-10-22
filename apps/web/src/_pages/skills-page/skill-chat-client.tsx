@@ -467,6 +467,8 @@ export function SkillChatClient({ skillId, conversationId, skill, initialConvers
           setLive(null);
           setStatus('idle');
           setTimeout(() => inputRef.current?.focus(), 30);
+          // Picks up the generated title and the new updatedAt order.
+          api.listConversations(skillId).then(setConversations).catch(() => {});
           return;
         }
       } catch {
@@ -499,7 +501,7 @@ export function SkillChatClient({ skillId, conversationId, skill, initialConvers
       }
       await sleep(POLL_MS);
     }
-  }, []);
+  }, [skillId]);
 
   // Resume when opening a conversation whose last message is still waiting for a reply.
   useEffect(() => {
