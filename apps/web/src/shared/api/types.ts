@@ -1553,6 +1553,35 @@ export type StrategyPaperStrategy = StrategyPaperConfig & {
   stats: StrategyPaperTradeStats;
 };
 
+/** Scalping skill: closed trades replayed with a time stop of N minutes (null = none, the live engine). */
+export type ScalpTimeStopRow = {
+  minutes: number | null;
+  trades: number;
+  stopped: number;
+  totalR: number;
+  avgR: number;
+  winRate: number;
+  deltaR: number;
+};
+
+export type ScalpTimeStopReport = {
+  sample: number;
+  target: number;
+  ready: boolean;
+  closedTrades: number;
+  rows: ScalpTimeStopRow[];
+  /** Best time stop when it beats no time stop, else null. */
+  best: number | null;
+  stats: {
+    medianTp1Min: number | null;
+    medianExitMinWinners: number | null;
+    medianExitMinLosers: number | null;
+    medianMfeMin: number | null;
+    medianMfeR: number | null;
+    medianMaeR: number | null;
+  };
+};
+
 export type StrategyPaperBoard = {
   symbol: string;
   price: number | null;

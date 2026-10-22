@@ -4,7 +4,13 @@ import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { StrategyPaperBoard as BoardData, StrategyPaperNote, StrategyPaperStrategy, StrategyPaperTrade } from '@web/shared/api/types';
+import type {
+  ScalpTimeStopReport,
+  StrategyPaperBoard as BoardData,
+  StrategyPaperNote,
+  StrategyPaperStrategy,
+  StrategyPaperTrade,
+} from '@web/shared/api/types';
 import { renderMarkdown as renderNoteMarkdown } from '@web/shared/lib/markdown';
 import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
@@ -431,6 +437,101 @@ function NotesDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+function fmtMin(n: number | null): string {
+  if (n == null) return '—';
+  return n >= 60 ? `${Math.floor(n / 60)}h${n % 60 ? String(Math.round(n % 60)).padStart(2, '0') : ''}` : `${Math.round(n)}′`;
+}
+
+/**
+ * Scalping skill only: replays closed trades with time stops of 10′…4h (TP1 not hit by then →
+ * exit at that minute's close) next to the live engine, which has none. Worth acting on at ~100 trades.
+ */
+function TimeStopStudy({ closedCount }: { closedCount: number }) {
+  const [report, setReport] = useState<ScalpTimeStopReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiClient
+      .fetchScalpTimeStopReport()
+      .then((r) => alive && setReport(r))
+      .catch((e) => alive && setError(e instanceof Error ? e.message : 'Không tải được báo cáo'));
+    return () => {
+      alive = false;
+    };
+  }, [closedCount]);
+
+  const cell = { padding: '6px 10px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' as const, whiteSpace: 'nowrap' as const };
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 20, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+        <h2 style={{ fontSize: 16, margin: 0 }}>Nghiên cứu time stop</h2>
+        {report && (
+          <span style={{ fontSize: 12, color: report.ready ? '#16a34a' : '#6b7280' }}>
+            Mẫu: <b>{report.sample}</b> / {report.target} lệnh{report.ready ? ' — đủ dữ liệu' : ''}
+          </span>
+        )}
+      </div>
+      <p style={{ fontSize: 12, color: '#6b7280', margin: '6px 0 10px' }}>
+        Engine hiện không có time stop (lệnh chạy tới TP/SL). Bảng này mô phỏng lại các lệnh đã đóng: nếu sau N phút chưa chạm TP1
+        thì thoát ở giá đóng nến 1m phút đó (đã trừ phí). Lệnh đã chạm TP1 hoặc đã đóng trước N phút giữ nguyên kết quả.
+      </p>
+      {error && <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>{error}</p>}
+      {!report && !error && <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Đang tính…</p>}
+      {report && report.sample === 0 && <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Chưa có lệnh nào đóng để phân tích.</p>}
+      {report && report.sample > 0 && (
+        <>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: '#6b7280', fontSize: 12 }}>
+                  <th style={{ ...cell, textAlign: 'left' }}>Time stop</th>
+                  <th style={cell}>Lệnh bị cắt</th>
+                  <th style={cell}>Tỷ lệ thắng</th>
+                  <th style={cell}>Tổng R</th>
+                  <th style={cell}>R / lệnh</th>
+                  <th style={cell}>So với hiện tại</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.rows.map((r) => {
+                  const isBest = report.best != null && r.minutes === report.best;
+                  const isNow = r.minutes == null;
+                  return (
+                    <tr key={r.minutes ?? 'none'} style={{ background: isBest ? '#f0fdf4' : isNow ? '#f9fafb' : undefined, fontWeight: isBest || isNow ? 600 : 400 }}>
+                      <td style={{ ...cell, textAlign: 'left' }}>
+                        {isNow ? 'Không (hiện tại)' : fmtMin(r.minutes)}
+                        {isBest && <span style={{ marginLeft: 6, fontSize: 11, color: '#16a34a' }}>tốt nhất</span>}
+                      </td>
+                      <td style={cell}>{isNow ? '—' : r.stopped}</td>
+                      <td style={cell}>{(r.winRate * 100).toFixed(0)}%</td>
+                      <td style={{ ...cell, color: pnlColor(r.totalR) }}>{fmtR(r.totalR)}</td>
+                      <td style={{ ...cell, color: pnlColor(r.avgR) }}>{fmtR(r.avgR)}</td>
+                      <td style={{ ...cell, color: isNow ? '#9ca3af' : pnlColor(r.deltaR) }}>{isNow ? '—' : fmtR(r.deltaR)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#374151', marginTop: 10 }}>
+            <span>Trung vị tới TP1: <b>{fmtMin(report.stats.medianTp1Min)}</b></span>
+            <span>Lệnh thắng đóng sau: <b>{fmtMin(report.stats.medianExitMinWinners)}</b></span>
+            <span>Lệnh thua đóng sau: <b>{fmtMin(report.stats.medianExitMinLosers)}</b></span>
+            <span>Lời tối đa (MFE): <b>{fmtR(report.stats.medianMfeR)}</b> sau {fmtMin(report.stats.medianMfeMin)}</span>
+            <span>Lỗ tối đa (MAE): <b>{fmtR(report.stats.medianMaeR)}</b></span>
+          </div>
+          {!report.ready && (
+            <p style={{ fontSize: 12, color: '#d97706', margin: '8px 0 0' }}>
+              Mẫu còn nhỏ — kết quả dễ đổi khi có thêm lệnh, chưa nên dựa vào để chọn time stop.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
   const [board, setBoard] = useState<BoardData>(initialBoard);
   const [docFor, setDocFor] = useState<string | null>(null);
@@ -533,6 +634,8 @@ export function StrategyBoard({ initialBoard }: { initialBoard: BoardData }) {
         <StatTile label="Tổng R" value={fmtR(stats.totalR)} color={pnlColor(stats.totalR)} />
         <StatTile label="Tổng lãi/lỗ" value={fmtUsd(stats.totalPnlUsd)} color={pnlColor(stats.totalPnlUsd)} />
       </div>
+
+      {sel?.id === 'scalping-skill' && <TimeStopStudy closedCount={stats.closedCount} />}
 
       {/* Open trades */}
       <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>Lệnh đang mở ({openTrades.length})</h2>

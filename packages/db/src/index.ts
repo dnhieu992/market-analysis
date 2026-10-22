@@ -101,5 +101,7 @@ export {
 export type { StrategyPaperTradeInput } from './repositories/strategy-paper-trade.repository';
 export { createSkillTradeSetupRepository } from './repositories/skill-trade-setup.repository';
 export type { SkillTradeSetupInput } from './repositories/skill-trade-setup.repository';
+export { createStrategyPaperTradePathRepository } from './repositories/strategy-paper-trade-path.repository';
+export type { StrategyPaperTradePathData } from './repositories/strategy-paper-trade-path.repository';
 export { createStrategyPaperNoteRepository } from './repositories/strategy-paper-note.repository';
 export type { StrategyPaperNoteInput } from './repositories/strategy-paper-note.repository';

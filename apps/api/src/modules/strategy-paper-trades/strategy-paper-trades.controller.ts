@@ -34,6 +34,12 @@ export class StrategyPaperTradesController {
     return { opened: pdhl.opened + rsi.opened + scalp.opened, closed: pdhl.closed + rsi.closed + scalp.closed, price: pdhl.price };
   }
 
+  @Get('scalp-skill/time-stop-report')
+  @ApiOperation({ summary: 'Scalping skill: what closed trades would have made with time stops of 10m…4h vs none.' })
+  timeStopReport() {
+    return this.scalpSkill.timeStopReport();
+  }
+
   @Post('skill-setups/:id/accept')
   @ApiOperation({ summary: 'Accept a chat skill setup: open (MARKET) or place (LIMIT/STOP) a scalping-skill paper trade.' })
   acceptSkillSetup(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

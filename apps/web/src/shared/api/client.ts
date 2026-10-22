@@ -88,6 +88,7 @@ import type {
   CreateStrategyBacktestSetupInput,
   UpdateStrategyBacktestSetupInput,
   StrategyPaperBoard,
+  ScalpTimeStopReport,
   StrategyPaperTrade,
   SkillTradeSetup,
   LiveReply,
@@ -2032,6 +2033,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
         fetchImpl,
         `${baseUrl}/strategy-paper-trades/skill-setups/${encodeURIComponent(id)}/cancel`,
         withDefaults({ method: 'POST' }),
+      );
+    },
+
+    async fetchScalpTimeStopReport(): Promise<ScalpTimeStopReport> {
+      return fetchJson<ScalpTimeStopReport>(
+        fetchImpl,
+        `${baseUrl}/strategy-paper-trades/scalp-skill/time-stop-report`,
+        withDefaults(),
       );
     },
 

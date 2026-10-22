@@ -1,6 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { createConversationRepository, createSkillTradeSetupRepository, createStrategyPaperTradeRepository } from '@app/db';
+import {
+  createConversationRepository,
+  createSkillTradeSetupRepository,
+  createStrategyPaperTradePathRepository,
+  createStrategyPaperTradeRepository,
+} from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import {
@@ -10,11 +15,13 @@ import {
   SCALP_SKILL_STRATEGY,
   SCALP_SKILL_STRATEGY_ID,
 } from './scalp-skill-strategy';
+import { buildTimeStopReport, emptyPath, extendPath, type PathTrade, type TimeStopReport } from './scalp-trade-path';
 import { StrategyPaperTradesService } from './strategy-paper-trades.service';
 
 const BASE = process.env.BINANCE_BASE_URL ?? 'https://api.binance.com';
 const FEE_PCT = 0.0005; // 0.05% per side, same as the other paper engines
 const MINUTE = 60_000;
+const CLOSED_STATUSES = ['CLOSED_TP', 'CLOSED_SL', 'CLOSED_BE'];
 
 type Bar = { t: number; closeT: number; open: number; high: number; low: number; close: number };
 type TradeRow = NonNullable<Awaited<ReturnType<ReturnType<typeof createStrategyPaperTradeRepository>['findById']>>>;
@@ -36,6 +43,7 @@ export class ScalpSkillPaperService {
   private readonly repo = createStrategyPaperTradeRepository();
   private readonly setupRepo = createSkillTradeSetupRepository();
   private readonly convRepo = createConversationRepository();
+  private readonly pathRepo = createStrategyPaperTradePathRepository();
   private ticking = false;
 
   constructor(
@@ -292,6 +300,12 @@ export class ScalpSkillPaperService {
     }
     await this.repo.update(trade.id, data);
 
+    if (s.status !== 'PENDING' && s.status !== 'EXPIRED') {
+      await this.logPath(trade, { ...s, exitAt: s.exit ? new Date(s.exit.at) : null }, bars, filled).catch((e) =>
+        this.logger.warn(`[scalping-skill ${trade.symbol}] path log failed for ${trade.id}: ${e instanceof Error ? e.message : e}`),
+      );
+    }
+
     if (filled || s.exit) {
       this.logger.log(
         `[scalping-skill ${trade.symbol}] ${trade.id} ${filled ? `filled @ ${s.entryPrice}` : ''}${s.exit ? ` closed ${s.exit.reason} @ ${s.exit.price}` : ''}`,
@@ -301,5 +315,88 @@ export class ScalpSkillPaperService {
       this.logger.log(`[scalping-skill ${trade.symbol}] ${trade.id} expired unfilled`);
     }
     return { filled, closed: s.exit != null };
+  }
+
+  // ---------------- path log + time-stop study ----------------
+
+  private pathTrade(
+    trade: TradeRow,
+    s: { entryPrice: number; openedAt: Date; tp1HitAt: Date | null; exitAt: Date | null },
+  ): PathTrade {
+    return {
+      entryPrice: s.entryPrice,
+      initialStopLoss: trade.initialStopLoss,
+      direction: trade.direction,
+      orderType: trade.orderType,
+      openedAt: s.openedAt,
+      tp1HitAt: s.tp1HitAt,
+      exitAt: s.exitAt,
+    };
+  }
+
+  /** 1m candles from `from` until `until` (or until the latest closed one), a page of 1000 at a time. */
+  private async fetchMinuteRange(symbol: string, from: number, until: number | null): Promise<Bar[]> {
+    const out: Bar[] = [];
+    let start = Math.floor(from / MINUTE) * MINUTE;
+    for (let page = 0; page < 12; page++) {
+      const bars = await this.fetchMinuteBars(symbol, start);
+      out.push(...bars);
+      const last = bars[bars.length - 1];
+      if (!last || bars.length < 1000 || (until != null && last.closeT >= until)) break;
+      start = last.t + MINUTE;
+    }
+    return out;
+  }
+
+  /** Records the minute path of a filled trade; a trade without a log yet is rebuilt from its fill. */
+  private async logPath(
+    trade: TradeRow,
+    s: { entryPrice: number; openedAt: Date; tp1HitAt: Date | null; exitAt: Date | null },
+    bars: Bar[],
+    filledNow: boolean,
+  ): Promise<void> {
+    const t = this.pathTrade(trade, s);
+    let path = await this.pathRepo.find(trade.id);
+    if (!path) {
+      const fresh = emptyPath(t);
+      if (!fresh) return;
+      // Filled before this tick (or before the log existed): replay everything since the fill.
+      const history = filledNow ? bars : await this.fetchMinuteRange(trade.symbol, s.openedAt.getTime(), null);
+      await this.pathRepo.save(trade.id, extendPath(fresh, t, history));
+      return;
+    }
+    await this.pathRepo.save(trade.id, extendPath(path, t, bars));
+  }
+
+  /**
+   * What closed scalping-skill trades would have made with a time stop of 10m … 4h (TP1 not hit
+   * by then → exit at that minute's close), next to the current no-time-stop result.
+   * Closed trades without a log yet are backfilled from Binance first.
+   */
+  async timeStopReport(): Promise<TimeStopReport & { closedTrades: number }> {
+    const closed = (await this.repo.findByStatuses(SCALP_SKILL_STRATEGY_ID, CLOSED_STATUSES)).filter((t) => t.rMultiple != null);
+    const paths = new Map((await this.pathRepo.findMany(closed.map((t) => t.id))).map((p) => [p.tradeId, p]));
+
+    for (const trade of closed) {
+      const logged = paths.get(trade.id);
+      if (logged?.exitMin != null || !trade.closedAt) continue;
+      try {
+        const t = this.pathTrade(trade, { entryPrice: trade.entryPrice, openedAt: trade.openedAt, tp1HitAt: trade.tp1HitAt, exitAt: trade.closedAt });
+        const fresh = emptyPath(t);
+        if (!fresh) continue;
+        const bars = await this.fetchMinuteRange(trade.symbol, trade.openedAt.getTime(), trade.closedAt.getTime());
+        const path = extendPath(fresh, t, bars);
+        await this.pathRepo.save(trade.id, path);
+        paths.set(trade.id, { tradeId: trade.id, ...path });
+      } catch (e) {
+        this.logger.warn(`[scalping-skill] path backfill failed for ${trade.id}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+
+    const study = closed.flatMap((t) => {
+      const path = paths.get(t.id);
+      return path && path.exitMin != null ? [{ id: t.id, rMultiple: t.rMultiple!, feePct: FEE_PCT, path }] : [];
+    });
+    return { ...buildTimeStopReport(study), closedTrades: closed.length };
   }
 }

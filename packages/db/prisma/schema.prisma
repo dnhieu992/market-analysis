@@ -1114,6 +1114,28 @@ model SkillTradeSetup {
   @@map("skill_trade_setups")
 }
 
+// Minute-by-minute log of a filled scalping-skill paper trade, kept to tune a time stop later:
+// R at each 1m close after the fill, the best/worst excursion, and when TP1 / the exit happened.
+model StrategyPaperTradePath {
+  tradeId    String   @id @db.VarChar(30)
+  entryPrice Float
+  // |entry − initial stop| at the fill = 1R.
+  risk       Float
+  direction  String   @db.VarChar(5)
+  // closeR[k] = gross R at the close of minute k+1 after the fill (capped at 720 minutes).
+  closeR     Json
+  mfeR       Float    @default(0)
+  maeR       Float    @default(0)
+  mfeMin     Int?
+  maeMin     Int?
+  tp1Min     Int?
+  exitMin    Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("strategy_paper_trade_paths")
+}
+
 // Singleton config + editable, plain-language description for the PDH/PDL strategy page.
 model StrategyPaperConfig {
   id          String   @id @default("pdhl-btc")

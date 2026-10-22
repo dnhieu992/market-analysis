@@ -40,3 +40,19 @@ Skill `scalping` trên `/skills`: đọc nến 30m / 15m / 5m như nhìn chart v
   - Không giới hạn thời gian giữ lệnh — chạy tới TP hoặc SL.
 - Board: thẻ chiến lược "Scalping Skill (AI)", lệnh chờ khớp hiện trong "Lệnh đang mở"; lệnh huỷ/hết hạn
   nằm trong lịch sử nhưng không tính vào thống kê.
+
+## Nghiên cứu time stop (log đường đi của lệnh)
+
+Prompt có nhắc time stop 30 phút, nhưng engine paper trade **không** áp dụng — lệnh chạy tới TP hoặc SL.
+Để chọn time stop dựa trên dữ liệu (khoảng 100 lệnh), mỗi lệnh đã khớp được ghi lại đường đi theo phút:
+
+- Bảng `strategy_paper_trade_paths` (1 dòng / lệnh): `closeR[k]` = R (chưa trừ phí) tại giá đóng nến 1m
+  thứ k+1 sau khi khớp (tối đa 720 phút), `mfeR`/`maeR` (lời/lỗ xa nhất, theo high/low) và phút xảy ra,
+  `tp1Min`, `exitMin`. 1R = |entry − SL ban đầu|.
+- Monitor ghi tiếp mỗi phút (`ScalpSkillPaperService.logPath`). Lệnh chưa có log được dựng lại từ nến 1m Binance
+  kể từ lúc khớp; báo cáo cũng tự backfill các lệnh đã đóng còn thiếu log.
+- `GET /strategy-paper-trades/scalp-skill/time-stop-report` (`scalp-trade-path.ts`): mô phỏng time stop
+  10′, 15′, 20′, 30′, 45′, 1h, 1h30, 2h, 3h, 4h và "không có". Quy tắc: nếu tới phút N chưa chạm TP1 và chưa đóng
+  thì thoát ở `closeR[N-1]` (trừ phí 0.05%/chiều); còn lại giữ nguyên R thật. Trả về tổng R, R/lệnh, tỷ lệ thắng,
+  số lệnh bị cắt, chênh lệch so với hiện tại, mốc tốt nhất, và trung vị thời gian tới TP1 / đóng lệnh, MFE, MAE.
+- Trang Trading Analysis → chọn thẻ "Scalping Skill (AI)" để xem bảng "Nghiên cứu time stop" (mẫu n / 100).
