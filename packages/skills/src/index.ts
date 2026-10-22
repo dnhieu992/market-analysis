@@ -6,3 +6,4 @@ export { swingSkill } from './swing';
 export { dcaSkill } from './dca';
 export { riskManagementSkill } from './risk-management';
 export { shortBtcDailySkill } from './short-btc-daily';
+export { scalpingSkill } from './scalping';
