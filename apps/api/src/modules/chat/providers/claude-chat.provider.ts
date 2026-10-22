@@ -77,6 +77,8 @@ function buildEnv(): Record<string, string> {
   delete env.ANTHROPIC_AUTH_TOKEN;
   delete env.CLAUDE_API_KEY;
   env.DISABLE_AUTOUPDATER = '1';
+  // The claude.ai login would otherwise pull in the account's connectors (Docs, Drive, …).
+  env.ENABLE_CLAUDEAI_MCP_SERVERS = 'false';
   env.CLAUDE_AGENT_SDK_CLIENT_APP = 'market-analysis-api';
   return env;
 }
@@ -160,6 +162,10 @@ export class ClaudeChatProvider extends ChatProvider {
       tools: [],
       allowedTools: tools.map((t) => `mcp__${MCP_SERVER_NAME}__${t.name}`),
       permissionMode: 'dontAsk',
+      // Only the trading MCP server below — no claude.ai connectors or user/project MCP config.
+      strictMcpConfig: true,
+      // Adaptive thinking roughly doubled reply latency with no visible gain for these prompts.
+      thinking: { type: 'disabled' },
       // Don't pick up ~/.claude settings, CLAUDE.md or plugins from this box.
       settingSources: [],
       persistSession: false,
