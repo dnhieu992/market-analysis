@@ -90,6 +90,7 @@ import type {
   StrategyPaperBoard,
   StrategyPaperTrade,
   SkillTradeSetup,
+  LiveReply,
   StrategyPaperConfig,
   StrategyPaperNote,
 } from './types';
@@ -852,6 +853,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }));
       if (!res.ok) throw new Error(`updateConversationTitle failed: ${res.status}`);
       return res.json() as Promise<Conversation>;
+    },
+    getLiveReply(conversationId: string): Promise<LiveReply> {
+      return fetchJson<LiveReply>(fetchImpl, `${baseUrl}/chat/conversations/${conversationId}/live`, withDefaults({ cache: 'no-store' }));
+    },
+    stopReply(conversationId: string): Promise<{ stopped: boolean }> {
+      return mutationJson(fetchImpl, `${baseUrl}/chat/conversations/${conversationId}/stop`, withDefaults({ method: 'POST' }));
+    },
+    retryReply(conversationId: string): Promise<{ started: boolean }> {
+      return mutationJson(fetchImpl, `${baseUrl}/chat/conversations/${conversationId}/retry`, withDefaults({ method: 'POST' }));
     },
     getMessages(conversationId: string): Promise<ChatMessage[]> {
       return fetchJson<ChatMessage[]>(fetchImpl, `${baseUrl}/chat/conversations/${conversationId}/messages`, withDefaults());

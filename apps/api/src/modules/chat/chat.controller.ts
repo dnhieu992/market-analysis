@@ -72,6 +72,24 @@ export class ChatController {
     return this.conversationService.getConversationMessages(id, req.authUser!.id);
   }
 
+  @Get('conversations/:id/live')
+  @ApiOperation({ summary: 'Progress of the reply being generated (phase, tool, streamed text)' })
+  getLive(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.conversationService.getLive(id, req.authUser!.id);
+  }
+
+  @Post('conversations/:id/stop')
+  @ApiOperation({ summary: 'Stop the reply being generated' })
+  stopReply(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.conversationService.stopReply(id, req.authUser!.id);
+  }
+
+  @Post('conversations/:id/retry')
+  @ApiOperation({ summary: 'Re-run the reply to the last user message' })
+  retryReply(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.conversationService.retryReply(id, req.authUser!.id);
+  }
+
   @Post('conversations/:id/messages')
   @ApiOperation({ summary: 'Send a message and get AI reply' })
   sendMessage(

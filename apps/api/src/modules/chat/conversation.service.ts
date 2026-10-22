@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createSkillTradeSetupRepository, createStrategyPaperTradeRepository } from '@app/db';
 import { getSkillById } from '@app/skills';
 
@@ -11,11 +11,38 @@ type OrderRepo = ReturnType<typeof import('@app/db').createOrderRepository>;
 type HoldingRepo = ReturnType<typeof import('@app/db').createHoldingRepository>;
 type CoinTransactionRepo = ReturnType<typeof import('@app/db').createCoinTransactionRepository>;
 
+/**
+ * In-memory state of a reply being generated, polled by the chat UI (GET …/live) so it can show
+ * the tool being run and stream the text as it's written. Kept briefly after it ends so the UI
+ * sees the final phase; this process is the only writer, so memory is enough.
+ */
+type LiveReply = {
+  phase: 'thinking' | 'tool' | 'writing' | 'done' | 'stopped' | 'error';
+  tool: string | null;
+  text: string;
+  error: string | null;
+  startedAt: number;
+  abort: AbortController;
+};
+
+export type LiveReplyDto = {
+  active: boolean;
+  phase: LiveReply['phase'] | 'idle';
+  tool: string | null;
+  text: string;
+  error: string | null;
+  elapsedMs: number;
+};
+
+const LIVE_KEEP_MS = 60_000;
+const isActive = (l: LiveReply | undefined) => l != null && (l.phase === 'thinking' || l.phase === 'tool' || l.phase === 'writing');
+
 @Injectable()
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
   private readonly setupRepo = createSkillTradeSetupRepository();
   private readonly paperTradeRepo = createStrategyPaperTradeRepository();
+  private readonly live = new Map<string, LiveReply>();
 
   constructor(
     @Inject(CONVERSATION_REPOSITORY)
@@ -87,6 +114,9 @@ export class ConversationService {
   async sendMessage(conversationId: string, userId: string, content: string) {
     const conv = await this.convRepo.findById(conversationId);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
+    if (isActive(this.live.get(conversationId))) {
+      throw new BadRequestException('Claude đang trả lời tin nhắn trước — đợi xong hoặc bấm Dừng.');
+    }
 
     // Save user message immediately and return — LLM runs in background
     const userMsg = await this.convRepo.addMessage(conversationId, 'user', content);
@@ -108,6 +138,38 @@ export class ConversationService {
     return userMsg;
   }
 
+  // ── Live reply (progress / stop / retry) ─────────────────────────────
+
+  async getLive(conversationId: string, userId: string): Promise<LiveReplyDto> {
+    const conv = await this.convRepo.findById(conversationId);
+    if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
+    const l = this.live.get(conversationId);
+    if (!l) return { active: false, phase: 'idle', tool: null, text: '', error: null, elapsedMs: 0 };
+    return { active: isActive(l), phase: l.phase, tool: l.tool, text: l.text, error: l.error, elapsedMs: Date.now() - l.startedAt };
+  }
+
+  async stopReply(conversationId: string, userId: string): Promise<{ stopped: boolean }> {
+    const conv = await this.convRepo.findById(conversationId);
+    if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
+    const l = this.live.get(conversationId);
+    if (!isActive(l)) return { stopped: false };
+    l!.abort.abort();
+    return { stopped: true };
+  }
+
+  /** Re-run the reply to the last user message (after an error or a stop). */
+  async retryReply(conversationId: string, userId: string): Promise<{ started: boolean }> {
+    const conv = await this.convRepo.findById(conversationId);
+    if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
+    if (isActive(this.live.get(conversationId))) return { started: false };
+    const messages = await this.convRepo.listMessages(conversationId);
+    if (messages[messages.length - 1]?.role !== 'user') {
+      throw new BadRequestException('Không có tin nhắn nào đang chờ trả lời.');
+    }
+    void this.processLlmResponse(conversationId, conv.userId, conv.skillId ?? undefined, conv.metadata as Record<string, string> | null);
+    return { started: true };
+  }
+
   private async processLlmResponse(
     conversationId: string,
     userId: string,
@@ -115,6 +177,15 @@ export class ConversationService {
     meta: Record<string, string> | null
   ): Promise<void> {
     const startedAt = new Date();
+    const live: LiveReply = { phase: 'thinking', tool: null, text: '', error: null, startedAt: startedAt.getTime(), abort: new AbortController() };
+    this.live.set(conversationId, live);
+    const finish = (phase: LiveReply['phase'], error: string | null = null) => {
+      live.phase = phase;
+      live.error = error;
+      setTimeout(() => {
+        if (this.live.get(conversationId) === live) this.live.delete(conversationId);
+      }, LIVE_KEEP_MS);
+    };
     try {
       const history = await this.convRepo.listMessages(conversationId);
       const skill = skillId ? getSkillById(skillId) : undefined;
@@ -136,14 +207,40 @@ export class ConversationService {
           if (!tool) return `Tool "${name}" not found`;
           const result = await tool.execute(input, { conversationId, skillId });
           return typeof result === 'string' ? result : JSON.stringify(result);
+        },
+        {
+          signal: live.abort.signal,
+          onProgress: (ev) => {
+            if (ev.type === 'tool') {
+              live.phase = 'tool';
+              live.tool = ev.name;
+              live.text = '';
+            } else {
+              live.phase = 'writing';
+              live.text = ev.text;
+            }
+          }
         }
       );
 
       const assistantMsg = await this.convRepo.addMessage(conversationId, 'assistant', reply);
       await this.setupRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.convRepo.touch(conversationId);
+      finish('done');
     } catch (error) {
+      if (live.abort.signal.aborted) {
+        // Stopped by the user: keep whatever was already written, marked as cut short.
+        if (live.text.trim()) {
+          const msg = await this.convRepo.addMessage(conversationId, 'assistant', `${live.text.trim()}\n\n_(Đã dừng)_`);
+          await this.setupRepo.attachToMessage(conversationId, msg.id, startedAt);
+          await this.convRepo.touch(conversationId);
+        }
+        finish('stopped');
+        return;
+      }
       this.logger.error(`LLM processing failed for conversation ${conversationId}: ${String(error)}`);
+      const timedOut = /aborted/i.test(String(error));
+      finish('error', timedOut ? 'Quá thời gian xử lý (5 phút).' : 'Claude gặp lỗi khi trả lời.');
     }
   }
 

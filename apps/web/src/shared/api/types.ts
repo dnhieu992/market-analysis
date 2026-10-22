@@ -384,6 +384,18 @@ export type ChatMessage = {
   setups?: SkillTradeSetup[];
 };
 
+/** Progress of the reply being generated (GET /chat/conversations/:id/live). */
+export type LiveReply = {
+  active: boolean;
+  phase: 'idle' | 'thinking' | 'tool' | 'writing' | 'done' | 'stopped' | 'error';
+  /** Tool being run while phase = 'tool', e.g. get_scalp_chart_data. */
+  tool: string | null;
+  /** Text of the current turn written so far. */
+  text: string;
+  error: string | null;
+  elapsedMs: number;
+};
+
 /** A trade setup proposed by a chat skill; accepting it opens a scalping-skill paper trade. */
 export type SkillTradeSetup = {
   id: string;

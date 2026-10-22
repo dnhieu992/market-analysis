@@ -82,6 +82,17 @@ function buildEnv(): Record<string, string> {
   return env;
 }
 
+/** Live progress of a reply, for the chat UI: the current turn's text so far, or the tool being run. */
+export type ChatProgressEvent =
+  | { type: 'text'; text: string }
+  | { type: 'tool'; name: string };
+
+export type ChatRunOptions = {
+  /** Aborting stops the Claude Code session (the user pressed Stop). */
+  signal?: AbortSignal;
+  onProgress?: (event: ChatProgressEvent) => void;
+};
+
 @Injectable()
 export class ClaudeChatProvider extends ChatProvider {
   private readonly logger = new Logger(ClaudeChatProvider.name);
@@ -99,9 +110,10 @@ export class ClaudeChatProvider extends ChatProvider {
     systemPrompt: string,
     history: readonly ChatMessage[],
     tools: readonly ChatTool[],
-    executeTool: (name: string, input: unknown) => Promise<string>
+    executeTool: (name: string, input: unknown) => Promise<string>,
+    run: ChatRunOptions = {}
   ): Promise<string> {
-    return this.runQuery(systemPrompt, buildPrompt(history), tools, executeTool);
+    return this.runQuery(systemPrompt, buildPrompt(history), tools, executeTool, this.model, run);
   }
 
   /** Generate a short conversation title from the first user message */
@@ -125,7 +137,8 @@ export class ClaudeChatProvider extends ChatProvider {
     prompt: string,
     tools: readonly ChatTool[],
     executeTool: (name: string, input: unknown) => Promise<string>,
-    model: string = this.model
+    model: string = this.model,
+    run: ChatRunOptions = {}
   ): Promise<string> {
     const { query, createSdkMcpServer } = await loadSdk();
 
@@ -146,6 +159,9 @@ export class ClaudeChatProvider extends ChatProvider {
 
     const abortController = new AbortController();
     const timer = setTimeout(() => abortController.abort(), QUERY_TIMEOUT_MS);
+    const onAbort = () => abortController.abort();
+    if (run.signal?.aborted) abortController.abort();
+    run.signal?.addEventListener('abort', onAbort);
 
     const options: Options = {
       model,
@@ -164,6 +180,8 @@ export class ClaudeChatProvider extends ChatProvider {
       settingSources: [],
       persistSession: false,
       maxTurns: MAX_TOOL_ITERATIONS + 1,
+      // Token-level stream events, only needed when someone is watching the reply being written.
+      includePartialMessages: Boolean(run.onProgress),
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(process.env.CLAUDE_CODE_PATH ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_PATH } : {}),
       ...(toolDefs.length > 0
@@ -176,8 +194,23 @@ export class ClaudeChatProvider extends ChatProvider {
       stderr: (data) => this.logger.debug(data.trim())
     };
 
+    // Text of the turn being streamed; each new model turn (e.g. after a tool call) starts over,
+    // so the last turn's text ends up matching the final result we save.
+    let turnText = '';
     try {
       for await (const message of query({ prompt, options })) {
+        if (message.type === 'stream_event' && run.onProgress) {
+          const ev = message.event;
+          if (ev.type === 'message_start') {
+            turnText = '';
+          } else if (ev.type === 'content_block_start' && ev.content_block.type === 'tool_use') {
+            run.onProgress({ type: 'tool', name: ev.content_block.name.replace(`mcp__${MCP_SERVER_NAME}__`, '') });
+          } else if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
+            turnText += ev.delta.text;
+            run.onProgress({ type: 'text', text: turnText });
+          }
+          continue;
+        }
         if (message.type !== 'result') continue;
 
         if (message.subtype === 'success' && !message.is_error) {
@@ -192,6 +225,7 @@ export class ClaudeChatProvider extends ChatProvider {
       throw new Error('Claude Code exited without a result');
     } finally {
       clearTimeout(timer);
+      run.signal?.removeEventListener('abort', onAbort);
     }
   }
 }

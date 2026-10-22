@@ -69,7 +69,24 @@ DELETE /chat/conversations/:id          Xoá conversation (cascade xoá messages
 PATCH  /chat/conversations/:id/title    Đổi tiêu đề conversation
 GET    /chat/conversations/:id/messages Lấy tất cả messages trong conversation
 POST   /chat/conversations/:id/messages Gửi tin nhắn → nhận reply từ AI
+GET    /chat/conversations/:id/live     Tiến trình reply đang chạy (phase, tool, text đã viết)
+POST   /chat/conversations/:id/stop     Dừng reply đang chạy
+POST   /chat/conversations/:id/retry    Trả lời lại tin nhắn user cuối (khi lỗi / dừng)
 ```
+
+### Live reply (trang chat của skill)
+
+- `ConversationService` giữ một `LiveReply` cho mỗi conversation (trong RAM, giữ thêm 60s sau khi xong).
+  Các phase: `thinking` → `tool` (kèm tên tool) → `writing` (text stream từ `stream_event`)
+  → `done` / `stopped` / `error`. Đang có reply thì gửi tin mới bị từ chối (400).
+- Provider nhận `ChatRunOptions { signal, onProgress }`. Khi có `onProgress` thì bật
+  `includePartialMessages`. Bấm Dừng sẽ abort query, lưu phần text đã viết kèm `_(Đã dừng)_`.
+- Web (`skill-chat-client.tsx`) poll `/live` mỗi 600ms. UI hiện trạng thái tool bằng tiếng Việt,
+  text stream có con trỏ, nút Dừng (Esc), và "Thử lại" khi lỗi. Mở lại trang khi tin nhắn user cuối
+  chưa có trả lời (dưới 10 phút) thì tự theo dõi tiếp. Mất phiên (API restart) thì sau 3 lần poll
+  `idle` sẽ báo lỗi và cho thử lại.
+- Markdown của chat dùng `renderChatMarkdown` (`marked`, GFM). HTML thô bị escape và chỉ giữ link http(s).
+  `shared/lib/markdown.ts` vẫn giữ cho các trang khác.
 
 ### Request / Response
 

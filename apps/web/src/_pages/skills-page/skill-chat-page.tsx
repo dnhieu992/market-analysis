@@ -44,6 +44,7 @@ export default async function SkillChatPage({ skillId, conversationId }: Props) 
 
   return (
     <SkillChatClient
+      key={conversationId}
       skillId={skillId}
       conversationId={conversationId}
       skill={skill}
