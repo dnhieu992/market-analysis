@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 import type { ChatMessage, Conversation, LiveReply, TrackingEvent, TrackingSetup } from '@web/shared/api/types';
 import { renderChatMarkdown } from '@web/shared/lib/chat-markdown';
+import { AssistantMessage, Composer, Icon, LiveMessage, UserMessage, chatStyles as c } from '@web/shared/ui/chat/chat-parts';
 import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
 import { SetupCard, SetupFormModal, fmtDateTime, fmtPx } from './setup-card';
@@ -12,18 +13,10 @@ import styles from './tracking.module.css';
 const api = createApiClient();
 
 export const TRACKING_SKILL_ID = 'tracking-swing';
-const POLL_MS = 700;
+const POLL_MS = 600;
 const WATCH_TIMEOUT_MS = 8 * 60 * 1000;
 const RESUME_WINDOW_MS = 10 * 60 * 1000;
 const REFRESH_MS = 30_000;
-
-const TOOL_LABEL: Record<string, string> = {
-  analyze_market_structure: 'Đang phân tích cấu trúc thị trường',
-  get_klines: 'Đang lấy dữ liệu nến',
-  get_ticker_price: 'Đang lấy giá hiện tại',
-  get_tracking_coins: 'Đang đọc danh sách coin theo dõi',
-  propose_swing_setup: 'Đang tạo setup',
-};
 
 const EVENT_LABEL: Record<string, string> = {
   CREATED: 'Tạo setup',
@@ -148,8 +141,12 @@ export function CoinPanel({
           )}
         </div>
 
-        <div className={styles.drawerBody}>
-          {tab === 'chat' && <AnalysisChat symbol={symbol} onSetupChange={changed} onEdit={(s) => setEditing(s)} />}
+        {tab === 'chat' && (
+          <div className={styles.drawerChat}>
+            <AnalysisChat symbol={symbol} onSetupChange={changed} onEdit={(s) => setEditing(s)} />
+          </div>
+        )}
+        <div className={styles.drawerBody} hidden={tab === 'chat'}>
           {tab === 'setups' && symbol && (
             <>
               <div className={styles.row} style={{ marginTop: 10 }}>
@@ -182,7 +179,25 @@ export function CoinPanel({
   );
 }
 
-// ── Analysis chat ────────────────────────────────────────────────────────────
+// ── Analysis chat (same look as the /skills chat page) ───────────────────────
+
+const ICON = '🧭';
+
+function suggestionsFor(symbol: string | null): string[] {
+  return symbol
+    ? [
+        `Phân tích swing ${symbol} (1W / 1D / 4H) và đề xuất setup nếu đủ điều kiện.`,
+        `${symbol} đang ở vùng giá nào đáng chờ để vào lệnh?`,
+        `Rà lại các setup ${symbol} đang theo dõi / chờ khớp — còn hợp lệ không?`,
+        `Nên long hay short ${symbol} trong 1–2 tuần tới?`,
+      ]
+    : [
+        'Quét danh sách theo dõi, chọn tối đa 3 coin có cấu trúc swing đẹp nhất và đề xuất setup.',
+        'Coin nào trong danh sách đang khoẻ nhất theo trend 1D?',
+        'Coin nào đang về vùng hỗ trợ đẹp để canh long?',
+        'Rà lại các setup đang theo dõi / chờ khớp / mở trên toàn danh sách.',
+      ];
+}
 
 function AnalysisChat({
   symbol,
@@ -202,15 +217,32 @@ function AnalysisChat({
   const [notice, setNotice] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
   const watchGen = useRef(0);
-  const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true);
   const busy = status === 'waiting' || status === 'stopping';
 
   useEffect(() => () => { watchGen.current += 1; }, []);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages, live?.text, status]);
+  // Follow new content only while the reader is at the bottom.
+  const scrollToBottom = useCallback((smooth = false) => {
+    const el = scrollerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }, []);
+
+  const onScroll = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    atBottomRef.current = near;
+    setAtBottom(near);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (atBottomRef.current) scrollToBottom();
+  }, [messages, live?.text, live?.phase, status, scrollToBottom]);
 
   const watch = useCallback(async (id: string, sinceIso: string) => {
     const gen = ++watchGen.current;
@@ -240,6 +272,7 @@ function AnalysisChat({
         if (msgs.some((m) => m.role === 'assistant' && m.createdAt >= sinceIso)) {
           setLive(null);
           setStatus('idle');
+          setTimeout(() => inputRef.current?.focus(), 30);
           return;
         }
       } catch {
@@ -256,10 +289,16 @@ function AnalysisChat({
         setStatus('stopped');
         return;
       }
-      if ((l?.phase === 'idle' && ++idle >= 3) || Date.now() - started > WATCH_TIMEOUT_MS) {
+      if (l?.phase === 'idle' && ++idle >= 3) {
         setLive(null);
         setStatus('error');
-        setNotice('Không còn phiên trả lời (server có thể vừa khởi động lại) hoặc chờ quá lâu.');
+        setNotice('Không còn phiên trả lời cho tin nhắn này (server có thể vừa khởi động lại).');
+        return;
+      }
+      if (Date.now() - started > WATCH_TIMEOUT_MS) {
+        setLive(null);
+        setStatus('error');
+        setNotice('Chờ quá lâu mà chưa có phản hồi.');
         return;
       }
       await sleep(POLL_MS);
@@ -271,7 +310,9 @@ function AnalysisChat({
       watchGen.current += 1;
       setConvId(id);
       setStatus('idle');
+      setLive(null);
       setNotice(null);
+      atBottomRef.current = true;
       try {
         const msgs = await api.getMessages(id);
         setMessages(msgs);
@@ -307,32 +348,45 @@ function AnalysisChat({
     };
   }, [symbol, open]);
 
-  async function send(text: string, fresh = false) {
-    const content = text.trim();
+  function newChat() {
+    watchGen.current += 1;
+    setConvId(null);
+    setMessages([]);
+    setStatus('idle');
+    setLive(null);
+    setNotice(null);
+    setTimeout(() => inputRef.current?.focus(), 30);
+  }
+
+  async function send(textArg?: string) {
+    const content = (textArg ?? input).trim();
     if (!content || busy) return;
     setInput('');
     setNotice(null);
+    atBottomRef.current = true;
+    const temp: ChatMessage = { id: `temp-${Date.now()}`, conversationId: convId ?? 'new', role: 'user', content, createdAt: new Date().toISOString() };
+    setMessages((prev) => [...prev, temp]);
     setStartedAt(Date.now());
+    setLive(null);
     setStatus('waiting');
     try {
-      let id = fresh ? null : convId;
+      let id = convId;
       if (!id) {
         const date = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
         const conv = await api.createConversation(`${symbol ?? 'Quét danh sách'} · ${date}`, TRACKING_SKILL_ID, undefined, undefined, symbol ?? undefined);
         id = conv.id;
         setConvs((prev) => [conv, ...prev]);
         setConvId(id);
-        setMessages([]);
+        api.generateTitle(id).then(({ title }) => setConvs((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)))).catch(() => {});
       }
-      const temp: ChatMessage = { id: `temp-${Date.now()}`, conversationId: id, role: 'user', content, createdAt: new Date().toISOString() };
-      setMessages((prev) => [...prev, temp]);
       const saved = await api.sendMessage(id, content);
       setMessages((prev) => prev.map((m) => (m.id === temp.id ? saved : m)));
       await watch(id, saved.createdAt);
     } catch (e) {
-      setStatus('idle');
+      setMessages((prev) => prev.filter((m) => m.id !== temp.id));
       setInput(content);
-      setNotice(e instanceof Error ? e.message : 'Gửi thất bại.');
+      setStatus('idle');
+      setNotice(e instanceof Error ? e.message : 'Gửi thất bại. Vui lòng thử lại.');
     }
   }
 
@@ -350,6 +404,7 @@ function AnalysisChat({
     if (!convId) return;
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     if (!lastUser) return;
+    setNotice(null);
     setStartedAt(Date.now());
     try {
       await api.retryReply(convId);
@@ -365,107 +420,116 @@ function AnalysisChat({
     onSetupChange(s);
   }
 
-  const startPrompt = symbol
-    ? `Phân tích swing ${symbol} (1W / 1D / 4H) và đề xuất setup nếu đủ điều kiện.`
-    : 'Quét danh sách theo dõi của tôi, chọn tối đa 3 coin có cấu trúc swing đẹp nhất lúc này, phân tích và đề xuất setup cho từng coin.';
+  const showEmpty = loaded && messages.length === 0 && !busy;
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
+  const composer = (
+    <Composer
+      value={input}
+      onChange={setInput}
+      onSend={() => { void send(); }}
+      onStop={() => { void stop(); }}
+      busy={busy}
+      placeholder={symbol ? `Hỏi về ${symbol}…` : 'Hỏi về danh sách theo dõi…'}
+      autoFocus
+      inputRef={inputRef}
+    />
+  );
 
   return (
-    <div className={styles.chat}>
-      <div className={styles.row}>
-        <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} disabled={busy} onClick={() => void send(startPrompt, true)}>
-          {symbol ? (convs.length ? 'Phân tích lại' : 'Phân tích') : 'Quét ngay'}
-        </button>
-        {convs.length > 1 && (
-          <select className={styles.select} value={convId ?? ''} disabled={busy} onChange={(e) => void open(e.target.value)}>
-            {convs.map((c) => (
-              <option key={c.id} value={c.id}>{c.title} — {fmtDateTime(c.updatedAt)}</option>
+    <div className={c.embed}>
+      <div className={c.embedBar}>
+        {convs.length > 0 && convId ? (
+          <select className={c.embedSelect} value={convId} disabled={busy} onChange={(e) => void open(e.target.value)} aria-label="Các lần phân tích">
+            {convs.map((x) => (
+              <option key={x.id} value={x.id}>{x.title} — {fmtDateTime(x.updatedAt)}</option>
             ))}
           </select>
+        ) : (
+          <span className={c.embedTitle}>{convs.length > 0 ? 'Phân tích mới' : symbol ? `Phân tích ${symbol}` : 'Quét danh sách'}</span>
+        )}
+        <button type="button" className={c.iconBtn} onClick={newChat} disabled={busy} title="Phân tích mới" aria-label="Phân tích mới">
+          {Icon.compose}
+        </button>
+      </div>
+
+      <div ref={scrollerRef} className={c.scroller} onScroll={onScroll}>
+        {!loaded ? null : showEmpty ? (
+          <div className={c.empty}>
+            <div className={c.emptyInner}>
+              <div className={c.greeting}>
+                <div className={c.greetingIcon}>{ICON}</div>
+                <h1 className={c.greetingTitle}>{symbol ?? 'Quét danh sách'}</h1>
+                <p className={c.greetingText}>
+                  {symbol
+                    ? `Claude đọc cấu trúc 1W / 1D / 4H của ${symbol}, các setup đang có và bài học đã duyệt, rồi đề xuất setup (nếu có) để bạn Theo dõi / Đặt lệnh.`
+                    : 'Claude đọc toàn bộ danh sách theo dõi và chọn vài coin đáng chú ý nhất.'}
+                </p>
+              </div>
+              {composer}
+              {notice && <div className={c.notice}>{notice}</div>}
+              <div className={c.suggestions}>
+                {suggestionsFor(symbol).map((q) => (
+                  <button key={q} type="button" className={c.suggestion} onClick={() => { void send(q); }}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={c.thread}>
+            {messages.map((m) =>
+              m.role === 'user' ? (
+                <UserMessage key={m.id} msg={m} />
+              ) : (
+                <AssistantMessage key={m.id} msg={m} icon={ICON} isLast={m.id === lastAssistantId && !busy}>
+                  {m.trackingSetups && m.trackingSetups.length > 0 && (
+                    <div className={styles.cards}>
+                      {m.trackingSetups.map((s) => (
+                        <SetupCard key={s.id} setup={s} onChange={setupChanged} onEdit={onEdit} showSymbol={!symbol} />
+                      ))}
+                    </div>
+                  )}
+                </AssistantMessage>
+              ),
+            )}
+
+            {busy && <LiveMessage icon={ICON} live={live} startedAt={startedAt} stopping={status === 'stopping'} />}
+
+            {status === 'error' && (
+              <div className={c.notice} role="alert">
+                <span>{notice ?? 'Claude gặp lỗi khi trả lời.'}</span>
+                <button type="button" className={c.noticeBtn} onClick={() => { void retry(); }}>
+                  {Icon.retry} Thử lại
+                </button>
+              </div>
+            )}
+            {status === 'stopped' && messages[messages.length - 1]?.role === 'user' && (
+              <div className={`${c.notice} ${c.noticeMuted}`}>
+                <span>Đã dừng trước khi Claude kịp trả lời.</span>
+                <button type="button" className={c.noticeBtn} onClick={() => { void retry(); }}>
+                  {Icon.retry} Trả lời lại
+                </button>
+              </div>
+            )}
+            {status === 'idle' && notice && <div className={c.notice}>{notice}</div>}
+          </div>
         )}
       </div>
 
-      {loaded && messages.length === 0 && !busy && (
-        <p className={styles.hint}>
-          {symbol
-            ? `Claude đọc cấu trúc W/D/4H của ${symbol}, setup đang có và bài học đã duyệt, rồi đề xuất setup (nếu có) để bạn Theo dõi / Đặt lệnh.`
-            : 'Claude đọc toàn bộ danh sách theo dõi và chọn vài coin đáng chú ý nhất.'}
-        </p>
-      )}
-
-      {messages.map((m) =>
-        m.role === 'user' ? (
-          <div key={m.id} className={styles.msgUser}>{m.content}</div>
-        ) : (
-          <div key={m.id} className={styles.msgAssistant}>
-            <Markdown text={m.content} />
-            {m.trackingSetups && m.trackingSetups.length > 0 && (
-              <div className={styles.cards}>
-                {m.trackingSetups.map((s) => (
-                  <SetupCard key={s.id} setup={s} onChange={setupChanged} onEdit={onEdit} showSymbol={!symbol} />
-                ))}
-              </div>
-            )}
+      {loaded && !showEmpty && (
+        <div className={c.dock}>
+          {!atBottom && (
+            <button type="button" className={c.jumpBtn} onClick={() => scrollToBottom(true)} aria-label="Cuộn xuống cuối">
+              {Icon.down}
+            </button>
+          )}
+          <div className={c.dockInner}>
+            {composer}
+            <div className={c.disclaimer}>Phân tích tham khảo, không phải lời khuyên tài chính. Lệnh là paper trade.</div>
           </div>
-        ),
-      )}
-
-      {busy && (
-        <div className={styles.msgAssistant}>
-          {live?.phase === 'writing' && live.text.trim() ? (
-            <Markdown text={live.text} />
-          ) : (
-            <LiveStatus live={live} startedAt={startedAt} stopping={status === 'stopping'} />
-          )}
         </div>
       )}
-
-      {(status === 'error' || (status === 'stopped' && messages[messages.length - 1]?.role === 'user')) && (
-        <div className={styles.notice}>
-          <span>{status === 'error' ? notice ?? 'Claude gặp lỗi.' : 'Đã dừng trước khi Claude trả lời.'}</span>
-          <button type="button" className={styles.btn} onClick={() => void retry()}>Thử lại</button>
-        </div>
-      )}
-      {status === 'idle' && notice && <div className={styles.notice}>{notice}</div>}
-
-      {convId && (
-        <div className={styles.composer}>
-          <textarea
-            className={styles.textarea}
-            rows={2}
-            placeholder="Hỏi tiếp về phân tích này…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                void send(input);
-              }
-            }}
-          />
-          {busy ? (
-            <button type="button" className={styles.btn} onClick={() => void stop()}>Dừng</button>
-          ) : (
-            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} disabled={!input.trim()} onClick={() => void send(input)}>Gửi</button>
-          )}
-        </div>
-      )}
-      <div ref={endRef} />
-    </div>
-  );
-}
-
-function LiveStatus({ live, startedAt, stopping }: { live: LiveReply | null; startedAt: number; stopping: boolean }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const label = stopping ? 'Đang dừng' : live?.phase === 'tool' && live.tool ? TOOL_LABEL[live.tool] ?? `Đang chạy ${live.tool}` : 'Đang suy nghĩ';
-  return (
-    <div className={styles.status} role="status">
-      <span className={styles.spinner} aria-hidden />
-      <span>{label}…</span>
-      <span>{Math.max(0, Math.round((now - startedAt) / 1000))}s</span>
     </div>
   );
 }

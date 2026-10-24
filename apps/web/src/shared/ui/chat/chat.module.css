@@ -1,6 +1,8 @@
-/* Skill chat — Claude-style layout: conversation rail, centered thread, floating composer. */
+/* Claude-style chat: conversation rail, centered thread, floating composer.
+   .root = the full /skills chat page, .embed = the same chat inside a panel (/tracking-coins). */
 
-.root {
+.root,
+.embed {
   --chat-bg: var(--background);
   --chat-surface: var(--surface);
   --chat-text: var(--foreground);
@@ -18,6 +20,52 @@
   position: relative;
   overflow: hidden;
   color: var(--chat-text);
+}
+
+.embed {
+  flex-direction: column;
+  flex: 1;
+  background: var(--chat-bg);
+}
+
+/* Thread picker above an embedded chat. */
+.embedBar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--chat-border);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.embedSelect {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--chat-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 5px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.embedSelect:hover {
+  background: var(--chat-hover);
+}
+
+.embedTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Conversation rail ─────────────────────────────────────────────── */
