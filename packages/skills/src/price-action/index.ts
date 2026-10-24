@@ -9,7 +9,7 @@ export const priceActionSkill: SkillDefinition = {
   icon: '📊',
   category: 'analysis',
   systemPrompt: SYSTEM_PROMPT,
-  tools: ['analyze_market_structure', 'get_ticker_price', 'get_24h_ticker'],
+  tools: ['analyze_market_structure', 'get_ticker_price', 'get_24h_ticker', 'get_tracking_coins'],
   exampleQuestions: EXAMPLE_QUESTIONS,
   welcomeMessage: 'Xin chào! Tôi là chuyên gia phân tích Price Action. Hãy cho tôi biết coin bạn muốn phân tích (ví dụ: BTC, ETH, SOL) và tôi sẽ đọc cấu trúc giá cho bạn.'
 };

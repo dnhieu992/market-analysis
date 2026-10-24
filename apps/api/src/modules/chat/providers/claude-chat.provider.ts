@@ -33,11 +33,12 @@ function toZodShape(schema: ChatTool['inputSchema']): Record<string, z.ZodType> 
   const shape: Record<string, z.ZodType> = {};
 
   for (const [key, raw] of Object.entries(schema.properties)) {
-    const prop = raw as { type?: string; description?: string };
+    const prop = raw as { type?: string; description?: string; items?: { type?: string } };
     let field: z.ZodType =
       prop.type === 'number' || prop.type === 'integer' ? z.number()
       : prop.type === 'boolean' ? z.boolean()
       : prop.type === 'string' ? z.string()
+      : prop.type === 'array' ? z.array(prop.items?.type === 'string' ? z.string() : z.unknown())
       : z.unknown();
     if (prop.description) field = field.describe(prop.description);
     shape[key] = required.has(key) ? field : field.optional();

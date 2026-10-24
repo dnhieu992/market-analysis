@@ -37,6 +37,11 @@ export type LiveReplyDto = {
 const LIVE_KEEP_MS = 60_000;
 const isActive = (l: LiveReply | undefined) => l != null && (l.phase === 'thinking' || l.phase === 'tool' || l.phase === 'writing');
 
+/** Every skill can read the user's /tracking-coins list through get_tracking_coins. */
+const WATCHLIST_HINT =
+  'Danh sách coin người dùng đang theo dõi (trang Tracking Coins): gọi get_tracking_coins khi user nói "coin của tôi", ' +
+  '"danh sách", "list", hoặc nhờ chọn coin. Dùng nó để lọc trước, rồi chỉ lấy dữ liệu chi tiết cho tối đa 3 coin đáng chú ý nhất.';
+
 @Injectable()
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
@@ -359,11 +364,11 @@ ${recent}`;
 
     const generalPrompt = `Crypto trading assistant. ${now} GMT+7.
 ${tradeContext}
-Tools: get_klines, get_ticker_price, get_24h_ticker, analyze_market_structure(1W/1D/4H).
+Tools: get_klines, get_ticker_price, get_24h_ticker, analyze_market_structure(1W/1D/4H), get_tracking_coins (danh sách coin user đang theo dõi).
 Dùng tool khi cần số liệu thực. Mỗi đề xuất lệnh kèm entry/SL/TP/lý do. Ngắn gọn, có thể hành động. Reply cùng ngôn ngữ user. Không tư vấn tài chính tuyệt đối.`;
 
     if (skillSystemPrompt) {
-      return `${skillSystemPrompt}\n\n---\n\nThời gian hiện tại: ${now} (GMT+7)\n\nHồ sơ giao dịch của người dùng:\n${tradeContext}`;
+      return `${skillSystemPrompt}\n\n---\n\nThời gian hiện tại: ${now} (GMT+7)\n\n${WATCHLIST_HINT}\n\nHồ sơ giao dịch của người dùng:\n${tradeContext}`;
     }
 
     if (coinContext && coinId) {

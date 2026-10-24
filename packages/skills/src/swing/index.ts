@@ -9,7 +9,7 @@ export const swingSkill: SkillDefinition = {
   icon: '🎯',
   category: 'strategy',
   systemPrompt: SYSTEM_PROMPT,
-  tools: ['analyze_market_structure', 'get_klines', 'get_ticker_price'],
+  tools: ['analyze_market_structure', 'get_klines', 'get_ticker_price', 'get_tracking_coins'],
   exampleQuestions: EXAMPLE_QUESTIONS,
   welcomeMessage: 'Xin chào! Tôi chuyên phân tích swing trade theo đa khung thời gian. Cho tôi biết coin bạn muốn trade và tôi sẽ tìm setup với entry zone, stop loss, và take profit cụ thể.'
 };

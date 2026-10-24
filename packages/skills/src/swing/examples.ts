@@ -1,4 +1,5 @@
 export const EXAMPLE_QUESTIONS = [
+  'Quét danh sách coin tôi đang theo dõi, coin nào có setup swing tốt nhất?',
   'BTC có setup swing trade nào tốt trên daily không?',
   'ETH đang pullback về vùng nào để mua swing?',
   'Tìm setup swing với R:R tối thiểu 3:1 cho SOL',

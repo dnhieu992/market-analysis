@@ -6,6 +6,7 @@ import { get24hTickerTool, getKlinesTool, getTickerPriceTool } from './binance.t
 import { analyzeMarketStructureTool } from './market-structure.tool';
 import { getScalpChartDataTool } from './scalp-chart.tool';
 import { createProposeTradeSetupTool } from './trade-setup.tool';
+import { getTrackingCoinsTool } from './tracking-coins.tool';
 
 @Injectable()
 export class TradingChatToolRegistry extends ChatToolRegistry {
@@ -15,6 +16,7 @@ export class TradingChatToolRegistry extends ChatToolRegistry {
     [get24hTickerTool.name,            get24hTickerTool],
     [analyzeMarketStructureTool.name,  analyzeMarketStructureTool],
     [getScalpChartDataTool.name,       getScalpChartDataTool],
+    [getTrackingCoinsTool.name,        getTrackingCoinsTool],
     ['propose_trade_setup',            createProposeTradeSetupTool()]
   ]);
 

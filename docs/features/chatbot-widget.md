@@ -195,6 +195,21 @@ Mỗi request tự động inject vào context:
 
 Tất cả là **public endpoints**, không cần API key Binance.
 
+### `get_tracking_coins` — danh sách coin đang theo dõi
+
+`apps/api/src/modules/chat/tools/tracking-coins.tool.ts`. Đọc các coin trên trang `/tracking-coins` (bảng
+`tracking_coins`, xếp theo market cap) rồi tính trực tiếp từ nến Binance 1D + 4H (210 nến, 10 coin song song,
+cache 60s):
+
+- giá, % thay đổi 24h / 7d / 30d / 90d, volume 24h (triệu USDT)
+- Supertrend(10,3) D1, cùng quy tắc với cột Score của trang
+- trend (giá vs EMA34 vs EMA89), RSI14, giá trên/dưới EMA34/89/200 cho cả 1D và 4H
+- khoảng cách tới đáy 20 ngày và đỉnh 90 ngày
+
+Không dùng bảng `tracking_coin_signals` vì bảng này không còn được scan định kỳ. Input `symbols` (tuỳ chọn) để
+lọc vài coin. Mọi skill đều có tool này. System prompt của skill dặn Claude lọc danh sách trước, rồi chỉ lấy dữ liệu
+chi tiết cho tối đa 3 coin.
+
 **Intervals hợp lệ:** `1m 3m 5m 15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M`
 
 ---

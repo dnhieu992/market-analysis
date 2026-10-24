@@ -1,4 +1,5 @@
 export const EXAMPLE_QUESTIONS = [
+  'Trong danh sách coin đang theo dõi, coin nào đang ở vùng nên gom DCA?',
   'Tôi muốn DCA BTC, nên mua ở vùng giá nào?',
   'ETH hiện tại có phù hợp để bắt đầu DCA không?',
   'Lên kế hoạch DCA SOL trong 3 tháng tới với 10 triệu đồng',

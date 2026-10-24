@@ -9,7 +9,7 @@ export const riskManagementSkill: SkillDefinition = {
   icon: '🛡️',
   category: 'education',
   systemPrompt: SYSTEM_PROMPT,
-  tools: ['get_ticker_price', 'get_24h_ticker'],
+  tools: ['get_ticker_price', 'get_24h_ticker', 'get_tracking_coins'],
   exampleQuestions: EXAMPLE_QUESTIONS,
   welcomeMessage: 'Xin chào! Tôi chuyên tư vấn quản lý rủi ro và vốn. Cho tôi biết quy mô tài khoản, lệnh bạn đang xem xét, hoặc danh mục hiện tại — tôi sẽ tính toán position size và đánh giá mức độ rủi ro cụ thể.'
 };

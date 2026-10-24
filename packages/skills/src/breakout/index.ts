@@ -9,7 +9,7 @@ export const breakoutSkill: SkillDefinition = {
   icon: '🚀',
   category: 'analysis',
   systemPrompt: SYSTEM_PROMPT,
-  tools: ['analyze_market_structure', 'get_klines', 'get_ticker_price', 'get_24h_ticker'],
+  tools: ['analyze_market_structure', 'get_klines', 'get_ticker_price', 'get_24h_ticker', 'get_tracking_coins'],
   exampleQuestions: EXAMPLE_QUESTIONS,
   welcomeMessage: 'Xin chào! Tôi chuyên tìm kiếm và đánh giá setup breakout. Cho tôi biết coin bạn quan tâm và tôi sẽ phân tích pattern, xác suất breakout, và điểm entry/exit cụ thể.'
 };

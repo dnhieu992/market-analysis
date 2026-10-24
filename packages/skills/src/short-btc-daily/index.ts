@@ -9,7 +9,7 @@ export const shortBtcDailySkill: SkillDefinition = {
   icon: '🐻',
   category: 'strategy',
   systemPrompt: SYSTEM_PROMPT,
-  tools: ['get_klines', 'get_ticker_price', 'analyze_market_structure'],
+  tools: ['get_klines', 'get_ticker_price', 'analyze_market_structure', 'get_tracking_coins'],
   exampleQuestions: EXAMPLE_QUESTIONS,
   welcomeMessage: 'Xin chào! Tôi tìm setup short BTC trong ngày — không giữ qua đêm. Tôi sẽ phân tích 4H (context) + 1H (setup) + 15min (entry confirmation), chấm điểm rủi ro 0–10, và đưa ra entry zone cụ thể với limit order, stop loss, và TP1/TP2. Bạn muốn phân tích ngay không?',
 };

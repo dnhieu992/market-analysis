@@ -20,6 +20,7 @@ const TOOL_LABEL: Record<string, string> = {
   get_ticker_price: 'Đang lấy giá hiện tại',
   get_24h_ticker: 'Đang lấy thống kê 24h',
   propose_trade_setup: 'Đang tạo setup lệnh',
+  get_tracking_coins: 'Đang đọc danh sách coin theo dõi',
 };
 
 const NEW_TITLE = 'Cuộc trò chuyện mới';
