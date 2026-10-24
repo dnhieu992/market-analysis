@@ -83,7 +83,8 @@ export function createTrackingSetupRepository(client = prisma) {
     listEvents(filter: { symbol?: string; setupId?: string }, take = 300) {
       return client.trackingSetupEvent.findMany({
         where: { ...(filter.symbol ? { symbol: filter.symbol } : {}), ...(filter.setupId ? { setupId: filter.setupId } : {}) },
-        orderBy: { createdAt: 'desc' },
+        // Events written in the same millisecond keep their write order (cuid ids grow).
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take,
       });
     },

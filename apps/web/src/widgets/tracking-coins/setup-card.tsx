@@ -70,6 +70,8 @@ export function SetupCard({
   const s = setup;
   const short = s.direction === 'SHORT';
   const done = s.status === 'CLOSED' || s.status === 'CANCELLED' || s.status === 'DISCARDED';
+  // Planned R:R per target — chat cards carry the raw row, so fall back to computing it here.
+  const rr = s.plannedRR ?? s.targets.map((t) => Math.round((Math.abs(t.price - s.entryPrice) / Math.abs(s.entryPrice - s.stopLoss)) * 100) / 100);
 
   async function run(path: string, body: unknown = {}) {
     setBusy(true);
@@ -114,7 +116,7 @@ export function SetupCard({
         {s.targets.map((t, i) => (
           <Level
             key={i}
-            label={`TP${i + 1} · ${t.pct}%${s.plannedRR?.[i] != null ? ` · ${s.plannedRR[i]}R` : ''}`}
+            label={`TP${i + 1} · ${t.pct}%${Number.isFinite(rr[i]) ? ` · ${rr[i]}R` : ''}`}
             value={fmtPx(t.price)}
             hit={Boolean(t.hitAt)}
           />
