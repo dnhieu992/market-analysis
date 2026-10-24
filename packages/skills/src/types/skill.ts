@@ -10,4 +10,6 @@ export type SkillDefinition = {
   tools: string[];
   exampleQuestions: string[];
   welcomeMessage: string;
+  /** Used by another page (e.g. the /tracking-coins panel), not listed on /skills. */
+  hidden?: boolean;
 };

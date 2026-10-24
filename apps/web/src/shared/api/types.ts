@@ -370,6 +370,8 @@ export type Conversation = {
   id: string;
   title: string;
   skillId: string | null;
+  /** { symbol } for a /tracking-coins panel chat. */
+  metadata?: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -382,6 +384,8 @@ export type ChatMessage = {
   createdAt: string;
   /** Trade setups the skill proposed in this reply (Accept / Cancel cards). */
   setups?: SkillTradeSetup[];
+  /** Swing setups proposed in a /tracking-coins panel chat. */
+  trackingSetups?: TrackingSetup[];
 };
 
 /** Progress of the reply being generated (GET /chat/conversations/:id/live). */
@@ -486,59 +490,6 @@ export type TrackingCoinRow = {
   name: string;
   marketCap: number | null;
   addedAt: string;
-  signal: {
-    rsi: number | null;
-    volMultiplier: number | null;
-    ema34Above: boolean;
-    ema89Above: boolean;
-    ema200Above: boolean;
-    wEma34Above: boolean | null;
-    wEma89Above: boolean | null;
-    wEma200Above: boolean | null;
-    h4Ema34Above: boolean | null;
-    h4Ema89Above: boolean | null;
-    h4Ema200Above: boolean | null;
-    utBotW1Bullish: boolean | null;
-    utBotD1Bullish: boolean | null;
-    utBotH4Bullish: boolean | null;
-    utBotM30Bullish: boolean | null;
-    wRsi: number | null;
-    wVolMultiplier: number | null;
-    h4Rsi: number | null;
-    h4VolMultiplier: number | null;
-    m30Ema34Above: boolean | null;
-    m30Ema89Above: boolean | null;
-    m30Ema200Above: boolean | null;
-    m30Rsi: number | null;
-    m30VolMultiplier: number | null;
-    longScore: number | null;
-    shortScore: number | null;
-    signalScore: number;
-    entryScore: number;
-    dcaScore: number;
-    dcaZone: 'GOM' | 'CHO' | 'CHOT';
-    accZone: 'GOM' | 'CHO' | 'CHOT' | null;
-    accDrawdownPct: number | null;
-    accBaseWidthPct: number | null;
-    accInBase: boolean | null;
-    accGatePassed: boolean | null;
-    gomZone: {
-      zoneLow: number;
-      zoneHigh: number;
-      ladder: number[];
-      avgCost: number;
-      targetX2: number;
-    } | null;
-    extPct: number | null;
-    low20Pct: number | null;
-    sparkline: number[];
-    weekTrend: PaTrend;
-    trend: PaTrend;
-    h4Trend: PaTrend;
-    m30Trend: PaTrend;
-    swingStructure: SwingStructure;
-    scannedAt: string;
-  } | null;
 };
 
 export type TrackingCoinSetup = {
@@ -1599,4 +1550,113 @@ export type StrategyPaperNote = {
   body: string;
   images: string[];
   createdAt: string;
+};
+
+// ── /tracking-coins swing setups (paper) ─────────────────────────────────────
+
+export type TrackingSetupStatus = 'PROPOSED' | 'WATCHING' | 'PENDING' | 'OPEN' | 'CLOSED' | 'CANCELLED' | 'DISCARDED';
+
+export type TrackingTarget = { price: number; pct: number; hitAt?: string | null; exitPrice?: number | null };
+
+export type TrackingSetup = {
+  id: string;
+  symbol: string;
+  pair?: string;
+  source: 'CLAUDE' | 'MANUAL';
+  conversationId: string | null;
+  direction: 'LONG' | 'SHORT';
+  orderType: 'LIMIT' | 'STOP' | 'MARKET';
+  status: TrackingSetupStatus;
+  setupType: string | null;
+  timeframe: string;
+  confidence: string | null;
+  thesis: string | null;
+  triggerNote: string | null;
+  invalidation: string | null;
+  entryPrice: number;
+  stopLoss: number;
+  targets: TrackingTarget[];
+  riskUsd: number;
+  fillPrice: number | null;
+  quantity: number | null;
+  remainingQty: number | null;
+  currentStop: number | null;
+  placedAt: string | null;
+  filledAt: string | null;
+  closedAt: string | null;
+  closeReason: 'TP' | 'SL' | 'BE' | 'TRAIL' | 'MANUAL' | null;
+  realizedPnlUsd: number | null;
+  rMultiple: number | null;
+  manualIntervention: boolean;
+  lastPrice: number | null;
+  mfeR: number | null;
+  maeR: number | null;
+  rating: number | null;
+  reviewNote: string | null;
+  postMortem: string | null;
+  createdAt: string;
+  updatedAt: string;
+  plannedRR?: number[];
+  riskPct?: number;
+  unrealizedR?: number | null;
+};
+
+export type TrackingEvent = {
+  id: string;
+  symbol: string;
+  setupId: string | null;
+  type: string;
+  price: number | null;
+  message: string;
+  data: Record<string, unknown> | null;
+  images: string[] | null;
+  chartUrl: string | null;
+  createdAt: string;
+};
+
+export type TrackingGroupStat = { group: string; trades: number; winRate: number; totalR: number; avgR: number };
+
+export type TrackingStats = {
+  closed: number;
+  winRate: number | null;
+  totalR: number;
+  avgR: number | null;
+  avgRating: number | null;
+  bySetupType: TrackingGroupStat[];
+  bySymbol: TrackingGroupStat[];
+  byDirection: TrackingGroupStat[];
+  bySource: TrackingGroupStat[];
+  byIntervention: TrackingGroupStat[];
+  byCloseReason: TrackingGroupStat[];
+};
+
+export type TrackingLessonBatch = {
+  id: string;
+  tradeCount: number;
+  draft: string;
+  content: string | null;
+  status: 'DRAFT' | 'APPROVED';
+  approvedAt: string | null;
+  createdAt: string;
+};
+
+export type TrackingOverview = {
+  setups: TrackingSetup[];
+  stats: TrackingStats;
+  config: { riskUsd: number };
+  lessons: { batches: TrackingLessonBatch[]; unbatched: number; batchSize: number; canDraft: boolean };
+};
+
+export type TrackingSetupInput = {
+  symbol: string;
+  direction: 'LONG' | 'SHORT';
+  orderType: 'LIMIT' | 'STOP' | 'MARKET';
+  entryPrice: number;
+  stopLoss: number;
+  targets: number[];
+  targetPcts?: number[];
+  setupType?: string;
+  thesis?: string;
+  triggerNote?: string;
+  invalidation?: string;
 };

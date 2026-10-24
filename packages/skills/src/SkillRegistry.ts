@@ -6,6 +6,7 @@ import { dcaSkill } from './dca';
 import { riskManagementSkill } from './risk-management';
 import { shortBtcDailySkill } from './short-btc-daily';
 import { scalpingSkill } from './scalping';
+import { trackingSwingSkill } from './tracking-swing';
 
 export const SKILLS: SkillDefinition[] = [
   priceActionSkill,
@@ -15,6 +16,7 @@ export const SKILLS: SkillDefinition[] = [
   riskManagementSkill,
   shortBtcDailySkill,
   scalpingSkill,
+  trackingSwingSkill,
 ];
 
 export function getSkillById(id: string): SkillDefinition | undefined {

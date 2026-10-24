@@ -30,6 +30,7 @@ import { WorkerModule } from './modules/worker/worker.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-backtest.module';
 import { StrategyPaperTradesModule } from './modules/strategy-paper-trades/strategy-paper-trades.module';
+import { TrackingTradesModule } from './modules/tracking-trades/tracking-trades.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { StrategyPaperTradesModule } from './modules/strategy-paper-trades/strat
     AssetModule,
     StrategyBacktestModule,
     StrategyPaperTradesModule,
+    TrackingTradesModule,
   ],
   providers: [
     {

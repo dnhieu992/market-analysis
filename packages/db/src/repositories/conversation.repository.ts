@@ -23,7 +23,7 @@ export function createConversationRepository(client = prisma) {
       return client.conversation.findMany({
         where: { userId, ...(skillId !== undefined ? { skillId } : {}) },
         orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, skillId: true, createdAt: true, updatedAt: true }
+        select: { id: true, title: true, skillId: true, metadata: true, createdAt: true, updatedAt: true }
       });
     },
 

@@ -415,39 +415,8 @@ model TrackingCoin {
   // portfolio's Holding + CoinTransaction rows for this symbol, so the DCA tab and the
   // portfolio page can never disagree.
   dcaPortfolioId  String?                 @db.Char(36)
-  signals         TrackingCoinSignal[]
-  signalHistory   TrackingCoinSignalHistory[]
-  orders          TrackingCoinOrder[]
 
   @@map("tracking_coins")
-}
-
-model TrackingCoinOrder {
-  id          String       @id @default(cuid())
-  coinId      String
-  date        DateTime     @db.Date
-  type        String       @db.VarChar(15)
-  side        String       @db.VarChar(5)
-  entryLow    Float
-  entryHigh   Float
-  tp1         Float
-  tp2         Float?
-  sl          Float
-  rrRatio       Float
-  rationale     String       @db.Text
-  notes         String?      @db.Text
-  positionSize  Float?
-  positionValue Float?
-  activated     Boolean?
-  outcome       String?      @db.VarChar(10)
-  evaluatedAt   DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  coin        TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
-
-  @@unique([coinId, date, type])
-  @@index([coinId, date(sort: Desc)])
-  @@map("tracking_coin_orders")
 }
 
 // Activity log for a tracked coin — the /tracking-coins "Activity logs" tab. Mirrors
@@ -470,94 +439,6 @@ model TrackingCoinActivityLog {
 
   @@index([symbol, createdAt])
   @@map("tracking_coin_activity_logs")
-}
-
-model TrackingCoinSignal {
-  id             String       @id @default(cuid())
-  coinId         String
-  date           DateTime     @db.Date
-  rsi            Float?
-  volMultiplier  Float?
-  ema34Above     Boolean      @default(false)
-  ema89Above     Boolean      @default(false)
-  ema200Above    Boolean      @default(false)
-  stage          String       @default("Quiet") @db.VarChar(20)
-  signalScore    Int          @default(0)
-  entryScore     Int          @default(0)
-  dcaScore       Int          @default(0)
-  extPct         Float?
-  low20Pct       Float?
-  sparklineJson  String       @db.Text
-  weekTrend      String       @default("Neutral") @db.VarChar(15)
-  trend          String       @default("Neutral") @db.VarChar(15)
-  h4Trend        String       @default("Neutral") @db.VarChar(15)
-  m30Trend       String       @default("Neutral") @db.VarChar(15)
-  swingStructure String       @default("Mixed") @db.VarChar(10)
-  longScore      Float?
-  shortScore     Float?
-  utBotW1Bullish  Boolean?
-  utBotD1Bullish  Boolean?
-  utBotH4Bullish  Boolean?
-  wEma34Above     Boolean?
-  wEma89Above     Boolean?
-  wEma200Above    Boolean?
-  wRsi            Float?
-  wVolMultiplier  Float?
-  h4Ema34Above    Boolean?
-  h4Ema89Above    Boolean?
-  h4Ema200Above   Boolean?
-  h4Rsi           Float?
-  h4VolMultiplier Float?
-  // M30 timeframe — display-only signal (not used in any scoring/logic).
-  utBotM30Bullish  Boolean?
-  m30Ema34Above    Boolean?
-  m30Ema89Above    Boolean?
-  m30Ema200Above   Boolean?
-  m30Rsi           Float?
-  m30VolMultiplier Float?
-  // Accumulation-zone DCA signal (spot, no SL) — gated by dcaScore survival filter.
-  accZone         String?      @db.VarChar(5)
-  accDrawdownPct  Float?
-  accBaseWidthPct Float?
-  accInBase       Boolean?
-  accGatePassed   Boolean?
-  accBaseLow      Float?
-  scannedAt       DateTime     @default(now())
-  coin           TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
-
-  @@unique([coinId, date])
-  @@index([date, signalScore(sort: Desc)])
-  @@map("tracking_coin_signals")
-}
-
-// Append-only change log of the DCA signal. A new row is written only when the
-// DCA action zone (GOM/CHO/CHOT) OR the quality bucket (safe/ok/risky/avoid)
-// differs from the most recent row for the coin — so this is a compact history
-// of meaningful state changes, not every 4-hour scan.
-model TrackingCoinSignalHistory {
-  id         String       @id @default(cuid())
-  coinId     String
-  dcaScore   Int
-  dcaZone    String?      @db.VarChar(5)
-  dcaBucket  String       @db.VarChar(6)
-  trend      String       @default("Neutral") @db.VarChar(15)
-  weekTrend  String       @default("Neutral") @db.VarChar(15)
-  h4Trend    String       @default("Neutral") @db.VarChar(15)
-  rsi        Float?
-  extPct     Float?
-  price      Float?
-  // Daily LLM (Haiku) review of an OPEN holding — null on plain change-log rows.
-  entryMode  String?      @db.VarChar(8)
-  avgEntry   Float?
-  pnlPct     Float?
-  llmVerdict String?      @db.VarChar(12)
-  llmReview  String?      @db.Text
-  llmModel   String?      @db.VarChar(40)
-  scannedAt  DateTime     @default(now())
-  coin       TrackingCoin @relation(fields: [coinId], references: [id], onDelete: Cascade)
-
-  @@index([coinId, scannedAt(sort: Desc)])
-  @@map("tracking_coin_signal_history")
 }
 
 // One Bitget USDT-futures trade across its whole lifecycle. The worker
@@ -742,7 +623,6 @@ model BitgetTradeChart {
   @@map("bitget_trade_charts")
 }
 
-
 // ─── MEXC USDT-futures ────────────────────────────────────────────────────────
 // Independent mirror of the Bitget models above, for the second exchange the
 // dashboard tracks (/mexc). Kept as separate tables on purpose: the two
@@ -891,7 +771,6 @@ model MexcTradeChart {
   @@index([symbol])
   @@map("mexc_trade_charts")
 }
-
 
 // ── My Asset (/my-asset) ──────────────────────────────────────────────────────
 // The trader's USDT capital split across named buckets. Seeded with spot,
@@ -1134,6 +1013,112 @@ model StrategyPaperTradePath {
   updatedAt  DateTime @updatedAt
 
   @@map("strategy_paper_trade_paths")
+}
+
+// A swing setup on the /tracking-coins page — proposed by Claude (panel chat) or typed in by hand —
+// followed through its whole life: PROPOSED → WATCHING (idea waiting for its trigger) → PENDING
+// (LIMIT/STOP order) → OPEN → CLOSED, or DISCARDED / CANCELLED. Paper only, simulated on 1m candles.
+model TrackingSetup {
+  id                 String    @id @default(cuid())
+  symbol             String    @db.VarChar(30) // bare, e.g. "BTC"
+  source             String    @db.VarChar(8) // CLAUDE | MANUAL
+  conversationId     String?   @db.Char(36)
+  messageId          String?   @db.Char(36)
+  direction          String    @db.VarChar(5) // LONG | SHORT
+  orderType          String    @db.VarChar(8) // LIMIT | STOP | MARKET
+  status             String    @db.VarChar(12)
+  setupType          String?   @db.VarChar(80)
+  timeframe          String    @default("4h") @db.VarChar(6)
+  confidence         String?   @db.VarChar(20)
+  thesis             String?   @db.Text
+  // Condition to act on while WATCHING, e.g. "4H đóng trên 0.589".
+  triggerNote        String?   @db.Text
+  invalidation       String?   @db.Text
+  entryPrice         Float
+  stopLoss           Float // planned stop
+  // [{ price, pct, hitAt?, exitPrice? }] — pct of the filled size closed at each target.
+  targets            Json
+  riskUsd            Float     @default(10)
+  // Filled trade
+  fillPrice          Float?
+  quantity           Float?
+  remainingQty       Float?
+  currentStop        Float?
+  placedAt           DateTime?
+  filledAt           DateTime?
+  closedAt           DateTime?
+  closeReason        String?   @db.VarChar(12) // TP | SL | BE | TRAIL | MANUAL
+  realizedPnlUsd     Float?
+  rMultiple          Float?
+  // Set once the user closed part of the trade or moved its stop by hand.
+  manualIntervention Boolean   @default(false)
+  lastPrice          Float?
+  lastCheckedAt      DateTime?
+  // Price path after the fill (R = move / initial risk): extremes and R at each 1h close.
+  mfeR               Float?
+  maeR               Float?
+  mfeAt              DateTime?
+  maeAt              DateTime?
+  pathR              Json?
+  // Learning
+  rating             Int?
+  reviewNote         String?   @db.Text
+  reviewedAt         DateTime?
+  postMortem         String?   @db.LongText
+  postMortemAt       DateTime?
+  lessonBatchId      String?   @db.VarChar(30)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([symbol, status])
+  @@index([status])
+  @@index([conversationId])
+  @@index([messageId])
+  @@map("tracking_setups")
+}
+
+// Timeline of a tracked coin: setup milestones (placed, filled, TP hit, stop moved, closed…),
+// hand-written notes with images, saved analyses and post-mortems. setupId null = coin-level.
+model TrackingSetupEvent {
+  id        String   @id @default(cuid())
+  symbol    String   @db.VarChar(30)
+  setupId   String?  @db.VarChar(30)
+  type      String   @db.VarChar(16)
+  price     Float?
+  message   String   @db.Text
+  data      Json?
+  images    Json?
+  chartUrl  String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([symbol, createdAt])
+  @@index([setupId, createdAt])
+  @@map("tracking_setup_events")
+}
+
+// Lessons distilled from a batch of ~100 closed setups. Claude writes the draft; only an
+// approved batch is fed into later analyses.
+model TrackingLessonBatch {
+  id         String    @id @default(cuid())
+  tradeCount Int
+  tradeIds   Json
+  stats      Json?
+  draft      String    @db.LongText
+  content    String?   @db.LongText
+  status     String    @default("DRAFT") @db.VarChar(10) // DRAFT | APPROVED
+  approvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("tracking_lesson_batches")
+}
+
+model TrackingTradeConfig {
+  id        String   @id @default("singleton") @db.VarChar(20)
+  riskUsd   Float    @default(10)
+  updatedAt DateTime @updatedAt
+
+  @@map("tracking_trade_config")
 }
 
 // Singleton config + editable, plain-language description for the PDH/PDL strategy page.

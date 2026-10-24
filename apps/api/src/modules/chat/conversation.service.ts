@@ -1,8 +1,9 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { createSkillTradeSetupRepository, createStrategyPaperTradeRepository } from '@app/db';
+import { createSkillTradeSetupRepository, createStrategyPaperTradeRepository, createTrackingSetupRepository } from '@app/db';
 import { getSkillById } from '@app/skills';
 
 import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
+import { buildTrackingContext, TRACKING_SKILL_ID } from '../tracking-trades/tracking-context';
 import { ClaudeChatProvider } from './providers/claude-chat.provider';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
 
@@ -47,6 +48,7 @@ export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
   private readonly setupRepo = createSkillTradeSetupRepository();
   private readonly paperTradeRepo = createStrategyPaperTradeRepository();
+  private readonly trackingRepo = createTrackingSetupRepository();
   private readonly live = new Map<string, LiveReply>();
 
   constructor(
@@ -64,8 +66,8 @@ export class ConversationService {
 
   // ── CRUD ──────────────────────────────────────────────────────────────
 
-  createConversation(userId: string, title?: string, skillId?: string, coinId?: string, portfolioId?: string) {
-    const metadata = coinId && portfolioId ? { coinId, portfolioId } : undefined;
+  createConversation(userId: string, title?: string, skillId?: string, coinId?: string, portfolioId?: string, symbol?: string) {
+    const metadata = coinId && portfolioId ? { coinId, portfolioId } : symbol ? { symbol: symbol.toUpperCase() } : undefined;
     return this.convRepo.create(userId, title ?? 'Cuộc trò chuyện mới', skillId, metadata);
   }
 
@@ -76,10 +78,17 @@ export class ConversationService {
   async getConversationMessages(id: string, userId: string) {
     const conv = await this.convRepo.findById(id);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
-    const [messages, setups] = await Promise.all([
+    const [rawMessages, setups, tracking] = await Promise.all([
       this.convRepo.listMessages(id),
-      this.setupRepo.listByConversation(id)
+      this.setupRepo.listByConversation(id),
+      this.trackingRepo.listByConversation(id)
     ]);
+    // Swing setups proposed in a /tracking-coins panel chat, with their current status.
+    const trackingByMessage = new Map<string, unknown[]>();
+    for (const t of tracking) {
+      if (t.messageId) trackingByMessage.set(t.messageId, [...(trackingByMessage.get(t.messageId) ?? []), t]);
+    }
+    const messages = rawMessages.map((m) => (trackingByMessage.has(m.id) ? { ...m, trackingSetups: trackingByMessage.get(m.id) } : m));
     if (setups.length === 0) return messages;
 
     // Accepted setups carry their paper trade's live status so the chat can show progress.
@@ -196,12 +205,15 @@ export class ConversationService {
       const skill = skillId ? getSkillById(skillId) : undefined;
       const coinId = meta?.coinId;
       const portfolioId = meta?.portfolioId;
-      const systemPrompt = await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
+      const tracking = skillId === TRACKING_SKILL_ID;
+      const systemPrompt = tracking
+        ? `${skill!.systemPrompt}\n\n---\n\nThời gian hiện tại: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} (GMT+7)\n\n${await buildTrackingContext(meta?.symbol)}`
+        : await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
       const allTools = this.toolRegistry.listTools();
-      // propose_trade_setup creates Accept/Cancel cards — only for skills that opt into it.
+      // The propose_* tools create setup cards — only for skills that opt into them.
       const tools = skill
         ? allTools.filter((t) => skill.tools.includes(t.name))
-        : allTools.filter((t) => t.name !== 'propose_trade_setup');
+        : allTools.filter((t) => !t.name.startsWith('propose_'));
 
       const reply = await this.claude.chatAgentLoop(
         systemPrompt,
@@ -230,6 +242,16 @@ export class ConversationService {
 
       const assistantMsg = await this.convRepo.addMessage(conversationId, 'assistant', reply);
       await this.setupRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
+      await this.trackingRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
+      // The first answer of a coin's panel chat is its analysis — keep it on the coin's timeline.
+      if (tracking && meta?.symbol && !history.some((m) => m.role === 'assistant')) {
+        await this.trackingRepo.addEvent({
+          symbol: meta.symbol,
+          type: 'ANALYSIS',
+          message: reply.slice(0, 20000),
+          data: { conversationId, messageId: assistantMsg.id }
+        });
+      }
       await this.convRepo.touch(conversationId);
       finish('done');
     } catch (error) {
@@ -238,6 +260,7 @@ export class ConversationService {
         if (live.text.trim()) {
           const msg = await this.convRepo.addMessage(conversationId, 'assistant', `${live.text.trim()}\n\n_(Đã dừng)_`);
           await this.setupRepo.attachToMessage(conversationId, msg.id, startedAt);
+          await this.trackingRepo.attachToMessage(conversationId, msg.id, startedAt);
           await this.convRepo.touch(conversationId);
         }
         finish('stopped');

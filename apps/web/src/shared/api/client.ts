@@ -37,6 +37,10 @@ import type {
   TradingJournalEntry,
   TradingJournalRevision,
   TrackingCoinRow,
+  TrackingEvent,
+  TrackingOverview,
+  TrackingSetup,
+  TrackingSetupInput,
   TrackingCoinScore,
   TrackingPriceChange,
   TrackingCoinSetup,
@@ -829,11 +833,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
         : `${baseUrl}/chat/conversations`;
       return fetchJson<Conversation[]>(fetchImpl, url, withDefaults());
     },
-    async createConversation(title?: string, skillId?: string, coinId?: string, portfolioId?: string): Promise<Conversation> {
+    async createConversation(title?: string, skillId?: string, coinId?: string, portfolioId?: string, symbol?: string): Promise<Conversation> {
       const res = await fetchImpl(`${baseUrl}/chat/conversations`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, skillId, coinId, portfolioId })
+        body: JSON.stringify({ title, skillId, coinId, portfolioId, symbol })
       }));
       if (!res.ok) throw new Error(`createConversation failed: ${res.status}`);
       return res.json() as Promise<Conversation>;
@@ -976,6 +980,37 @@ export function createApiClient(options: ApiClientOptions = {}) {
         `${baseUrl}/asset/categories/${encodeURIComponent(id)}`,
         withDefaults({ method: 'DELETE' }),
       );
+    },
+
+    // ── /tracking-coins swing setups ──
+    fetchTrackingOverview(): Promise<TrackingOverview> {
+      return fetchJson<TrackingOverview>(fetchImpl, `${baseUrl}/tracking-trades`, withDefaults());
+    },
+    fetchTrackingActiveByCoin(): Promise<Record<string, Array<{ id: string; status: string; direction: string }>>> {
+      return fetchJson(fetchImpl, `${baseUrl}/tracking-trades/active-by-coin`, withDefaults());
+    },
+    fetchTrackingCoin(symbol: string): Promise<{ setups: TrackingSetup[]; events: TrackingEvent[] }> {
+      return fetchJson(fetchImpl, `${baseUrl}/tracking-trades/coin/${encodeURIComponent(symbol)}`, withDefaults());
+    },
+    fetchTrackingSetup(id: string): Promise<{ setup: TrackingSetup; events: TrackingEvent[] }> {
+      return fetchJson(fetchImpl, `${baseUrl}/tracking-trades/${id}`, withDefaults());
+    },
+    /** POST/PUT to /tracking-trades/<path>; returns the parsed JSON or throws with the server's message. */
+    async trackingAction<T = { setup: TrackingSetup }>(path: string, body: unknown = {}, method: 'POST' | 'PUT' | 'DELETE' = 'POST'): Promise<T> {
+      const res = await fetchImpl(`${baseUrl}/tracking-trades${path}`, withDefaults({
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: method === 'DELETE' ? undefined : JSON.stringify(body)
+      }));
+      if (!res.ok) {
+        const err = (await res.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(err?.message) ? err!.message.join(', ') : err?.message;
+        throw new Error(msg || `Thao tác thất bại (${res.status})`);
+      }
+      return res.json() as Promise<T>;
+    },
+    createTrackingSetup(input: TrackingSetupInput & { place?: boolean }) {
+      return this.trackingAction('', input);
     },
 
     async fetchTrackingCoins(): Promise<TrackingCoinRow[]> {

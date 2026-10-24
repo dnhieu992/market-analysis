@@ -1,5 +1,5 @@
 import { calculateEma, calculateRsi, isSupertrendBullish, type Candle } from '@app/core';
-import { createTrackingCoinsRepository } from '@app/db';
+import { createTrackingCoinsRepository, createTrackingSetupRepository, TRACKING_ACTIVE_STATUSES } from '@app/db';
 
 import type { ChatTool } from '../contracts/chat-tool';
 
@@ -154,12 +154,21 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
       missing.forEach((c, i) => rows.set(c.pair, computed[i]!));
     }
 
+    // Setups alive on the /tracking-coins page (read-only here), so suggestions don't clash with them.
+    const active = await createTrackingSetupRepository().list({ statuses: TRACKING_ACTIVE_STATUSES }, 1000);
+    const setupsOf = (pair: string) =>
+      active
+        .filter((x) => pairOf(x.symbol) === pair)
+        .map((x) => `${x.status} ${x.direction} @${Number(x.entryPrice.toPrecision(6))}`)
+        .join(' | ');
+
     return [
       `Watchlist (${coins.length} coin), tính trực tiếp từ nến Binance lúc ${new Date().toISOString().slice(0, 16)}Z.`,
       'ema = giá trên(Y)/dưới(N) EMA34,EMA89,EMA200. trend: Up = giá>EMA34>EMA89, Down = giá<EMA34<EMA89, Mixed = lẫn lộn. ' +
-        'supertrendD1 = cột Score trên trang Tracking Coins. vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày.',
-      'pair,name,price,chg24h%,chg7d%,chg30d%,chg90d%,vol24hM,supertrendD1,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%',
-      ...coins.map((c) => rows.get(c.pair)!),
+        'supertrendD1 = cột Score trên trang Tracking Coins. vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. ' +
+        'activeSetups = setup paper trên trang Tracking Coins (PROPOSED/WATCHING/PENDING/OPEN), chỉ đọc — đừng đề xuất trùng hay ngược chiều mà không nói rõ.',
+      'pair,name,price,chg24h%,chg7d%,chg30d%,chg90d%,vol24hM,supertrendD1,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,activeSetups',
+      ...coins.map((c) => `${rows.get(c.pair)!},${setupsOf(c.pair)}`),
     ].join('\n');
   },
 };

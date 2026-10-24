@@ -17,6 +17,7 @@ export { createPnlHistoryRepository } from './repositories/pnl-history.repositor
 export { createHoldingReviewRepository } from './repositories/holding-review.repository';
 export { createConversationRepository } from './repositories/conversation.repository';
 export { createTrackingCoinsRepository } from './repositories/tracking-coins.repository';
+export { createTrackingSetupRepository, TRACKING_ACTIVE_STATUSES } from './repositories/tracking-setup.repository';
 export { createTradingJournalRepository } from './repositories/trading-journal.repository';
 export type { TradingJournalUpsert } from './repositories/trading-journal.repository';
 export { createBitgetTradeRepository } from './repositories/bitget-trade.repository';

@@ -15,7 +15,8 @@ export type SkillPublicDto = {
 @Injectable()
 export class SkillsService {
   getAll(): SkillPublicDto[] {
-    return SKILLS.map(({ id, name, description, icon, category, tools, exampleQuestions, welcomeMessage }) => ({
+    // Hidden skills belong to another page (the /tracking-coins panel), not the /skills list.
+    return SKILLS.filter((s) => !s.hidden).map(({ id, name, description, icon, category, tools, exampleQuestions, welcomeMessage }) => ({
       id, name, description, icon, category, tools, exampleQuestions, welcomeMessage
     }));
   }
@@ -23,7 +24,7 @@ export class SkillsService {
   getById(id: string): SkillPublicDto {
     const skill = getSkillById(id);
     if (!skill) throw new NotFoundException(`Skill "${id}" not found`);
-    const { systemPrompt: _systemPrompt, ...rest } = skill;
-    return rest;
+    const { id: skillId, name, description, icon, category, tools, exampleQuestions, welcomeMessage } = skill;
+    return { id: skillId, name, description, icon, category, tools, exampleQuestions, welcomeMessage };
   }
 }

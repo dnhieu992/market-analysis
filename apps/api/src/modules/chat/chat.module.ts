@@ -25,6 +25,6 @@ import { TradingChatToolRegistry } from './tools/trading-chat-tool-registry';
       useClass: TradingChatToolRegistry
     }
   ],
-  exports: [ChatService, ConversationService]
+  exports: [ChatService, ConversationService, ClaudeChatProvider]
 })
 export class ChatModule {}

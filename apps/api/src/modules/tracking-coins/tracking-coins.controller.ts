@@ -18,7 +18,7 @@ export class TrackingCoinsController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all manually tracked coins with latest signals' })
+  @ApiOperation({ summary: 'List the tracked coins (watchlist order)' })
   listCoins() {
     return this.service.listCoins();
   }

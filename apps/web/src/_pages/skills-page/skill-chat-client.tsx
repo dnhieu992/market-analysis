@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
 import type { ChatMessage, Conversation, LiveReply, Skill, SkillTradeSetup } from '@web/shared/api/types';
 
-import { renderChatMarkdown } from './chat-markdown';
+import { renderChatMarkdown } from '@web/shared/lib/chat-markdown';
 import styles from './skill-chat.module.css';
 import { TradeSetupCard } from './trade-setup-card';
 

@@ -2,8 +2,12 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, TrackingCoinScore, TrackingPriceChange, PaTrend } from '@web/shared/api/types';
+import type { TrackingCoinRow, TrackingCoinScore, TrackingPriceChange } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
+
+import { CoinPanel } from './coin-panel';
+import { TradesTab } from './trades-tab';
+import styles from './tracking.module.css';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 
@@ -12,6 +16,27 @@ type SortCol = 'coin' | 'score' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
+const ACTIVE_REFRESH_MS = 30_000;
+
+type ActiveSetups = Record<string, Array<{ id: string; status: string; direction: string }>>;
+
+const ACTIVE_LABEL: Record<string, string> = { PROPOSED: 'đề xuất', WATCHING: 'theo dõi', PENDING: 'chờ khớp', OPEN: 'mở' };
+
+/** Badge counts per stage for a coin's live setups — the "Setup" column. */
+function ActiveCell({ items }: { items: ActiveSetups[string] | undefined }) {
+  if (!items?.length) return <span className="scr-muted">—</span>;
+  const by = new Map<string, number>();
+  for (const x of items) by.set(x.status, (by.get(x.status) ?? 0) + 1);
+  return (
+    <span className={styles.badges}>
+      {['OPEN', 'PENDING', 'WATCHING', 'PROPOSED'].filter((k) => by.has(k)).map((k) => (
+        <span key={k} className={`${styles.badge} ${styles[`st${k}`] ?? ''}`} title={items.filter((x) => x.status === k).map((x) => x.direction).join(', ')}>
+          {by.get(k)} {ACTIVE_LABEL[k]}
+        </span>
+      ))}
+    </span>
+  );
+}
 const PRICE_REFRESH_MS = 5000;
 /** 7d / 30d / 90d / 180d only move on a daily close — poll them rarely. */
 const CHANGE_REFRESH_MS = 5 * 60_000;
@@ -88,66 +113,6 @@ function useLivePrices(symbols: string[]) {
   }, [fetchPrices]);
 
   return { prices, changes24h, flash };
-}
-
-/* ── UT Bot badge ───────────────────────────────────────────────── */
-
-function UtBotBadge({ bullish }: { bullish: boolean | null }) {
-  if (bullish === null) return <span className="scr-muted" style={{ fontSize: '0.75rem' }}>N/A</span>;
-  return (
-    <span className={`tc-utbot-badge ${bullish ? 'tc-utbot--bull' : 'tc-utbot--bear'}`}>
-      {bullish ? '● Bull' : '● Bear'}
-    </span>
-  );
-}
-
-/* ── EMA pips — green above, red below ─────────────────────────── */
-
-function EmaPips({ e34, e89, e200 }: { e34: boolean | null; e89: boolean | null; e200: boolean | null }) {
-  const cls = (v: boolean | null) =>
-    v === null ? 'scr-pip scr-pip--na' : v ? 'scr-pip scr-pip--on' : 'scr-pip scr-pip--off';
-  return (
-    <div className="scr-ema-pips">
-      <span className={cls(e34)}>34</span>
-      <span className={cls(e89)}>89</span>
-      <span className={cls(e200)}>200</span>
-    </div>
-  );
-}
-
-/* ── RSI cell ───────────────────────────────────────────────────── */
-
-function RsiCell({ rsi }: { rsi: number | null }) {
-  if (rsi == null) return <span className="scr-muted">—</span>;
-  const cls =
-    rsi > 70 ? 'scr-rsi scr-rsi--hot' :
-    rsi < 35 ? 'scr-rsi scr-rsi--cold' :
-    rsi >= 35 && rsi <= 60 ? 'scr-rsi scr-rsi--good' :
-    'scr-rsi';
-  return <span className={cls}>{Math.round(rsi)}</span>;
-}
-
-/* ── Vol cell ───────────────────────────────────────────────────── */
-
-function VolCell({ vol }: { vol: number | null }) {
-  if (vol == null) return <span className="scr-muted">—</span>;
-  const cls = vol >= 1.5 ? 'scr-vol scr-vol--high' : vol >= 1.0 ? 'scr-vol' : 'scr-vol scr-vol--low';
-  return <span className={cls}>{vol.toFixed(1)}×</span>;
-}
-
-/* ── Trend badge ────────────────────────────────────────────────── */
-
-const TREND_META: Record<PaTrend, { label: string; cls: string; desc: string }> = {
-  StrongUp:   { label: '↑↑', cls: 'tc-trend tc-trend--strong-up',   desc: 'Strong Uptrend' },
-  Up:         { label: '↑',  cls: 'tc-trend tc-trend--up',          desc: 'Uptrend' },
-  Neutral:    { label: '→',  cls: 'tc-trend tc-trend--neutral',     desc: 'Sideways' },
-  Down:       { label: '↓',  cls: 'tc-trend tc-trend--down',        desc: 'Downtrend' },
-  StrongDown: { label: '↓↓', cls: 'tc-trend tc-trend--strong-down', desc: 'Strong Downtrend' },
-};
-
-function TrendBadge({ trend }: { trend: PaTrend }) {
-  const m = TREND_META[trend];
-  return <span className={m.cls} title={m.desc}>{m.label}</span>;
 }
 
 /* ── change columns (24h / 7d / 90d) ────────────────────────────── */
@@ -237,80 +202,6 @@ function IconChart() {
   );
 }
 
-/* ── detail modal ───────────────────────────────────────────────── */
-
-/** Read-only indicator sheet for one coin — no tabs, no position, no portfolio. */
-function CoinDetailModal({ coin, onClose }: {
-  coin: TrackingCoinRow;
-  onClose: () => void;
-}) {
-  return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog tc-detail-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <div className="tc-detail-header-coin">
-            <span className="scr-symbol">{coin.symbol}</span>
-            {coin.name && <span className="scr-name">{coin.name}</span>}
-          </div>
-          <button className="dialog-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="dialog-body tc-detail-body">
-          <CoinOverview coin={coin} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CoinOverview({ coin }: { coin: TrackingCoinRow }) {
-  const sig = coin.signal;
-  const tvUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${coin.symbol}USDT`;
-
-  if (!sig) {
-    return (
-      <div className="tc-overview">
-        <p className="scr-muted tc-overview__empty">Chưa có dữ liệu chỉ báo cho coin này.</p>
-        <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
-      </div>
-    );
-  }
-
-  const rows = [
-    { tf: 'W',  trend: sig.weekTrend, utBot: sig.utBotW1Bullish, e34: sig.wEma34Above,  e89: sig.wEma89Above,  e200: sig.wEma200Above,  rsi: sig.wRsi,  vol: sig.wVolMultiplier },
-    { tf: 'D1', trend: sig.trend,   utBot: sig.utBotD1Bullish, e34: sig.ema34Above,   e89: sig.ema89Above,   e200: sig.ema200Above,  rsi: sig.rsi,   vol: sig.volMultiplier },
-    { tf: 'H4', trend: sig.h4Trend, utBot: sig.utBotH4Bullish, e34: sig.h4Ema34Above, e89: sig.h4Ema89Above, e200: sig.h4Ema200Above, rsi: sig.h4Rsi, vol: sig.h4VolMultiplier },
-  ];
-
-  return (
-    <div className="tc-overview">
-      <section className="tc-detail-section">
-        <div className="tc-detail-label">Chỉ báo theo khung</div>
-        <div className="tc-tf-grid">
-          <div className="tc-tf-grid__head">
-            <span>TF</span><span>Trend</span><span>UT Bot</span><span>EMA</span><span>RSI</span><span>Vol×</span>
-          </div>
-          {rows.map((r) => (
-            <div key={r.tf} className="tc-tf-grid__row">
-              <span className="tc-tf-grid__tf">{r.tf}</span>
-              <TrendBadge trend={r.trend} />
-              <UtBotBadge bullish={r.utBot} />
-              <EmaPips e34={r.e34} e89={r.e89} e200={r.e200} />
-              <RsiCell rsi={r.rsi} />
-              <VolCell vol={r.vol} />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="tc-detail-footer">
-        Cập nhật: {new Date(sig.scannedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-      </div>
-      <a className="tc-detail-tv-btn" href={tvUrl} target="_blank" rel="noopener noreferrer">Mở TradingView ↗</a>
-    </div>
-  );
-}
-
 /* ── confirm remove dialog ──────────────────────────────────────── */
 
 function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
@@ -331,91 +222,6 @@ function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
               {isRemoving ? 'Đang xóa…' : 'Xóa'}
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Strategy & scoring explainer dialog ─────────────────────────── */
-
-function StrategyInfoDialog({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog dialog--wide" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-header">
-          <span className="dialog-title">Chiến lược Gom đáy &amp; cách tính điểm</span>
-          <button className="dialog-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="dialog-body si">
-          <section className="si-sec">
-            <h3 className="si-h">Chiến lược đang chạy — Gom đáy x2 (spot, no SL)</h3>
-            <p className="si-p">
-              Mua coin đã <b>giảm sâu 50–85%</b> từ đỉnh chu kỳ (đỉnh 2 năm) khi giá đang{' '}
-              <b>đi ngang trong nền hẹp</b> (base ≤ 25%), nằm sát đáy nền và RSI(14) D1 ≤ 45.
-              Vào lệnh <b>spot, KHÔNG stop-loss</b>, gom theo ladder <b>tối đa 3 lần × −15%</b>,
-              rồi <b>bán toàn bộ ở x2</b> (+100% so với giá trung bình) — không chốt sớm ở EMA34.
-            </p>
-            <p className="si-p si-note">
-              Vì không có stop-loss, <b>việc chọn coin chính là lớp phòng thủ thay stop-loss</b>:
-              chỉ gom coin đủ lớn và cấu trúc tuần còn sống. Đó là ý nghĩa của cổng{' '}
-              <b>dcaScore ≥ 50</b> — backtest cho thấy cổng này nâng PF từ 1.58 → 3.53.
-            </p>
-          </section>
-
-          <section className="si-sec">
-            <h3 className="si-h">Trạng thái (zone)</h3>
-            <ul className="si-list">
-              <li><b>GOM</b> — đủ điều kiện đáy chất lượng <i>và</i> đã qua cổng dcaScore ≥ 50 → gom / gom thêm.</li>
-              <li><b>Chờ</b> — chưa vào vùng đáy chất lượng, hoặc chưa qua cổng dcaScore.</li>
-              <li><b>Hồi</b> — giá đã hồi lên trên EMA34 → không còn là điểm gom, theo dõi chốt x2.</li>
-            </ul>
-          </section>
-
-          <section className="si-sec">
-            <h3 className="si-h">Cách tính điểm — dcaScore (0–100)</h3>
-            <p className="si-p">
-              dcaScore = <b>Vốn hóa (tối đa 50)</b> + <b>Cấu trúc tuần (tối đa 50)</b>.
-              Đo mức độ “an toàn để DCA” — coin càng lớn và trend tuần càng khỏe thì càng ít rủi ro về 0.
-            </p>
-
-            <div className="si-grid">
-              <div className="si-card">
-                <div className="si-card-h">Vốn hóa · tối đa 50 điểm</div>
-                <table className="si-table">
-                  <tbody>
-                    <tr><td>≥ $1B</td><td>50</td></tr>
-                    <tr><td>≥ $300M</td><td>40</td></tr>
-                    <tr><td>≥ $100M</td><td>30</td></tr>
-                    <tr><td>≥ $30M</td><td>20</td></tr>
-                    <tr><td>≥ $10M</td><td>10</td></tr>
-                    <tr><td>&lt; $10M / không rõ</td><td>0</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="si-card">
-                <div className="si-card-h">Cấu trúc tuần · tối đa 50 điểm</div>
-                <table className="si-table">
-                  <tbody>
-                    <tr><td>Trend tuần: StrongUp / Up</td><td>20 / 15</td></tr>
-                    <tr><td>Trend tuần: Neutral / Down / StrongDown</td><td>8 / 2 / 0</td></tr>
-                    <tr><td>Giá trên EMA200 tuần</td><td>+15</td></tr>
-                    <tr><td>Giá trên EMA89 tuần</td><td>+8</td></tr>
-                    <tr><td>UTBot tuần bullish</td><td>+7</td></tr>
-                  </tbody>
-                </table>
-                <p className="si-fine">(Phần cấu trúc tuần giới hạn tối đa 50 điểm.)</p>
-              </div>
-            </div>
-
-            <div className="si-buckets">
-              <span className="si-bucket si-bucket--safe">≥ 70 · An toàn</span>
-              <span className="si-bucket si-bucket--ok">≥ 50 · OK (cổng GOM)</span>
-              <span className="si-bucket si-bucket--risky">≥ 30 · Rủi ro</span>
-              <span className="si-bucket si-bucket--avoid">&lt; 30 · Tránh</span>
-            </div>
-          </section>
         </div>
       </div>
     </div>
@@ -444,7 +250,7 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as { id: string; symbol: string; name: string };
-      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString(), signal: null });
+      onAdded({ ...data, marketCap: null, addedAt: new Date().toISOString() });
       setSymbol('');
       setName('');
     } catch (err) {
@@ -474,12 +280,15 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   // No column sorts on load — rows keep the watchlist order until a header is clicked.
   const [sort, setSort] = useState<Sort | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
+  const [view, setView] = useState<'coins' | 'trades'>('coins');
+  // Coin panel: a symbol, '*' = scan the whole watchlist, null = closed.
+  const [panel, setPanel] = useState<string | null>(null);
+  const [active, setActive] = useState<ActiveSetups>({});
+  const [reloadKey, setReloadKey] = useState(0);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
   const [confirmRemoveSymbol, setConfirmRemoveSymbol] = useState<string | null>(null);
-  const [selectedCoin, setSelectedCoin] = useState<TrackingCoinRow | null>(null);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   // 7d / 30d / 90d change per bare symbol, from the API (Binance daily closes).
   const [changes, setChanges] = useState<Record<string, Omit<TrackingPriceChange, 'symbol'>>>({});
@@ -487,6 +296,25 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [scores, setScores] = useState<Record<string, TrackingCoinScore>>({});
 
   useEffect(() => { setPage(1); }, [nameFilter, sort]);
+
+  const loadActive = useCallback(async () => {
+    try {
+      setActive(await createApiClient().fetchTrackingActiveByCoin());
+    } catch { /* non-fatal: the Setup column keeps its last-known values */ }
+  }, []);
+
+  useEffect(() => {
+    void loadActive();
+    const id = setInterval(() => void loadActive(), ACTIVE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [loadActive]);
+
+  const onSetupsChanged = useCallback(() => {
+    void loadActive();
+    setReloadKey((k) => k + 1);
+  }, [loadActive]);
+
+  const activeTotal = useMemo(() => Object.values(active).reduce((a, x) => a + x.length, 0), [active]);
 
   useEffect(() => {
     if (symbols.length === 0) return;
@@ -597,11 +425,13 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
   return (
     <>
-      {selectedCoin && (
-        <CoinDetailModal
-          key={selectedCoin.symbol}
-          coin={selectedCoin}
-          onClose={() => setSelectedCoin(null)}
+      {panel && (
+        <CoinPanel
+          key={panel}
+          symbol={panel === '*' ? null : panel}
+          symbols={symbols}
+          onClose={() => setPanel(null)}
+          onChanged={onSetupsChanged}
         />
       )}
       {confirmRemoveSymbol && (
@@ -620,33 +450,43 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onClose={() => setChartSymbol(null)}
         />
       )}
-      {showInfo && <StrategyInfoDialog onClose={() => setShowInfo(false)} />}
 
       <main className="dashboard-shell scr-shell">
         {/* header */}
         <div className="tc-page-header">
           <div className="tc-page-title-row">
             <h1 className="scr-title">Tracking Coins</h1>
-            <button
-              type="button"
-              className={`tc-info-btn${showInfo ? ' tc-info-btn--active' : ''}`}
-              onClick={() => setShowInfo(true)}
-              aria-label="Giải thích chiến lược & cách tính điểm"
-              title="Chiến lược & cách tính điểm"
-            >
-              i
-            </button>
           </div>
           <div className="scr-toolbar-right">
-            <button className="scr-add-toggle" onClick={() => setShowAddForm((v) => !v)}>
-              {showAddForm ? '✕' : '+ Coin'}
+            <button className="scr-add-toggle" onClick={() => setPanel('*')} title="Claude quét cả danh sách và đề xuất setup">
+              🧭 Quét
             </button>
+            {view === 'coins' && (
+              <button className="scr-add-toggle" onClick={() => setShowAddForm((v) => !v)}>
+                {showAddForm ? '✕' : '+ Coin'}
+              </button>
+            )}
           </div>
         </div>
 
+        <div className={styles.tabs}>
+          <button type="button" className={`${styles.tab} ${view === 'coins' ? styles.tabActive : ''}`} onClick={() => setView('coins')}>
+            Coins<span className={styles.count}>{coins.length}</span>
+          </button>
+          <button type="button" className={`${styles.tab} ${view === 'trades' ? styles.tabActive : ''}`} onClick={() => setView('trades')}>
+            Lệnh &amp; nhật ký{activeTotal > 0 && <span className={styles.count}>{activeTotal}</span>}
+          </button>
+        </div>
+
+        {view === 'trades' && (
+          <TradesTab symbols={symbols} onOpenCoin={setPanel} onScan={() => setPanel('*')} reloadKey={reloadKey} onChanged={onSetupsChanged} />
+        )}
+
+        {view === 'coins' && (<>
+
         {statusMsg && <p className="scr-scan-result">{statusMsg}</p>}
 
-        {showAddForm && (
+        {showAddForm && view === 'coins' && (
           <AddCoinForm
             onAdded={(coin) => {
               setCoins((prev) => prev.some((c) => c.symbol === coin.symbol) ? prev : [...prev, coin]);
@@ -686,13 +526,14 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <SortHeader label="30d %" col="chg30d" sort={sort} onSort={cycleSort} title="Thay đổi 30 ngày (so với close 30 nến D1 trước)" />
                 <SortHeader label="90d %" col="chg90d" sort={sort} onSort={cycleSort} title="Thay đổi 90 ngày (so với close 90 nến D1 trước)" />
                 <SortHeader label="180d %" col="chg180d" sort={sort} onSort={cycleSort} title="Thay đổi 180 ngày (so với close 180 nến D1 trước)" />
+                <th className="scr-th scr-th--num" title="Setup swing đang chạy (đề xuất / theo dõi / chờ khớp / mở)">Setup</th>
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="scr-empty">
+                  <td colSpan={10} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -706,7 +547,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 const chg24h = changes24h.get(coin.symbol) ?? null;
                 const chg = changes[coin.symbol];
                 return (
-                  <tr key={coin.id} className="scr-row" onClick={() => setSelectedCoin(coin)} style={{ cursor: 'pointer' }}>
+                  <tr key={coin.id} className="scr-row" onClick={() => setPanel(coin.symbol)} style={{ cursor: 'pointer' }} title="Mở panel phân tích / lệnh / nhật ký">
                     <td className="scr-td scr-td--coin">
                       <span className="tc-coin-line">
                         <span className="scr-symbol">{coin.symbol}</span>
@@ -736,6 +577,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change30d)}`}>{fmtChange(chg?.change30d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change90d)}`}>{fmtChange(chg?.change90d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change180d)}`}>{fmtChange(chg?.change180d)}</td>
+                    <td className="scr-td scr-td--num"><ActiveCell items={active[coin.symbol]} /></td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
@@ -763,6 +605,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <button className="scr-page-btn" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
           </div>
         )}
+        </>)}
       </main>
     </>
   );

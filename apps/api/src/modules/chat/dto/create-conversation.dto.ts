@@ -25,4 +25,10 @@ export class CreateConversationDto {
   @IsString()
   @MaxLength(36)
   portfolioId?: string;
+
+  @ApiPropertyOptional({ example: 'SOL', description: 'Coin of a /tracking-coins panel chat (skill tracking-swing).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  symbol?: string;
 }
