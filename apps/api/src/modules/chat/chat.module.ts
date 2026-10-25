@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { BitgetModule } from '../bitget/bitget.module';
 import { DatabaseModule } from '../database/database.module';
 import { ChatController } from './chat.controller';
 import { ChatProvider } from './contracts/chat-provider';
@@ -7,15 +8,17 @@ import { ChatToolRegistry } from './contracts/chat-tool-registry';
 import { ChatService } from './chat.service';
 import { ConversationService } from './conversation.service';
 import { ClaudeChatProvider } from './providers/claude-chat.provider';
+import { BitgetAiChatService } from './tools/bitget-ai.tools';
 import { TradingChatToolRegistry } from './tools/trading-chat-tool-registry';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, BitgetModule],
   controllers: [ChatController],
   providers: [
     ChatService,
     ConversationService,
     ClaudeChatProvider,
+    BitgetAiChatService,
     {
       provide: ChatProvider,
       useClass: ClaudeChatProvider

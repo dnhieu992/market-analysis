@@ -5,7 +5,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { summarizeBitgetClosed, type BitgetClosedSummary } from '@app/core';
+import { partialCloseSize, summarizeBitgetClosed, type BitgetClosedSummary } from '@app/core';
 import {
   createAssetCategoryRepository,
   createBitgetTradeJournalRepository,
@@ -439,6 +439,8 @@ export class BitgetService {
     marginUsd: number;
     leverage: number;
     price: number;
+    /** Preset TP — attached only when the side is flat (a fill that merges into an open position keeps that position's TP). */
+    takeProfitPrice?: number | null;
   }): Promise<{
     placed: true;
     symbol: string;
@@ -449,6 +451,8 @@ export class BitgetService {
     marginUsd: number;
     notionalUsd: number;
     orderId: string;
+    /** TP preset on the order, null when none was attached. */
+    takeProfitPrice: number | null;
   }> {
     const { symbol, holdSide, marginUsd } = input;
     if (!this.client.isConfigured()) {
@@ -483,6 +487,15 @@ export class BitgetService {
         );
       }
 
+      const tp = !isAdd && input.takeProfitPrice != null && input.takeProfitPrice > 0
+        ? Math.round(input.takeProfitPrice * priceFactor) / priceFactor
+        : null;
+      if (tp != null && (holdSide === 'long' ? tp <= price : tp >= price)) {
+        throw new BadRequestException(
+          `Take Profit phải ${holdSide === 'long' ? 'cao hơn' : 'thấp hơn'} giá limit (${fmtNum(price)}).`,
+        );
+      }
+
       // Leverage is only settable while flat — skip when the side is already open.
       if (!isAdd) await this.client.setCrossLeverage(symbol, holdSide, leverage);
       const clientOid = `limit-${symbol}-${holdSide}-${Date.now()}`;
@@ -492,6 +505,7 @@ export class BitgetService {
         size: size.toFixed(spec.volumePlace),
         price: price.toFixed(spec.pricePlace),
         clientOid,
+        ...(tp != null ? { takeProfitPrice: tp.toFixed(spec.pricePlace) } : {}),
       });
 
       this.logger.log(
@@ -509,6 +523,7 @@ export class BitgetService {
         marginUsd,
         notionalUsd: size * price,
         orderId: res.orderId,
+        takeProfitPrice: tp,
       };
     } catch (err) {
       if (
@@ -613,6 +628,102 @@ export class BitgetService {
       marginUsd: Number.isFinite(leverage) && leverage >= 1 ? notionalUsd / leverage : notionalUsd,
       createdAt: Number.isFinite(cTimeMs) && cTimeMs > 0 ? new Date(cTimeMs).toISOString() : null,
     };
+  }
+
+  /**
+   * Close `pct` % of a live position at market with a reduce-only order (100 %
+   * goes through the flash-close endpoint so no dust is left). Size is floored to
+   * the contract precision; a slice under the exchange minimum is rejected
+   * up front instead of failing on Bitget.
+   */
+  async closePartial(input: { symbol: string; holdSide: 'long' | 'short'; pct: number }): Promise<{
+    closed: true;
+    symbol: string;
+    holdSide: 'long' | 'short';
+    pct: number;
+    size: number;
+    remainingSize: number;
+    markPrice: number;
+    orderId: string | null;
+  }> {
+    const { symbol, holdSide } = input;
+    if (!this.client.isConfigured()) {
+      throw new ServiceUnavailableException('Bitget credentials not configured — cannot close a position');
+    }
+    if (!(input.pct > 0) || input.pct > 100) throw new BadRequestException('Tỉ lệ đóng phải trong (0, 100]%.');
+    try {
+      const position = await this.client.getPosition(symbol, holdSide);
+      const total = position ? Number(position.total) : 0;
+      if (!position || !(total > 0)) {
+        throw new ConflictException('Vị thế đã đóng trên sàn — không còn gì để đóng.');
+      }
+      const markPrice = Number(position.markPrice);
+      if (input.pct >= 100) {
+        await this.client.closePosition(symbol, holdSide);
+        this.logger.log(`Closed 100% of Bitget ${holdSide} ${symbol} (size ${total})`);
+        return { closed: true, symbol, holdSide, pct: 100, size: total, remainingSize: 0, markPrice, orderId: null };
+      }
+      const spec = await this.client.getContractSpec(symbol);
+      const size = partialCloseSize(total, input.pct, spec.volumePlace);
+      if (size < spec.minTradeNum || size <= 0) {
+        throw new BadRequestException(
+          `${input.pct}% vị thế = ${size} ${symbol}, dưới mức tối thiểu ${spec.minTradeNum}. Tăng tỉ lệ đóng.`,
+        );
+      }
+      const res = await this.client.closePartialMarket({
+        symbol,
+        holdSide,
+        size: size.toFixed(spec.volumePlace),
+        clientOid: `pclose-${symbol}-${holdSide}-${Date.now()}`,
+      });
+      this.logger.log(`Closed ${input.pct}% of Bitget ${holdSide} ${symbol}: size ${size} of ${total}`);
+      return {
+        closed: true,
+        symbol,
+        holdSide,
+        pct: input.pct,
+        size,
+        remainingSize: total - size,
+        markPrice,
+        orderId: res.orderId ?? null,
+      };
+    } catch (err) {
+      if (
+        err instanceof ConflictException ||
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
+        throw err;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to partially close ${holdSide} ${symbol}: ${msg}`);
+      throw new ServiceUnavailableException(`Không đóng được vị thế trên Bitget: ${msg}`);
+    }
+  }
+
+  /** Last traded price on Bitget (public market data). */
+  getTickerPrice(symbol: string): Promise<number> {
+    return this.client.getTickerPrice(symbol);
+  }
+
+  /** Raw exchange position for one side, or null when flat / not configured. */
+  async getRawPosition(symbol: string, holdSide: 'long' | 'short'): Promise<BitgetRawPosition | null> {
+    if (!this.client.isConfigured()) return null;
+    const p = await this.client.getPosition(symbol, holdSide);
+    return p && Number(p.total) > 0 ? p : null;
+  }
+
+  /** TP / SL currently live for one side — `[tp, sl]`, nulls when unset. */
+  getLiveTpsl(symbol: string, holdSide: 'long' | 'short'): Promise<[number | null, number | null]> {
+    return this.readLiveTpsl(symbol, holdSide);
+  }
+
+  /** Append a `system` note to a position's journal (used by the AI chat actions). Best-effort. */
+  logToJournal(position: BitgetRawPosition, content: string, markPrice?: number): Promise<void> {
+    return this.writeSystemLog(position, content, {
+      entryPrice: Number(position.openPriceAvg),
+      markPrice: markPrice ?? Number(position.markPrice),
+    });
   }
 
   /**

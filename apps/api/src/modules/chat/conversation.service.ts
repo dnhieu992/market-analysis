@@ -1,11 +1,18 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { createSkillTradeSetupRepository, createStrategyPaperTradeRepository, createTrackingSetupRepository } from '@app/db';
+import {
+  createBitgetAiActionRepository,
+  createSkillTradeSetupRepository,
+  createStrategyPaperTradeRepository,
+  createTrackingSetupRepository
+} from '@app/db';
 import { getSkillById } from '@app/skills';
 
 import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
 import { buildTrackingContext, TRACKING_SKILL_ID } from '../tracking-trades/tracking-context';
 import { ClaudeChatProvider } from './providers/claude-chat.provider';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
+import { isRichToolResult } from './contracts/chat-tool';
+import { BITGET_AI_SKILL_ID, BitgetAiChatService } from './tools/bitget-ai.tools';
 
 type ConversationRepo = ReturnType<typeof import('@app/db').createConversationRepository>;
 type OrderRepo = ReturnType<typeof import('@app/db').createOrderRepository>;
@@ -36,6 +43,9 @@ export type LiveReplyDto = {
 };
 
 const LIVE_KEEP_MS = 60_000;
+/** The /bitget AI chat is one long thread: the newest messages go verbatim, older ones as a digest. */
+const BITGET_AI_RECENT_MESSAGES = 30;
+const BITGET_AI_DIGEST_CHARS = 6000;
 const isActive = (l: LiveReply | undefined) => l != null && (l.phase === 'thinking' || l.phase === 'tool' || l.phase === 'writing');
 
 /** Every skill can read the user's /tracking-coins list through get_tracking_coins. */
@@ -49,6 +59,7 @@ export class ConversationService {
   private readonly setupRepo = createSkillTradeSetupRepository();
   private readonly paperTradeRepo = createStrategyPaperTradeRepository();
   private readonly trackingRepo = createTrackingSetupRepository();
+  private readonly bitgetActionRepo = createBitgetAiActionRepository();
   private readonly live = new Map<string, LiveReply>();
 
   constructor(
@@ -61,7 +72,8 @@ export class ConversationService {
     @Inject(COIN_TRANSACTION_REPOSITORY)
     private readonly txRepo: CoinTransactionRepo,
     private readonly claude: ClaudeChatProvider,
-    private readonly toolRegistry: ChatToolRegistry
+    private readonly toolRegistry: ChatToolRegistry,
+    private readonly bitgetAi: BitgetAiChatService
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────
@@ -78,17 +90,28 @@ export class ConversationService {
   async getConversationMessages(id: string, userId: string) {
     const conv = await this.convRepo.findById(id);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
-    const [rawMessages, setups, tracking] = await Promise.all([
+    const [rawMessages, setups, tracking, bitgetActions] = await Promise.all([
       this.convRepo.listMessages(id),
       this.setupRepo.listByConversation(id),
-      this.trackingRepo.listByConversation(id)
+      this.trackingRepo.listByConversation(id),
+      conv.skillId === BITGET_AI_SKILL_ID ? this.bitgetActionRepo.listByConversation(id) : Promise.resolve([])
     ]);
     // Swing setups proposed in a /tracking-coins panel chat, with their current status.
     const trackingByMessage = new Map<string, unknown[]>();
     for (const t of tracking) {
       if (t.messageId) trackingByMessage.set(t.messageId, [...(trackingByMessage.get(t.messageId) ?? []), t]);
     }
-    const messages = rawMessages.map((m) => (trackingByMessage.has(m.id) ? { ...m, trackingSetups: trackingByMessage.get(m.id) } : m));
+    // Action cards proposed by the /bitget AI chat, with their current status.
+    const bitgetByMessage = new Map<string, unknown[]>();
+    for (const a of bitgetActions) {
+      if (a.messageId) bitgetByMessage.set(a.messageId, [...(bitgetByMessage.get(a.messageId) ?? []), a]);
+    }
+    const messages = rawMessages.map((m) => {
+      const extra: Record<string, unknown> = {};
+      if (trackingByMessage.has(m.id)) extra.trackingSetups = trackingByMessage.get(m.id);
+      if (bitgetByMessage.has(m.id)) extra.bitgetActions = bitgetByMessage.get(m.id);
+      return Object.keys(extra).length ? { ...m, ...extra } : m;
+    });
     if (setups.length === 0) return messages;
 
     // Accepted setups carry their paper trade's live status so the chat can show progress.
@@ -125,7 +148,7 @@ export class ConversationService {
 
   // ── Send message ──────────────────────────────────────────────────────
 
-  async sendMessage(conversationId: string, userId: string, content: string) {
+  async sendMessage(conversationId: string, userId: string, content: string, pageContext?: string) {
     const conv = await this.convRepo.findById(conversationId);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
     if (isActive(this.live.get(conversationId))) {
@@ -146,7 +169,8 @@ export class ConversationService {
       conversationId,
       conv.userId,
       conv.skillId ?? undefined,
-      conv.metadata as Record<string, string> | null
+      conv.metadata as Record<string, string> | null,
+      pageContext
     );
 
     return userMsg;
@@ -188,7 +212,8 @@ export class ConversationService {
     conversationId: string,
     userId: string,
     skillId: string | undefined,
-    meta: Record<string, string> | null
+    meta: Record<string, string> | null,
+    pageContext?: string
   ): Promise<void> {
     const startedAt = new Date();
     const live: LiveReply = { phase: 'thinking', tool: null, text: '', error: null, startedAt: startedAt.getTime(), abort: new AbortController() };
@@ -201,14 +226,28 @@ export class ConversationService {
       }, LIVE_KEEP_MS);
     };
     try {
-      const history = await this.convRepo.listMessages(conversationId);
+      const fullHistory = await this.convRepo.listMessages(conversationId);
       const skill = skillId ? getSkillById(skillId) : undefined;
       const coinId = meta?.coinId;
       const portfolioId = meta?.portfolioId;
       const tracking = skillId === TRACKING_SKILL_ID;
+      const bitgetAi = skillId === BITGET_AI_SKILL_ID && skill != null;
+      const nowVn = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      // The /bitget chat never starts over on its own: keep the newest messages verbatim, digest the rest.
+      const history = bitgetAi ? fullHistory.slice(-BITGET_AI_RECENT_MESSAGES) : fullHistory;
       const systemPrompt = tracking
-        ? `${skill!.systemPrompt}\n\n---\n\nThời gian hiện tại: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} (GMT+7)\n\n${await buildTrackingContext(meta?.symbol)}`
-        : await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
+        ? `${skill!.systemPrompt}\n\n---\n\nThời gian hiện tại: ${nowVn} (GMT+7)\n\n${await buildTrackingContext(meta?.symbol)}`
+        : bitgetAi
+          ? [
+              skill.systemPrompt,
+              '---',
+              `Thời gian hiện tại: ${nowVn} (GMT+7)`,
+              await this.bitgetAi.buildContext(conversationId, pageContext),
+              digestOlder(fullHistory.slice(0, -BITGET_AI_RECENT_MESSAGES))
+            ]
+              .filter(Boolean)
+              .join('\n\n')
+          : await this.buildSystemPrompt(userId, skill?.systemPrompt, coinId, portfolioId);
       const allTools = this.toolRegistry.listTools();
       // The propose_* tools create setup cards — only for skills that opt into them.
       const tools = skill
@@ -223,10 +262,12 @@ export class ConversationService {
           const tool = this.toolRegistry.getTool(name);
           if (!tool) return `Tool "${name}" not found`;
           const result = await tool.execute(input, { conversationId, skillId });
-          return typeof result === 'string' ? result : JSON.stringify(result);
+          return typeof result === 'string' || isRichToolResult(result) ? result : JSON.stringify(result);
         },
         {
           signal: live.abort.signal,
+          // Reading positions + setup + charts + signals before proposing takes more rounds.
+          ...(bitgetAi ? { maxToolIterations: 10 } : {}),
           onProgress: (ev) => {
             if (ev.type === 'tool') {
               live.phase = 'tool';
@@ -243,6 +284,7 @@ export class ConversationService {
       const assistantMsg = await this.convRepo.addMessage(conversationId, 'assistant', reply);
       await this.setupRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.trackingRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
+      await this.bitgetActionRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       // The first answer of a coin's panel chat is its analysis — keep it on the coin's timeline.
       if (tracking && meta?.symbol && !history.some((m) => m.role === 'assistant')) {
         await this.trackingRepo.addEvent({
@@ -261,6 +303,7 @@ export class ConversationService {
           const msg = await this.convRepo.addMessage(conversationId, 'assistant', `${live.text.trim()}\n\n_(Đã dừng)_`);
           await this.setupRepo.attachToMessage(conversationId, msg.id, startedAt);
           await this.trackingRepo.attachToMessage(conversationId, msg.id, startedAt);
+          await this.bitgetActionRepo.attachToMessage(conversationId, msg.id, startedAt);
           await this.convRepo.touch(conversationId);
         }
         finish('stopped');
@@ -421,4 +464,17 @@ Output (tiếng Việt, số thực):
 ⛔ Invalidation level
 📌 Nhận xét vị thế (lãi/lỗ%, nên DCA vùng nào, cảnh báo CHoCH nếu có)`;
   }
+}
+
+/** Older turns of a long thread, one line each, newest last — keeps the gist without the token cost. */
+function digestOlder(messages: ReadonlyArray<{ role: string; content: string; createdAt: Date | string }>): string {
+  if (!messages.length) return '';
+  const lines = messages.map((m) => {
+    const at = new Date(m.createdAt).toISOString().slice(5, 16).replace('T', ' ');
+    const text = m.content.replace(/\s+/g, ' ').trim();
+    return `- ${at} ${m.role === 'user' ? 'User' : 'AI'}: ${text.slice(0, m.role === 'user' ? 220 : 160)}${text.length > 220 ? '…' : ''}`;
+  });
+  let out = lines.join('\n');
+  if (out.length > BITGET_AI_DIGEST_CHARS) out = `…\n${out.slice(-BITGET_AI_DIGEST_CHARS)}`;
+  return `## Tóm tắt ${messages.length} tin nhắn cũ hơn trong cuộc trò chuyện (chỉ để nhớ ngữ cảnh, số liệu có thể đã cũ)\n${out}`;
 }

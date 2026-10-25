@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { ChatProvider } from '../contracts/chat-provider';
 import type { ChatMessage } from '../contracts/chat-message';
-import type { ChatTool } from '../contracts/chat-tool';
+import { isRichToolResult, type ChatTool, type ChatToolRichResult } from '../contracts/chat-tool';
 
 /**
  * Chat provider backed by Claude Code (Agent SDK) instead of the Anthropic API.
@@ -92,7 +92,11 @@ export type ChatRunOptions = {
   /** Aborting stops the Claude Code session (the user pressed Stop). */
   signal?: AbortSignal;
   onProgress?: (event: ChatProgressEvent) => void;
+  /** Tool-call rounds allowed before giving up (default MAX_TOOL_ITERATIONS). */
+  maxToolIterations?: number;
 };
+
+type ToolExecutor = (name: string, input: unknown) => Promise<string | ChatToolRichResult>;
 
 @Injectable()
 export class ClaudeChatProvider extends ChatProvider {
@@ -111,7 +115,7 @@ export class ClaudeChatProvider extends ChatProvider {
     systemPrompt: string,
     history: readonly ChatMessage[],
     tools: readonly ChatTool[],
-    executeTool: (name: string, input: unknown) => Promise<string>,
+    executeTool: ToolExecutor,
     run: ChatRunOptions = {}
   ): Promise<string> {
     return this.runQuery(systemPrompt, buildPrompt(history), tools, executeTool, this.model, run);
@@ -137,7 +141,7 @@ export class ClaudeChatProvider extends ChatProvider {
     systemPrompt: string | undefined,
     prompt: string,
     tools: readonly ChatTool[],
-    executeTool: (name: string, input: unknown) => Promise<string>,
+    executeTool: ToolExecutor,
     model: string = this.model,
     run: ChatRunOptions = {}
   ): Promise<string> {
@@ -148,13 +152,20 @@ export class ClaudeChatProvider extends ChatProvider {
       description: t.description,
       inputSchema: toZodShape(t.inputSchema),
       handler: async (args) => {
-        let text: string;
         try {
-          text = await executeTool(t.name, args);
+          const out = await executeTool(t.name, args);
+          if (isRichToolResult(out)) {
+            return {
+              content: [
+                { type: 'text' as const, text: out.text },
+                ...out.images.map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType })),
+              ],
+            };
+          }
+          return { content: [{ type: 'text' as const, text: out }] };
         } catch (err) {
-          text = `Error: ${err instanceof Error ? err.message : String(err)}`;
+          return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }] };
         }
-        return { content: [{ type: 'text', text }] };
       }
     }));
 
@@ -180,7 +191,7 @@ export class ClaudeChatProvider extends ChatProvider {
       // Don't pick up ~/.claude settings, CLAUDE.md or plugins from this box.
       settingSources: [],
       persistSession: false,
-      maxTurns: MAX_TOOL_ITERATIONS + 1,
+      maxTurns: (run.maxToolIterations ?? MAX_TOOL_ITERATIONS) + 1,
       // Token-level stream events, only needed when someone is watching the reply being written.
       includePartialMessages: Boolean(run.onProgress),
       ...(systemPrompt ? { systemPrompt } : {}),

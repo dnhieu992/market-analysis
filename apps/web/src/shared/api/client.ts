@@ -98,6 +98,8 @@ import type {
   LiveReply,
   StrategyPaperConfig,
   StrategyPaperNote,
+  BitgetAiAction,
+  BitgetAiActionEdits,
 } from './types';
 
 
@@ -871,11 +873,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
     getMessages(conversationId: string): Promise<ChatMessage[]> {
       return fetchJson<ChatMessage[]>(fetchImpl, `${baseUrl}/chat/conversations/${conversationId}/messages`, withDefaults());
     },
-    async sendMessage(conversationId: string, content: string): Promise<ChatMessage> {
+    /** `context` tells the skill what the user is looking at (the /bitget AI chat sends the current tab). */
+    async sendMessage(conversationId: string, content: string, context?: string): Promise<ChatMessage> {
       const res = await fetchImpl(`${baseUrl}/chat/conversations/${conversationId}/messages`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
+        body: JSON.stringify(context ? { content, context } : { content })
       }));
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { message?: string } | null;
@@ -1129,6 +1132,33 @@ export function createApiClient(options: ApiClientOptions = {}) {
         `${baseUrl}/bitget/positions/pending`,
         withDefaults({}),
       );
+    },
+
+    /** Run a /bitget AI action card on the LIVE account — only from the user's confirm click. */
+    async executeBitgetAiAction(id: string, edits: BitgetAiActionEdits): Promise<BitgetAiAction> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/ai/actions/${encodeURIComponent(id)}/execute`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edits) }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Thực hiện thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetAiAction;
+    },
+
+    async dismissBitgetAiAction(id: string): Promise<BitgetAiAction> {
+      const response = await fetchImpl(
+        `${baseUrl}/bitget/ai/actions/${encodeURIComponent(id)}/dismiss`,
+        withDefaults({ method: 'POST' }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Bỏ qua thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as BitgetAiAction;
     },
 
     /** Cancel one pending LIMIT order by id. */

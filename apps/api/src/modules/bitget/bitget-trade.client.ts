@@ -203,6 +203,8 @@ export class BitgetTradeClient {
     size: string;
     price: string;
     clientOid: string;
+    /** Preset take-profit for the position the fill opens (only safe on a flat side). */
+    takeProfitPrice?: string;
   }): Promise<{ orderId: string; clientOid: string }> {
     const body: Record<string, string> = {
       symbol: params.symbol,
@@ -216,6 +218,7 @@ export class BitgetTradeClient {
       force: 'gtc',
       clientOid: params.clientOid,
     };
+    if (params.takeProfitPrice) body.presetStopSurplusPrice = params.takeProfitPrice;
     if (this.hedgeMode) body.tradeSide = 'open';
     return this.request<{ orderId: string; clientOid: string }>(
       'POST',
@@ -365,6 +368,41 @@ export class BitgetTradeClient {
       { productType: this.productType, marginCoin: MARGIN_COIN },
     );
     return (data ?? []).filter((p) => Number(p.total) > 0);
+  }
+
+  /**
+   * Close PART of a position at market. Hedge mode: `side` names the position
+   * being closed (buy = long) with `tradeSide: 'close'`; one-way mode: the
+   * opposite side with `reduceOnly` so it can never flip into a new position.
+   */
+  async closePartialMarket(params: {
+    symbol: string;
+    holdSide: 'long' | 'short';
+    size: string;
+    clientOid: string;
+  }): Promise<{ orderId: string; clientOid: string }> {
+    const body: Record<string, string> = {
+      symbol: params.symbol,
+      productType: this.productType,
+      marginMode: 'crossed',
+      marginCoin: MARGIN_COIN,
+      size: params.size,
+      orderType: 'market',
+      clientOid: params.clientOid,
+    };
+    if (this.hedgeMode) {
+      body.side = params.holdSide === 'long' ? 'buy' : 'sell';
+      body.tradeSide = 'close';
+    } else {
+      body.side = params.holdSide === 'long' ? 'sell' : 'buy';
+      body.reduceOnly = 'YES';
+    }
+    return this.request<{ orderId: string; clientOid: string }>(
+      'POST',
+      '/api/v2/mix/order/place-order',
+      undefined,
+      body,
+    );
   }
 
   /** Flash-close the open position for a side at market (reduce-only). */

@@ -1149,3 +1149,31 @@ model StrategyPaperNote {
   @@index([createdAt(sort: Desc)])
   @@map("strategy_paper_notes")
 }
+
+// One action card proposed by the /bitget AI chat (skill `bitget-ai`). Claude only
+// proposes — nothing reaches Bitget until the user confirms the card (and may edit
+// margin / leverage / price / TP first). `params` is what Claude proposed,
+// `executedParams` what was actually sent after the user's edits.
+model BitgetAiAction {
+  id             String    @id @default(cuid())
+  conversationId String    @db.Char(36)
+  // Assistant message the card belongs to — attached once the reply is saved.
+  messageId      String?   @db.Char(36)
+  type           String    @db.VarChar(12) // OPEN | DCA | SET_TP | CLOSE | CANCEL
+  symbol         String    @db.VarChar(30)
+  holdSide       String    @db.VarChar(8) // long | short
+  params         Json // { orderType, price, marginUsd, leverage, takeProfitPrice, closePct, orderId }
+  reason         String?   @db.Text
+  status         String    @default("PROPOSED") @db.VarChar(10) // PROPOSED | EXECUTED | FAILED | DISMISSED
+  executedParams Json?
+  result         Json?
+  orderId        String?   @db.VarChar(64) // Bitget order id when the exchange returned one
+  error          String?   @db.Text
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([conversationId])
+  @@index([messageId])
+  @@map("bitget_ai_actions")
+}

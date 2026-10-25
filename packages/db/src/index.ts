@@ -106,3 +106,5 @@ export { createStrategyPaperTradePathRepository } from './repositories/strategy-
 export type { StrategyPaperTradePathData } from './repositories/strategy-paper-trade-path.repository';
 export { createStrategyPaperNoteRepository } from './repositories/strategy-paper-note.repository';
 export type { StrategyPaperNoteInput } from './repositories/strategy-paper-note.repository';
+export { createBitgetAiActionRepository } from './repositories/bitget-ai-action.repository';
+export type { BitgetAiActionInput } from './repositories/bitget-ai-action.repository';

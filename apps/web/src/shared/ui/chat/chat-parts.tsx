@@ -20,6 +20,15 @@ export const TOOL_LABEL: Record<string, string> = {
   propose_trade_setup: 'Đang tạo setup lệnh',
   get_tracking_coins: 'Đang đọc danh sách coin theo dõi',
   propose_swing_setup: 'Đang tạo setup swing',
+  bitget_account: 'Đang đọc tài khoản Bitget',
+  bitget_positions: 'Đang đọc vị thế đang mở',
+  bitget_pending_orders: 'Đang đọc lệnh chờ',
+  bitget_history: 'Đang đọc lịch sử lệnh',
+  bitget_setup: 'Đang đọc Setup',
+  bitget_journal: 'Đang đọc nhật ký lệnh',
+  bitget_charts: 'Đang xem chart đã lưu',
+  bitget_signals: 'Đang đọc tín hiệu QQE',
+  propose_bitget_action: 'Đang tạo thẻ đề xuất',
 };
 
 export function fmtTime(iso: string) {

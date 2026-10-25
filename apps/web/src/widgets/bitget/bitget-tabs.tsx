@@ -5,7 +5,17 @@ import { useCallback, useState } from 'react';
 import { BitgetHistoryFeed } from '@web/widgets/bitget-history/bitget-history-feed';
 import { BitgetPositionsFeed } from '@web/widgets/bitget-positions/bitget-positions-feed';
 import { BitgetSetupFeed, setupSymbols } from '@web/widgets/bitget/bitget-setup-feed';
+import { BitgetAiChat } from '@web/widgets/bitget/bitget-ai-chat';
+import { createApiClient } from '@web/shared/api/client';
 import type { BitgetHistoryResponse, BitgetPositionsResponse } from '@web/shared/api/types';
+
+const api = createApiClient();
+
+const TAB_LABEL: Record<'positions' | 'history' | 'setup', string> = {
+  positions: 'Vị thế đang mở',
+  history: 'Lịch sử & PnL',
+  setup: 'Setup',
+};
 
 export type BitgetTab = 'positions' | 'history' | 'setup';
 
@@ -20,8 +30,22 @@ type Props = {
  * switched by tabs instead of two separate routes. Each feed keeps its own
  * live refresh loop — mounting/unmounting on tab switch starts/stops it.
  */
-export function BitgetTabs({ positions, history, initialTab = 'positions' }: Props) {
+export function BitgetTabs({ positions: initialPositions, history: initialHistory, initialTab = 'positions' }: Props) {
   const [tab, setTab] = useState<BitgetTab>(initialTab);
+  // After an AI chat action runs on the exchange, refetch both snapshots and
+  // remount the feeds on them so the change shows without waiting for a poll.
+  const [positions, setPositions] = useState(initialPositions);
+  const [history, setHistory] = useState(initialHistory);
+  const [reloadKey, setReloadKey] = useState(0);
+  const reloadAfterAction = useCallback(async () => {
+    const [p, h] = await Promise.all([
+      api.fetchBitgetPositions().catch(() => null),
+      api.fetchBitgetHistory({ limit: 'all' }).catch(() => null),
+    ]);
+    if (p) setPositions(p);
+    if (h) setHistory(h);
+    setReloadKey((k) => k + 1);
+  }, []);
   // Row counts shown next to each tab label. Seeded from the server snapshot so
   // they are right on first paint, then kept live by the mounted feed's
   // `onCount` — an unmounted tab keeps the last count it reported.
@@ -78,17 +102,20 @@ export function BitgetTabs({ positions, history, initialTab = 'positions' }: Pro
       </div>
 
       {tab === 'positions' ? (
-        <BitgetPositionsFeed initial={positions} embedded onCount={setPositionsCount} />
+        <BitgetPositionsFeed key={reloadKey} initial={positions} embedded onCount={setPositionsCount} />
       ) : tab === 'history' ? (
-        <BitgetHistoryFeed initial={history} embedded onCount={setHistoryCount} />
+        <BitgetHistoryFeed key={reloadKey} initial={history} embedded onCount={setHistoryCount} />
       ) : (
         <BitgetSetupFeed
+          key={reloadKey}
           history={history}
           positions={positions}
           embedded
           onCount={setSetupCount}
         />
       )}
+
+      <BitgetAiChat tabLabel={TAB_LABEL[tab]} onActionDone={() => { void reloadAfterAction(); }} />
     </div>
   );
 }

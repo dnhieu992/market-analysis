@@ -97,3 +97,12 @@ export {
   computeDistanceToEntryPct,
 } from './setups/strategy-backtest-math';
 export type { SetupDirection } from './setups/strategy-backtest-math';
+export {
+  averageEntry,
+  capitalSharePct,
+  favourableMovePct,
+  partialCloseSize,
+  pnlAt,
+  sizeFromMargin,
+} from './orders/bitget-position-math';
+export type { PositionSide } from './orders/bitget-position-math';

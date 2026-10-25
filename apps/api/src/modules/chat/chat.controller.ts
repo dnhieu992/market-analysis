@@ -97,6 +97,6 @@ export class ChatController {
     @Param('id') id: string,
     @Body() body: SendMessageDto
   ) {
-    return this.conversationService.sendMessage(id, req.authUser!.id, body.content);
+    return this.conversationService.sendMessage(id, req.authUser!.id, body.content, body.context);
   }
 }

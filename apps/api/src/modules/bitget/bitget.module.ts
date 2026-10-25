@@ -7,6 +7,7 @@ import { BitgetService } from './bitget.service';
 import { BitgetSetupService } from './bitget-setup.service';
 import { BitgetSetupChartService } from './bitget-setup-chart.service';
 import { BitgetAutoTradeService } from './bitget-auto-trade.service';
+import { BitgetAiActionService } from './bitget-ai-action.service';
 
 @Module({
   controllers: [BitgetController],
@@ -16,7 +17,10 @@ import { BitgetAutoTradeService } from './bitget-auto-trade.service';
     BitgetSetupService,
     BitgetSetupChartService,
     BitgetAutoTradeService,
+    BitgetAiActionService,
     BinanceMarketDataService,
   ],
+  // The /bitget AI chat tools (ChatModule) read the account through these.
+  exports: [BitgetService, BitgetJournalService, BitgetSetupService, BitgetSetupChartService, BitgetAutoTradeService],
 })
 export class BitgetModule {}

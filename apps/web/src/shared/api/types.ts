@@ -386,6 +386,54 @@ export type ChatMessage = {
   setups?: SkillTradeSetup[];
   /** Swing setups proposed in a /tracking-coins panel chat. */
   trackingSetups?: TrackingSetup[];
+  /** Action cards proposed by the /bitget AI chat. */
+  bitgetActions?: BitgetAiAction[];
+};
+
+export type BitgetAiActionType = 'OPEN' | 'DCA' | 'SET_TP' | 'CLOSE' | 'CANCEL';
+
+/** What a /bitget AI card carries (Claude's proposal; the confirm dialog may override it). */
+export type BitgetAiActionParams = {
+  orderType?: 'MARKET' | 'LIMIT';
+  price?: number | null;
+  marginUsd?: number;
+  leverage?: number;
+  takeProfitPrice?: number | null;
+  closePct?: number;
+  orderId?: string;
+  refPrice?: number | null;
+  prevAvg?: number;
+  newAvg?: number;
+  prevSize?: number;
+  addSize?: number;
+  prevTp?: number | null;
+  entry?: number;
+  size?: number;
+  pnlUsd?: number;
+};
+
+export type BitgetAiAction = {
+  id: string;
+  conversationId: string;
+  messageId: string | null;
+  type: BitgetAiActionType;
+  symbol: string;
+  holdSide: 'long' | 'short';
+  params: BitgetAiActionParams;
+  reason: string | null;
+  status: 'PROPOSED' | 'EXECUTED' | 'FAILED' | 'DISMISSED';
+  executedParams: BitgetAiActionParams | null;
+  result: Record<string, unknown> | null;
+  orderId: string | null;
+  error: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+};
+
+/** The user's edits from the confirm dialog. */
+export type BitgetAiActionEdits = Pick<BitgetAiActionParams, 'orderType' | 'marginUsd' | 'leverage' | 'closePct'> & {
+  price?: number;
+  takeProfitPrice?: number | null;
 };
 
 /** Progress of the reply being generated (GET /chat/conversations/:id/live). */
