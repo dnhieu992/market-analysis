@@ -130,6 +130,7 @@ export class RsiVolumePaperEngineService implements OnModuleInit {
 
       // 2) Flat → does the last closed candle fire?
       if (!config.enabled || (await this.repo.findOpen(id, sym.symbol)).length > 0) continue;
+      if (def.symbols && !def.symbols.includes(sym.symbol)) continue; // strategy not run on this coin
       const candles = all[def.timeframe]!;
       const ltf = onlyClosed(candles);
       const i = ltf.length - 1;

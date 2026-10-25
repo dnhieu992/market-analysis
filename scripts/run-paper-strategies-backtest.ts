@@ -23,7 +23,7 @@ import {
   type PaperCandle,
   type RsiVolumeStrategyDef,
 } from '../apps/api/src/modules/strategy-paper-trades/rsi-volume-strategies';
-import { pdhlSignal } from '../apps/api/src/modules/strategy-paper-trades/pdhl-rules';
+import { PDHL_MAX_RISK_PCT, pdhlSignal } from '../apps/api/src/modules/strategy-paper-trades/pdhl-rules';
 
 const FEE = 0.0005;
 const TF_MS: Record<string, number> = { '5m': 3e5, '15m': 9e5, '1h': 36e5, '1d': 864e5 };
@@ -91,14 +91,14 @@ function runRsi(def: RsiVolumeStrategyDef, symbol: string, ltf: PaperCandle[], h
 }
 
 /** PDH/PDL on 1h — mirrors StrategyPaperTradesService (one side per day, EOD close). */
-function runPdhl(symbol: string, h1: PaperCandle[], rr: number, breakeven: { atR: number; lockR: number } | undefined, minBreakPct: number): Trade[] {
+function runPdhl(symbol: string, h1: PaperCandle[], rr: number, breakeven: { atR: number; lockR: number } | undefined, minBreakPct: number, maxRiskPct = PDHL_MAX_RISK_PCT): Trade[] {
   const out: Trade[] = [];
   const day = (ms: number) => Math.floor(ms / 864e5);
   const taken = new Set<string>();
   let i = 30;
   while (i < h1.length - 1) {
     const sig = h1[i]!;
-    const sg = sig.t >= FROM ? pdhlSignal(h1.slice(Math.max(0, i - 60), i + 1), minBreakPct) : null;
+    const sg = sig.t >= FROM ? pdhlSignal(h1.slice(Math.max(0, i - 60), i + 1), minBreakPct, maxRiskPct) : null;
     const key = sg ? `${day(sig.t)}-${sg.direction}` : '';
     if (!sg || taken.has(key)) { i += 1; continue; }
     taken.add(key);
@@ -195,6 +195,7 @@ async function main() {
     for (const [name, def] of variants) {
       const all: Trade[] = [];
       for (const s of SYMBOLS) {
+        if (name === 'LIVE (as shipped)' && def.symbols && !def.symbols.includes(s)) continue; // coin not run live
         const d = data[s]!;
         const trades = runRsi(def, s, d[def.timeframe]!, d['1h']!, d['1d']!);
         all.push(...trades);
@@ -209,16 +210,18 @@ async function main() {
   }
 
   console.log(`\n=== PDH/PDL 1h (TP 2R, EOD close)\n${header}`);
-  const pdhlVariants: [string, { atR: number; lockR: number } | undefined, number][] = [
-    ['old', undefined, 0],
-    [`+ BE @${PDHL_BREAKEVEN.atR}R`, PDHL_BREAKEVEN, 0],
-    ['+ min break 0.2%', undefined, 0.2],
-    ['+ BE + min break 0.2%', PDHL_BREAKEVEN, 0.2],
+  // "old" = before the 2026-10-25 risk cap (no cap); the other rows add one change each to "old".
+  const pdhlVariants: [string, { atR: number; lockR: number } | undefined, number, number][] = [
+    ['old', undefined, 0, Infinity],
+    [`+ BE @${PDHL_BREAKEVEN.atR}R`, PDHL_BREAKEVEN, 0, Infinity],
+    ['+ min break 0.2%', undefined, 0.2, Infinity],
+    ['+ BE + min break 0.2%', PDHL_BREAKEVEN, 0.2, Infinity],
+    [`LIVE (risk ≤ ${PDHL_MAX_RISK_PCT}%)`, undefined, 0, PDHL_MAX_RISK_PCT],
   ];
-  for (const [name, be, minBreak] of pdhlVariants) {
+  for (const [name, be, minBreak, maxRisk] of pdhlVariants) {
     const all: Trade[] = [];
     for (const s of SYMBOLS) {
-      const trades = runPdhl(s, data[s]!['1h']!, 2, be, minBreak);
+      const trades = runPdhl(s, data[s]!['1h']!, 2, be, minBreak, maxRisk);
       all.push(...trades);
       const sum = summarize(trades);
       console.log(`${name.padEnd(32)} | ${s.replace('USDT', '').padEnd(4)} | ${fmt(sum)}`);

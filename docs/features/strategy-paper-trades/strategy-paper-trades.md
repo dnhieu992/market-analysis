@@ -7,7 +7,7 @@ doc); its trades carry their own `symbol`, and at most one trade is open per (st
 
 | id | strategy | TF | side |
 |---|---|---|---|
-| `pdhl-btc` | Breakout of the previous UTC day's high/low, SL on the opposite side, TP 2R, EOD close | 1h | both |
+| `pdhl-btc` | Breakout of the previous UTC day's high/low, SL on the opposite side, **skip if SL > 3.5% from entry**, TP 2R, EOD close | 1h | both |
 | `rsi-5m-short-1r` | A · RSI14 crosses down 45, RSI14 1h ≤ 40, 1D ≤ 60, SL 1%, TP 1R | 5m | short |
 | `rsi-5m-long-1r` | B · RSI7 crosses back up 30, RSI14 1h ≥ 40, 1D ≥ 50, SL 1.5%, TP 1R | 5m | long |
 | `rsi-5m-long-div-1_5r` | C · bullish RSI7 divergence, volume < MA20, RSI14 1h ≥ 40, **trend + anti-chase filters**, SL 1.5%, TP 1.5R | 5m | long |
@@ -18,6 +18,11 @@ doc); its trades carry their own `symbol`, and at most one trade is open per (st
 close is up ≥ 1% vs 24 closed 1h candles earlier. Both were added to C and D on 2026-10-15 after the
 review of the first 89 paper trades; every other change proposed in that review was backtested and
 rejected (see `claude-backtest/runs/2026-10-15-paper-strategies-review-btc-eth-sol.md`).
+
+**2026-10-25 review** (`claude-backtest/runs/2026-10-25-paper-strategies-review-2.md`): PDH/PDL skips a
+breakout whose stop is more than `PDHL_MAX_RISK_PCT` (3.5%) from the entry; A, B and C stop opening
+trades on SOL (`symbols` on the strategy def — negative every backtest year). Open trades on a coin a
+strategy no longer runs on are still managed until they close.
 
 ## Main Flow
 1. **RSI/volume engine** (`RsiVolumePaperEngineService`, cron 15s after every 5 min): per coin, fetch

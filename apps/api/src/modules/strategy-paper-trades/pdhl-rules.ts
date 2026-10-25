@@ -7,6 +7,13 @@ type Bar = { t: number; open: number; high: number; low: number; close: number }
 
 const utcDayIndex = (ms: number) => Math.floor(ms / 864e5);
 
+/**
+ * Skip a breakout whose stop (the far side of yesterday's range) is more than this % from the
+ * entry (2026-10-25 review): such wide-range days almost never reach 2R before the EOD close.
+ * Backtest 2024-01 → 2026-10, BTC+ETH+SOL: +21.0R → +49.4R, maxDD −20.5R → −15.0R.
+ */
+export const PDHL_MAX_RISK_PCT = 3.5;
+
 /** Wilder ATR14 (NaN until seeded). */
 export function atr14(c: Bar[]): number[] {
   const out = new Array<number>(c.length).fill(NaN);
@@ -37,10 +44,12 @@ export function prevDayLevels(closed: Bar[], dayIdx: number): { pdh: number; pdl
  * Does the LAST candle of `closed` (1h, oldest first, ≥ 1 day of history) break yesterday's
  * range? Stop = opposite side of yesterday's range ± 0.1 ATR. No entry in the last hour of the day.
  * `minBreakPct` = how far beyond the level the close must be (0 = any close beyond it).
+ * `maxRiskPct` = skip when the stop is further than this % from the entry (the signal close).
  */
 export function pdhlSignal(
   closed: Bar[],
   minBreakPct = 0,
+  maxRiskPct = PDHL_MAX_RISK_PCT,
 ): { direction: 'LONG' | 'SHORT'; stop: number; pdh: number; pdl: number } | null {
   const i = closed.length - 1;
   const sig = closed[i];
@@ -52,7 +61,14 @@ export function pdhlSignal(
   const atrHere = atr14(closed)[i];
   const a = atrHere != null && Number.isFinite(atrHere) ? atrHere : sig.close * 0.003;
   const k = minBreakPct / 100;
-  if (sig.close > lv.pdh * (1 + k)) return { direction: 'LONG', stop: Math.min(sig.low, lv.pdl) - 0.1 * a, ...lv };
-  if (sig.close < lv.pdl * (1 - k)) return { direction: 'SHORT', stop: Math.max(sig.high, lv.pdh) + 0.1 * a, ...lv };
+  const tooWide = (stop: number) => (Math.abs(sig.close - stop) / sig.close) * 100 > maxRiskPct;
+  if (sig.close > lv.pdh * (1 + k)) {
+    const stop = Math.min(sig.low, lv.pdl) - 0.1 * a;
+    return tooWide(stop) ? null : { direction: 'LONG', stop, ...lv };
+  }
+  if (sig.close < lv.pdl * (1 - k)) {
+    const stop = Math.max(sig.high, lv.pdh) + 0.1 * a;
+    return tooWide(stop) ? null : { direction: 'SHORT', stop, ...lv };
+  }
   return null;
 }

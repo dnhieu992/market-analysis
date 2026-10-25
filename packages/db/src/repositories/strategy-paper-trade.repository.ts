@@ -25,15 +25,22 @@ export const DEFAULT_STRATEGY_DOC = `## Chiến lược: Phá đỉnh/đáy củ
   - Lệnh mua (phá đỉnh) → cắt lỗ **dưới đáy của ngày hôm qua**.
   - Lệnh bán (phá đáy) → cắt lỗ **trên đỉnh của ngày hôm qua**.
   - (Đây là kiểu dừng lỗ rộng — chấp nhận cả biên ngày hôm qua làm rủi ro; chính cấu hình này cho kết quả tốt nhất khi backtest.)
+  - **Bỏ qua tín hiệu nếu cắt lỗ cách giá vào hơn 3.5%** (biên hôm qua quá rộng → gần như không kịp chạm 2R trong ngày).
 - **Chốt lời**: đặt cách điểm vào **gấp 2 lần khoảng rủi ro** (lời gấp đôi mức chấp nhận mất).
 - **Đóng cuối ngày**: hết ngày mà chưa chạm chốt lời/cắt lỗ thì **đóng luôn** — không giữ lệnh qua đêm.
 
 **Vốn**
 - Mỗi lệnh chỉ đặt cược một số tiền cố định nhỏ (mặc định 10 đô). Khối lượng tính ngược từ khoảng cắt lỗ.
 
-**Backtest 2024-01 → 2026-10 (phí 0.05%/chiều, \`scripts/run-paper-strategies-backtest.ts\`)**
-- BTC: 738 lệnh, win rate **44.9%**, tổng **+20.4R**, drawdown tối đa −10.5R.
-- ETH: 741 lệnh, win rate 44.8%, +9.9R · SOL: 800 lệnh, win rate 45.9%, −0.9R (hoà vốn).
+**Backtest 2024-01 → 2026-10-25 (phí 0.05%/chiều, \`scripts/run-paper-strategies-backtest.ts\`)**
+- BTC: 441 lệnh, win rate **46.0%**, tổng **+26.3R**, drawdown tối đa −8.0R.
+- ETH: 226 lệnh, win rate 47.3%, +13.5R · SOL: 116 lệnh, win rate 50.0%, +9.6R.
+- 3 coin: +49.4R, drawdown −15.0R, dương cả 2024 / 2025 / 2026 (trước khi lọc: 2308 lệnh, +21.0R, drawdown −20.5R).
+
+**Cập nhật 2026-10-25 (review 28 lệnh paper từ 15/10: 25 lệnh đóng cuối ngày, −8.1R)**
+- Nguyên nhân: cắt lỗ ở phía bên kia biên hôm qua thường cách giá vào 3–6.5% → TP 2R gần như không chạm trong ngày, lệnh trôi tới cuối ngày rồi đóng lỗ nhẹ.
+- Thêm bộ lọc **rủi ro ≤ 3.5%**. Các ngưỡng 2.5% – 5% đều tốt hơn bản cũ trong backtest, nên đây không phải con số "dò may".
+- Đã thử và bỏ: cắt lỗ chặt theo nến tín hiệu / 1.5–3 ATR (tệ hơn rất nhiều, −95R → −236R), TP 1R / 1.5R, giữ lệnh qua đêm 48–72h, chỉ vào lệnh trước 12h/16h/18h UTC (cải thiện ít hơn và không cộng thêm khi đã lọc rủi ro).
 
 **Đã thử và bỏ (review 2026-10-15)**
 - Dời SL về hoà vốn khi lời +0.7R: win rate tăng nhẹ nhưng tổng giảm (+29.5R → +12.2R trên 3 coin) — cắt mất các lệnh chạy tới 2R.

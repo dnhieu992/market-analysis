@@ -44,6 +44,11 @@ export type RsiVolumeStrategyDef = {
   breakeven?: { atR: number; lockR: number };
   /** Close at the candle close once the trade has been open this long (closes as 'TIME'). */
   maxHoldHours?: number;
+  /**
+   * Coins this strategy opens trades on (default: every PAPER_SYMBOLS coin). Open trades on other
+   * coins are still managed until they close.
+   */
+  symbols?: string[];
   slPct: number;
   rr: number;
   /** BTC backtest of the shipped rules (scripts/run-paper-strategies-backtest.ts); `coins` = the other coins. */
@@ -63,6 +68,7 @@ export const RSI_VOLUME_STRATEGIES: RsiVolumeStrategyDef[] = [
     volume: 'none',
     h1Rsi: { max: 40 },
     d1Rsi: { max: 60 },
+    symbols: ['BTCUSDT', 'ETHUSDT'],
     slPct: 0.01,
     rr: 1,
     backtest: { trades: 727, perDay: 0.71, winRate: 57.1, totalR: 30.4, byYear: '57.5 / 55.6 / 58.4', coins: 'ETH 946 lệnh · WR 53.5% · −28.6R | SOL 1265 lệnh · WR 51.2% · −95.5R' },
@@ -79,6 +85,7 @@ export const RSI_VOLUME_STRATEGIES: RsiVolumeStrategyDef[] = [
     volume: 'none',
     h1Rsi: { min: 40 },
     d1Rsi: { min: 50 },
+    symbols: ['BTCUSDT', 'ETHUSDT'],
     slPct: 0.015,
     rr: 1,
     backtest: { trades: 720, perDay: 0.71, winRate: 54.7, totalR: 20.0, byYear: '55.2 / 54.8 / 53.5', coins: 'ETH 1016 lệnh · WR 51.9% · −29.8R | SOL 1524 lệnh · WR 50.3% · −91.6R' },
@@ -97,6 +104,7 @@ export const RSI_VOLUME_STRATEGIES: RsiVolumeStrategyDef[] = [
     h1Rsi: { min: 40 },
     trendFilter: true,
     maxRise24hPct: 1,
+    symbols: ['BTCUSDT', 'ETHUSDT'],
     slPct: 0.015,
     rr: 1.5,
     backtest: { trades: 280, perDay: 0.28, winRate: 45.4, totalR: 18.8, byYear: '48.6 / 45.8 / 39.7', coins: 'ETH 317 lệnh · WR 43.2% · +4.4R | SOL 372 lệnh · WR 40.1% · −24.3R' },
@@ -319,10 +327,21 @@ export function stepPosition(
   return { exit: null, stopLoss };
 }
 
+/** Short names of the coins a strategy opens trades on. */
+export function strategyCoins(def: RsiVolumeStrategyDef): string[] {
+  return PAPER_SYMBOLS.filter((s) => !def.symbols || def.symbols.includes(s.symbol)).map((s) => s.short);
+}
+
 /** Default "Chi tiết chiến lược" markdown for a strategy. */
 export function defaultDocFor(def: RsiVolumeStrategyDef): string {
   const side = def.direction === 'LONG' ? 'MUA' : 'BÁN';
-  const coins = PAPER_SYMBOLS.map((s) => s.short).join(', ');
+  const coins = strategyCoins(def).join(', ');
+  const solNote = def.symbols && !def.symbols.includes('SOLUSDT')
+    ? `\n**Cập nhật 2026-10-25 (review 76 lệnh paper từ 15/10)**
+- Ngừng mở lệnh mới trên **SOL**: backtest âm ở **cả 3 năm** 2024 / 2025 / 2026 và lệnh paper trên SOL từ 15/10 cũng âm.
+- Vẫn chạy trên BTC và ETH; lệnh SOL đang mở (nếu có) được quản lý tới khi đóng.
+`
+    : '';
   const reviewNote = def.trendFilter || def.maxRise24hPct != null
     ? `\n**Cập nhật 2026-10-15 (sau review 89 lệnh paper)**
 - Lệnh thua live tập trung ở pha **mua đuổi** (giá 1h đã tăng ≥ 1% trong 24h) và **mua ngược xu hướng giảm 1h**.
@@ -339,7 +358,7 @@ ${def.rules.split(' · ').map((x) => `- ${x}`).join('\n')}
 **Quản lý lệnh**
 - Cắt lỗ cố định ${(def.slPct * 100).toFixed(1)}% từ giá vào, chốt lời ${def.rr}R. Không đóng cuối ngày, không dời SL.
 - Mỗi chiến lược chỉ giữ **1 lệnh tại một thời điểm trên mỗi coin**; các chiến lược chạy song song, độc lập.
-${reviewNote}
+${reviewNote}${solNote}
 **Backtest 2024-01 → 2026-10 (phí 0.05%/chiều, \`scripts/run-paper-strategies-backtest.ts\`)**
 - BTC: ${def.backtest.trades} lệnh (~${def.backtest.perDay} lệnh/ngày), win rate **${def.backtest.winRate}%**, tổng **+${def.backtest.totalR}R**.
 - BTC win rate theo năm 2024 / 2025 / 2026: ${def.backtest.byYear}%.

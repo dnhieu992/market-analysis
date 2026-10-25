@@ -6,9 +6,9 @@ import { createStrategyPaperNoteRepository, createStrategyPaperTradeRepository, 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { StorageService } from '../storage/storage.service';
 import { renderSetupChart, SETUP_CHART_TF_CONFIG, type OhlcCandle } from '../bitget/setup-chart-renderer';
-import { RSI_VOLUME_STRATEGIES, defaultDocFor } from './rsi-volume-strategies';
+import { RSI_VOLUME_STRATEGIES, defaultDocFor, strategyCoins } from './rsi-volume-strategies';
 import { PAPER_SYMBOLS, type PaperSymbol } from './paper-symbols';
-import { pdhlSignal, prevDayLevels } from './pdhl-rules';
+import { PDHL_MAX_RISK_PCT, pdhlSignal, prevDayLevels } from './pdhl-rules';
 import { SCALP_SKILL_DOC, SCALP_SKILL_STRATEGY, SCALP_SKILL_STRATEGY_ID } from './scalp-skill-strategy';
 
 const SYMBOL = 'BTCUSDT';
@@ -490,13 +490,13 @@ export class StrategyPaperTradesService implements OnModuleInit {
         };
       }
       const def = RSI_VOLUME_STRATEGIES.find((d) => d.id === c.id);
-      const symbols = PAPER_SYMBOLS.map((s) => s.short);
+      const symbols = def ? strategyCoins(def) : PAPER_SYMBOLS.map((s) => s.short);
       return {
         ...this.toConfigDto(c),
         direction: def ? def.direction : 'BOTH',
         rules: def
           ? def.rules
-          : '1h đóng cửa vượt đỉnh/thủng đáy ngày hôm trước · SL phía đối diện biên hôm qua · TP 2R · đóng cuối ngày',
+          : `1h đóng cửa vượt đỉnh/thủng đáy ngày hôm trước · SL phía đối diện biên hôm qua · bỏ qua nếu SL cách entry > ${PDHL_MAX_RISK_PCT}% · TP 2R · đóng cuối ngày`,
         backtest: def ? def.backtest : null,
         symbols,
         openCount: openTrades.filter((t) => t.strategyId === c.id).length,
