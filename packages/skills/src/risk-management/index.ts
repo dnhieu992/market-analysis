@@ -2,6 +2,7 @@ import type { SkillDefinition } from '../types/skill';
 import { SYSTEM_PROMPT } from './system';
 import { EXAMPLE_QUESTIONS } from './examples';
 
+/** Hidden from /skills on 2026-10-25 at the user's request; kept so old conversations still open. */
 export const riskManagementSkill: SkillDefinition = {
   id: 'risk-management',
   name: 'Risk Management',
@@ -11,5 +12,6 @@ export const riskManagementSkill: SkillDefinition = {
   systemPrompt: SYSTEM_PROMPT,
   tools: ['get_ticker_price', 'get_24h_ticker', 'get_tracking_coins'],
   exampleQuestions: EXAMPLE_QUESTIONS,
-  welcomeMessage: 'Xin chào! Tôi chuyên tư vấn quản lý rủi ro và vốn. Cho tôi biết quy mô tài khoản, lệnh bạn đang xem xét, hoặc danh mục hiện tại — tôi sẽ tính toán position size và đánh giá mức độ rủi ro cụ thể.'
+  welcomeMessage: 'Xin chào! Tôi chuyên tư vấn quản lý rủi ro và vốn. Cho tôi biết quy mô tài khoản, lệnh bạn đang xem xét, hoặc danh mục hiện tại — tôi sẽ tính toán position size và đánh giá mức độ rủi ro cụ thể.',
+  hidden: true,
 };
