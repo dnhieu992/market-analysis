@@ -383,10 +383,12 @@ export class BitgetAiChatService {
         const [qqe, changes] = await Promise.all([this.charts.getQqeSignals(list, ['4h', '1d']), this.charts.getPriceChanges(list)]);
         return JSON.stringify(
           list.map((s) => {
-            const c = changes.find((x) => x.symbol === s);
+            // Both readings come back keyed by the bare coin ("BTC"), not the pair.
+            const same = (x: { symbol: string }) => pair(x.symbol) === s;
+            const c = changes.find(same);
             return {
               symbol: s,
-              qqe: qqe.find((x) => x.symbol === s)?.signals ?? null,
+              qqe: qqe.find(same)?.signals ?? null,
               changeH4Pct: c?.changeH4 != null ? pct(c.changeH4 * 100) : null,
               change7dPct: c?.change7d != null ? pct(c.change7d * 100) : null,
               change30dPct: c?.change30d != null ? pct(c.change30d * 100) : null,
