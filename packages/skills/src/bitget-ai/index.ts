@@ -21,6 +21,7 @@ export const bitgetAiSkill: SkillDefinition = {
     'analyze_market_structure',
     'get_klines',
     'get_ticker_price',
+    'get_scalp_chart_data',
     'propose_bitget_action',
   ],
   exampleQuestions: [],

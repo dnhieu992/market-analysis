@@ -50,7 +50,7 @@ allowed). **Bỏ qua** → `DISMISSED`. Executed cards write a `system` note
 remounts the tab after an action.
 
 ## Strategy
-`packages/skills/src/bitget-ai/system.ts`. v2 (2026-10-25) is swing-first because there is no SL: trend from 1W/1D, QQE D1 as the filter and H4 for timing, LIMIT at support, TP under the next D1/H4 resistance (≈ BTC +2–4 %, alts +5–10 %), DCA only at D1/W support with wider spacing (BTC −4 %, alts −10–12 %, ≤ 3 adds). v1 was inferred from the account itself (295 closed
+`packages/skills/src/bitget-ai/system.ts`. Scans and general questions are always SWING; scalping (M30/15m/5m via get_scalp_chart_data, small habitual TPs, only with the D1/H4 trend) only when the user asks about scalping one specific coin. v2 (2026-10-25) is swing-first because there is no SL: trend from 1W/1D, QQE D1 as the filter and H4 for timing, LIMIT at support, TP under the next D1/H4 resistance (≈ BTC +2–4 %, alts +5–10 %), DCA only at D1/W support with wider spacing (BTC −4 %, alts −10–12 %, ≤ 3 adds). v1 was inferred from the account itself (295 closed
 trades 17/07–24/10/2026: 85 % win rate, +$0.33 avg win / −$0.08 avg loss, 84 % LONG, margin
 $0.5–1.5 per entry at 10–50× cross, median hold ~9h), the Setup configs, stars, notes and the
 journal. It is the trader's call — edit the file to change behaviour. Main rules: LONG bias
