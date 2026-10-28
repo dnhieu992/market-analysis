@@ -6,6 +6,7 @@ import { MexcJournalService } from './mexc-journal.service';
 import { MexcService } from './mexc.service';
 import { MexcSetupService } from './mexc-setup.service';
 import { MexcSetupChartService } from './mexc-setup-chart.service';
+import { MexcAiActionService } from './mexc-ai-action.service';
 
 @Module({
   controllers: [MexcController],
@@ -14,7 +15,10 @@ import { MexcSetupChartService } from './mexc-setup-chart.service';
     MexcJournalService,
     MexcSetupService,
     MexcSetupChartService,
+    MexcAiActionService,
     BinanceMarketDataService,
   ],
+  // The /mexc AI chat tools (ChatModule) read the account through these.
+  exports: [MexcService, MexcJournalService, MexcSetupService, MexcSetupChartService],
 })
 export class MexcModule {}

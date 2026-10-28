@@ -424,13 +424,14 @@ export class MexcTradeClient {
    * Flash-close an open position at market. MEXC has no dedicated close
    * endpoint: it is a market order on the CLOSING side for the position's full
    * contract volume, carrying `positionId` so the exchange reduces that exact
-   * position instead of opening a hedge.
+   * position instead of opening a hedge. `vol` (contracts, already floored to
+   * `volScale`) closes only part of it — the /mexc AI chat's partial close.
    */
-  async closePosition(position: MexcRawPosition, price: number): Promise<void> {
+  async closePosition(position: MexcRawPosition, price: number, vol = position.holdVol): Promise<void> {
     await this.request<unknown>('POST', '/api/v1/private/order/create', undefined, {
       symbol: toMexcSymbol(position.symbol),
       price,
-      vol: position.holdVol,
+      vol,
       side: position.holdSide === 'long' ? SIDE_CLOSE_LONG : SIDE_CLOSE_SHORT,
       type: ORDER_TYPE_MARKET,
       openType: position.openType,

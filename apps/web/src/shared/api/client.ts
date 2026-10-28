@@ -100,6 +100,8 @@ import type {
   StrategyPaperNote,
   BitgetAiAction,
   BitgetAiActionEdits,
+  MexcAiAction,
+  MexcAiActionEdits,
 } from './types';
 
 
@@ -1159,6 +1161,33 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Bỏ qua thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetAiAction;
+    },
+
+    /** Run a /mexc AI action card on the LIVE account — only from the user's confirm click. */
+    async executeMexcAiAction(id: string, edits: MexcAiActionEdits): Promise<MexcAiAction> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/ai/actions/${encodeURIComponent(id)}/execute`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edits) }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Thực hiện thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcAiAction;
+    },
+
+    async dismissMexcAiAction(id: string): Promise<MexcAiAction> {
+      const response = await fetchImpl(
+        `${baseUrl}/mexc/ai/actions/${encodeURIComponent(id)}/dismiss`,
+        withDefaults({ method: 'POST' }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Bỏ qua thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as MexcAiAction;
     },
 
     /** Cancel one pending LIMIT order by id. */

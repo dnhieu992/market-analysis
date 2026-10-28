@@ -8,6 +8,7 @@ import { shortBtcDailySkill } from './short-btc-daily';
 import { scalpingSkill } from './scalping';
 import { trackingSwingSkill } from './tracking-swing';
 import { bitgetAiSkill } from './bitget-ai';
+import { mexcAiSkill } from './mexc-ai';
 
 export const SKILLS: SkillDefinition[] = [
   priceActionSkill,
@@ -19,6 +20,7 @@ export const SKILLS: SkillDefinition[] = [
   scalpingSkill,
   trackingSwingSkill,
   bitgetAiSkill,
+  mexcAiSkill,
 ];
 
 export function getSkillById(id: string): SkillDefinition | undefined {

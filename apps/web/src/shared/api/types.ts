@@ -388,6 +388,8 @@ export type ChatMessage = {
   trackingSetups?: TrackingSetup[];
   /** Action cards proposed by the /bitget AI chat. */
   bitgetActions?: BitgetAiAction[];
+  /** Action cards proposed by the /mexc AI chat. */
+  mexcActions?: MexcAiAction[];
 };
 
 export type BitgetAiActionType = 'OPEN' | 'DCA' | 'SET_TP' | 'CLOSE' | 'CANCEL';
@@ -435,6 +437,10 @@ export type BitgetAiActionEdits = Pick<BitgetAiActionParams, 'orderType' | 'marg
   price?: number;
   takeProfitPrice?: number | null;
 };
+
+/** The /mexc AI chat's cards — same shape as the /bitget ones, stored in `mexc_ai_actions`. */
+export type MexcAiAction = BitgetAiAction;
+export type MexcAiActionEdits = BitgetAiActionEdits;
 
 /** Progress of the reply being generated (GET /chat/conversations/:id/live). */
 export type LiveReply = {

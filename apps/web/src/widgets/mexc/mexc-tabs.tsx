@@ -5,7 +5,17 @@ import { useCallback, useState } from 'react';
 import { MexcHistoryFeed } from '@web/widgets/mexc-history/mexc-history-feed';
 import { MexcPositionsFeed } from '@web/widgets/mexc-positions/mexc-positions-feed';
 import { MexcSetupFeed, setupSymbols } from '@web/widgets/mexc/mexc-setup-feed';
+import { MexcAiChat } from '@web/widgets/mexc/mexc-ai-chat';
+import { createApiClient } from '@web/shared/api/client';
 import type { MexcHistoryResponse, MexcPositionsResponse } from '@web/shared/api/types';
+
+const api = createApiClient();
+
+const TAB_LABEL: Record<'positions' | 'history' | 'setup', string> = {
+  positions: 'Vị thế đang mở',
+  history: 'Lịch sử & PnL',
+  setup: 'Setup',
+};
 
 export type MexcTab = 'positions' | 'history' | 'setup';
 
@@ -20,8 +30,22 @@ type Props = {
  * switched by tabs instead of two separate routes. Each feed keeps its own
  * live refresh loop — mounting/unmounting on tab switch starts/stops it.
  */
-export function MexcTabs({ positions, history, initialTab = 'positions' }: Props) {
+export function MexcTabs({ positions: initialPositions, history: initialHistory, initialTab = 'positions' }: Props) {
   const [tab, setTab] = useState<MexcTab>(initialTab);
+  // After an AI chat action runs on the exchange, refetch both snapshots and
+  // remount the feeds on them so the change shows without waiting for a poll.
+  const [positions, setPositions] = useState(initialPositions);
+  const [history, setHistory] = useState(initialHistory);
+  const [reloadKey, setReloadKey] = useState(0);
+  const reloadAfterAction = useCallback(async () => {
+    const [p, h] = await Promise.all([
+      api.fetchMexcPositions().catch(() => null),
+      api.fetchMexcHistory({ limit: 200 }).catch(() => null),
+    ]);
+    if (p) setPositions(p);
+    if (h) setHistory(h);
+    setReloadKey((k) => k + 1);
+  }, []);
   // Row counts shown next to each tab label. Seeded from the server snapshot so
   // they are right on first paint, then kept live by the mounted feed's
   // `onCount` — an unmounted tab keeps the last count it reported.
@@ -78,17 +102,20 @@ export function MexcTabs({ positions, history, initialTab = 'positions' }: Props
       </div>
 
       {tab === 'positions' ? (
-        <MexcPositionsFeed initial={positions} embedded onCount={setPositionsCount} />
+        <MexcPositionsFeed key={reloadKey} initial={positions} embedded onCount={setPositionsCount} />
       ) : tab === 'history' ? (
-        <MexcHistoryFeed initial={history} embedded onCount={setHistoryCount} />
+        <MexcHistoryFeed key={reloadKey} initial={history} embedded onCount={setHistoryCount} />
       ) : (
         <MexcSetupFeed
+          key={reloadKey}
           history={history}
           positions={positions}
           embedded
           onCount={setSetupCount}
         />
       )}
+
+      <MexcAiChat tabLabel={TAB_LABEL[tab]} onActionDone={() => { void reloadAfterAction(); }} />
     </div>
   );
 }

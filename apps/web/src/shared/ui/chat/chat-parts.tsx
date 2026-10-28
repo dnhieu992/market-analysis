@@ -29,6 +29,15 @@ export const TOOL_LABEL: Record<string, string> = {
   bitget_charts: 'Đang xem chart đã lưu',
   bitget_signals: 'Đang đọc tín hiệu QQE',
   propose_bitget_action: 'Đang tạo thẻ đề xuất',
+  mexc_account: 'Đang đọc tài khoản MEXC',
+  mexc_positions: 'Đang đọc vị thế đang mở',
+  mexc_pending_orders: 'Đang đọc lệnh chờ',
+  mexc_history: 'Đang đọc lịch sử lệnh',
+  mexc_setup: 'Đang đọc Setup',
+  mexc_journal: 'Đang đọc nhật ký lệnh',
+  mexc_charts: 'Đang xem chart đã lưu',
+  mexc_signals: 'Đang đọc tín hiệu QQE',
+  propose_mexc_action: 'Đang tạo thẻ đề xuất',
 };
 
 export function fmtTime(iso: string) {

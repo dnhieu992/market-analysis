@@ -7,7 +7,7 @@ export class SendMessageDto {
   @MinLength(1)
   content!: string;
 
-  @ApiPropertyOptional({ example: 'Tab: Vị thế đang mở', description: 'What the user is looking at (the /bitget AI chat sends the current tab).' })
+  @ApiPropertyOptional({ example: 'Tab: Vị thế đang mở', description: 'What the user is looking at (the /bitget and /mexc AI chats send the current tab).' })
   @IsOptional()
   @IsString()
   @MaxLength(500)

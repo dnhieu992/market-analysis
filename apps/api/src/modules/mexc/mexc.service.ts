@@ -5,7 +5,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { summarizeMexcClosed, type MexcClosedSummary } from '@app/core';
+import { partialCloseSize, summarizeMexcClosed, type MexcClosedSummary } from '@app/core';
 import {
   createAssetCategoryRepository,
   createMexcTradeJournalRepository,
@@ -578,6 +578,102 @@ export class MexcService {
       marginUsd: Number.isFinite(leverage) && leverage >= 1 ? notionalUsd / leverage : notionalUsd,
       createdAt: Number.isFinite(o.createTime) && o.createTime > 0 ? new Date(o.createTime).toISOString() : null,
     };
+  }
+
+  /**
+   * Close `pct` % of a live position at market — a closing-side market order for
+   * part of the contract volume, floored to the contract precision (100 % goes
+   * through the full close so no dust is left). A slice under the exchange
+   * minimum is rejected up front instead of failing on MEXC.
+   */
+  async closePartial(input: { symbol: string; holdSide: 'long' | 'short'; pct: number }): Promise<{
+    closed: true;
+    symbol: string;
+    holdSide: 'long' | 'short';
+    pct: number;
+    /** Size closed, in the BASE asset. */
+    size: number;
+    remainingSize: number;
+    markPrice: number;
+    orderId: string | null;
+  }> {
+    const { symbol, holdSide } = input;
+    if (!this.client.isConfigured()) {
+      throw new ServiceUnavailableException('MEXC credentials not configured — cannot close a position');
+    }
+    if (!(input.pct > 0) || input.pct > 100) throw new BadRequestException('Tỉ lệ đóng phải trong (0, 100]%.');
+    try {
+      const position = await this.client.getPosition(symbol, holdSide);
+      if (!position || position.holdVol <= 0) {
+        throw new ConflictException('Vị thế đã đóng trên sàn — không còn gì để đóng.');
+      }
+      // MEXC requires a price even on a market order (it caps the fill).
+      const markPrice = await this.client.getTickerPrice(symbol);
+      if (input.pct >= 100) {
+        await this.client.closePosition(position, markPrice);
+        this.logger.log(`Closed 100% of MEXC ${holdSide} ${symbol} (size ${position.size})`);
+        return { closed: true, symbol, holdSide, pct: 100, size: position.size, remainingSize: 0, markPrice, orderId: null };
+      }
+      const spec = await this.client.getContractSpec(symbol);
+      const vol = partialCloseSize(position.holdVol, input.pct, spec.volScale);
+      if (vol < spec.minVol || vol <= 0) {
+        throw new BadRequestException(
+          `${input.pct}% vị thế = ${vol} hợp đồng ${symbol}, dưới mức tối thiểu ${spec.minVol}. Tăng tỉ lệ đóng.`,
+        );
+      }
+      await this.client.closePosition(position, markPrice, vol);
+      const size = vol * spec.contractSize;
+      this.logger.log(`Closed ${input.pct}% of MEXC ${holdSide} ${symbol}: ${vol} of ${position.holdVol} contracts`);
+      return {
+        closed: true,
+        symbol,
+        holdSide,
+        pct: input.pct,
+        size,
+        remainingSize: Math.max(0, position.size - size),
+        markPrice,
+        orderId: null,
+      };
+    } catch (err) {
+      if (
+        err instanceof ConflictException ||
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
+        throw err;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to partially close ${holdSide} ${symbol}: ${msg}`);
+      throw new ServiceUnavailableException(`Không đóng được vị thế trên MEXC: ${msg}`);
+    }
+  }
+
+  /** Last traded price on MEXC (public market data). */
+  getTickerPrice(symbol: string): Promise<number> {
+    return this.client.getTickerPrice(symbol);
+  }
+
+  /** Raw exchange position for one side, or null when flat / not configured. */
+  async getRawPosition(symbol: string, holdSide: 'long' | 'short'): Promise<MexcRawPosition | null> {
+    if (!this.client.isConfigured()) return null;
+    const p = await this.client.getPosition(symbol, holdSide);
+    return p && p.holdVol > 0 ? p : null;
+  }
+
+  /** TP / SL currently live for one side — `[tp, sl]`, nulls when unset. */
+  async getLiveTpsl(symbol: string, holdSide: 'long' | 'short'): Promise<[number | null, number | null]> {
+    const position = await this.getRawPosition(symbol, holdSide).catch(() => null);
+    if (!position) return [null, null];
+    const live = await this.readLiveTpslOrders(symbol, position.positionId);
+    return [
+      live.find((o) => o.takeProfitPrice != null)?.takeProfitPrice ?? null,
+      live.find((o) => o.stopLossPrice != null)?.stopLossPrice ?? null,
+    ];
+  }
+
+  /** Append a `system` note to a position's journal (used by the AI chat actions). Best-effort. */
+  logToJournal(position: MexcRawPosition, content: string, markPrice?: number): Promise<void> {
+    return this.writeSystemLog(position, content, { entryPrice: position.holdAvgPrice, markPrice });
   }
 
   /**

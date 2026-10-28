@@ -108,3 +108,5 @@ export { createStrategyPaperNoteRepository } from './repositories/strategy-paper
 export type { StrategyPaperNoteInput } from './repositories/strategy-paper-note.repository';
 export { createBitgetAiActionRepository } from './repositories/bitget-ai-action.repository';
 export type { BitgetAiActionInput } from './repositories/bitget-ai-action.repository';
+export { createMexcAiActionRepository } from './repositories/mexc-ai-action.repository';
+export type { MexcAiActionInput } from './repositories/mexc-ai-action.repository';

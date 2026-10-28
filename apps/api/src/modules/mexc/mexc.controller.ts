@@ -17,11 +17,14 @@ import { MexcJournalService } from './mexc-journal.service';
 import { MexcService } from './mexc.service';
 import { MexcSetupService } from './mexc-setup.service';
 import { MexcSetupChartService } from './mexc-setup-chart.service';
+import { MexcAiActionService } from './mexc-ai-action.service';
 import { ClosePositionDto } from './dto/close-position.dto';
 import { OpenPositionDto } from './dto/open-position.dto';
 import { PlaceLimitDto } from './dto/place-limit.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { SetTpslDto } from './dto/set-tpsl.dto';
+import { ClosePartialDto } from './dto/close-partial.dto';
+import { ExecuteAiActionDto } from './dto/execute-ai-action.dto';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { UpsertSetupConfigDto } from './dto/upsert-setup-config.dto';
@@ -41,6 +44,7 @@ export class MexcController {
     private readonly journal: MexcJournalService,
     private readonly setup: MexcSetupService,
     private readonly setupChart: MexcSetupChartService,
+    private readonly aiActions: MexcAiActionService,
   ) {}
 
   @Get('positions')
@@ -286,5 +290,31 @@ export class MexcController {
   @ApiOperation({ summary: 'Delete a trade note by id' })
   removeJournal(@Param('id') id: string) {
     return this.journal.remove(id);
+  }
+
+  @Post('positions/close-partial')
+  @ApiOperation({ summary: 'Close a % of a live position at market (100% = full close)' })
+  closePartial(@Body() dto: ClosePartialDto) {
+    return this.service.closePartial(dto);
+  }
+
+  @Get('ai/actions')
+  @ApiOperation({ summary: 'Action cards the /mexc AI chat proposed in one conversation' })
+  listAiActions(@Query('conversationId') conversationId: string) {
+    return this.aiActions.list(conversationId?.trim() ?? '');
+  }
+
+  @Post('ai/actions/:id/execute')
+  @ApiOperation({
+    summary: 'Run one AI-proposed action on the LIVE MEXC account after the user confirmed it (TP only, never a SL)',
+  })
+  executeAiAction(@Param('id') id: string, @Body() dto: ExecuteAiActionDto) {
+    return this.aiActions.execute(id, dto);
+  }
+
+  @Post('ai/actions/:id/dismiss')
+  @ApiOperation({ summary: 'Mark an AI-proposed action as skipped' })
+  dismissAiAction(@Param('id') id: string) {
+    return this.aiActions.dismiss(id);
   }
 }
