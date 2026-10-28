@@ -581,8 +581,8 @@ export function MexcSetupFeed({
 
       {!configured ? (
         <div className="bg-alert">
-          Chưa cấu hình MEXC API. Thêm <code>MEXC_API_KEY</code>, <code>MEXC_API_SECRET</code>,{' '}
-          <code>MEXC_API_PASSPHRASE</code> vào <code>.env</code> để mở lệnh.
+          Chưa cấu hình MEXC API. Thêm <code>MEXC_API_KEY</code> và{' '}
+          <code>MEXC_API_SECRET</code> vào <code>.env</code> để mở lệnh.
         </div>
       ) : symbols.length === 0 ? (
         <div className="bg-alert">

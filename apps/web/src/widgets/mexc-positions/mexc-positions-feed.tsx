@@ -372,8 +372,8 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
 
       {!configured ? (
         <div className="bg-alert">
-          Chưa cấu hình MEXC API. Thêm <code>MEXC_API_KEY</code>, <code>MEXC_API_SECRET</code>,{' '}
-          <code>MEXC_API_PASSPHRASE</code> vào <code>.env</code> để xem vị thế.
+          Chưa cấu hình MEXC API. Thêm <code>MEXC_API_KEY</code> và{' '}
+          <code>MEXC_API_SECRET</code> vào <code>.env</code> để xem vị thế.
         </div>
       ) : (
         <>

@@ -234,8 +234,8 @@ export function MexcHistoryFeed({ initial, embedded = false, onCount }: Props) {
 
       {!configured && trades.length === 0 ? (
         <div className="bg-alert">
-          Chưa cấu hình MEXC API. Thêm <code>MEXC_API_KEY</code>, <code>MEXC_API_SECRET</code>,{' '}
-          <code>MEXC_API_PASSPHRASE</code> vào <code>.env</code> để worker đồng bộ lịch sử lệnh.
+          Chưa cấu hình MEXC API. Thêm <code>MEXC_API_KEY</code> và{' '}
+          <code>MEXC_API_SECRET</code> vào <code>.env</code> để worker đồng bộ lịch sử lệnh.
         </div>
       ) : (
         <>
