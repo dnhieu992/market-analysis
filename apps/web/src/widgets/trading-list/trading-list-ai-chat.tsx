@@ -96,12 +96,46 @@ function ExTag({ ex }: { ex: TradingExchange }) {
 }
 
 /**
- * The /trading-list AI chat, docked beside the coin table: one thread over both
+ * Floating "AI" button of /trading-list; opens the chat as a slide-in panel,
+ * same as the Bitget / MEXC AI on their pages.
+ */
+export function TradingListAiChat({ onActionDone }: { onActionDone: () => void }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  return (
+    <>
+      {!open && (
+        <button type="button" className={styles.fab} onClick={() => setOpen(true)} aria-label="Mở Trading List AI" title="Trading List AI">
+          <span aria-hidden>{ICON}</span>
+          <span className={styles.fabLabel}>AI</span>
+        </button>
+      )}
+      {open && (
+        <>
+          <div className={styles.backdrop} onClick={() => setOpen(false)} />
+          <aside className={styles.panel} role="dialog" aria-label="Trading List AI">
+            <AiThread onActionDone={onActionDone} onClose={() => setOpen(false)} />
+          </aside>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * The /trading-list AI chat thread: one thread over both
  * accounts (skill `trading-list-ai`). Typing `@` offers @bitget / @mexc; the AI
  * asks back when an action names no exchange. Cards carry their exchange tag
  * and run through that exchange's confirm → execute endpoint.
  */
-export function TradingListAiChat({ onActionDone, onClose }: { onActionDone: () => void; onClose?: () => void }) {
+function AiThread({ onActionDone, onClose }: { onActionDone: () => void; onClose: () => void }) {
   const [convId, setConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<Status>('idle');
@@ -412,7 +446,7 @@ export function TradingListAiChat({ onActionDone, onClose }: { onActionDone: () 
   );
 
   return (
-    <div className={`${c.embed} ${styles.thread} ${tl.chat}`}>
+    <div className={`${c.embed} ${styles.thread}`}>
       <div className={styles.head}>
         <span className={styles.headIcon} aria-hidden>{ICON}</span>
         <div className={styles.headTitle}>
@@ -422,9 +456,7 @@ export function TradingListAiChat({ onActionDone, onClose }: { onActionDone: () 
         <button type="button" className={styles.headBtn} onClick={restart} disabled={busy || (!convId && messages.length === 0)} title="Bắt đầu cuộc trò chuyện mới">
           {Icon.compose} <span>Bắt đầu lại</span>
         </button>
-        {onClose && (
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Đóng">✕</button>
-        )}
+        <button type="button" className={styles.close} onClick={onClose} aria-label="Đóng">✕</button>
       </div>
 
       <div ref={scrollerRef} className={c.scroller} onScroll={onScroll}>
