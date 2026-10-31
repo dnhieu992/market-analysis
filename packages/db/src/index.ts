@@ -110,3 +110,5 @@ export { createBitgetAiActionRepository } from './repositories/bitget-ai-action.
 export type { BitgetAiActionInput } from './repositories/bitget-ai-action.repository';
 export { createMexcAiActionRepository } from './repositories/mexc-ai-action.repository';
 export type { MexcAiActionInput } from './repositories/mexc-ai-action.repository';
+export { createTradingListRepository } from './repositories/trading-list.repository';
+export type { TradingListPriorityInput, TradingListNoteInput } from './repositories/trading-list.repository';

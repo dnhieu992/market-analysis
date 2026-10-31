@@ -58,6 +58,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Vị thế đang mở & lịch sử lệnh trên MEXC · uPnL, realized PnL, win rate'
   },
   {
+    href: '/trading-list',
+    label: 'Trading List',
+    description: 'Danh sách coin chung Bitget + MEXC · setup, vào lệnh 2 sàn, AI chat'
+  },
+  {
     href: '/tracking-coins',
     label: 'Tracking Coins · Gom đáy',
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'

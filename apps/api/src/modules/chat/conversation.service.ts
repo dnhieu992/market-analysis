@@ -15,6 +15,7 @@ import { ChatToolRegistry } from './contracts/chat-tool-registry';
 import { isRichToolResult } from './contracts/chat-tool';
 import { BITGET_AI_SKILL_ID, BitgetAiChatService } from './tools/bitget-ai.tools';
 import { MEXC_AI_SKILL_ID, MexcAiChatService } from './tools/mexc-ai.tools';
+import { TRADING_LIST_AI_SKILL_ID, TradingListAiChatService } from './tools/trading-list-ai.tools';
 
 type ConversationRepo = ReturnType<typeof import('@app/db').createConversationRepository>;
 type OrderRepo = ReturnType<typeof import('@app/db').createOrderRepository>;
@@ -77,7 +78,8 @@ export class ConversationService {
     private readonly claude: ClaudeChatProvider,
     private readonly toolRegistry: ChatToolRegistry,
     private readonly bitgetAi: BitgetAiChatService,
-    private readonly mexcAi: MexcAiChatService
+    private readonly mexcAi: MexcAiChatService,
+    private readonly tradingListAi: TradingListAiChatService
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────
@@ -98,8 +100,13 @@ export class ConversationService {
       this.convRepo.listMessages(id),
       this.setupRepo.listByConversation(id),
       this.trackingRepo.listByConversation(id),
-      conv.skillId === BITGET_AI_SKILL_ID ? this.bitgetActionRepo.listByConversation(id) : Promise.resolve([]),
-      conv.skillId === MEXC_AI_SKILL_ID ? this.mexcActionRepo.listByConversation(id) : Promise.resolve([])
+      // /trading-list threads carry cards of both exchanges.
+      conv.skillId === BITGET_AI_SKILL_ID || conv.skillId === TRADING_LIST_AI_SKILL_ID
+        ? this.bitgetActionRepo.listByConversation(id)
+        : Promise.resolve([]),
+      conv.skillId === MEXC_AI_SKILL_ID || conv.skillId === TRADING_LIST_AI_SKILL_ID
+        ? this.mexcActionRepo.listByConversation(id)
+        : Promise.resolve([])
     ]);
     // Swing setups proposed in a /tracking-coins panel chat, with their current status.
     const trackingByMessage = new Map<string, unknown[]>();
@@ -241,9 +248,17 @@ export class ConversationService {
       const coinId = meta?.coinId;
       const portfolioId = meta?.portfolioId;
       const tracking = skillId === TRACKING_SKILL_ID;
-      // The /bitget and /mexc AI chats share one flow; only the account they read differs.
+      // The /bitget, /mexc and /trading-list AI chats share one flow; only the account(s) they read differ.
       const exchangeAi =
-        skill == null ? null : skillId === BITGET_AI_SKILL_ID ? this.bitgetAi : skillId === MEXC_AI_SKILL_ID ? this.mexcAi : null;
+        skill == null
+          ? null
+          : skillId === BITGET_AI_SKILL_ID
+            ? this.bitgetAi
+            : skillId === MEXC_AI_SKILL_ID
+              ? this.mexcAi
+              : skillId === TRADING_LIST_AI_SKILL_ID
+                ? this.tradingListAi
+                : null;
       const nowVn = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
       // These chats never start over on their own: keep the newest messages verbatim, digest the rest.
       const history = exchangeAi ? fullHistory.slice(-EXCHANGE_AI_RECENT_MESSAGES) : fullHistory;
@@ -278,8 +293,8 @@ export class ConversationService {
         },
         {
           signal: live.abort.signal,
-          // Reading positions + setup + charts + signals before proposing takes more rounds.
-          ...(exchangeAi ? { maxToolIterations: 10 } : {}),
+          // Reading positions + setup + charts + signals before proposing takes more rounds (two accounts: more still).
+          ...(exchangeAi ? { maxToolIterations: exchangeAi === this.tradingListAi ? 14 : 10 } : {}),
           onProgress: (ev) => {
             if (ev.type === 'tool') {
               live.phase = 'tool';

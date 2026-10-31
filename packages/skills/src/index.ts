@@ -10,3 +10,4 @@ export { scalpingSkill } from './scalping';
 export { trackingSwingSkill } from './tracking-swing';
 export { bitgetAiSkill } from './bitget-ai';
 export { mexcAiSkill } from './mexc-ai';
+export { tradingListAiSkill } from './trading-list-ai';

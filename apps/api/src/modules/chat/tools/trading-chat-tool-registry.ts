@@ -10,6 +10,7 @@ import { proposeSwingSetupTool } from './swing-setup.tool';
 import { getTrackingCoinsTool } from './tracking-coins.tool';
 import { BitgetAiChatService } from './bitget-ai.tools';
 import { MexcAiChatService } from './mexc-ai.tools';
+import { TradingListAiChatService } from './trading-list-ai.tools';
 
 @Injectable()
 export class TradingChatToolRegistry extends ChatToolRegistry {
@@ -24,10 +25,10 @@ export class TradingChatToolRegistry extends ChatToolRegistry {
     ['propose_trade_setup',            createProposeTradeSetupTool()]
   ]);
 
-  constructor(bitgetAi: BitgetAiChatService, mexcAi: MexcAiChatService) {
+  constructor(bitgetAi: BitgetAiChatService, mexcAi: MexcAiChatService, tradingListAi: TradingListAiChatService) {
     super();
-    // The /bitget and /mexc AI chat tools need the live exchange services, so they come from DI.
-    for (const tool of [...bitgetAi.tools(), ...mexcAi.tools()]) this.tools.set(tool.name, tool);
+    // The /bitget, /mexc and /trading-list AI chat tools need the live exchange services, so they come from DI.
+    for (const tool of [...bitgetAi.tools(), ...mexcAi.tools(), ...tradingListAi.tools()]) this.tools.set(tool.name, tool);
   }
 
   listTools(): readonly ChatTool[] {

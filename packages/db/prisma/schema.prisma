@@ -755,6 +755,38 @@ model MexcWatchlistSymbol {
   @@map("mexc_watchlist_symbols")
 }
 
+// ── /trading-list (Bitget + MEXC on one page) ─────────────────────────────────
+// Star priority, assessment and hand-added coins shared by both exchanges on
+// /trading-list. Seeded once from the per-exchange tables (Bitget wins on a
+// conflict); /bitget and /mexc keep their own tables untouched.
+model TradingListPriority {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  priority  Int      @default(0) // 0 = no stars, 5 = max
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trading_list_priorities")
+}
+
+model TradingListNote {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  note      String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trading_list_notes")
+}
+
+model TradingListWatchlistSymbol {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  createdAt DateTime @default(now())
+
+  @@map("trading_list_watchlist_symbols")
+}
+
 // Saved chart snapshots for MEXC trades / Setup coins.
 model MexcTradeChart {
   id        String   @id @default(cuid())

@@ -1,0 +1,181 @@
+/* /trading-list: coin table on the left, AI chat docked on the right; exchange tags. */
+
+.page {
+  max-width: none !important;
+  padding: 24px 24px 40px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 30vw);
+  gap: 16px;
+  align-items: start;
+}
+
+.main { min-width: 0; }
+
+.chatDock {
+  position: sticky;
+  top: 12px;
+  height: calc(100dvh - 24px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--background);
+  box-shadow: 0 6px 24px rgba(23, 18, 13, 0.08);
+}
+
+.chatToggle { display: none; }
+.chatBackdrop { display: none; }
+
+.chat { height: 100%; }
+
+/* Narrow screens: the chat leaves the grid and becomes a slide-in panel. */
+@media (max-width: 1280px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .chatDock {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    width: min(560px, 100vw);
+    z-index: 1301;
+    border-radius: 0;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+  }
+  .chatDockOpen { transform: none; }
+  .chatBackdrop { display: block; position: fixed; inset: 0; z-index: 1300; background: rgba(23, 18, 13, 0.22); }
+  .chatToggle {
+    display: inline-flex;
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1200;
+    align-items: center;
+    gap: 6px;
+    height: 48px;
+    padding: 0 16px 0 14px;
+    border: none;
+    border-radius: 24px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 650;
+    box-shadow: 0 10px 28px rgba(31, 111, 91, 0.35);
+    cursor: pointer;
+  }
+}
+
+/* ── exchange tags ───────────────────────────────────────────── */
+
+.exTag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+  color: #fff;
+  vertical-align: middle;
+}
+
+.ex_bitget { background: #0e8f9c; }
+.ex_mexc { background: #2f5fd0; }
+
+.legend { display: flex; gap: 8px; flex-wrap: wrap; }
+.legend .exTag { padding: 2px 8px; font-size: 0.72rem; }
+
+/* ── table: one line per exchange inside each LONG / SHORT cell ── */
+
+.sideCell { vertical-align: top; }
+
+.exLine {
+  display: grid;
+  grid-template-columns: auto minmax(84px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.exLine + .exLine { border-top: 1px dashed var(--border); }
+
+.exCfg { white-space: nowrap; font-size: 0.82rem; }
+
+/* ── ⚙ dialog: one section per exchange ───────────────────────── */
+
+.cfgSection + .cfgSection { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.cfgSectionHead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+/* ── chat: exchange-coloured cards + @ mention menu ────────────── */
+
+.cardEx_bitget { border-left: 4px solid #0e8f9c !important; }
+.cardEx_mexc { border-left: 4px solid #2f5fd0 !important; }
+
+.composerWrap { position: relative; }
+
+.mentionMenu {
+  position: absolute;
+  left: 12px;
+  bottom: calc(100% - 22px);
+  z-index: 5;
+  min-width: 240px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(23, 18, 13, 0.16);
+}
+
+.mentionItem {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mentionItem:hover,
+.mentionItemActive { background: rgba(31, 111, 91, 0.1); }
+.mentionHint { margin-left: auto; color: var(--muted); font-size: 0.78rem; }
+
+.quickTags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.quickTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.quickTag:hover { background: rgba(31, 111, 91, 0.08); }

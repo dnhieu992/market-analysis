@@ -102,6 +102,9 @@ import type {
   BitgetAiActionEdits,
   MexcAiAction,
   MexcAiActionEdits,
+  TradingListNote,
+  TradingListPriority,
+  TradingListWatchlistSymbol,
 } from './types';
 
 
@@ -1746,6 +1749,70 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Lưu mức ưu tiên thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as MexcSymbolPriority;
+    },
+
+    // ── /trading-list shared stars / assessment / hand-added coins ────
+    async fetchTradingListPriorities(): Promise<TradingListPriority[]> {
+      return fetchJson<TradingListPriority[]>(fetchImpl, `${baseUrl}/trading-list/priority`, withDefaults({}));
+    },
+
+    async saveTradingListPriority(input: TradingListPriority): Promise<TradingListPriority> {
+      const response = await fetchImpl(
+        `${baseUrl}/trading-list/priority`,
+        withDefaults({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu mức ưu tiên thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as TradingListPriority;
+    },
+
+    async fetchTradingListNotes(): Promise<TradingListNote[]> {
+      return fetchJson<TradingListNote[]>(fetchImpl, `${baseUrl}/trading-list/note`, withDefaults({}));
+    },
+
+    async saveTradingListNote(input: { symbol: string; note: string }): Promise<TradingListNote> {
+      const response = await fetchImpl(
+        `${baseUrl}/trading-list/note`,
+        withDefaults({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Lưu đánh giá thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as TradingListNote;
+    },
+
+    async fetchTradingListWatchlist(): Promise<TradingListWatchlistSymbol[]> {
+      return fetchJson<TradingListWatchlistSymbol[]>(fetchImpl, `${baseUrl}/trading-list/watchlist`, withDefaults({}));
+    },
+
+    async addTradingListWatchlistSymbol(symbol: string): Promise<TradingListWatchlistSymbol> {
+      const response = await fetchImpl(
+        `${baseUrl}/trading-list/watchlist`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol }) }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Thêm coin thất bại (HTTP ${response.status})`);
+      }
+      return (await response.json()) as TradingListWatchlistSymbol;
+    },
+
+    async deleteTradingListWatchlistSymbol(symbol: string): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/trading-list/watchlist/${encodeURIComponent(symbol)}`,
+        withDefaults({ method: 'DELETE' }),
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        throw new Error(msg || `Bỏ theo dõi thất bại (HTTP ${response.status})`);
+      }
     },
 
     // ── MEXC Setup tab watchlist (coins added by hand) ────

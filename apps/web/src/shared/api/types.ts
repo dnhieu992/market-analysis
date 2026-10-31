@@ -1714,3 +1714,27 @@ export type TrackingSetupInput = {
   triggerNote?: string;
   invalidation?: string;
 };
+
+// ── /trading-list (Bitget + MEXC on one page) ─────────────────────────────────
+
+/** Which exchange a /trading-list action targets. */
+export type TradingExchange = 'bitget' | 'mexc';
+
+/** Star priority shared by both exchanges on /trading-list. */
+export type TradingListPriority = {
+  symbol: string;
+  priority: number;
+};
+
+/** The trader's assessment of a coin on /trading-list (shared by both exchanges). */
+export type TradingListNote = {
+  symbol: string;
+  note: string;
+  updatedAt: string | null;
+};
+
+/** A coin added to /trading-list by hand. */
+export type TradingListWatchlistSymbol = {
+  symbol: string;
+  createdAt: string;
+};
