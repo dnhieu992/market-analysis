@@ -280,7 +280,7 @@ export function TradingListHistory({ bitgetHistory, mexcHistory, filter, onFilte
 
   return (
     <div className="bg-panel">
-      <div className="bg-head">
+      <div className={`bg-head ${styles.head}`}>
         <div>
           <ExchangeFilterBar value={filter} onChange={onFilterChange} />
           <p className="bg-sub">
@@ -307,7 +307,7 @@ export function TradingListHistory({ bitgetHistory, mexcHistory, filter, onFilte
 
       {missingExchanges.length < shownExchanges.length && (
         <>
-          <div className="bg-tiles">
+          <div className={`bg-tiles ${styles.tiles}`}>
             <div className="bg-tile">
               <span className="bg-tile-label">Tổng PnL ròng{selectedSymbols.size > 0 ? ' (đã lọc)' : ''}</span>
               <span className={`bg-tile-value ${pnlClass(displaySummary.totalNetProfit)}`}>{fmtUsd(displaySummary.totalNetProfit)}</span>
@@ -359,8 +359,8 @@ export function TradingListHistory({ bitgetHistory, mexcHistory, filter, onFilte
                   )}
                 </div>
               </div>
-              <div className="bg-table-wrap">
-                <table className="bg-table">
+              <div className={`bg-table-wrap ${styles.cardWrap}`}>
+                <table className={`bg-table ${styles.cards}`}>
                   <thead>
                     <tr>
                       <th className={styles.exCol}>Sàn</th>
@@ -496,7 +496,7 @@ function TradeRow({
       <td className={styles.exCol}>
         <ExTag ex={ex} />
       </td>
-      <td className="bg-symbol">
+      <td className="bg-symbol" data-span="2">
         <span className="bg-symbol-side">
           {t.symbol}
           <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>{isLong ? 'LONG' : 'SHORT'}</span>
@@ -511,18 +511,18 @@ function TradeRow({
           </button>
         </span>
       </td>
-      <td className="bg-num">{fmtQty(t.size)}</td>
-      <td className="bg-num">{fmtPrice(t.openAvgPrice)}</td>
-      <td className="bg-num">{fmtPrice(t.closeAvgPrice)}</td>
-      <td className="bg-num">{fmtUsdPlain(t.feesUsd)}</td>
-      <td className="bg-num">{fmtUsdPlain(t.totalFunding)}</td>
-      <td className={`bg-num bg-pnl-cell ${pnlClass(t.netProfit)}`}>
+      <td className="bg-num" data-label="Size">{fmtQty(t.size)}</td>
+      <td className="bg-num" data-label="Giá vào">{fmtPrice(t.openAvgPrice)}</td>
+      <td className="bg-num" data-label="Giá đóng">{fmtPrice(t.closeAvgPrice)}</td>
+      <td className="bg-num" data-label="Phí">{fmtUsdPlain(t.feesUsd)}</td>
+      <td className="bg-num" data-label="Funding">{fmtUsdPlain(t.totalFunding)}</td>
+      <td className={`bg-num bg-pnl-cell ${pnlClass(t.netProfit)}`} data-label="PnL ròng">
         <span className="bg-pnl-usd">{fmtUsd(t.netProfit)}</span>
         <span className="bg-pnl-pct">{fmtPct(t.netProfitPct)}</span>
       </td>
-      <td className="bg-num bg-time">{fmtDateTime(t.openedAt)}</td>
-      <td className="bg-num bg-time">{fmtDateTime(t.closedAt)}</td>
-      <td className="bg-num">
+      <td className="bg-num bg-time" data-label="Mở">{fmtDateTime(t.openedAt)}</td>
+      <td className="bg-num bg-time" data-label="Đóng">{fmtDateTime(t.closedAt)}</td>
+      <td className="bg-num" data-label="Attachments">
         <button
           type="button"
           className={`bg-ref-btn bg-attach-btn ${attachments === 0 ? 'bg-attach-btn--empty' : ''}`}
@@ -535,7 +535,7 @@ function TradeRow({
           <span className="bg-attach-count">{attachments}</span>
         </button>
       </td>
-      <td className="bg-num">
+      <td className="bg-num" data-label="Nhật ký">
         <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký lệnh">
           📝
         </button>

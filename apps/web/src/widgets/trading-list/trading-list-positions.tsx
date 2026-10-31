@@ -388,7 +388,7 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
 
   return (
     <div className="bg-panel">
-      <div className="bg-head">
+      <div className={`bg-head ${styles.head}`}>
         <div>
           <ExchangeFilterBar value={filter} onChange={onFilterChange} />
           <p className="bg-sub">
@@ -442,7 +442,7 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
 
       {configuredExchanges.length > 0 && (
         <>
-          <div className="bg-tiles">
+          <div className={`bg-tiles ${styles.tiles}`}>
             <div className="bg-tile">
               <span className="bg-tile-label">Số dư tài khoản</span>
               <span className="bg-tile-value">
@@ -487,8 +487,8 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
                   {cancelingAll ? 'Đang huỷ…' : 'Huỷ tất cả'}
                 </button>
               </div>
-              <div className="bg-table-wrap">
-                <table className="bg-table">
+              <div className={`bg-table-wrap ${styles.cardWrap}`}>
+                <table className={`bg-table ${styles.cards}`}>
                   <thead>
                     <tr>
                       <th className={styles.exCol}>Sàn</th>
@@ -520,13 +520,13 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
                           <td>
                             <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>{isLong ? 'LONG' : 'SHORT'}</span>
                           </td>
-                          <td className="bg-num">{fmtPrice(o.price)}</td>
-                          <td className="bg-num">{dist == null ? '—' : fmtPct(dist)}</td>
-                          <td className="bg-num">{o.leverage > 0 ? `${o.leverage}×` : '—'}</td>
-                          <td className="bg-num">{fmtQty(o.size)}</td>
-                          <td className="bg-num">{fmtUsdPlain(o.notionalUsd)}</td>
-                          <td className="bg-num bg-time">{fmtTime(o.createdAt)}</td>
-                          <td className="bg-num">
+                          <td className="bg-num" data-label="Giá limit">{fmtPrice(o.price)}</td>
+                          <td className="bg-num" data-label="Khoảng cách">{dist == null ? '—' : fmtPct(dist)}</td>
+                          <td className="bg-num" data-label="Đòn bẩy">{o.leverage > 0 ? `${o.leverage}×` : '—'}</td>
+                          <td className="bg-num" data-label="Size">{fmtQty(o.size)}</td>
+                          <td className="bg-num" data-label="Giá trị">{fmtUsdPlain(o.notionalUsd)}</td>
+                          <td className="bg-num bg-time" data-label="Đặt lúc">{fmtTime(o.createdAt)}</td>
+                          <td className="bg-num" data-span="3">
                             <button
                               type="button"
                               className="bg-cancel-btn"
@@ -569,8 +569,8 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
               {visibleRows.length === 0 ? (
                 <div className="bg-alert">Không có vị thế nào khớp bộ lọc coin.</div>
               ) : (
-                <div className="bg-table-wrap">
-                  <table className="bg-table">
+                <div className={`bg-table-wrap ${styles.cardWrap}`}>
+                  <table className={`bg-table ${styles.cards}`}>
                     <thead>
                       <tr>
                         <th className={styles.exCol}>Sàn</th>
@@ -705,7 +705,7 @@ function PositionRow({ ex, p, showValue, closing, disabled, onClose, onJournal, 
       <td className={styles.exCol}>
         <ExTag ex={ex} />
       </td>
-      <td className="bg-symbol">
+      <td className="bg-symbol" data-span="2">
         <span className="bg-symbol-side">
           {p.symbol}
           <span className={`bg-side ${isLong ? 'bg-side--long' : 'bg-side--short'}`}>{isLong ? 'LONG' : 'SHORT'}</span>
@@ -720,27 +720,27 @@ function PositionRow({ ex, p, showValue, closing, disabled, onClose, onJournal, 
           </button>
         </span>
       </td>
-      <td className="bg-num">
+      <td className="bg-num" data-label="Đòn bẩy">
         {p.leverage ? `${p.leverage}×` : '—'}
         <span className="bg-margin-mode">{p.marginMode === 'crossed' ? 'cross' : p.marginMode}</span>
       </td>
-      <td className="bg-num">{fmtQty(p.size)}</td>
-      <td className="bg-num">{fmtPrice(p.entryPrice)}</td>
-      <td className={`bg-num bg-mark ${flash}`}>{fmtPrice(p.markPrice)}</td>
-      <td className="bg-num">{fmtPrice(p.breakEvenPrice)}</td>
-      <td className="bg-num bg-liq">{fmtPrice(p.liquidationPrice)}</td>
-      <td className="bg-num">{fmtUsdPlain(p.marginUsd)}</td>
-      <td className="bg-num">{fmtUsdPlain(p.notionalUsd)}</td>
-      <td className={`bg-num bg-pnl-cell ${pnlClass(p.unrealizedPnlUsd)}`}>
+      <td className="bg-num" data-label="Size">{fmtQty(p.size)}</td>
+      <td className="bg-num" data-label="Giá vào">{fmtPrice(p.entryPrice)}</td>
+      <td className={`bg-num bg-mark ${flash}`} data-label="Giá hiện tại">{fmtPrice(p.markPrice)}</td>
+      <td className="bg-num" data-label="Hoà vốn">{fmtPrice(p.breakEvenPrice)}</td>
+      <td className="bg-num bg-liq" data-label="Thanh lý">{fmtPrice(p.liquidationPrice)}</td>
+      <td className="bg-num" data-label="Ký quỹ">{fmtUsdPlain(p.marginUsd)}</td>
+      <td className="bg-num" data-label="Giá trị">{fmtUsdPlain(p.notionalUsd)}</td>
+      <td className={`bg-num bg-pnl-cell ${pnlClass(p.unrealizedPnlUsd)}`} data-label="PnL">
         {showValue && <span className="bg-pnl-usd">{fmtUsd(p.unrealizedPnlUsd)}</span>}
         <span className="bg-pnl-pct">{fmtPct(p.roePct)}</span>
       </td>
-      <td className="bg-num">
+      <td className="bg-num" data-label="Nhật ký">
         <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký theo dõi lệnh">
           📝
         </button>
       </td>
-      <td className="bg-num">
+      <td className="bg-num" data-label="TP / SL">
         <button
           type="button"
           className="bg-tpsl-btn"
@@ -755,7 +755,7 @@ function PositionRow({ ex, p, showValue, closing, disabled, onClose, onJournal, 
           </span>
         </button>
       </td>
-      <td className="bg-num">
+      <td className="bg-num" data-label="Đóng">
         <button type="button" className="bg-close-btn" onClick={onClose} disabled={disabled}>
           {closing ? '…' : 'Đóng'}
         </button>

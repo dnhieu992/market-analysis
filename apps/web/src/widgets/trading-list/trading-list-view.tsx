@@ -86,7 +86,7 @@ export function TradingListView(props: Props) {
   return (
     <div className={`page ${styles.page}`}>
       <h1>Trading List · Bitget + MEXC</h1>
-      <div className="bg-tabs" role="tablist" aria-label="Trading List views">
+      <div className={`bg-tabs ${styles.tabs}`} role="tablist" aria-label="Trading List views">
         {TABS.map(({ id, label }) => (
           <button
             key={id}

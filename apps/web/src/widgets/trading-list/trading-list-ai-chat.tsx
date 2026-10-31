@@ -112,7 +112,7 @@ export function TradingListAiChat({ onActionDone }: { onActionDone: () => void }
   return (
     <>
       {!open && (
-        <button type="button" className={styles.fab} onClick={() => setOpen(true)} aria-label="Mở Trading List AI" title="Trading List AI">
+        <button type="button" className={`${styles.fab} ${tl.fab}`} onClick={() => setOpen(true)} aria-label="Mở Trading List AI" title="Trading List AI">
           <span aria-hidden>{ICON}</span>
           <span className={styles.fabLabel}>AI</span>
         </button>

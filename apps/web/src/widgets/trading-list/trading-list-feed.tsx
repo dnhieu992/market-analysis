@@ -469,7 +469,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
 
   return (
     <div className="bg-panel">
-      <div className="bg-head">
+      <div className={`bg-head ${styles.head}`}>
         <ExchangeFilterBar value={filter} onChange={onFilterChange} />
         <div className="bg-head-actions">
           <span className={`bg-live ${live ? 'bg-live--on' : ''}`} title={`Giá realtime · Bitget ${bgLive.live ? 'on' : 'off'} · MEXC ${mxLive.live ? 'on' : 'off'}`}>
@@ -503,8 +503,8 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
       {displaySymbols.length === 0 ? (
         <div className="bg-alert">Không có coin nào khớp bộ lọc.</div>
       ) : (
-        <div className="bg-table-wrap">
-          <table className={`bg-table ${styles.table}`}>
+        <div className={`bg-table-wrap ${styles.cardWrap}`}>
+          <table className={`bg-table ${styles.cards} ${styles.setupCards}`}>
             <thead>
               <tr>
                 <th title="Sao ưu tiên (0–5, dùng chung 2 sàn) — bảng mặc định xếp theo sao">Symbol</th>
@@ -527,7 +527,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                 const auto = autoTrades[symbol];
                 return (
                   <tr key={symbol}>
-                    <td className="bg-symbol">
+                    <td className="bg-symbol" data-span="2">
                       <div className="bg-symbol-cell">
                         <span className="bg-symbol-name">
                           {symbol}
@@ -561,15 +561,15 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                         <StarRating value={priorities[symbol] ?? 0} symbol={symbol} onChange={(next) => void savePriority(symbol, next)} />
                       </div>
                     </td>
-                    <td className="bg-num bg-price">{fmtPrice(priceOf(symbol))}</td>
-                    <td className={`bg-num ${chgClass(change)}`}>{fmtChange(change)}</td>
-                    <td className={`bg-num ${chgClass(pc?.change7d)}`}>{fmtChange(pc?.change7d)}</td>
-                    <td className={`bg-num ${chgClass(pc?.change30d)}`}>{fmtChange(pc?.change30d)}</td>
-                    <td className={`bg-num ${chgClass(pc?.changeH4)}`}>{fmtChange(pc?.changeH4)}</td>
-                    <td className="bg-qqe-cell">
+                    <td className="bg-num bg-price" data-label="Giá">{fmtPrice(priceOf(symbol))}</td>
+                    <td className={`bg-num ${chgClass(change)}`} data-label="Hôm nay">{fmtChange(change)}</td>
+                    <td className={`bg-num ${chgClass(pc?.change7d)}`} data-label="7 ngày">{fmtChange(pc?.change7d)}</td>
+                    <td className={`bg-num ${chgClass(pc?.change30d)}`} data-label="30 ngày">{fmtChange(pc?.change30d)}</td>
+                    <td className={`bg-num ${chgClass(pc?.changeH4)}`} data-label="H4">{fmtChange(pc?.changeH4)}</td>
+                    <td className="bg-qqe-cell" data-label="QQE" data-span="2">
                       <QqeCell signals={qqe[bareSymbol(symbol)]} />
                     </td>
-                    <td className="bg-note-cell">
+                    <td className="bg-note-cell" data-label="Đánh giá" data-span="3">
                       <button
                         type="button"
                         className={`bg-note-btn ${note ? '' : 'bg-note-btn--empty'}`}
@@ -583,7 +583,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                       </button>
                     </td>
                     {(['long', 'short'] as const).map((holdSide) => (
-                      <td key={holdSide} className={`bg-side-cell ${styles.sideCell}`}>
+                      <td key={holdSide} className={`bg-side-cell ${styles.sideCell}`} data-label={holdSide === 'long' ? 'Long' : 'Short'} data-span="3">
                         {shownExchanges.map((ex) => {
                           const key = actKey(ex, symbol, holdSide);
                           const cfg = configs[ex][cfgKey(symbol, holdSide)];
