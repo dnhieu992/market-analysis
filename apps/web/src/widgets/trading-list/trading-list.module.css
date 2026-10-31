@@ -28,6 +28,38 @@
 .legend { display: flex; gap: 8px; flex-wrap: wrap; }
 .legend .exTag { padding: 2px 8px; font-size: 0.72rem; }
 
+/* ── exchange filter (Tất cả / BG / MX) at the head of each tab ── */
+
+.exFilter {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.exFilterBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.exFilterBtn:hover { color: var(--foreground); }
+.exFilterBtnActive { background: var(--background); color: var(--foreground); box-shadow: 0 1px 3px rgba(23, 18, 13, 0.12); }
+
+.exCol { width: 1%; white-space: nowrap; }
+.alertList { display: grid; gap: 8px; margin-bottom: 12px; }
+
 /* ── table: one line per exchange inside each LONG / SHORT cell ── */
 
 .sideCell { vertical-align: top; }

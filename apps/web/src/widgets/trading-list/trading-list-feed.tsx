@@ -29,7 +29,8 @@ import { matchesSymbolSelection } from '../bitget/symbol-filter-input';
 import { LimitOrderDialog as MexcLimitOrderDialog } from '../mexc/limit-order-dialog';
 import { AddCoinDialog } from './add-coin-dialog';
 import { ExchangeConfigDialog, type ExchangeConfigInput } from './exchange-config-dialog';
-import { EXCHANGES, EXCHANGE_LABEL, EXCHANGE_SHORT } from './exchanges';
+import { ExchangeFilterBar } from './exchange-filter';
+import { EXCHANGES, EXCHANGE_LABEL, EXCHANGE_SHORT, exchangesOf, type ExchangeFilter } from './exchanges';
 
 import styles from './trading-list.module.css';
 
@@ -122,6 +123,11 @@ type Props = {
   mexcHistory: MexcHistoryResponse;
   bitgetPositions: BitgetPositionsResponse;
   mexcPositions: MexcPositionsResponse;
+  /** Which exchange lines the LONG / SHORT cells show. */
+  filter: ExchangeFilter;
+  onFilterChange: (next: ExchangeFilter) => void;
+  /** Reports how many coins the table lists, for the tab label. */
+  onCount?: (count: number) => void;
 };
 
 /**
@@ -131,7 +137,7 @@ type Props = {
  * Market / Limit buttons. Stars, notes and hand-added coins live in the
  * trading-list tables (not the /bitget or /mexc ones); configs are per exchange.
  */
-export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, mexcPositions }: Props) {
+export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, mexcPositions, filter, onFilterChange, onCount }: Props) {
   const clientRef = useRef(createApiClient());
   const [bgPositions, setBgPositions] = useState(bitgetPositions);
   const [mxPositions, setMxPositions] = useState(mexcPositions);
@@ -196,6 +202,11 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
     () => tradingListSymbols([...bitgetHistory.trades, ...mexcHistory.trades], extraSymbols),
     [bitgetHistory.trades, mexcHistory.trades, extraSymbols],
   );
+  const shownExchanges = useMemo(() => exchangesOf(filter), [filter]);
+
+  useEffect(() => {
+    onCount?.(symbols.length);
+  }, [symbols.length, onCount]);
 
   const openSides = useMemo(
     () =>
@@ -459,13 +470,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
   return (
     <div className="bg-panel">
       <div className="bg-head">
-        <div className={styles.legend}>
-          {EXCHANGES.map((ex) => (
-            <span key={ex} className={`${styles.exTag} ${styles[`ex_${ex}`]}`}>
-              {EXCHANGE_SHORT[ex]} = {EXCHANGE_LABEL[ex]}
-            </span>
-          ))}
-        </div>
+        <ExchangeFilterBar value={filter} onChange={onFilterChange} />
         <div className="bg-head-actions">
           <span className={`bg-live ${live ? 'bg-live--on' : ''}`} title={`Giá realtime · Bitget ${bgLive.live ? 'on' : 'off'} · MEXC ${mxLive.live ? 'on' : 'off'}`}>
             <span className="bg-live-dot" />
@@ -579,7 +584,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                     </td>
                     {(['long', 'short'] as const).map((holdSide) => (
                       <td key={holdSide} className={`bg-side-cell ${styles.sideCell}`}>
-                        {EXCHANGES.map((ex) => {
+                        {shownExchanges.map((ex) => {
                           const key = actKey(ex, symbol, holdSide);
                           const cfg = configs[ex][cfgKey(symbol, holdSide)];
                           const isOpen = openSides.has(key);
