@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { config } from 'dotenv';
 
 // __dirname = dist/apps/api/src/cli → up 7 levels to the repo root (same .env as main.ts)
-config({ path: resolve(__dirname, '../../../../../../../.env') });
+config({ path: resolve(__dirname, '../../../../../../../.env'), quiet: true });
 
 import { createInterface } from 'node:readline';
 import { prisma } from '@app/db';
