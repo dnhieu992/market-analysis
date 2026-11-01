@@ -27,23 +27,30 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  const config = new DocumentBuilder()
-    .setTitle('Market Analysis API')
-    .setDescription('API for market analysis, back-testing strategies, orders, signals, and daily plans')
-    .setVersion('1.0')
-    .addCookieAuth('market_analysis_session')
-    .build();
+  // Swagger is opt-in: on the server the API sits behind /api-proxy and its
+  // route map is nobody's business.
+  if (process.env.SWAGGER_ENABLED === 'true') {
+    const config = new DocumentBuilder()
+      .setTitle('Market Analysis API')
+      .setDescription('API for market analysis, back-testing strategies, orders, signals, and daily plans')
+      .setVersion('1.0')
+      .addCookieAuth('market_analysis_session')
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = Number(process.env.PORT ?? 3000);
-  await app.listen(port);
-  Logger.log(`API listening on port ${port}`, 'Bootstrap');
-  Logger.log(`Swagger docs available at http://localhost:${port}/api/docs`, 'Bootstrap');
-  const apiKey = (process.env.CLAUDE_API_KEY ?? '').trim();
-  const rawLen = (process.env.CLAUDE_API_KEY ?? '').length;
-  Logger.log(`CLAUDE_API_KEY: ${apiKey ? `${apiKey.slice(0, 10)}...${apiKey.slice(-4)} (length: ${apiKey.length}, raw: ${rawLen})` : 'NOT SET'}`, 'Bootstrap');
+  // Localhost only by default — the web app reaches the API through its
+  // /api-proxy rewrite, so the port never needs to face the internet.
+  const host = process.env.API_HOST ?? '127.0.0.1';
+  await app.listen(port, host);
+  Logger.log(`API listening on ${host}:${port}`, 'Bootstrap');
+  if (process.env.SWAGGER_ENABLED === 'true') {
+    Logger.log(`Swagger docs available at http://localhost:${port}/api/docs`, 'Bootstrap');
+  }
+  Logger.log(`CLAUDE_API_KEY: ${(process.env.CLAUDE_API_KEY ?? '').trim() ? 'set' : 'NOT SET'}`, 'Bootstrap');
 }
 
 void bootstrap();

@@ -6,7 +6,7 @@ import { AuthGuard } from '../src/modules/auth/auth.guard';
 describe('AuthGuard', () => {
   let reflector: Reflector;
   let authService: {
-    getAuthenticatedUser: jest.Mock;
+    authenticate: jest.Mock;
   };
   let guard: AuthGuard;
 
@@ -15,7 +15,7 @@ describe('AuthGuard', () => {
       getAllAndOverride: jest.fn()
     } as unknown as Reflector;
     authService = {
-      getAuthenticatedUser: jest.fn()
+      authenticate: jest.fn()
     };
     guard = new AuthGuard(reflector, authService as never, {
       cookieName: 'market_analysis_session'
@@ -36,10 +36,13 @@ describe('AuthGuard', () => {
 
   it('attaches the authenticated user for protected routes', async () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-    authService.getAuthenticatedUser.mockResolvedValue({
-      id: 'user-1',
-      email: 'alice@example.com',
-      name: 'Alice'
+    authService.authenticate.mockResolvedValue({
+      user: {
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: 'Alice'
+      },
+      sessionId: 'session-1'
     });
     const request = {
       headers: {
@@ -48,7 +51,7 @@ describe('AuthGuard', () => {
     };
 
     await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
-    expect(authService.getAuthenticatedUser).toHaveBeenCalledWith('raw-token');
+    expect(authService.authenticate).toHaveBeenCalledWith('raw-token');
     expect((request as Record<string, unknown>).authUser).toEqual({
       id: 'user-1',
       email: 'alice@example.com',

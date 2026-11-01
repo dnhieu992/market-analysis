@@ -32,6 +32,10 @@ import type {
   UpdateTradingStrategyInput,
   UpsertSettingsInput,
   UserProfile,
+  AuthDevice,
+  AuthSecurity,
+  LoginStepResponse,
+  TotpSetup,
   Conversation,
   ChatMessage,
   TradingJournalEntry,
@@ -757,18 +761,71 @@ export function createApiClient(options: ApiClientOptions = {}) {
         byCoin: raw.byCoin.map((r) => ({ coinId: String(r['coinId']), realizedPnl: Number(r['realizedPnl']) }))
       };
     },
-    async login(input: { email: string; password: string }) {
-      const response = await fetchImpl(`${baseUrl}/auth/login`, withDefaults({
+    async login(input: { email: string; password: string }): Promise<LoginStepResponse> {
+      return mutationJson<LoginStepResponse>(fetchImpl, `${baseUrl}/auth/login`, withDefaults({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input)
       }));
-
-      if (!response.ok) {
-        throw new Error(`Request failed for ${baseUrl}/auth/login: ${response.status}`);
-      }
-
-      return (await response.json()) as { user: { id: string; email: string; name: string } };
+    },
+    async loginNewPassword(input: { challenge: string; newPassword: string }): Promise<LoginStepResponse> {
+      return mutationJson<LoginStepResponse>(fetchImpl, `${baseUrl}/auth/login/password`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+    },
+    async loginTotpSetup(challenge: string): Promise<TotpSetup> {
+      return mutationJson<TotpSetup>(fetchImpl, `${baseUrl}/auth/login/totp-setup`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challenge })
+      }));
+    },
+    /** `enroll` confirms the first code of a fresh setup; otherwise a normal 2FA check. */
+    async loginTotp(input: { challenge: string; code: string; trustDevice: boolean; enroll?: boolean }): Promise<LoginStepResponse> {
+      const { enroll, ...body } = input;
+      return mutationJson<LoginStepResponse>(fetchImpl, `${baseUrl}/auth/login/${enroll ? 'totp-enable' : 'totp'}`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }));
+    },
+    async logout(): Promise<void> {
+      await fetchImpl(`${baseUrl}/auth/logout`, withDefaults({ method: 'POST' }));
+    },
+    async fetchAuthSecurity(): Promise<AuthSecurity> {
+      return fetchJson<AuthSecurity>(fetchImpl, `${baseUrl}/auth/security`, withDefaults());
+    },
+    async changePassword(input: { currentPassword: string; newPassword: string; code: string }): Promise<void> {
+      await mutationJson<unknown>(fetchImpl, `${baseUrl}/auth/password`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }));
+    },
+    async regenerateBackupCodes(code: string): Promise<string[]> {
+      const res = await mutationJson<{ backupCodes: string[] }>(fetchImpl, `${baseUrl}/auth/backup-codes`, withDefaults({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      }));
+      return res.backupCodes;
+    },
+    async fetchAuthSessions(): Promise<AuthDevice[]> {
+      return fetchJson<AuthDevice[]>(fetchImpl, `${baseUrl}/auth/sessions`, withDefaults());
+    },
+    async revokeAuthSession(id: string): Promise<void> {
+      await mutationJson<unknown>(fetchImpl, `${baseUrl}/auth/sessions/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
+    },
+    async revokeOtherAuthSessions(): Promise<{ sessions: number; devices: number }> {
+      return mutationJson<{ sessions: number; devices: number }>(fetchImpl, `${baseUrl}/auth/sessions/revoke-others`, withDefaults({ method: 'POST' }));
+    },
+    async fetchTrustedDevices(): Promise<AuthDevice[]> {
+      return fetchJson<AuthDevice[]>(fetchImpl, `${baseUrl}/auth/devices`, withDefaults());
+    },
+    async revokeTrustedDevice(id: string): Promise<void> {
+      await mutationJson<unknown>(fetchImpl, `${baseUrl}/auth/devices/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
     async fetchUserProfile(): Promise<UserProfile> {
       const row = await fetchJson<JsonRecord>(fetchImpl, `${baseUrl}/user/profile`, withDefaults());

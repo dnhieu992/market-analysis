@@ -1,6 +1,7 @@
 import type { Provider } from '@nestjs/common';
 import {
   createAnalysisRunRepository,
+  createAuthDeviceRepository,
   createCoinTransactionRepository,
   createConversationRepository,
   createHoldingRepository,
@@ -25,6 +26,7 @@ export const TELEGRAM_LOG_REPOSITORY = Symbol('TELEGRAM_LOG_REPOSITORY');
 export const SETTINGS_REPOSITORY = Symbol('SETTINGS_REPOSITORY');
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 export const SESSION_REPOSITORY = Symbol('SESSION_REPOSITORY');
+export const AUTH_DEVICE_REPOSITORY = Symbol('AUTH_DEVICE_REPOSITORY');
 export const STRATEGY_REPOSITORY = Symbol('STRATEGY_REPOSITORY');
 export const STRATEGY_HISTORY_REPOSITORY = Symbol('STRATEGY_HISTORY_REPOSITORY');
 export const PORTFOLIO_REPOSITORY = Symbol('PORTFOLIO_REPOSITORY');
@@ -65,6 +67,10 @@ export const DatabaseProviders: Provider[] = [
   {
     provide: SESSION_REPOSITORY,
     useFactory: () => createSessionRepository()
+  },
+  {
+    provide: AUTH_DEVICE_REPOSITORY,
+    useFactory: () => createAuthDeviceRepository()
   },
   {
     provide: STRATEGY_REPOSITORY,

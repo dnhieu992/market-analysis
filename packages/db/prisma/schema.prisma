@@ -252,9 +252,19 @@ model User {
   passwordHash        String
   name                String
   symbolsTracking     Json                 @default("[]")
+  /// Set by the auth CLI on a temporary password; login forces a new one first.
+  mustChangePassword  Boolean              @default(false)
+  passwordChangedAt   DateTime?
+  /// AES-256-GCM ciphertext of the base32 TOTP secret (key: AUTH_ENC_KEY).
+  totpSecretEnc       String?              @db.VarChar(255)
+  totpEnabledAt       DateTime?
+  /// Last accepted 30s TOTP step — a code is never accepted twice.
+  totpLastStep        Int?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   sessions            Session[]
+  backupCodes         AuthBackupCode[]
+  trustedDevices      TrustedDevice[]
   portfolios          Portfolio[]
   conversations       Conversation[]
   @@map("users")
@@ -294,10 +304,41 @@ model Session {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   lastUsedAt DateTime @default(now())
+  userAgent  String?  @db.VarChar(255)
+  ip         String?  @db.VarChar(64)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@map("sessions")
+}
+
+/// One-time 2FA recovery codes (sha256 hashes); `usedAt` burns a code.
+model AuthBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_backup_codes")
+}
+
+/// Browser that passed 2FA with "trust this device" — skips the code for 30 days.
+model TrustedDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  userAgent  String?  @db.VarChar(255)
+  ip         String?  @db.VarChar(64)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("trusted_devices")
 }
 
 model Portfolio {

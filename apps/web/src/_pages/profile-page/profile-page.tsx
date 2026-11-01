@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { AccountSecurity } from '@web/features/auth/account-security';
 import { createApiClient } from '@web/shared/api/client';
 import type { UserProfile } from '@web/shared/api/types';
 
@@ -131,6 +132,8 @@ export function ProfilePage({ initial }: ProfilePageProps) {
           </div>
         </div>
       </section>
+
+      <AccountSecurity />
     </main>
   );
 }

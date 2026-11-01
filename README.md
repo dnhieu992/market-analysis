@@ -184,20 +184,16 @@ curl -X POST http://localhost:3000/worker/run-analysis \
 
 ## Authentication
 
-The app now uses database-backed authentication:
+Single-owner login, hardened (see `docs/features/auth/auth.md`):
 
-- users are stored in MySQL
-- passwords are hashed on the API
-- login creates an `HttpOnly` session cookie
-- the dashboard redirects unauthenticated requests to `/login`
-- the API protects all routes except `/health` and `/auth/*`
+- email + password (scrypt) → mandatory TOTP 2FA (Google Authenticator/Authy) with 10 one-time backup codes
+- "trust this device" skips the code for 30 days; sessions expire after 7 idle days, 30 days at most
+- 5 wrong passwords/codes lock the IP and the email for 15 minutes; Telegram alerts on new-device logins, lockouts and security changes
+- no public sign-up — accounts are managed with `pnpm --filter api auth:cli` on the server
+- the API listens on `127.0.0.1` only (the web app reaches it through `/api-proxy`); Swagger is off unless `SWAGGER_ENABLED=true`
 
-Auth endpoints:
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/logout`
-- `GET /auth/me`
+Auth endpoints: `POST /auth/login`, `/auth/login/password`, `/auth/login/totp-setup`, `/auth/login/totp-enable`,
+`/auth/login/totp`, `/auth/logout`, `GET /auth/me`, `/auth/security`, `/auth/sessions`, `/auth/devices`.
 
 ## Scheduling
 

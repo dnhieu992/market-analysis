@@ -349,6 +349,30 @@ export type UserProfile = {
   symbolsTracking: string[];
 };
 
+/** One step of the login state machine (POST /auth/login…). */
+export type LoginStepResponse =
+  | { step: 'change-password' | 'enroll-totp' | 'totp'; challenge: string }
+  | { step: 'done'; user: { id: string; email: string; name: string }; backupCodes?: string[] };
+
+export type TotpSetup = { secret: string; otpauthUrl: string; qrDataUrl: string };
+
+export type AuthSecurity = {
+  totpEnabledAt: string | null;
+  backupCodesRemaining: number;
+  passwordChangedAt: string | null;
+};
+
+/** A signed-in session or a trusted (2FA-remembered) browser. */
+export type AuthDevice = {
+  id: string;
+  userAgent: string | null;
+  ip: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  current: boolean;
+};
+
 export type UpdateProfileInput = {
   name?: string;
   symbolsTracking?: string[];

@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Inject, Injectable, Optional, Unauthoriz
 import { Reflector } from '@nestjs/core';
 
 import { AUTH_OPTIONS, PUBLIC_ROUTE_KEY } from './auth.constants';
+import { readCookie } from './auth.http';
 import { AuthService } from './auth.service';
 import type { AuthenticatedRequest } from './auth.types';
 
@@ -40,23 +41,10 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Authentication required');
     }
 
-    request.authUser = await this.authService.getAuthenticatedUser(sessionToken);
+    const { user, sessionId } = await this.authService.authenticate(sessionToken);
+    request.authUser = user;
+    request.authSessionId = sessionId;
 
     return true;
   }
-}
-
-function readCookie(cookieHeader: string | undefined, cookieName: string): string | null {
-  if (!cookieHeader) {
-    return null;
-  }
-
-  for (const segment of cookieHeader.split(';')) {
-    const [name, ...valueParts] = segment.trim().split('=');
-    if (name === cookieName) {
-      return valueParts.join('=');
-    }
-  }
-
-  return null;
 }
