@@ -1,7 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNumber, IsString, Matches, Max, Min } from 'class-validator';
 
-export class OpenPositionDto {
+import { EntryIntentDto } from '../../trade-entries/dto/entry-intent.dto';
+
+export class OpenPositionDto extends EntryIntentDto {
   @ApiProperty({ example: 'BTCUSDT', description: 'Bitget symbol to open a position on' })
   @IsString()
   @Matches(/^[A-Z0-9]{4,30}$/, { message: 'symbol must be an uppercase Bitget symbol' })

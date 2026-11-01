@@ -293,6 +293,7 @@ export class BitgetAutoTradeService {
         holdSide: 'long',
         marginUsd: cfg.marginUsd,
         leverage: cfg.leverage,
+        entry: { source: 'AUTO', reason: 'Auto-trade (lệnh tự động theo cấu hình auto-trade)' },
       });
 
       // Read the position back for the true average entry + exchange open time;

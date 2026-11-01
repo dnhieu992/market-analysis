@@ -19,6 +19,7 @@ import {
   type MexcRawPosition,
   type MexcStopOrder,
 } from './mexc-trade.client';
+import { TradeEntryService, type EntryIntent } from '../trade-entries/trade-entry.service';
 
 /** The /my-asset bucket that holds the MEXC futures capital. */
 const CAPITAL_CATEGORY_KEY = 'mexc';
@@ -124,6 +125,8 @@ export type MexcHistoryResult = {
 @Injectable()
 export class MexcService {
   private readonly logger = new Logger(MexcService.name);
+
+  constructor(private readonly tradeEntries: TradeEntryService) {}
   private readonly client = new MexcTradeClient();
   private readonly tradeRepo = createMexcTradeRepository();
   private readonly journalRepo = createMexcTradeJournalRepository();
@@ -298,6 +301,8 @@ export class MexcService {
     holdSide: 'long' | 'short';
     marginUsd: number;
     leverage: number;
+    /** Why this order (strategy / grade / reason / tags + source) — saved to trade_entries. */
+    entry?: EntryIntent | null;
   }): Promise<{
     opened: true;
     /** 'new' = fresh position, 'add' = volume added to an already-open one. */
@@ -377,6 +382,22 @@ export class MexcService {
         );
       }
 
+      const keyOf = (pos: { createTime: number } | null | undefined) =>
+        pos && Number(pos.createTime) > 0 ? tradeKeyOf(symbol, holdSide, Number(pos.createTime)) : null;
+      await this.tradeEntries.recordOrder({
+        exchange: 'mexc',
+        symbol,
+        holdSide,
+        orderType: 'MARKET',
+        isAdd,
+        tradeKey: isAdd ? keyOf(existing) : keyOf(await this.client.getPosition(symbol, holdSide).catch(() => null)),
+        price,
+        size,
+        marginUsd,
+        leverage,
+        intent: input.entry,
+      });
+
       return {
         opened: true,
         mode: isAdd ? 'add' : 'new',
@@ -416,6 +437,8 @@ export class MexcService {
     marginUsd: number;
     leverage: number;
     price: number;
+    /** Why this order (strategy / grade / reason / tags + source) — saved to trade_entries. */
+    entry?: EntryIntent | null;
   }): Promise<{
     placed: true;
     symbol: string;
@@ -473,6 +496,21 @@ export class MexcService {
         `Placed MEXC LIMIT order: ${holdSide} ${symbol} size ${size} (${vol} contracts) @ ${price} ` +
           `(margin $${marginUsd}, ${leverage}x cross, orderId ${res.orderId})`,
       );
+
+      await this.tradeEntries.recordOrder({
+        exchange: 'mexc',
+        symbol,
+        holdSide,
+        orderType: 'LIMIT',
+        isAdd,
+        tradeKey: isAdd && existing && Number(existing.createTime) > 0 ? tradeKeyOf(symbol, holdSide, Number(existing.createTime)) : null,
+        orderId: res.orderId,
+        price,
+        size,
+        marginUsd,
+        leverage,
+        intent: input.entry,
+      });
 
       return {
         placed: true,

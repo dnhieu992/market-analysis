@@ -10,6 +10,7 @@ import { trackingSwingSkill } from './tracking-swing';
 import { bitgetAiSkill } from './bitget-ai';
 import { mexcAiSkill } from './mexc-ai';
 import { tradingListAiSkill } from './trading-list-ai';
+import { tradingAnalysisSkill } from './trading-analysis';
 
 export const SKILLS: SkillDefinition[] = [
   priceActionSkill,
@@ -23,6 +24,7 @@ export const SKILLS: SkillDefinition[] = [
   bitgetAiSkill,
   mexcAiSkill,
   tradingListAiSkill,
+  tradingAnalysisSkill,
 ];
 
 export function getSkillById(id: string): SkillDefinition | undefined {

@@ -18,6 +18,7 @@ import {
   type BitgetPlanOrder,
   type BitgetRawPosition,
 } from './bitget-trade.client';
+import { TradeEntryService, type EntryIntent } from '../trade-entries/trade-entry.service';
 
 /** The /my-asset bucket that holds the Bitget futures capital. */
 const CAPITAL_CATEGORY_KEY = 'bitget';
@@ -151,6 +152,8 @@ export type BitgetHistoryResult = {
 @Injectable()
 export class BitgetService {
   private readonly logger = new Logger(BitgetService.name);
+
+  constructor(private readonly tradeEntries: TradeEntryService) {}
   private readonly client = new BitgetTradeClient();
   private readonly tradeRepo = createBitgetTradeRepository();
   private readonly journalRepo = createBitgetTradeJournalRepository();
@@ -325,6 +328,8 @@ export class BitgetService {
     holdSide: 'long' | 'short';
     marginUsd: number;
     leverage: number;
+    /** Why this order (strategy / grade / reason / tags + source) — saved to trade_entries. */
+    entry?: EntryIntent | null;
   }): Promise<{
     opened: true;
     /** 'new' = fresh position, 'add' = volume added to an already-open one. */
@@ -400,6 +405,22 @@ export class BitgetService {
         ].join('\n'), { entryPrice: Number(existing.openPriceAvg), markPrice: price });
       }
 
+      const keyOf = (pos: BitgetRawPosition | null | undefined) =>
+        pos && Number(pos.cTime) > 0 ? tradeKeyOf(symbol, holdSide, Number(pos.cTime)) : null;
+      await this.tradeEntries.recordOrder({
+        exchange: 'bitget',
+        symbol,
+        holdSide,
+        orderType: 'MARKET',
+        isAdd,
+        tradeKey: isAdd ? keyOf(existing) : keyOf(await this.client.getPosition(symbol, holdSide).catch(() => null)),
+        price,
+        size,
+        marginUsd,
+        leverage,
+        intent: input.entry,
+      });
+
       return {
         opened: true,
         mode: isAdd ? 'add' : 'new',
@@ -441,6 +462,8 @@ export class BitgetService {
     price: number;
     /** Preset TP — attached only when the side is flat (a fill that merges into an open position keeps that position's TP). */
     takeProfitPrice?: number | null;
+    /** Why this order (strategy / grade / reason / tags + source) — saved to trade_entries. */
+    entry?: EntryIntent | null;
   }): Promise<{
     placed: true;
     symbol: string;
@@ -512,6 +535,22 @@ export class BitgetService {
         `Placed Bitget LIMIT order: ${holdSide} ${symbol} size ${size} @ ${price} ` +
           `(margin $${marginUsd}, ${leverage}x cross, orderId ${res.orderId})`,
       );
+
+      await this.tradeEntries.recordOrder({
+        exchange: 'bitget',
+        symbol,
+        holdSide,
+        orderType: 'LIMIT',
+        isAdd,
+        tradeKey: isAdd && existing && Number(existing.cTime) > 0 ? tradeKeyOf(symbol, holdSide, Number(existing.cTime)) : null,
+        orderId: res.orderId,
+        price,
+        size,
+        marginUsd,
+        leverage,
+        takeProfitPrice: tp ?? input.takeProfitPrice ?? null,
+        intent: input.entry,
+      });
 
       return {
         placed: true,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { TradeEntriesModule } from '../trade-entries/trade-entries.module';
 import { BitgetController } from './bitget.controller';
 import { BitgetJournalService } from './bitget-journal.service';
 import { BitgetService } from './bitget.service';
@@ -10,6 +11,7 @@ import { BitgetAutoTradeService } from './bitget-auto-trade.service';
 import { BitgetAiActionService } from './bitget-ai-action.service';
 
 @Module({
+  imports: [TradeEntriesModule],
   controllers: [BitgetController],
   providers: [
     BitgetService,

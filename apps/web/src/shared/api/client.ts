@@ -111,6 +111,50 @@ import type {
   TradingListWatchlistSymbol,
 } from './types';
 
+/** Optional "why" of an order — saved to trade_entries and the trade journal. */
+export type EntryIntentInput = {
+  strategyKey?: string;
+  grade?: string;
+  mode?: 'SWING' | 'SCALP' | 'HEDGE' | 'OTHER';
+  reason?: string;
+  tags?: string[];
+};
+
+export type TradeStrategyInfo = {
+  key: string;
+  version: number;
+  name: string;
+  mode: 'SWING' | 'SCALP' | 'HEDGE' | 'OTHER';
+  summary: string;
+  matchable: boolean;
+  status: string;
+};
+
+export type TradeEntryCheck = {
+  symbol: string;
+  side: 'long' | 'short';
+  exchange: 'bitget' | 'mexc';
+  features: {
+    price: number;
+    qqeD1: 'long' | 'short' | null;
+    qqeH4: 'long' | 'short' | null;
+    rsiH4: number | null;
+    rsi1h: number | null;
+    distEma89D1Pct: number | null;
+    chg24hPct: number | null;
+    chg7dPct: number | null;
+  } | null;
+  matched: Array<{ key: string; version: number; grade: string; mode: string }>;
+  strategies: Array<{
+    key: string;
+    version: number;
+    name: string;
+    mode: string;
+    grade: string | null;
+    checks: Array<{ label: string; pass: boolean | null; value: string }>;
+  }>;
+};
+
 
 type JsonRecord = Record<string, unknown>;
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -1138,12 +1182,27 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }
     },
 
+    /** Entry strategies a trader can declare on an order (latest version of each). */
+    async listTradeStrategies(): Promise<TradeStrategyInfo[]> {
+      const response = await fetchImpl(`${baseUrl}/trade-entries/strategies`, withDefaults({ cache: 'no-store' }));
+      if (!response.ok) throw new Error(`Không tải được danh sách chiến lược (HTTP ${response.status})`);
+      return (await response.json()) as TradeStrategyInfo[];
+    },
+
+    /** Which entry strategies a coin matches right now (live snapshot computed by the API). */
+    async checkTradeEntry(input: { symbol: string; side: 'long' | 'short'; exchange: 'bitget' | 'mexc' }): Promise<TradeEntryCheck> {
+      const q = new URLSearchParams({ symbol: input.symbol, side: input.side, exchange: input.exchange });
+      const response = await fetchImpl(`${baseUrl}/trade-entries/check?${q.toString()}`, withDefaults({ cache: 'no-store' }));
+      if (!response.ok) throw new Error(`Không kiểm tra được chiến lược (HTTP ${response.status})`);
+      return (await response.json()) as TradeEntryCheck;
+    },
+
     async openBitgetPosition(input: {
       symbol: string;
       holdSide: 'long' | 'short';
       marginUsd: number;
       leverage: number;
-    }): Promise<BitgetOpenResult> {
+    } & EntryIntentInput): Promise<BitgetOpenResult> {
       const response = await fetchImpl(
         `${baseUrl}/bitget/positions/open`,
         withDefaults({
@@ -1170,7 +1229,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       marginUsd: number;
       leverage: number;
       price: number;
-    }): Promise<BitgetLimitResult> {
+    } & EntryIntentInput): Promise<BitgetLimitResult> {
       const response = await fetchImpl(
         `${baseUrl}/bitget/positions/limit`,
         withDefaults({
@@ -1624,7 +1683,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       holdSide: 'long' | 'short';
       marginUsd: number;
       leverage: number;
-    }): Promise<MexcOpenResult> {
+    } & EntryIntentInput): Promise<MexcOpenResult> {
       const response = await fetchImpl(
         `${baseUrl}/mexc/positions/open`,
         withDefaults({
@@ -1651,7 +1710,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       marginUsd: number;
       leverage: number;
       price: number;
-    }): Promise<MexcLimitResult> {
+    } & EntryIntentInput): Promise<MexcLimitResult> {
       const response = await fetchImpl(
         `${baseUrl}/mexc/positions/limit`,
         withDefaults({

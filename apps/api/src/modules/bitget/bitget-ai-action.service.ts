@@ -4,6 +4,7 @@ import { createBitgetAiActionRepository } from '@app/db';
 
 import { BitgetService } from './bitget.service';
 import type { ExecuteAiActionDto } from './dto/execute-ai-action.dto';
+import type { EntryIntent } from '../trade-entries/trade-entry.service';
 
 export type BitgetAiActionType = 'OPEN' | 'DCA' | 'SET_TP' | 'CLOSE' | 'CANCEL';
 
@@ -18,6 +19,10 @@ export type BitgetAiActionParams = {
   orderId?: string;
   /** Market price when Claude proposed the card (display only). */
   refPrice?: number | null;
+  /** OPEN/DCA: entry strategy the card follows (ENTRY_STRATEGIES key), its grade and mode. */
+  strategyKey?: string | null;
+  grade?: string | null;
+  mode?: string | null;
 };
 
 const SIDE = (s: string) => (s === 'short' ? 'SHORT' : 'LONG');
@@ -66,7 +71,14 @@ export class BitgetAiActionService {
 
     try {
       const before = await this.bitget.getRawPosition(symbol, holdSide);
-      const { result, orderId, journal } = await this.run(type, symbol, holdSide, params, before);
+      const entry: EntryIntent = {
+        source: 'AI_CARD',
+        strategyKey: params.strategyKey ?? null,
+        grade: params.grade ?? null,
+        mode: params.mode ?? null,
+        reason: action.reason ?? null,
+      };
+      const { result, orderId, journal } = await this.run(type, symbol, holdSide, params, before, entry);
 
       // Journal the action on the position's timeline (the position as it is now,
       // or as it was before a full close).
@@ -100,6 +112,7 @@ export class BitgetAiActionService {
     holdSide: 'long' | 'short',
     p: BitgetAiActionParams,
     before: Awaited<ReturnType<BitgetService['getRawPosition']>>,
+    entry?: EntryIntent,
   ): Promise<{ result: unknown; orderId: string | null; journal: string[] }> {
     switch (type) {
       case 'OPEN':
@@ -112,7 +125,7 @@ export class BitgetAiActionService {
 
         if (p.orderType === 'LIMIT') {
           if (!(Number(p.price) > 0)) throw new BadRequestException('Thiếu giá limit.');
-          const res = await this.bitget.placeLimitOrder({ symbol, holdSide, marginUsd, leverage, price: Number(p.price), takeProfitPrice: tp });
+          const res = await this.bitget.placeLimitOrder({ symbol, holdSide, marginUsd, leverage, price: Number(p.price), takeProfitPrice: tp, entry });
           const lines = [
             `${label} LIMIT ${SIDE(holdSide)} ${symbol}`,
             `- Giá limit: ${fmt(res.price)} · size ${fmt(res.size)} · ký quỹ $${fmt(marginUsd)} · ${res.leverage}× cross`,
@@ -125,7 +138,7 @@ export class BitgetAiActionService {
           return { result: res, orderId: res.orderId, journal: lines };
         }
 
-        const res = await this.bitget.openPosition({ symbol, holdSide, marginUsd, leverage });
+        const res = await this.bitget.openPosition({ symbol, holdSide, marginUsd, leverage, entry });
         let tpNote = 'chưa đặt';
         if (tp != null) {
           // Position TP on the exchange; keep any SL the trader set by hand (this flow never sets one).

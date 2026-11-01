@@ -106,3 +106,4 @@ export {
   sizeFromMargin,
 } from './orders/bitget-position-math';
 export type { PositionSide } from './orders/bitget-position-math';
+export * from './trade-entry';

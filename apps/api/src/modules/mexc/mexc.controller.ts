@@ -34,6 +34,7 @@ import { AddWatchlistSymbolDto } from './dto/add-watchlist-symbol.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
 import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './mexc-setup-chart.service';
+import { entryFromDto } from '../trade-entries/dto/entry-intent.dto';
 
 @ApiTags('mexc')
 @ApiCookieAuth('market_analysis_session')
@@ -72,7 +73,7 @@ export class MexcController {
     summary: 'Open a market position (cross margin) from the Setup tab, or add volume to the open one',
   })
   openPosition(@Body() dto: OpenPositionDto) {
-    return this.service.openPosition(dto);
+    return this.service.openPosition({ ...dto, entry: entryFromDto(dto) });
   }
 
   @Post('positions/limit')
@@ -80,7 +81,7 @@ export class MexcController {
     summary: 'Place a resting LIMIT entry (cross margin) from the Setup tab — fills into a position at the trigger price',
   })
   placeLimit(@Body() dto: PlaceLimitDto) {
-    return this.service.placeLimitOrder(dto);
+    return this.service.placeLimitOrder({ ...dto, entry: entryFromDto(dto) });
   }
 
   @Get('positions/pending')

@@ -8,6 +8,8 @@ import {
   createMexcSyncStateRepository,
 } from '@app/db';
 
+import { TradeEntryRecorderService } from '../trade-entries/trade-entry-recorder.service';
+
 /**
  * Reconciles MEXC USDT-futures trades into the `mexc_trades` lifecycle table —
  * the MEXC twin of `BitgetHistoryService`, kept as its own service (with its own
@@ -132,6 +134,8 @@ export class MexcHistoryService implements OnModuleInit {
 
   private syncing = false;
 
+  constructor(private readonly entries: TradeEntryRecorderService) {}
+
   isConfigured(): boolean {
     return Boolean(this.apiKey && this.apiSecret);
   }
@@ -200,6 +204,16 @@ export class MexcHistoryService implements OnModuleInit {
           markPrice: await this.fetchLastPrice(symbol),
           dayOpenPrice: null,
         });
+        await this.entries.onTradeOpened({
+          exchange: 'mexc',
+          tradeKey,
+          symbol,
+          holdSide,
+          openedAt,
+          price: openAvgPrice,
+          size: openTotalPos,
+          leverage: Number.isFinite(leverage) && leverage > 0 ? leverage : null,
+        });
         opened++;
       }
 
@@ -252,11 +266,22 @@ export class MexcHistoryService implements OnModuleInit {
             markPrice: c.openAvgPrice,
             dayOpenPrice: null,
           });
+          await this.entries.onTradeOpened({
+            exchange: 'mexc',
+            tradeKey,
+            symbol: c.symbol,
+            holdSide: c.holdSide,
+            openedAt: c.openedAt,
+            price: c.openAvgPrice,
+            size: c.openTotalPos,
+            leverage: c.leverage ?? null,
+          });
           await this.writeClosedLog(tradeKey, c, c.leverage);
           closed++;
         }
       }
 
+      void this.entries.flush('mexc');
       if (opened || closed) {
         this.logger.log(`MEXC trade sync — opened ${opened}, closed ${closed} (${pages} page(s))`);
       }

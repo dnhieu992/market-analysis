@@ -37,6 +37,7 @@ import { RunAutoTradeDto } from './dto/run-auto-trade.dto';
 import { SaveTradeChartDto } from './dto/save-trade-chart.dto';
 import { SaveSetupChartDto } from './dto/save-setup-chart.dto';
 import type { TradeChartParams } from './bitget-setup-chart.service';
+import { entryFromDto } from '../trade-entries/dto/entry-intent.dto';
 
 @ApiTags('bitget')
 @ApiCookieAuth('market_analysis_session')
@@ -82,7 +83,7 @@ export class BitgetController {
     summary: 'Open a market position (cross margin) from the Setup tab, or add volume to the open one',
   })
   openPosition(@Body() dto: OpenPositionDto) {
-    return this.service.openPosition(dto);
+    return this.service.openPosition({ ...dto, entry: entryFromDto(dto) });
   }
 
   @Post('positions/limit')
@@ -90,7 +91,7 @@ export class BitgetController {
     summary: 'Place a resting LIMIT entry (cross margin) from the Setup tab — fills into a position at the trigger price',
   })
   placeLimit(@Body() dto: PlaceLimitDto) {
-    return this.service.placeLimitOrder(dto);
+    return this.service.placeLimitOrder({ ...dto, entry: entryFromDto(dto) });
   }
 
   @Get('positions/pending')

@@ -1,11 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNumber, IsString, Matches, Max, Min } from 'class-validator';
 
+import { EntryIntentDto } from '../../trade-entries/dto/entry-intent.dto';
+
 /**
  * A resting LIMIT entry placed from the Setup tab: same margin/leverage inputs
  * as a market open, plus the trigger `price` the order waits to fill at.
  */
-export class PlaceLimitDto {
+export class PlaceLimitDto extends EntryIntentDto {
   @ApiProperty({ example: 'BTCUSDT', description: 'MEXC symbol to place a limit order on' })
   @IsString()
   @Matches(/^[A-Z0-9]{4,30}$/, { message: 'symbol must be an uppercase MEXC symbol' })

@@ -232,3 +232,35 @@
   .setupCards .sideCell { border-top: 1px dashed var(--border) !important; padding-top: 8px !important; }
   .setupCards .exLine { grid-template-columns: auto minmax(0, 1fr) auto; }
 }
+
+/* "🧭 Lý do vào lệnh" block in the order dialogs */
+.intentBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border, rgba(128, 128, 128, 0.35));
+  border-radius: 8px;
+}
+.intentHead {
+  font-weight: 600;
+}
+.intentHint {
+  font-size: 0.85em;
+  opacity: 0.9;
+}
+.intentFeat {
+  margin-top: 4px;
+  opacity: 0.75;
+}
+.intentUse {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9em;
+}

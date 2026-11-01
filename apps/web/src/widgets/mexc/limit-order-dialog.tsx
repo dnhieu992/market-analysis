@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /** Limit-price preset marks — % offset from the current price. */
@@ -46,6 +46,8 @@ type Props = {
   error: string | null;
   onPlace: (input: { leverage: number; marginUsd: number; price: number }) => void;
   onClose: () => void;
+  /** Extra fields rendered above the error line (e.g. /trading-list's entry-reason block). */
+  extra?: ReactNode;
 };
 
 /**
@@ -64,6 +66,7 @@ export function LimitOrderDialog({
   error,
   onPlace,
   onClose,
+  extra,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const isLong = holdSide === 'long';
@@ -218,6 +221,7 @@ export function LimitOrderDialog({
             dashboard này.
           </p>
 
+          {extra}
           {error && <span className="bg-tpsl-hint bg-tpsl-hint--bad">{error}</span>}
         </div>
 

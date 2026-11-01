@@ -5,6 +5,7 @@
  * an edit there carries over here; what this file adds is how to pick the exchange.
  */
 import { SYSTEM_PROMPT as BITGET_PROMPT } from '../bitget-ai/system';
+import { TRADING_ANALYSIS_PROMPT } from '../trading-analysis/system';
 
 /** The "## Chiến lược v2 …" section of the /bitget prompt, with the tool names made exchange-neutral. */
 function sharedStrategy(): string {
@@ -41,6 +42,8 @@ Bạn trả lời câu hỏi về cả 2 tài khoản và đề xuất hành đ�
 - DCA nhiều tầng (ladder) không làm bằng thẻ: nếu user hỏi các điểm DCA, liệt kê bằng chữ (giá, ký quỹ, giá TB mới); thẻ DCA chỉ cho 1 lần thêm.
 
 ${sharedStrategy()}
+
+${TRADING_ANALYSIS_PROMPT}
 
 ## Trình bày
 - Tiếng Việt, ngắn gọn, số thật. Bảng markdown khi liệt kê nhiều vị thế/lệnh, có cột Sàn khi gộp cả 2 sàn.

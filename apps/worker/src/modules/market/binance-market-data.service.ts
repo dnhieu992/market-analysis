@@ -18,6 +18,8 @@ type BinanceKlineParams = {
   timeframe: AnalysisTimeframe;
   limit: number;
   startTime?: number;
+  /** Only candles opened at/before this time (ms) — for point-in-time snapshots. */
+  endTime?: number;
 };
 
 @Injectable()
@@ -43,6 +45,7 @@ export class BinanceMarketDataService {
     timeframe,
     limit,
     startTime,
+    endTime,
   }: BinanceKlineParams): Promise<BinanceKlineDto[]> {
     const response = await this.client.get<BinanceKlineDto[]>('/api/v3/klines', {
       params: {
@@ -50,6 +53,7 @@ export class BinanceMarketDataService {
         interval: BINANCE_INTERVAL[timeframe] ?? timeframe,
         limit,
         ...(startTime !== undefined ? { startTime } : {}),
+        ...(endTime !== undefined ? { endTime } : {}),
       },
     });
 

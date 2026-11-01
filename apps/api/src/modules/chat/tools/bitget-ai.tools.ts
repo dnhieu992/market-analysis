@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { averageEntry, capitalSharePct, favourableMovePct, sizeFromMargin } from '@app/core';
+import { averageEntry, capitalSharePct, ENTRY_STRATEGIES, favourableMovePct, findEntryStrategy, sizeFromMargin } from '@app/core';
 import { createBitgetAiActionRepository } from '@app/db';
 
 import { BitgetAutoTradeService } from '../../bitget/bitget-auto-trade.service';
@@ -414,6 +414,9 @@ export class BitgetAiChatService {
       closePct?: number;
       orderId?: string;
       reason?: string;
+      strategyKey?: string;
+      grade?: string;
+      mode?: string;
     },
     string
   > {
@@ -439,6 +442,13 @@ export class BitgetAiChatService {
           closePct: { type: 'number', description: 'CLOSE: % of the position to close, 1–100' },
           orderId: { type: 'string', description: 'CANCEL: orderId from bitget_pending_orders' },
           reason: { type: 'string', description: 'Why, 1–2 sentences in Vietnamese (shown on the card and saved to the journal)' },
+          strategyKey: {
+            type: 'string',
+            description:
+              'OPEN/DCA: entry strategy this card follows — qqe-pullback-swing | qqe-rsi1h-scalp | hedge-short | discretionary (see entry_check). Saved on the trade for later review.',
+          },
+          grade: { type: 'string', description: 'OPEN/DCA: grade within the strategy — A | B (swing), strong | normal (scalp), hedge' },
+          mode: { type: 'string', description: 'OPEN/DCA: SWING | SCALP | HEDGE | OTHER' },
         },
         required: ['type', 'symbol', 'side'],
       },
@@ -470,6 +480,13 @@ export class BitgetAiChatService {
             return `TP ${tp} phải ${holdSide === 'long' ? 'cao hơn' : 'thấp hơn'} giá vào ${entry}. Sửa lại rồi gọi lại.`;
           }
           Object.assign(params, { orderType, price, marginUsd, leverage, takeProfitPrice: tp, refPrice });
+          const strategyKey = String(input.strategyKey ?? '').trim();
+          if (strategyKey) {
+            const def = findEntryStrategy(strategyKey);
+            if (!def) return `strategyKey "${strategyKey}" không tồn tại — dùng một trong: ${ENTRY_STRATEGIES.map((x) => x.key).join(', ')}.`;
+            const mode = String(input.mode ?? def.mode).toUpperCase();
+            Object.assign(params, { strategyKey: def.key, grade: input.grade ? String(input.grade).slice(0, 20) : null, mode });
+          }
           if (position && entry) {
             const addSize = sizeFromMargin(marginUsd, leverage, entry);
             const newAvg = averageEntry(position.size, position.entryPrice, addSize, entry);

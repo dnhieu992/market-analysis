@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { BitgetModule } from '../bitget/bitget.module';
 import { DatabaseModule } from '../database/database.module';
 import { MexcModule } from '../mexc/mexc.module';
+import { TradeEntriesModule } from '../trade-entries/trade-entries.module';
 import { TradingListModule } from '../trading-list/trading-list.module';
 import { ChatController } from './chat.controller';
 import { ChatProvider } from './contracts/chat-provider';
@@ -16,7 +17,7 @@ import { TradingListAiChatService } from './tools/trading-list-ai.tools';
 import { TradingChatToolRegistry } from './tools/trading-chat-tool-registry';
 
 @Module({
-  imports: [DatabaseModule, BitgetModule, MexcModule, TradingListModule],
+  imports: [DatabaseModule, BitgetModule, MexcModule, TradingListModule, TradeEntriesModule],
   controllers: [ChatController],
   providers: [
     ChatService,

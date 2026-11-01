@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { createApiClient } from '@web/shared/api/client';
+import { createApiClient, type TradeStrategyInfo } from '@web/shared/api/client';
 import type {
   BitgetAutoTrade,
   BitgetHistoryResponse,
@@ -28,7 +28,9 @@ import { SymbolNoteDialog, notePreview } from '../bitget/symbol-note-dialog';
 import { matchesSymbolSelection } from '../bitget/symbol-filter-input';
 import { LimitOrderDialog as MexcLimitOrderDialog } from '../mexc/limit-order-dialog';
 import { AddCoinDialog } from './add-coin-dialog';
+import { EMPTY_ENTRY_INTENT, EntryIntentFields, entryIntentOf, type EntryIntentDraft } from './entry-intent-fields';
 import { ExchangeConfigDialog, type ExchangeConfigInput } from './exchange-config-dialog';
+import { MarketOrderDialog } from './market-order-dialog';
 import { ExchangeFilterBar } from './exchange-filter';
 import { EXCHANGES, EXCHANGE_LABEL, EXCHANGE_SHORT, exchangesOf, type ExchangeFilter } from './exchanges';
 
@@ -156,6 +158,17 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
   const [editError, setEditError] = useState<string | null>(null);
   const [limitTarget, setLimitTarget] = useState<{ ex: TradingExchange; symbol: string; holdSide: HoldSide } | null>(null);
   const [limitSaving, setLimitSaving] = useState(false);
+  // MARKET confirm dialog + the "Lý do vào lệnh" draft shared by the market/limit dialogs.
+  const [marketTarget, setMarketTarget] = useState<{
+    ex: TradingExchange;
+    symbol: string;
+    holdSide: HoldSide;
+    isAdd: boolean;
+    cfg: { leverage: number; marginUsd: number };
+  } | null>(null);
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const [intent, setIntent] = useState<EntryIntentDraft>(EMPTY_ENTRY_INTENT);
+  const [strategies, setStrategies] = useState<TradeStrategyInfo[]>([]);
   const [limitError, setLimitError] = useState<string | null>(null);
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteSaving, setNoteSaving] = useState(false);
@@ -384,46 +397,46 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
   );
 
   const openPosition = useCallback(
-    async (ex: TradingExchange, symbol: string, holdSide: HoldSide) => {
+    (ex: TradingExchange, symbol: string, holdSide: HoldSide) => {
       const cfg = configs[ex][cfgKey(symbol, holdSide)];
-      const name = EXCHANGE_LABEL[ex].toUpperCase();
       if (!cfg || !(cfg.marginUsd > 0)) {
         setError(`Cấu hình ký quỹ ${symbol} ${holdSide.toUpperCase()} trên ${EXCHANGE_LABEL[ex]} trước khi mở lệnh (bấm ⚙).`);
         return;
       }
-      const key = actKey(ex, symbol, holdSide);
-      const isAdd = openSides.has(key);
-      const confirmText = isAdd
-        ? `[${name}] ${symbol} đang có vị thế ${holdSide.toUpperCase()} mở.\n` +
-          `THÊM VOLUME vào lệnh đó theo giá market ngay bây giờ?\n` +
-          `Ký quỹ thêm $${cfg.marginUsd} · đòn bẩy của vị thế đang mở · cross`
-        : `[${name}] Mở lệnh ${holdSide.toUpperCase()} ${symbol} theo giá market ngay bây giờ?\n` +
-          `Ký quỹ $${cfg.marginUsd} · đòn bẩy ${cfg.leverage}× · cross`;
-      if (!window.confirm(confirmText)) return;
-
-      setOpeningKey(key);
-      setError(null);
-      setNotice(null);
-      try {
-        const body = { symbol, holdSide, marginUsd: cfg.marginUsd, leverage: cfg.leverage };
-        const res = ex === 'bitget'
-          ? await clientRef.current.openBitgetPosition(body)
-          : await clientRef.current.openMexcPosition(body);
-        setNotice(
-          res.mode === 'add'
-            ? `[${EXCHANGE_LABEL[ex]}] Đã thêm volume vào ${res.holdSide.toUpperCase()} ${symbol}: +${res.size} @ ~${res.entryPrice} ` +
-                `(tổng size ${res.totalSize}, ${res.leverage}×).`
-            : `[${EXCHANGE_LABEL[ex]}] Đã mở ${res.holdSide.toUpperCase()} ${symbol}: size ${res.size} @ ~${res.entryPrice}.`,
-        );
-        await refreshPositions();
-      } catch (err) {
-        setError(`[${EXCHANGE_LABEL[ex]}] ${err instanceof Error ? err.message : 'Mở lệnh thất bại. Thử lại sau.'}`);
-      } finally {
-        setOpeningKey(null);
-      }
+      setMarketError(null);
+      setIntent(EMPTY_ENTRY_INTENT);
+      setMarketTarget({ ex, symbol, holdSide, isAdd: openSides.has(actKey(ex, symbol, holdSide)), cfg });
     },
-    [configs, openSides, refreshPositions],
+    [configs, openSides],
   );
+
+  const confirmMarket = useCallback(async () => {
+    if (!marketTarget) return;
+    const { ex, symbol, holdSide, cfg } = marketTarget;
+    const key = actKey(ex, symbol, holdSide);
+    setOpeningKey(key);
+    setMarketError(null);
+    setError(null);
+    setNotice(null);
+    try {
+      const body = { symbol, holdSide, marginUsd: cfg.marginUsd, leverage: cfg.leverage, ...entryIntentOf(intent, strategies) };
+      const res = ex === 'bitget'
+        ? await clientRef.current.openBitgetPosition(body)
+        : await clientRef.current.openMexcPosition(body);
+      setMarketTarget(null);
+      setNotice(
+        res.mode === 'add'
+          ? `[${EXCHANGE_LABEL[ex]}] Đã thêm volume vào ${res.holdSide.toUpperCase()} ${symbol}: +${res.size} @ ~${res.entryPrice} ` +
+              `(tổng size ${res.totalSize}, ${res.leverage}×).`
+          : `[${EXCHANGE_LABEL[ex]}] Đã mở ${res.holdSide.toUpperCase()} ${symbol}: size ${res.size} @ ~${res.entryPrice}.`,
+      );
+      await refreshPositions();
+    } catch (err) {
+      setMarketError(`[${EXCHANGE_LABEL[ex]}] ${err instanceof Error ? err.message : 'Mở lệnh thất bại. Thử lại sau.'}`);
+    } finally {
+      setOpeningKey(null);
+    }
+  }, [marketTarget, intent, strategies, refreshPositions]);
 
   const placeLimit = useCallback(
     async (ex: TradingExchange, symbol: string, holdSide: HoldSide, input: { leverage: number; marginUsd: number; price: number }) => {
@@ -432,7 +445,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
       setError(null);
       setNotice(null);
       try {
-        const body = { symbol, holdSide, ...input };
+        const body = { symbol, holdSide, ...input, ...entryIntentOf(intent, strategies) };
         const res = ex === 'bitget'
           ? await clientRef.current.placeBitgetLimitOrder(body)
           : await clientRef.current.placeMexcLimitOrder(body);
@@ -447,7 +460,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
         setLimitSaving(false);
       }
     },
-    [],
+    [intent, strategies],
   );
 
   const addCoin = useCallback(async (symbol: string) => {
@@ -627,6 +640,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                                   className={`bg-limit-btn ${isLong ? 'bg-limit-btn--long' : 'bg-limit-btn--short'}`}
                                   onClick={() => {
                                     setLimitError(null);
+                                    setIntent(EMPTY_ENTRY_INTENT);
                                     setLimitTarget({ ex, symbol, holdSide });
                                   }}
                                   title={`[${EXCHANGE_LABEL[ex]}] Đặt lệnh ${holdSide.toUpperCase()} limit`}
@@ -672,7 +686,52 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
           error={limitError}
           onPlace={(input) => void placeLimit(limitTarget.ex, limitTarget.symbol, limitTarget.holdSide, input)}
           onClose={() => setLimitTarget(null)}
+          extra={
+            <EntryIntentFields
+              exchange={limitTarget.ex}
+              symbol={limitTarget.symbol}
+              holdSide={limitTarget.holdSide}
+              value={intent}
+              onChange={setIntent}
+              onStrategies={setStrategies}
+              loadStrategies={() => clientRef.current.listTradeStrategies()}
+              checkEntry={(q) => clientRef.current.checkTradeEntry(q)}
+            />
+          }
         />
+      )}
+
+      {marketTarget && (
+        <MarketOrderDialog
+          title={`[${EXCHANGE_LABEL[marketTarget.ex]}] ${marketTarget.isAdd ? 'Thêm volume' : 'Mở lệnh'} ${marketTarget.holdSide.toUpperCase()} ${marketTarget.symbol}`}
+          lines={
+            marketTarget.isAdd
+              ? [
+                  `${marketTarget.symbol} đang có vị thế ${marketTarget.holdSide.toUpperCase()} mở — THÊM VOLUME theo giá market ngay bây giờ.`,
+                  `Ký quỹ thêm $${marketTarget.cfg.marginUsd} · đòn bẩy của vị thế đang mở · cross`,
+                ]
+              : [
+                  `Mở lệnh ${marketTarget.holdSide.toUpperCase()} ${marketTarget.symbol} theo giá market ngay bây giờ.`,
+                  `Ký quỹ $${marketTarget.cfg.marginUsd} · đòn bẩy ${marketTarget.cfg.leverage}× · cross`,
+                ]
+          }
+          saving={openingKey !== null}
+          error={marketError}
+          confirmLabel={marketTarget.isAdd ? 'Thêm volume' : 'Mở lệnh'}
+          onConfirm={() => void confirmMarket()}
+          onClose={() => setMarketTarget(null)}
+        >
+          <EntryIntentFields
+            exchange={marketTarget.ex}
+            symbol={marketTarget.symbol}
+            holdSide={marketTarget.holdSide}
+            value={intent}
+            onChange={setIntent}
+            onStrategies={setStrategies}
+            loadStrategies={() => clientRef.current.listTradeStrategies()}
+            checkEntry={(q) => clientRef.current.checkTradeEntry(q)}
+          />
+        </MarketOrderDialog>
       )}
 
       {noteTarget && (

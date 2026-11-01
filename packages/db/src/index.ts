@@ -113,3 +113,11 @@ export { createMexcAiActionRepository } from './repositories/mexc-ai-action.repo
 export type { MexcAiActionInput } from './repositories/mexc-ai-action.repository';
 export { createTradingListRepository } from './repositories/trading-list.repository';
 export type { TradingListPriorityInput, TradingListNoteInput } from './repositories/trading-list.repository';
+export { createTradeEntryRepository } from './repositories/trade-entry.repository';
+export type {
+  TradeEntryInput,
+  TradeEntryDeclared,
+  TradeEntryExchange,
+  TradeEntryEvent,
+  TradeEntrySource,
+} from './repositories/trade-entry.repository';

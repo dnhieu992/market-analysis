@@ -1277,3 +1277,68 @@ model MexcAiAction {
   @@index([messageId])
   @@map("mexc_ai_actions")
 }
+
+// One entry event of a Bitget/MEXC trade — the initial OPEN or a DCA add — with
+// WHY it was taken (declared strategy / grade / reason / tags) and the market
+// features at that moment (computed the same way for every entry), so trades can
+// later be grouped and scored per strategy. `tradeKey` links to bitget_trades /
+// mexc_trades (`exchange` says which). A LIMIT entry is stored as `pending` with
+// no tradeKey until the worker sees the position it filled into.
+model TradeEntry {
+  id                String    @id @default(cuid())
+  exchange          String    @db.VarChar(10) // bitget | mexc
+  tradeKey          String?   @db.VarChar(120)
+  symbol            String    @db.VarChar(30)
+  holdSide          String    @db.VarChar(8) // long | short
+  event             String    @db.VarChar(5) // OPEN | DCA
+  status            String    @default("recorded") @db.VarChar(10) // recorded | pending | expired
+  // AI_CARD | SETUP_TAB | LIMIT | AUTO | EXCHANGE_APP | BACKFILL
+  source            String    @db.VarChar(20)
+  orderType         String?   @db.VarChar(8) // MARKET | LIMIT
+  orderId           String?   @db.VarChar(64)
+  enteredAt         DateTime
+  price             Float?
+  size              Float?
+  marginUsd         Float?
+  leverage          Float?
+  // Declared by the trader / AI card. null = not declared (exchange app, backfill).
+  strategyKey       String?   @db.VarChar(60)
+  strategyVersion   Int?
+  grade             String?   @db.VarChar(20)
+  mode              String?   @db.VarChar(10) // SWING | SCALP | HEDGE | OTHER
+  reason            String?   @db.Text
+  tags              Json?
+  // Market snapshot (see computeEntryFeatures in @app/core) + which strategies it matched.
+  features          Json?
+  featureSetVersion Int?
+  matched           Json?
+  plan              Json? // { takeProfitPrice, takeProfitPct, dca: [...] }
+  journaledAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([exchange, tradeKey])
+  @@index([exchange, symbol, holdSide, status])
+  @@index([strategyKey])
+  @@index([enteredAt])
+  @@map("trade_entries")
+}
+
+// Catalogue of entry strategies (versioned). The matching rules themselves live in
+// code (@app/core ENTRY_STRATEGIES); this table holds the human doc + lifecycle
+// status (PAPER | ACTIVE | RETIRED) so several strategies can run side by side.
+model TradeStrategy {
+  id        String   @id @default(cuid())
+  key       String   @db.VarChar(60)
+  version   Int
+  name      String   @db.VarChar(120)
+  mode      String   @db.VarChar(10) // SWING | SCALP | HEDGE | OTHER
+  status    String   @default("ACTIVE") @db.VarChar(10)
+  summary   String   @db.Text
+  rules     Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, version])
+  @@map("trade_strategies")
+}

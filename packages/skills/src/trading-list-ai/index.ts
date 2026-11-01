@@ -11,6 +11,8 @@ export const tradingListAiSkill: SkillDefinition = {
   systemPrompt: SYSTEM_PROMPT,
   tools: [
     'trading_list_setup',
+    'entry_check',
+    'strategy_review',
     'bitget_account',
     'bitget_positions',
     'bitget_pending_orders',

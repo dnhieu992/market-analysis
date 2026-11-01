@@ -8,6 +8,8 @@ import {
   createBitgetSyncStateRepository,
 } from '@app/db';
 
+import { TradeEntryRecorderService } from '../trade-entries/trade-entry-recorder.service';
+
 /**
  * Reconciles Bitget USDT-futures trades into the `bitget_trades` lifecycle table.
  *
@@ -115,6 +117,8 @@ export class BitgetHistoryService implements OnModuleInit {
 
   private syncing = false;
 
+  constructor(private readonly entries: TradeEntryRecorderService) {}
+
   isConfigured(): boolean {
     return Boolean(this.apiKey && this.apiSecret && this.passphrase);
   }
@@ -180,6 +184,16 @@ export class BitgetHistoryService implements OnModuleInit {
           markPrice: Number(pos.markPrice),
           dayOpenPrice: await this.fetchDayOpenPrice(pos.symbol),
         });
+        await this.entries.onTradeOpened({
+          exchange: 'bitget',
+          tradeKey,
+          symbol: pos.symbol,
+          holdSide: pos.holdSide,
+          openedAt,
+          price: openAvgPrice,
+          size: openTotalPos,
+          leverage,
+        });
         opened++;
       }
 
@@ -230,6 +244,16 @@ export class BitgetHistoryService implements OnModuleInit {
             markPrice: c.openAvgPrice,
             dayOpenPrice: await this.fetchDayOpenPrice(c.symbol),
           });
+          await this.entries.onTradeOpened({
+            exchange: 'bitget',
+            tradeKey,
+            symbol: c.symbol,
+            holdSide: c.holdSide,
+            openedAt: c.openedAt,
+            price: c.openAvgPrice,
+            size: c.openTotalPos,
+            leverage: null,
+          });
           // Opened+closed between polls — we never saw the live position, so its
           // leverage is unknown; the close log shows the raw price move only.
           await this.writeClosedLog(tradeKey, c, null);
@@ -237,6 +261,7 @@ export class BitgetHistoryService implements OnModuleInit {
         }
       }
 
+      void this.entries.flush('bitget');
       if (opened || closed) {
         this.logger.log(`Bitget trade sync — opened ${opened}, closed ${closed} (${pages} page(s))`);
       }

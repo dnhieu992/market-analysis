@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
+import { TradeEntriesModule } from '../trade-entries/trade-entries.module';
 import { MexcController } from './mexc.controller';
 import { MexcJournalService } from './mexc-journal.service';
 import { MexcService } from './mexc.service';
@@ -9,6 +10,7 @@ import { MexcSetupChartService } from './mexc-setup-chart.service';
 import { MexcAiActionService } from './mexc-ai-action.service';
 
 @Module({
+  imports: [TradeEntriesModule],
   controllers: [MexcController],
   providers: [
     MexcService,

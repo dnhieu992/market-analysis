@@ -11,3 +11,4 @@ export { trackingSwingSkill } from './tracking-swing';
 export { bitgetAiSkill } from './bitget-ai';
 export { mexcAiSkill } from './mexc-ai';
 export { tradingListAiSkill } from './trading-list-ai';
+export { tradingAnalysisSkill, TRADING_ANALYSIS_PROMPT } from './trading-analysis';
