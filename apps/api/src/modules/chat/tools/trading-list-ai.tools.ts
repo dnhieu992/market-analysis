@@ -113,8 +113,8 @@ export class TradingListAiChatService {
       description:
         'Live check of which ENTRY STRATEGIES coins match right now, computed by the app with the same formulas as the stored ' +
         'trade entries (QQE D1/H4/1h with the app\'s QQE params, RSI(14) D1/H4/1h, EMA34/89 D1, distance to EMA89 D1, 24h/7d/30d ' +
-        'change, BTC context). For each coin returns the snapshot and a pass/fail checklist per strategy (qqe-pullback-swing A/B, ' +
-        'qqe-rsi1h-scalp strong/normal, hedge-short). Prefer this over computing RSI/EMA by hand from get_klines. Up to 25 coins per call.',
+        'change, BTC context, D1 swing structure, H4 sweep & reclaim). For each coin returns the snapshot and a pass/fail checklist per strategy (qqe-pullback-swing A/B, ' +
+        'qqe-rsi1h-scalp strong/normal, pa-sweep-reclaim A, hedge-short). Prefer this over computing RSI/EMA by hand from get_klines. Up to 25 coins per call.',
       inputSchema: {
         type: 'object',
         properties: {

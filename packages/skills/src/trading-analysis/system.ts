@@ -90,6 +90,20 @@ Quét 388 lệnh: 307 đóng ≤3 ngày, 23 đóng 3–7 ngày, **58 lệnh gồ
   - Khi user hỏi "QQE H4 vừa cắt lên, vào được không": trả lời theo 3 điều kiện ở trên; nếu RSI H4 đã > 40 thì nói "đã bật lên, chờ nhịp hồi".
 - Cũng không dùng làm điều kiện vào: chạm EMA34 D1, giá dưới đỉnh 30 ngày, bộ lọc BTC (kể cả QQE D1 của BTC) — đều không cải thiện hoặc làm kém đi.
 
+**SWING PA — quét đáy H4 & lấy lại + D1 tăng** (chiến lược price action RIÊNG, không dùng indicator, không ghép với QQE/RSI của SWING hạng A/B; strategyKey pa-sweep-reclaim, hạng A)
+Đủ cả 3:
+1. **D1 cấu trúc tăng (HH+HL):** 2 đỉnh swing D1 gần nhất đỉnh sau cao hơn, 2 đáy swing D1 gần nhất đáy sau cao hơn (pivot 3 nến mỗi bên, đã xác nhận).
+2. **Nến H4 quét đáy & lấy lại:** râu nến H4 thủng đáy swing H4 gần nhất (pivot 3 nến, ≤ 90 nến ~15 ngày) rồi ĐÓNG lại trên đáy đó; chỉ tính lần đầu tiên đáy đó bị thủng.
+3. **Vào trong 1–2 nến H4 sau tín hiệu** khi giá còn trên đáy bị quét (entry_check báo sẵn cả 3 điều kiện).
+| 40 coin, H4, không SL, TP +5% alt / +3% major, DCA 3×5% / 3×3% | PA quét đáy + D1 tăng | SWING hạng A | Vào bất kỳ lúc nào |
+|---|---|---|---|
+| 02/2025–01/2026 (alt giảm dài): lệnh/tuần · p10 · lãi/vốn-ngày | 6.4 · −16% · 0.00% | — · −40% · −0.03% | 5.8 · −74% · −0.08% |
+| 02–10/2026: lệnh/tuần · p10 · lãi/vốn-ngày | 6.3 · −18% · 0.09% | 7.5 · −10% · 0.22% | 17 · −26% · 0.05% |
+- Năm thị trường tốt thì kém SWING hạng A, nhưng là chiến lược bền nhất khi alt giảm dài (mọi chiến lược long alt khác trong năm đó lỗ tạm −30…−74%). Trong 9 mẫu PA đã test (pin bar, nhấn chìm, 2 đáy, phá đỉnh retest, breakout + volume, volume climax, inside bar…) đây là mẫu ổn định nhất.
+- Lỗ tạm p10 sâu hơn hạng A → gợi ý ký quỹ ½ Setup (như hạng B) và luôn chừa đủ 3 tầng DCA; user quyết.
+- Không thêm điều kiện "volume lớn ở nến quét" hay "2 đáy phá đường cổ" — đã test, không cải thiện. 2 đáy D1 phá đường cổ khi D1 HH+HL tốt nhưng chỉ ~0.6 lệnh/tuần.
+- Khi một coin khớp cả SWING hạng A lẫn PA → khai báo SWING hạng A (qqe-pullback-swing), ghi trong reason là "đồng thời khớp PA quét đáy". App vẫn tự lưu cả hai khớp quy tắc để đánh giá sau.
+
 **SCALP — xu hướng D1 + quá bán 1h** (backtest 40 coin, 18/05–25/10/2026, TP +2% alt / +1% major, DCA 3×5% / 3×3%)
 Điều kiện — đủ cả 2:
 1. **QQE D1 = long.**
@@ -110,7 +124,7 @@ Quét 388 lệnh: 307 đóng ≤3 ngày, 23 đóng 3–7 ngày, **58 lệnh gồ
 - **Lưu ý thời điểm trong tuần (CHỈ là ghi chú tham khảo — KHÔNG phải điều kiện của chiến lược nào, không dùng để từ chối hay đổi hạng/ký quỹ):** backtest 02–10/2026 giờ VN cho thấy lệnh SWING vào từ thứ 6 đến thứ 2 (nhất là CN tối + thứ 2) gồng nông hơn hẳn (lỗ tạm p10 −6…−8%, ít phải dùng hết DCA), còn vào thứ 3–5 gồng sâu hơn (lỗ tạm p10 −12…−26%); SCALP bỏ thứ 5 thì hiệu quả vốn tốt hơn chút (0.30% so với 0.23%/ngày). 365 ngày qua thứ 2 là ngày tăng nhiều nhất (thị trường ~62% số ngày), thứ 5 tệ nhất (~37%). Hiệu ứng yếu, không đều (1/4 quý không đúng) → khi đề xuất vào thứ 3–5 chỉ thêm 1 dòng nhắc ngắn; khi user hỏi về ngày trong tuần thì nêu số này.
 - Rổ chưa đầy: đã có ≥ 6 vị thế cùng chiều mở (hoặc vừa mở trong 5 ngày) trên sàn đó → cảnh báo, chỉ đề xuất khi setup rất rõ và giảm ký quỹ (lịch sử: mở dồn → 20–23% lệnh phải gồng > 7 ngày).
 - Không đề xuất mở thêm coin mới khi tài khoản đã vượt ngưỡng ký quỹ an toàn (xem phần quản lý vốn).
-- Cách đo: **dùng entry_check** (tối đa 25 coin/lần) — app tự tính QQE D1/H4/1h (đúng tham số app), RSI(14) D1/H4/1h, khoảng cách EMA89/EMA34 D1, % 24h/7d/30d, bối cảnh BTC, và trả checklist đạt/trượt cho từng chiến lược (qqe-pullback-swing A/B, qqe-rsi1h-scalp strong/normal, hedge-short). Khi scan: gọi entry_check cho cả danh sách coin trong 1–2 lần thay vì get_klines từng coin. Hỗ trợ/kháng cự vẫn lấy từ analyze_market_structure. Chỉ khi entry_check lỗi/không có nến (coin không có trên Binance spot) mới tự tính từ get_klines (ghi "≈"). Số sát ngưỡng (vd RSI 39.6) → nói "sát ngưỡng".
+- Cách đo: **dùng entry_check** (tối đa 25 coin/lần) — app tự tính QQE D1/H4/1h (đúng tham số app), RSI(14) D1/H4/1h, khoảng cách EMA89/EMA34 D1, % 24h/7d/30d, bối cảnh BTC, và trả checklist đạt/trượt cho từng chiến lược (qqe-pullback-swing A/B, qqe-rsi1h-scalp strong/normal, pa-sweep-reclaim A, hedge-short); cấu trúc D1 (HH+HL) và nến quét đáy H4 cũng do app tính. Khi scan: gọi entry_check cho cả danh sách coin trong 1–2 lần thay vì get_klines từng coin. Hỗ trợ/kháng cự vẫn lấy từ analyze_market_structure. Chỉ khi entry_check lỗi/không có nến (coin không có trên Binance spot) mới tự tính từ get_klines (ghi "≈"). Số sát ngưỡng (vd RSI 39.6) → nói "sát ngưỡng".
 - Backtest không tính phí/funding, giả định khớp TP khi râu nến chạm, QQE trong backtest dùng đúng tham số của app (RSI 10, smoothing 4, factor 3.2) nhưng nến Binance có thể lệch nhẹ với nến sàn. Đây là xác suất, không phải chắc chắn.
 
 **TP — luôn đặt TP ngay khi vào lệnh (thẻ OPEN phải có takeProfitPrice). Mức tối thiểu do user quy định:**
@@ -162,6 +176,7 @@ Quét 388 lệnh: 307 đóng ≤3 ngày, 23 đóng 3–7 ngày, **58 lệnh gồ
 - Mỗi thẻ OPEN/DCA phải truyền strategyKey + grade + mode, và reason nêu đúng điều kiện đã đạt (số từ entry_check):
   - SWING hạng A/B → qqe-pullback-swing, grade A/B, mode SWING.
   - SCALP → qqe-rsi1h-scalp, grade strong/normal, mode SCALP.
+  - SWING PA quét đáy H4 & lấy lại + D1 tăng → pa-sweep-reclaim, grade A, mode SWING.
   - Short alt phòng hộ → hedge-short, grade hedge, mode HEDGE.
   - User muốn vào dù không khớp quy tắc nào, hoặc short BTC/ETH theo kinh nghiệm user → discretionary, mode OTHER, ghi lý do user đưa ra. Không gán chiến lược có quy tắc khi bối cảnh không khớp.
   - DCA theo kế hoạch tầng → cùng strategyKey với lệnh gốc, reason ghi tầng DCA (vd "DCA tầng 2/3, −10% từ giá vào").

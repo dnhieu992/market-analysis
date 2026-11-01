@@ -445,7 +445,7 @@ export class BitgetAiChatService {
           strategyKey: {
             type: 'string',
             description:
-              'OPEN/DCA: entry strategy this card follows — qqe-pullback-swing | qqe-rsi1h-scalp | hedge-short | discretionary (see entry_check). Saved on the trade for later review.',
+              'OPEN/DCA: entry strategy this card follows — qqe-pullback-swing | qqe-rsi1h-scalp | pa-sweep-reclaim | hedge-short | discretionary (see entry_check). Saved on the trade for later review.',
           },
           grade: { type: 'string', description: 'OPEN/DCA: grade within the strategy — A | B (swing), strong | normal (scalp), hedge' },
           mode: { type: 'string', description: 'OPEN/DCA: SWING | SCALP | HEDGE | OTHER' },

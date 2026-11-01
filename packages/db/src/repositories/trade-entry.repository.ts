@@ -210,6 +210,15 @@ export function createTradeEntryRepository(client = prisma) {
       });
     },
 
+    /** Recorded entries whose stored features predate `version` (re-enriched after a feature-set bump). */
+    listStaleFeatures(version: number, take = 50) {
+      return client.tradeEntry.findMany({
+        where: { status: 'recorded', featureSetVersion: { lt: version } },
+        orderBy: { enteredAt: 'asc' },
+        take,
+      });
+    },
+
     listStrategies() {
       return client.tradeStrategy.findMany({ orderBy: [{ key: 'asc' }, { version: 'desc' }] });
     },

@@ -102,6 +102,38 @@ export const ENTRY_STRATEGIES: EntryStrategyDef[] = [
     },
   },
   {
+    key: 'pa-sweep-reclaim',
+    version: 1,
+    name: 'PA: quét đáy H4 & lấy lại + D1 tăng (SWING)',
+    mode: 'SWING',
+    matchable: true,
+    summary:
+      'Price action thuần, không indicator: D1 cấu trúc tăng (2 đỉnh / 2 đáy D1 gần nhất đều cao dần) + nến H4 quét thủng đáy swing gần nhất rồi đóng lại trên đáy đó (lần quét đầu tiên), vào ở 1–2 nến H4 sau tín hiệu khi giá còn trên đáy bị quét. TP alt ≥ +5%, DCA 3×5%.',
+    evaluate: (f, ctx) => {
+      const sw = f?.paSweepH4 ?? null;
+      const v2 = f?.d1Structure !== undefined;
+      const checks: EntryCheck[] = [
+        { label: 'Chiều LONG', pass: ctx.side === 'long', value: ctx.side },
+        {
+          label: 'D1 cấu trúc tăng (HH+HL)',
+          pass: !v2 ? null : f?.d1Structure == null ? null : f.d1Structure === 'up',
+          value: f?.d1Structure ?? '—',
+        },
+        {
+          label: 'Nến H4 quét đáy & đóng lại trên (≤ 2 nến trước)',
+          pass: !v2 ? null : sw != null,
+          value: sw ? `quét ${sw.sweptLow} (râu ${sw.low}), ${sw.barsAgo === 0 ? 'nến vừa đóng' : `${sw.barsAgo} nến trước`}` : v2 ? 'không' : '—',
+        },
+        {
+          label: 'Giá vào còn trên đáy bị quét',
+          pass: sw == null || f == null ? null : f.price > sw.sweptLow,
+          value: sw && f ? `${fmt(((f.price / sw.sweptLow) - 1) * 100, 2)}%` : '—',
+        },
+      ];
+      return { grade: allPass(checks) ? 'A' : null, checks };
+    },
+  },
+  {
     key: 'hedge-short',
     version: 1,
     name: 'Short alt phòng hộ cho long đang gồng',

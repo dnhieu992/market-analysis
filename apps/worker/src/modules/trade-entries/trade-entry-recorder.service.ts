@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import {
+  ENTRY_FEATURE_SET_VERSION,
   candlesFromKlines,
   fetchEntryFeatures,
   formatEntryReasonNote,
@@ -48,7 +49,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *  - `flush` — after each sync: computes the market features + matched
  *    strategies for fresh entries and writes the "🧭 Lý do vào lệnh" note to the
  *    trade journal (delayed ~90s so the API's declared intent is merged first).
- *  - a one-off backfill on boot for trades that have no OPEN entry yet.
+ *  - a one-off backfill on boot for trades that have no OPEN entry yet, then a
+ *    re-enrich of entries whose features predate ENTRY_FEATURE_SET_VERSION (so a
+ *    newly added strategy is matched on old trades too; no new journal note).
  */
 @Injectable()
 export class TradeEntryRecorderService implements OnModuleInit {
@@ -179,6 +182,41 @@ export class TradeEntryRecorderService implements OnModuleInit {
     }
   }
 
+  /** Recompute features + matched strategies for entries stored with an older feature set. */
+  private async reenrich(btcAll: EntryCandle[]): Promise<void> {
+    let done = 0;
+    let failed = 0;
+    for (;;) {
+      const stale = await this.repo.listStaleFeatures(ENTRY_FEATURE_SET_VERSION, 50);
+      if (!stale.length) break;
+      for (const e of stale) {
+        const at = e.enteredAt;
+        const exchange = e.exchange as TradeEntryExchange;
+        const btcD1 = btcAll.filter((c) => c.closeTime <= at.getTime());
+        const features = await fetchEntryFeatures(this.fetcher, e.symbol, at, e.price, btcD1).catch(() => null);
+        if (!features) {
+          // Keep the old snapshot but stop retrying it on every boot.
+          await this.repo.update(e.id, { featureSetVersion: ENTRY_FEATURE_SET_VERSION });
+          failed++;
+          continue;
+        }
+        await this.repo.update(e.id, {
+          features,
+          featureSetVersion: features.featureSetVersion,
+          matched: matchEntryStrategies(features, {
+            symbol: e.symbol,
+            side: e.holdSide === 'short' ? 'short' : 'long',
+            opposite: await this.oppositeAt(exchange, e.symbol, e.holdSide, at),
+            size: e.size,
+          }),
+        });
+        done++;
+        await sleep(BACKFILL_PAUSE_MS);
+      }
+    }
+    if (done || failed) this.logger.log(`Trade-entry re-enrich (feature set v${ENTRY_FEATURE_SET_VERSION}) — ${done} updated, ${failed} without candles`);
+  }
+
   /** The opposite-side trade of the same coin that was open at `at` (for the hedge rule). */
   private async oppositeAt(exchange: TradeEntryExchange, symbol: string, holdSide: string, at: Date) {
     const where = {
@@ -258,6 +296,7 @@ export class TradeEntryRecorderService implements OnModuleInit {
         }
       }
       if (done) this.logger.log(`Trade-entry backfill done — ${done} entr${done === 1 ? 'y' : 'ies'}`);
+      await this.reenrich(btcAll);
     } finally {
       this.backfilling = false;
     }

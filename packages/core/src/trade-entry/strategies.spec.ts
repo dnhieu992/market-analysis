@@ -1,4 +1,4 @@
-import { computeEntryFeatures, type EntryCandle, type EntryFeatures } from './features';
+import { computeEntryFeatures, d1StructureOf, detectSweepReclaimH4, type EntryCandle, type EntryFeatures } from './features';
 import { formatEntryReasonNote } from './note';
 import { evaluateEntryStrategies, findEntryStrategy, matchEntryStrategies } from './strategies';
 
@@ -83,5 +83,64 @@ describe('entry strategies', () => {
     expect(note).toContain('🧭 **Lý do vào lệnh**');
     expect(note).toContain('hạng A');
     expect(note).toContain('Lý do: test');
+  });
+});
+
+describe('pa-sweep-reclaim', () => {
+  const c = (low: number, high: number, close: number, i: number): EntryCandle => ({ closeTime: i, low, high, close });
+
+  /** Zig-zag uptrend on D1: higher highs and higher lows. */
+  function d1Up(): EntryCandle[] {
+    const out: EntryCandle[] = [];
+    let base = 100;
+    for (let i = 0; i < 60; i++) {
+      const phase = i % 10;
+      const lvl = base + (phase < 5 ? phase : 10 - phase) * 2;
+      out.push(c(lvl - 1, lvl + 1, lvl, i));
+      if (phase === 9) base += 3;
+    }
+    return out;
+  }
+
+  /** Flat H4 with one clear swing low at index 50, then a sweep on the last candle. */
+  function h4Sweep(sweepLast: boolean): EntryCandle[] {
+    const out: EntryCandle[] = [];
+    for (let i = 0; i < 60; i++) {
+      let low = 99;
+      if (i === 50) low = 95;
+      if (i === 49 || i === 51) low = 97;
+      out.push(c(low, 102, 100, i));
+    }
+    if (sweepLast) out[59] = c(94, 101, 96, 59);
+    return out;
+  }
+
+  it('finds D1 HH+HL and the first sweep & reclaim of the latest H4 swing low', () => {
+    expect(d1StructureOf(d1Up())).toBe('up');
+    expect(detectSweepReclaimH4(h4Sweep(true))).toEqual({ barsAgo: 0, sweptLow: 95, low: 94, close: 96 });
+    expect(detectSweepReclaimH4(h4Sweep(false))).toBeNull();
+    // A close below the swept low is not a reclaim.
+    const h = h4Sweep(true);
+    h[59] = c(94, 101, 94.5, 59);
+    expect(detectSweepReclaimH4(h)).toBeNull();
+  });
+
+  it('matches only with v2 features, D1 up, a sweep and price above the swept low', () => {
+    const grade = (f: EntryFeatures, side: 'long' | 'short' = 'long') =>
+      matchEntryStrategies(f, { symbol: 'SOLUSDT', side }).find((m) => m.key === 'pa-sweep-reclaim')?.grade;
+    const sweep = { barsAgo: 0, sweptLow: 95, low: 94, close: 96 };
+    expect(grade(features({ price: 96, d1Structure: 'up', paSweepH4: sweep }))).toBe('A');
+    expect(grade(features({ price: 96, d1Structure: 'mixed', paSweepH4: sweep }))).toBeUndefined();
+    expect(grade(features({ price: 96, d1Structure: 'up', paSweepH4: null }))).toBeUndefined();
+    expect(grade(features({ price: 94.8, d1Structure: 'up', paSweepH4: sweep }))).toBeUndefined();
+    expect(grade(features({ price: 96, d1Structure: 'up', paSweepH4: sweep }), 'short')).toBeUndefined();
+    expect(grade(features({}))).toBeUndefined(); // v1 snapshot without the PA fields
+  });
+
+  it('computeEntryFeatures fills the PA fields', () => {
+    const f = computeEntryFeatures({ at: new Date(0), price: 96, d1: d1Up(), h4: h4Sweep(true), h1: [] });
+    expect(f.featureSetVersion).toBe(2);
+    expect(f.d1Structure).toBe('up');
+    expect(f.paSweepH4?.sweptLow).toBe(95);
   });
 });

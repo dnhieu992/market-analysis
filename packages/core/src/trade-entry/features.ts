@@ -10,7 +10,7 @@ import { calculateRsi } from '../indicators/rsi';
 export const APP_QQE_PARAMS = { rsiPeriod: 10, smoothing: 4, qqeFactor: 3.2 } as const;
 
 /** Bump when the feature definitions change, so old/new snapshots are not mixed blindly. */
-export const ENTRY_FEATURE_SET_VERSION = 1;
+export const ENTRY_FEATURE_SET_VERSION = 2;
 
 /** One CLOSED candle. */
 export type EntryCandle = { closeTime: number; high: number; low: number; close: number };
@@ -54,7 +54,86 @@ export type EntryFeatures = {
   /** Position inside the last-20-day range: 0 = low, 1 = high. */
   range20dPos: number | null;
   btc: { distEma89D1Pct: number | null; chg7dPct: number | null; qqeD1: QqeState | null } | null;
+  /** D1 swing structure from the last two confirmed pivot highs/lows (k=3): up = HH+HL, down = LH+LL. (v2) */
+  d1Structure?: D1Structure | null;
+  /** H4 sweep & reclaim of the latest swing low on one of the last 2 closed H4 candles (v2). */
+  paSweepH4?: SweepReclaim | null;
 };
+
+export type D1Structure = 'up' | 'down' | 'mixed';
+export type SweepReclaim = {
+  /** 0 = the last closed H4 candle, 1 = the one before. */
+  barsAgo: number;
+  /** The swing low that was swept. */
+  sweptLow: number;
+  /** Low / close of the sweep candle. */
+  low: number;
+  close: number;
+};
+
+/**
+ * Pivot lows/highs with `k` candles each side (strictly below/above the left side,
+ * ties allowed on the right) — the same definition the PA backtests use. A pivot
+ * at i only exists once candle i+k has closed.
+ */
+function pivots(c: EntryCandle[], k: number): { highs: number[]; lows: number[] } {
+  const highs: number[] = [];
+  const lows: number[] = [];
+  for (let i = k; i < c.length - k; i++) {
+    let isH = true;
+    let isL = true;
+    for (let j = i - k; j <= i + k && (isH || isL); j++) {
+      if (j === i) continue;
+      const hj = c[j]!.high;
+      const lj = c[j]!.low;
+      if (j < i ? hj >= c[i]!.high : hj > c[i]!.high) isH = false;
+      if (j < i ? lj <= c[i]!.low : lj < c[i]!.low) isL = false;
+    }
+    if (isH) highs.push(i);
+    if (isL) lows.push(i);
+  }
+  return { highs, lows };
+}
+
+/** D1 structure as of the last closed D1 candle. */
+export function d1StructureOf(d1: EntryCandle[], k = 3): D1Structure | null {
+  if (d1.length < 2 * k + 4) return null;
+  const { highs, lows } = pivots(d1, k);
+  const H = highs.slice(-2);
+  const L = lows.slice(-2);
+  if (H.length < 2 || L.length < 2) return null;
+  const hh = d1[H[1]!]!.high > d1[H[0]!]!.high;
+  const hl = d1[L[1]!]!.low > d1[L[0]!]!.low;
+  return hh && hl ? 'up' : !hh && !hl ? 'down' : 'mixed';
+}
+
+/**
+ * H4 "sweep & reclaim" (spring): a candle trades below the latest confirmed swing
+ * low (pivot k=3, ≤ 90 candles old) and closes back above it, and it is the FIRST
+ * candle to break that low. Checked on the last `maxBarsAgo + 1` closed candles.
+ */
+export function detectSweepReclaimH4(h4: EntryCandle[], maxBarsAgo = 1, k = 3, lookback = 90): SweepReclaim | null {
+  const n = h4.length;
+  if (n < 40) return null;
+  const { lows } = pivots(h4, k);
+  for (let m = n - 1; m >= Math.max(40, n - 1 - maxBarsAgo); m--) {
+    let p = -1;
+    for (let i = lows.length - 1; i >= 0; i--) {
+      if (lows[i]! + k <= m) {
+        p = lows[i]!;
+        break;
+      }
+    }
+    if (p < 0 || m - p > lookback) continue;
+    const level = h4[p]!.low;
+    const bar = h4[m]!;
+    if (!(bar.low < level && bar.close > level)) continue;
+    let first = true;
+    for (let j = p + k; j < m; j++) if (h4[j]!.low < level) first = false;
+    if (first) return { barsAgo: n - 1 - m, sweptLow: level, low: bar.low, close: bar.close };
+  }
+  return null;
+}
 
 const r2 = (n: number | null): number | null => (n == null || !Number.isFinite(n) ? null : Math.round(n * 100) / 100);
 const pct = (a: number, b: number | null | undefined): number | null => (b && b > 0 ? (a / b - 1) * 100 : null);
@@ -134,6 +213,8 @@ export function computeEntryFeatures(input: {
     chg30dPct: r2(pct(price, back(d, 29))),
     range20dPos: Number.isFinite(lo20) && hi20 > lo20 ? r2((price - lo20) / (hi20 - lo20)) : null,
     btc,
+    d1Structure: d1StructureOf(input.d1),
+    paSweepH4: detectSweepReclaimH4(input.h4),
   };
 }
 

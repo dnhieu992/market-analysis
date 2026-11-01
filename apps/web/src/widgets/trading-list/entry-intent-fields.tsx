@@ -10,6 +10,7 @@ import styles from './trading-list.module.css';
 const GRADES: Record<string, string[]> = {
   'qqe-pullback-swing': ['A', 'B'],
   'qqe-rsi1h-scalp': ['strong', 'normal'],
+  'pa-sweep-reclaim': ['A'],
   'hedge-short': ['hedge'],
 };
 const DISCRETIONARY = 'discretionary';

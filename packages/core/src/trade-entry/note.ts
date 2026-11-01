@@ -21,6 +21,9 @@ export function formatEntryFeaturesLine(f: EntryFeatures | null | undefined): st
     `RSI H4 ${f1(f.rsiH4)} · 1h ${f1(f.rsi1h)} · D1 ${f1(f.rsiD1)}`,
     `EMA89 D1 ${signed(f.distEma89D1Pct)} · EMA34 D1 ${signed(f.distEma34D1Pct)}`,
     `24h ${signed(f.chg24hPct)} · 7d ${signed(f.chg7dPct)}`,
+    f.d1Structure !== undefined
+      ? `D1 ${f.d1Structure === 'up' ? 'HH+HL' : f.d1Structure === 'down' ? 'LH+LL' : f.d1Structure === 'mixed' ? 'đi ngang' : '—'}${f.paSweepH4 ? ` · quét đáy H4 ${f.paSweepH4.sweptLow}` : ''}`
+      : '',
     f.btc ? `BTC 7d ${signed(f.btc.chg7dPct)}, QQE D1 ${f.btc.qqeD1 ?? '—'}` : '',
   ]
     .filter(Boolean)
