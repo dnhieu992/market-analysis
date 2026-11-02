@@ -54,18 +54,27 @@ function toPrice(raw: string | null | undefined): number | null {
 }
 
 /**
+ * Plan types that close a position at a take-profit / stop-loss. `pos_*` is the
+ * position-level trigger (`place-pos-tpsl`, what `setTpsl` places); `*_plan` is
+ * the one Bitget creates from `presetStopSurplusPrice` on an entry order (AI card
+ * / Setup limit with TP). Both fire on their own, so both count as "the" TP/SL —
+ * the position-level type is listed first.
+ */
+const TP_PLAN_TYPES = ['pos_profit', 'profit_plan'];
+const SL_PLAN_TYPES = ['pos_loss', 'loss_plan'];
+
+/**
  * Index pending TP/SL plan orders by `symbol|holdSide` → the live take-profit
- * (`pos_profit`) and stop-loss (`pos_loss`) trigger prices. When a side has more
- * than one of a type, the newest (largest cTime) wins — matching what `setTpsl`'s
- * cleanup keeps live.
+ * and stop-loss trigger prices (either plan type above). When a side has more
+ * than one, the newest (largest cTime) wins — after `setTpsl` there is only one.
  */
 function buildTpslMap(orders: BitgetPlanOrder[]): Map<string, { tp: number | null; sl: number | null }> {
   const newest = new Map<string, { tp: BitgetPlanOrder | null; sl: BitgetPlanOrder | null }>();
   for (const o of orders) {
     const key = `${o.symbol}|${o.posSide}`;
     const entry = newest.get(key) ?? { tp: null, sl: null };
-    if (o.planType === 'pos_profit' && (!entry.tp || Number(o.cTime) > Number(entry.tp.cTime))) entry.tp = o;
-    else if (o.planType === 'pos_loss' && (!entry.sl || Number(o.cTime) > Number(entry.sl.cTime))) entry.sl = o;
+    if (TP_PLAN_TYPES.includes(o.planType) && (!entry.tp || Number(o.cTime) > Number(entry.tp.cTime))) entry.tp = o;
+    else if (SL_PLAN_TYPES.includes(o.planType) && (!entry.sl || Number(o.cTime) > Number(entry.sl.cTime))) entry.sl = o;
     newest.set(key, entry);
   }
   const result = new Map<string, { tp: number | null; sl: number | null }>();
@@ -819,10 +828,9 @@ export class BitgetService {
         });
       }
 
-      // Cleanup: keep only the newest position TP and SL for this side, and drop
-      // the ones the trader just cleared. Non-fatal — a leftover duplicate is
-      // worth a warning, not a failed request after the trigger is already live.
-      await this.cleanupTpslOrders(symbol, holdSide, { keepTp: tp != null, keepSl: sl != null });
+      // The value just set replaces EVERY older TP/SL on this side — including the
+      // one preset on the entry order (AI card / limit with TP).
+      const leftover = await this.cleanupTpslOrders(symbol, holdSide, { keepTp: tp != null, keepSl: sl != null });
 
       this.logger.log(
         `Set Bitget TP/SL for ${holdSide} ${symbol}: TP ${tp ?? 'none'} (was ${prevTp ?? 'none'}), ` +
@@ -833,7 +841,17 @@ export class BitgetService {
         `- Take Profit: ${tp != null ? fmtNum(tp) : 'đã xoá'}${prevTp != null ? ` (trước: ${fmtNum(prevTp)})` : ''}`,
         `- Stop Loss: ${sl != null ? fmtNum(sl) : 'đã xoá'}${prevSl != null ? ` (trước: ${fmtNum(prevSl)})` : ''}`,
         `- Giá hiện tại: ${fmtNum(markPrice)} · kích hoạt theo Mark Price, đóng toàn bộ vị thế`,
+        ...(leftover.length ? [`- ⚠️ CHƯA huỷ được lệnh cũ: ${leftover.join(', ')} — vẫn có thể đóng vị thế, kiểm tra trên app Bitget`] : []),
       ].join('\n'), { entryPrice: Number(position.openPriceAvg), markPrice });
+
+      // The new trigger is live, but an old one still is too and may fire first —
+      // the trader must see that, not a silent success.
+      if (leftover.length) {
+        throw new ServiceUnavailableException(
+          `Đã đặt TP/SL mới nhưng CHƯA huỷ được lệnh cũ trên Bitget (${leftover.join(', ')}). ` +
+            'Lệnh cũ vẫn có thể đóng vị thế — hãy huỷ tay trong app Bitget.',
+        );
+      }
 
       return { ok: true, symbol, holdSide, takeProfitPrice: tp, stopLossPrice: sl };
     } catch (err) {
@@ -861,11 +879,11 @@ export class BitgetService {
   ): Promise<[number | null, number | null]> {
     try {
       const pending = await this.client.getPendingTpslOrders(symbol);
-      const newest = (planType: string) =>
+      const newest = (types: string[]) =>
         pending
-          .filter((o) => o.planType === planType && o.posSide === holdSide)
+          .filter((o) => types.includes(o.planType) && o.posSide === holdSide)
           .sort((a, b) => Number(b.cTime) - Number(a.cTime))[0];
-      return [toPrice(newest('pos_profit')?.triggerPrice), toPrice(newest('pos_loss')?.triggerPrice)];
+      return [toPrice(newest(TP_PLAN_TYPES)?.triggerPrice), toPrice(newest(SL_PLAN_TYPES)?.triggerPrice)];
     } catch {
       return [null, null];
     }
@@ -900,36 +918,51 @@ export class BitgetService {
   }
 
   /**
-   * Leave exactly one live position-TP and one position-SL for the side: the
-   * newest of each when it was just (re)placed, none when it was cleared. Bitget
-   * may either replace or stack a second plan order when `place-pos-tpsl` runs
-   * over an existing trigger — this makes both behaviours converge.
+   * Leave at most one live TP and one live SL for the side — the position-level
+   * trigger just placed, or none when that side was cleared. Every other TP/SL
+   * goes, whoever set it: older position triggers (Bitget may stack a second one
+   * when `place-pos-tpsl` runs over an existing trigger) AND the TP/SL preset on
+   * an entry order (`profit_plan`/`loss_plan`), which the page cannot replace and
+   * which would otherwise still close the position at the old price.
+   *
+   * Returns the TP/SL orders that could NOT be cancelled (empty = clean).
    */
   private async cleanupTpslOrders(
     symbol: string,
     holdSide: 'long' | 'short',
     keep: { keepTp: boolean; keepSl: boolean },
-  ): Promise<void> {
+  ): Promise<string[]> {
+    let pending: BitgetPlanOrder[];
     try {
-      const pending = await this.client.getPendingTpslOrders(symbol);
-      for (const planType of ['pos_profit', 'pos_loss'] as const) {
-        const keepNewest = planType === 'pos_profit' ? keep.keepTp : keep.keepSl;
-        const rows = pending
-          .filter((o) => o.planType === planType && o.posSide === holdSide)
-          .sort((a, b) => Number(b.cTime) - Number(a.cTime));
-        // Newest survives when the trigger is meant to stay; everything else goes.
-        const stale = keepNewest ? rows.slice(1) : rows;
-        for (const o of stale) {
-          await this.client.cancelPlanOrder(symbol, o.orderId, planType);
-          this.logger.log(`Cancelled stale ${planType} plan order ${o.orderId} on ${symbol} ${holdSide}`);
+      pending = await this.client.getPendingTpslOrders(symbol);
+    } catch (err) {
+      this.logger.warn(`TP/SL cleanup for ${symbol} ${holdSide}: cannot list plan orders: ${(err as Error).message}`);
+      return ['không đọc được danh sách TP/SL đang chờ'];
+    }
+
+    const leftover: string[] = [];
+    const sides = [
+      { label: 'TP', types: TP_PLAN_TYPES, keepNew: keep.keepTp },
+      { label: 'SL', types: SL_PLAN_TYPES, keepNew: keep.keepSl },
+    ];
+    for (const { label, types, keepNew } of sides) {
+      const rows = pending
+        .filter((o) => types.includes(o.planType) && o.posSide === holdSide)
+        .sort((a, b) => Number(b.cTime) - Number(a.cTime));
+      // The newest position-level trigger is the one just placed.
+      const survivor = keepNew ? rows.find((o) => o.planType === types[0]) : undefined;
+      for (const o of rows) {
+        if (o === survivor) continue;
+        try {
+          await this.client.cancelPlanOrder(symbol, o.orderId, o.planType);
+          this.logger.log(`Cancelled superseded ${o.planType} ${o.triggerPrice} (${o.orderId}) on ${symbol} ${holdSide}`);
+        } catch (err) {
+          this.logger.warn(`Failed to cancel ${o.planType} ${o.orderId} on ${symbol} ${holdSide}: ${(err as Error).message}`);
+          leftover.push(`${label} ${o.triggerPrice}`);
         }
       }
-    } catch (err) {
-      this.logger.warn(
-        `TP/SL cleanup failed for ${symbol} ${holdSide}: ${(err as Error).message}. ` +
-          'A stale plan order may still be live on the exchange.',
-      );
     }
+    return leftover;
   }
 
   /**
