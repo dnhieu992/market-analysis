@@ -264,3 +264,15 @@
   cursor: pointer;
   font-size: 0.9em;
 }
+
+/* Per-row PnL toggle (% ↔ value) — a bare button that inherits the cell look. */
+.pnlToggle {
+  all: unset;
+  display: inline-block;
+  cursor: pointer;
+  color: inherit;
+  text-align: inherit;
+  border-radius: 4px;
+}
+.pnlToggle:hover { text-decoration: underline dotted; }
+.pnlToggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

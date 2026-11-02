@@ -700,6 +700,12 @@ function PositionRow({ ex, p, showValue, closing, disabled, onClose, onJournal, 
     }
   }, [p.markPrice]);
 
+  // Per-row override of the global privacy toggle: clicking the PnL cell flips % ↔ value
+  // for this position only. Flipping the global eye resets every row back to it.
+  const [flipped, setFlipped] = useState(false);
+  useEffect(() => setFlipped(false), [showValue]);
+  const rowShowValue = showValue !== flipped;
+
   return (
     <tr>
       <td className={styles.exCol}>
@@ -732,8 +738,16 @@ function PositionRow({ ex, p, showValue, closing, disabled, onClose, onJournal, 
       <td className="bg-num" data-label="Ký quỹ">{fmtUsdPlain(p.marginUsd)}</td>
       <td className="bg-num" data-label="Giá trị">{fmtUsdPlain(p.notionalUsd)}</td>
       <td className={`bg-num bg-pnl-cell ${pnlClass(p.unrealizedPnlUsd)}`} data-label="PnL">
-        {showValue && <span className="bg-pnl-usd">{fmtUsd(p.unrealizedPnlUsd)}</span>}
-        <span className="bg-pnl-pct">{fmtPct(p.roePct)}</span>
+        <button
+          type="button"
+          className={styles.pnlToggle}
+          onClick={() => setFlipped((f) => !f)}
+          title={rowShowValue ? "Bấm để ẩn giá trị (chỉ hiện %)" : "Bấm để hiện giá trị uPnL"}
+          aria-pressed={rowShowValue}
+        >
+          {rowShowValue && <span className="bg-pnl-usd">{fmtUsd(p.unrealizedPnlUsd)}</span>}
+          <span className="bg-pnl-pct">{fmtPct(p.roePct)}</span>
+        </button>
       </td>
       <td className="bg-num" data-label="Nhật ký">
         <button type="button" className="bg-journal-btn" onClick={onJournal} title="Nhật ký theo dõi lệnh">
