@@ -29,6 +29,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 
 ## Edge Cases
 - **Chưa cấu hình key** (`MEXC_API_KEY`/`MEXC_API_SECRET` trống): `configured: false`, trang hiện hướng dẫn thêm env thay vì bảng rỗng khó hiểu. Worker sync tự bỏ qua, không log lỗi.
+- **MEXC phản hồi chậm** (endpoint private như open positions/open orders thỉnh thoảng >8s): `MexcTradeClient` dùng timeout 15s và retry 1 lần cho GET khi timeout / mất kết nối / 5xx (ký lại với `Request-Time` mới; POST không bao giờ retry để tránh đặt lệnh 2 lần). SSR chỉ chờ positions tối đa 10s (`withSsrFallback`); hết giờ/lỗi thì fallback có `unavailable: true` — UI hiện "MEXC đang phản hồi chậm… đang tự thử lại" (KHÔNG phải "Chưa cấu hình MEXC API") và client refetch ngay khi mount.
 - **MEXC chặn API trading**: sàn đóng endpoint đặt lệnh từ 2022-07-25 và mở lại 2026-03-31; ngoài ra tài khoản phải KYC mới bật được quyền "Order Placing". Nếu key thiếu quyền, lệnh mở/đóng trả 503 kèm nguyên văn mã lỗi MEXC. Phần đọc (vị thế, lịch sử, nhật ký, chart) không bị ảnh hưởng.
 - **Thêm coin không tồn tại**: `contract/detail` không có mã → 400 "MEXC không có hợp đồng futures cho X", không ghi DB. Thêm lại coin đã có = no-op (upsert), không lỗi trùng unique.
 - **Bỏ theo dõi coin không phải thêm tay**: chỉ xoá được row trong `mexc_watchlist_symbols`; coin từ danh sách hardcode hoặc từ lịch sử giao dịch vẫn hiện trong bảng và không có nút ✕.
@@ -46,6 +47,7 @@ Tách rời hoàn toàn là chủ ý: `/bitget` đang chạy live, nên một th
 - **Mốc ROE khi thiếu `unRealizedPnl`**: bỏ qua vị thế đó thay vì đoán — thà thiếu log còn hơn log sai.
 
 ## Related Files (FE / BE / Worker)
+- `apps/web/src/shared/lib/positions-fallback.ts` — `withSsrFallback`: cap SSR positions call at 10s, fall back to an `unavailable` snapshot
 **Web**
 - `apps/web/src/app/mexc/page.tsx` — route `/mexc` (re-export mỏng).
 - `apps/web/src/_pages/mexc-page/mexc-page.tsx` — Server Component, SSR 2 nguồn dữ liệu.

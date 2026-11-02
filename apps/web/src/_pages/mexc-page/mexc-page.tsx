@@ -1,9 +1,12 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
+import { withSsrFallback } from '@web/shared/lib/positions-fallback';
 import { MexcTabs, type MexcTab } from '@web/widgets/mexc/mexc-tabs';
 import type { MexcHistoryResponse, MexcPositionsResponse } from '@web/shared/api/types';
 
+/** Fetch failed or timed out — the keys may well be configured; the client refetches. */
 const EMPTY_POSITIONS: MexcPositionsResponse = {
   configured: false,
+  unavailable: true,
   positions: [],
   totalUnrealizedPnlUsd: 0,
   totalMarginUsd: 0,
@@ -37,7 +40,7 @@ async function loadData(): Promise<{
 }> {
   const client = createServerApiClient();
   const [positions, history] = await Promise.all([
-    client.fetchMexcPositions().catch(() => EMPTY_POSITIONS),
+    withSsrFallback(client.fetchMexcPositions(), EMPTY_POSITIONS),
     client.fetchMexcHistory({ limit: 200 }).catch(() => EMPTY_HISTORY),
   ]);
   return { positions, history };

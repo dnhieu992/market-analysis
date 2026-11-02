@@ -28,6 +28,13 @@ import axios, { type AxiosInstance, type Method } from 'axios';
 
 const BASE_URL = process.env.MEXC_API_BASE_URL ?? 'https://api.mexc.com';
 const MARGIN_COIN = 'USDT';
+/**
+ * MEXC's private endpoints (open positions, open orders) intermittently take
+ * >8s to answer while the public ones stay fast — 8s timed out often enough to
+ * blank the positions tables, so allow 15s plus one retry on reads.
+ */
+const REQUEST_TIMEOUT_MS = 15_000;
+const GET_ATTEMPTS = 2;
 
 /** MEXC wraps every response in `{ success, code, data }`; `code: 0` is OK. */
 /** A pre-serialized JSON body, sent (and signed) as-is — for payloads JSON.stringify would corrupt. */
@@ -163,7 +170,7 @@ export type MexcContractSpec = {
 };
 
 export class MexcTradeClient {
-  private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: 8_000 });
+  private readonly client: AxiosInstance = axios.create({ baseURL: BASE_URL, timeout: REQUEST_TIMEOUT_MS });
   private readonly apiKey = process.env.MEXC_API_KEY ?? '';
   private readonly apiSecret = process.env.MEXC_API_SECRET ?? '';
   /** Contract specs barely change — cache them for the process lifetime. */
@@ -602,22 +609,37 @@ export class MexcTradeClient {
     const requestPath = queryString ? `${path}?${queryString}` : path;
     const bodyString = body instanceof RawJson ? body.json : body !== undefined ? JSON.stringify(body) : '';
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (signed) {
-      const timestamp = Date.now().toString();
-      const target = this.apiKey + timestamp + (method === 'POST' ? bodyString : queryString);
-      headers.ApiKey = this.apiKey;
-      headers['Request-Time'] = timestamp;
-      headers.Signature = createHmac('sha256', this.apiSecret).update(target).digest('hex');
-      headers['Recv-Window'] = '30';
-    }
+    // Signed per attempt: a retry needs a fresh `Request-Time` or it can fall
+    // outside the 30s Recv-Window.
+    const send = () => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (signed) {
+        const timestamp = Date.now().toString();
+        const target = this.apiKey + timestamp + (method === 'POST' ? bodyString : queryString);
+        headers.ApiKey = this.apiKey;
+        headers['Request-Time'] = timestamp;
+        headers.Signature = createHmac('sha256', this.apiSecret).update(target).digest('hex');
+        headers['Recv-Window'] = '30';
+      }
+      return this.client.request<MexcEnvelope<T>>({
+        method,
+        url: requestPath,
+        data: method === 'POST' ? bodyString : undefined,
+        headers,
+      });
+    };
 
-    const res = await this.client.request<MexcEnvelope<T>>({
-      method,
-      url: requestPath,
-      data: method === 'POST' ? bodyString : undefined,
-      headers,
-    });
+    // Only reads are retried — re-sending a POST could place an order twice.
+    const attempts = method === 'GET' ? GET_ATTEMPTS : 1;
+    let res!: Awaited<ReturnType<typeof send>>;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        res = await send();
+        break;
+      } catch (err) {
+        if (attempt >= attempts || !isTransientError(err)) throw err;
+      }
+    }
 
     const env = res.data;
     if (env?.success === false || (env?.code != null && env.code !== 0)) {
@@ -625,6 +647,13 @@ export class MexcTradeClient {
     }
     return env.data;
   }
+}
+
+/** Timeout / dropped connection / 5xx — worth one more try. A 4xx or MEXC error code is not. */
+function isTransientError(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  if (!err.response) return true;
+  return err.response.status >= 500;
 }
 
 /** Raw open-position row as MEXC returns it (before symbol/size conversion). */

@@ -1,4 +1,5 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
+import { withSsrFallback } from '@web/shared/lib/positions-fallback';
 import { TradingListView } from '@web/widgets/trading-list/trading-list-view';
 import type {
   BitgetHistoryResponse,
@@ -7,8 +8,10 @@ import type {
   MexcPositionsResponse,
 } from '@web/shared/api/types';
 
+/** Fetch failed or timed out — the keys may well be configured; the client refetches. */
 const EMPTY_POSITIONS: BitgetPositionsResponse & MexcPositionsResponse = {
   configured: false,
+  unavailable: true,
   positions: [],
   totalUnrealizedPnlUsd: 0,
   totalMarginUsd: 0,
@@ -39,9 +42,9 @@ const EMPTY_HISTORY: BitgetHistoryResponse & MexcHistoryResponse = {
 export default async function TradingListPage() {
   const client = createServerApiClient();
   const [bitgetPositions, bitgetHistory, mexcPositions, mexcHistory] = await Promise.all([
-    client.fetchBitgetPositions().catch(() => EMPTY_POSITIONS),
+    withSsrFallback(client.fetchBitgetPositions(), EMPTY_POSITIONS),
     client.fetchBitgetHistory({ limit: 'all' }).catch(() => EMPTY_HISTORY),
-    client.fetchMexcPositions().catch(() => EMPTY_POSITIONS),
+    withSsrFallback(client.fetchMexcPositions(), EMPTY_POSITIONS),
     // The MEXC endpoint caps a page at 500 closed trades — plenty to list every traded coin.
     client.fetchMexcHistory({ limit: 500 }).catch(() => EMPTY_HISTORY),
   ]);

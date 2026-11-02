@@ -189,8 +189,11 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
     }));
   }, []);
 
+  // SSR gave up on a slow exchange — retry now instead of waiting a full interval.
+  const ssrUnavailable = useRef(data.bitget.unavailable || data.mexc.unavailable);
   useEffect(() => {
     void refreshPending();
+    if (ssrUnavailable.current) void refresh();
     const id = setInterval(() => {
       void refresh();
       void refreshPending();
@@ -347,7 +350,8 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
 
   // Tiles: account totals of the exchanges the filter keeps (coin filter does not narrow them).
   const configuredExchanges = shownExchanges.filter((ex) => data[ex].configured);
-  const missingExchanges = shownExchanges.filter((ex) => !data[ex].configured);
+  const missingExchanges = shownExchanges.filter((ex) => !data[ex].configured && !data[ex].unavailable);
+  const unavailableExchanges = shownExchanges.filter((ex) => !data[ex].configured && data[ex].unavailable);
   const totalUnrealizedPnlUsd = rows.reduce((sum, r) => sum + r.p.unrealizedPnlUsd, 0);
   const totalMarginUsd = rows.reduce((sum, r) => sum + r.p.marginUsd, 0);
   // Equity only adds up when every kept exchange reported it.
@@ -435,6 +439,16 @@ export function TradingListPositions({ bitgetPositions, mexcPositions, filter, o
           {missingExchanges.map((ex) => (
             <div key={ex} className="bg-alert">
               <ExTag ex={ex} /> Chưa cấu hình {EXCHANGE_LABEL[ex]} API — không xem được vị thế của sàn này.
+            </div>
+          ))}
+        </div>
+      )}
+
+      {unavailableExchanges.length > 0 && (
+        <div className={styles.alertList}>
+          {unavailableExchanges.map((ex) => (
+            <div key={ex} className="bg-alert">
+              <ExTag ex={ex} /> {EXCHANGE_LABEL[ex]} đang phản hồi chậm — chưa tải được vị thế, đang tự thử lại…
             </div>
           ))}
         </div>

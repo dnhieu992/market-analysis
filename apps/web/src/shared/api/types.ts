@@ -612,6 +612,12 @@ export type BitgetPositionsResponse = {
   /** Equity vs initial capital, in % (+/-). Null when equity is unavailable. */
   equityChangePct: number | null;
   fetchedAt: string;
+  /**
+   * Web-only: set by the SSR fallback when the exchange call FAILED (timeout,
+   * 5xx). Distinct from `configured: false` — the keys exist, the exchange was
+   * just slow — so the UI must not say "API not configured".
+   */
+  unavailable?: boolean;
 };
 
 export type BitgetClosedTrade = {
@@ -871,6 +877,12 @@ export type MexcPositionsResponse = {
   /** Equity vs initial capital, in % (+/-). Null when equity is unavailable. */
   equityChangePct: number | null;
   fetchedAt: string;
+  /**
+   * Web-only: set by the SSR fallback when the exchange call FAILED (timeout,
+   * 5xx). Distinct from `configured: false` — the keys exist, the exchange was
+   * just slow — so the UI must not say "API not configured".
+   */
+  unavailable?: boolean;
 };
 
 export type MexcClosedTrade = {

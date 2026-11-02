@@ -536,7 +536,8 @@ export function MexcSetupFeed({
     [],
   );
 
-  const configured = history.configured || positions.configured;
+  // `unavailable` = positions call failed (slow MEXC), not missing keys.
+  const configured = history.configured || positions.configured || Boolean(positions.unavailable);
   const sides: HoldSide[] = ['long', 'short'];
 
   return (

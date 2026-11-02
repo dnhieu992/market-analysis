@@ -36,8 +36,10 @@ close / cancel cards on either exchange. `/bitget` and `/mexc` are unchanged and
 - MEXC does not attach a TP to a LIMIT order — the confirm dialog and the prompt say so.
 - Bitget auto-entry is shown as the AUTO badge only; it is switched on `/bitget`.
 - The strategy section of the prompt is sliced from the `/bitget` prompt, so edits there carry over.
+- **Sàn phản hồi chậm ≠ chưa cấu hình**: nếu SSR fetch positions của Bitget/MEXC lỗi hoặc quá 10s, snapshot có `unavailable: true` → hiện "<sàn> đang phản hồi chậm — chưa tải được vị thế, đang tự thử lại…" và client refetch ngay khi mount. Chỉ `configured: false` thật từ API mới hiện "Chưa cấu hình … API".
 
 ## Related Files (FE / BE / Worker)
+- `apps/web/src/shared/lib/positions-fallback.ts` — SSR timeout + `unavailable` fallback for exchange positions
 - `apps/web/src/app/trading-list/page.tsx`, `apps/web/src/_pages/trading-list-page/trading-list-page.tsx` — route + server data load
 - `apps/web/src/widgets/trading-list/trading-list-view.tsx` — tabs, per-tab exchange filter, AI button
 - `apps/web/src/widgets/trading-list/trading-list-positions.tsx` — Vị thế tab (positions + pending orders, both exchanges)

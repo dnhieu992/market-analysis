@@ -228,8 +228,11 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
     setCancelingAll(false);
   }, [pending, refreshPending]);
 
+  // SSR gave up on a slow MEXC — retry now instead of waiting a full interval.
+  const ssrUnavailable = useRef(data.unavailable);
   useEffect(() => {
     void refreshPending();
+    if (ssrUnavailable.current) void refresh();
     const id = setInterval(() => {
       void refresh();
       void refreshPending();
@@ -239,6 +242,7 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
 
   const {
     configured,
+    unavailable,
     positions: rawPositions,
     accountEquityUsd,
     initialCapitalUsd,
@@ -370,7 +374,9 @@ export function MexcPositionsFeed({ initial, embedded = false, onCount }: Props)
 
       {error && <div className="bg-alert bg-alert--error">{error}</div>}
 
-      {!configured ? (
+      {!configured && unavailable ? (
+        <div className="bg-alert">MEXC đang phản hồi chậm — chưa tải được vị thế, đang tự thử lại…</div>
+      ) : !configured ? (
         <div className="bg-alert">
           Chưa cấu hình MEXC API. Thêm <code>MEXC_API_KEY</code> và{' '}
           <code>MEXC_API_SECRET</code> vào <code>.env</code> để xem vị thế.
