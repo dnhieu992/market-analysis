@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
 
 /**
- * BTC/USDT price tile that sits next to the account tiles on /bitget and /mexc.
+ * BTC/USDT price tile that sits next to the account tiles on /trading-list.
  *
  * The price itself comes from the page's own exchange WebSocket (passed in as a
  * prop) so there is no extra socket per page. Only the 1h reference is fetched

@@ -31,6 +31,13 @@ const nextConfig = {
         destination: '/trading-analysis',
         permanent: false,
       },
+      // /bitget and /mexc were merged into /trading-list (both exchanges on one
+      // page). Old bookmarks — incl. the legacy /bitget-positions & /bitget-history.
+      ...['/bitget', '/bitget-positions', '/bitget-history', '/mexc'].map((source) => ({
+        source,
+        destination: '/trading-list',
+        permanent: false,
+      })),
     ];
   },
   async rewrites() {
