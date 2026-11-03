@@ -107,5 +107,5 @@ export {
 } from './orders/bitget-position-math';
 export type { PositionSide } from './orders/bitget-position-math';
 export * from './trade-entry';
-export { scanJunkShorts, evaluateJunkSetup, junkLadderPlan, formatJunkShortAlert, JUNK_PUMP_A, JUNK_PUMP_WATCH } from './analysis/junk-short-scan';
-export type { JunkShortScan, JunkCandidate, JunkTopGainer, JunkSetup, JunkBar, JunkLadderPlan, JunkShortScanOptions } from './analysis/junk-short-scan';
+export { scanJunkShorts, evaluateJunkSetup, junkEligibilityAt, junkLadderPlan, formatJunkShortAlert, JUNK_PUMP_A, JUNK_PUMP_WATCH } from './analysis/junk-short-scan';
+export type { JunkShortScan, JunkCandidate, JunkTopGainer, JunkSetup, JunkBar, JunkLadderPlan, JunkShortScanOptions, JunkEligibility } from './analysis/junk-short-scan';

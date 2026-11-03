@@ -58,3 +58,36 @@ Lưu ý: cùng nến chạm cả tầng lẫn TP được tính có lợi (D1), 
 - Cờ đỏ: funding ≤ −0.1%, tag Monitoring (giảm ½ size), volume pump < 2×, vốn hoá < $5M.
 - **Stop cứng bắt buộc**, khác với kiểu DCA không SL của user: ~12% lệnh pump-fade bị chạy ngược > +100% trước khi xả.
 - Size: ≤ 5% tài khoản làm margin cho cả 3 tầng, đòn bẩy ≤ 3x → lỗ tối đa ≈ 8% tài khoản/lệnh. Tối đa 3 lệnh cùng lúc.
+
+## 6. v2 (2026-11-03, cùng ngày) — xem lại điều kiện vốn hoá
+Tải thêm 69 coin lớn (tổng 350 coin). Vốn hoá **tại thời điểm tín hiệu** = cung lưu hành hiện tại × giá lúc đó
+(cung quá khứ nhỏ hơn → số này hơi cao). Script: `scripts/junk-short/b1.py`, `b2.py`, `b3.py`.
+
+**Lọc "vốn hoá hôm nay ≤ $100M" (v1) là nhìn trước tương lai:** coin hôm nay nhỏ phần lớn là coin đã giảm sau đó.
+Nó còn loại đúng những coin bị pump đẩy qua ngưỡng.
+
+Setup A (list ≥ 90 ngày, 3 tầng 0/+30/+60, TP TB −20%, stop +100%, 30d):
+| vốn hoá TRƯỚC pump | n | giữ 14d avg | 3 tầng win / PF |
+|---|---|---|---|
+| < 20M | 70 | +3.2% | 86% / 1.18 |
+| 20–50M | 79 | +17.7% | 92% / 2.46 |
+| 50–100M | 101 | +13.2% | 95% / 3.24 |
+| 100–200M | 88 | +4.8% | 89% / 1.70 |
+| 200–500M | 86 | +1.8% | 93% / 3.64 |
+| 500M–2B | 134 | −2.5% | 84% / 1.08 |
+| > 2B | 99 | −8.6% | 78% / 0.83 |
+
+% dưới ATH trước pump: < 50% → PF 0.75 (lỗ) · 50–75% 2.09 · 75–90% 2.10 · 90–97% 2.33 · > 97% 1.43.
+Volume TB 20 ngày: không cho tín hiệu rõ ràng → không dùng.
+
+| định nghĩa | n | win | PF | PF khi BTC bear | PF theo năm 21/22/23/24/25/26 |
+|---|---|---|---|---|---|
+| v1: cap hôm nay ≤ 100M | 438 | 92% | 2.39 (lạc quan) | 2.55 | 2.3/2.3/4.4/3.7/2.4/2.0 |
+| cap trước pump ≤ 100M | 250 | 92% | 2.05 | 2.65 | |
+| cap trước pump 20–500M | 354 | 92% | 2.60 | 3.81 | 0.8/3.7/4.0/2.4/3.5/2.5 |
+| **v2: 20–500M + ≥ 50% dưới ATH** | **314** | **94%** | **3.16** | **3.69** | 0.9(8 lệnh)/3.7/cao/3.1/3.9/2.5 |
+
+Setup B (BTC bear, 3 tầng 0/+15/+30, TP −10%, stop +50%): cap lúc tín hiệu < 20M PF 1.17 · 20–500M 1.74 · 500M–2B 1.35 · > 2B 1.63.
+
+→ **Định nghĩa coin rác v2 (đang chạy):** spot + perp Binance, futures ≥ 90 ngày, đo **trước pump** (3 ngày trước nến tín hiệu với A,
+chính nến tín hiệu với B): vốn hoá $20–500M **và** giá ≥ 50% dưới ATH (nến tuần + nến ngày futures).

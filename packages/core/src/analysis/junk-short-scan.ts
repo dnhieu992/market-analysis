@@ -1,8 +1,13 @@
 /**
  * "Short coin rác" scanner — shared by the API chat tool (`scan_junk_shorts`) and the
- * worker Telegram alert. Universe: coins listed on BOTH Binance spot (USDT) and Binance
- * USDT-M perpetuals, small market cap, futures listed long enough. Setups come from the
- * 2026-11-03 study (claude-backtest/runs/2026-11-03-junk-short-patterns.md):
+ * worker Telegram alert. A coin is "junk" when it is listed on BOTH Binance spot (USDT) and
+ * Binance USDT-M perpetuals, futures listed ≥ 90 days, and — measured BEFORE the pump
+ * (3 days before the signal candle; at the signal candle for setup B) —
+ *   · market cap $20M–$500M (current circulating supply × the price then), and
+ *   · price ≥ 50% below its all-time high (futures weekly + daily highs before that day).
+ * Filtering on TODAY's cap was look-ahead (coins small today are the ones that fell) and
+ * dropped coins the pump itself had lifted over the ceiling — see the v2 section of the study.
+ * Setups come from the 2026-11-03 study (claude-backtest/runs/2026-11-03-junk-short-patterns.md):
  *   A. pump fade  — 3-day close-to-close ≥ +50% on the last CLOSED D1 candle
  *   B. EMA bounce — D1 downtrend, red candle wicks into EMA20 but closes under EMA50
  * Also returns Binance's top 24h gainers, since junk coins live there.
@@ -23,7 +28,13 @@ export type JunkLadderPlan = {
 export type JunkCandidate = {
   symbol: string;
   setup: JunkSetup;
+  /** Market cap now (after any pump). */
   marketCapUsdM: number;
+  /** Market cap at the reference day (before the pump for A/WATCH, signal day for B) — what the filter uses. */
+  capBeforePumpUsdM: number;
+  /** % below the all-time high at the reference day. */
+  belowAthPct: number;
+  athPrice: number;
   monitoringTag: boolean;
   listingDays: number;
   pump3dPct: number;
@@ -49,9 +60,12 @@ export type JunkTopGainer = {
   fundingPct: number;
   spotListed: boolean;
   marketCapUsdM: number | null;
+  /** Cap 3 days ago (before today's / this pump) — what the junk filter uses. */
+  capBeforePumpUsdM: number | null;
+  belowAthPct: number | null;
   listingDays: number;
   monitoringTag: boolean;
-  /** Passes the junk-short universe (spot + perp, cap, listing age). */
+  /** Passes the junk definition measured before the pump. */
   junk: boolean;
   notJunkReason: string | null;
   /** 3-day pump if today's D1 candle closed at the current price — ≥ 50 means setup A tomorrow. */
@@ -62,16 +76,23 @@ export type JunkTopGainer = {
 
 export type JunkShortScan = {
   scannedAt: string;
-  filters: { maxMarketCapUsdM: number; minListingDays: number; signalCandle: string };
+  filters: {
+    capBeforePumpUsdM: [number, number];
+    minBelowAthPct: number;
+    minListingDays: number;
+    signalCandle: string;
+  };
   btc: { close: number; ema50D1: number; bear: boolean };
-  universe: { smallCaps: number; eligible: number; excludedTooNew: string[] };
+  universe: { scanned: number; junkToday: number; excludedTooNew: string[] };
   candidates: JunkCandidate[];
   topGainers: JunkTopGainer[];
-  topGainersSummary: { count: number; junk: number; notOnSpot: number; overCap: number; tooNew: number };
+  topGainersSummary: { count: number; junk: number; notOnSpot: number; capOutOfRange: number; nearAth: number; tooNew: number };
 };
 
 export type JunkShortScanOptions = {
+  minMarketCapUsd?: number;
   maxMarketCapUsd?: number;
+  minBelowAth?: number;
   minListingDays?: number;
   topGainers?: number;
   fapiBaseUrl?: string;
@@ -80,13 +101,52 @@ export type JunkShortScanOptions = {
 
 export const JUNK_PUMP_A = 0.5;
 export const JUNK_PUMP_WATCH = 0.3;
-export const JUNK_DEFAULT_MAX_MC = 100e6;
+export const JUNK_DEFAULT_MIN_MC = 20e6;
+export const JUNK_DEFAULT_MAX_MC = 500e6;
+export const JUNK_DEFAULT_MIN_BELOW_ATH = 0.5;
 export const JUNK_DEFAULT_MIN_LISTING_DAYS = 90;
 
 const PRODUCTS_URL = 'https://www.binance.com/bapi/asset/v2/public/asset-service/product/get-products?includeEtf=false';
 const DAY_MS = 86_400_000;
 const KLINE_LIMIT = 200; // enough history for EMA50 to settle
+const WEEKLY_LIMIT = 499; // ~9.5 years — all of Binance futures history; < 500 keeps request weight at 2
+const ATH_CACHE_MS = 24 * 3_600_000;
+/** Coins capped above max × this today are skipped without fetching: a pump that big from ≤ max never happens. */
+const PREFILTER_CAP_MULT = 4;
 const CONCURRENCY = 8;
+
+/** Weekly futures bars per symbol, cached — the all-time high barely moves day to day. */
+const weeklyCache = new Map<string, { at: number; bars: JunkBar[] }>();
+
+export type JunkEligibility = { junk: boolean; capUsd: number; belowAth: number; athPrice: number; reason: string | null };
+
+/**
+ * The junk definition at reference day `ref` (index into `closed`): cap = supply × close then,
+ * drawdown vs the highest high before that day. Pure — pinned by the spec.
+ */
+export function junkEligibilityAt(
+  closed: readonly JunkBar[],
+  weekly: readonly JunkBar[],
+  ref: number,
+  circulatingSupply: number,
+  opts: { minCap: number; maxCap: number; minBelowAth: number },
+): JunkEligibility {
+  const day = at(closed, ref);
+  let ath = 0;
+  for (const w of weekly) if (w.t + 7 * DAY_MS <= day.t && w.h > ath) ath = w.h;
+  for (let j = 0; j < ref; j++) ath = Math.max(ath, at(closed, j).h);
+  const capUsd = circulatingSupply * day.c;
+  const belowAth = ath > 0 ? 1 - day.c / ath : 0;
+  const reason =
+    capUsd < opts.minCap
+      ? `cap before pump < $${opts.minCap / 1e6}M`
+      : capUsd > opts.maxCap
+        ? `cap before pump > $${opts.maxCap / 1e6}M`
+        : belowAth < opts.minBelowAth
+          ? `only ${Math.round(belowAth * 100)}% below ATH (< ${opts.minBelowAth * 100}%)`
+          : null;
+  return { junk: reason == null, capUsd, belowAth, athPrice: ath, reason };
+}
 
 type Product = { b: string; q: string; st: string; c: string; cs: number | null; tags: string[] | null };
 type PerpSymbol = { symbol: string; baseAsset: string; quoteAsset: string; contractType: string; status: string; onboardDate: number };
@@ -177,14 +237,24 @@ async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) 
 
 export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<JunkShortScan> {
   const fapi = opts.fapiBaseUrl ?? 'https://fapi.binance.com';
-  const maxMc = opts.maxMarketCapUsd && opts.maxMarketCapUsd > 0 ? opts.maxMarketCapUsd : JUNK_DEFAULT_MAX_MC;
+  const minCap = opts.minMarketCapUsd != null && opts.minMarketCapUsd >= 0 ? opts.minMarketCapUsd : JUNK_DEFAULT_MIN_MC;
+  const maxCap = opts.maxMarketCapUsd && opts.maxMarketCapUsd > minCap ? opts.maxMarketCapUsd : JUNK_DEFAULT_MAX_MC;
+  const minBelowAth = opts.minBelowAth != null && opts.minBelowAth >= 0 && opts.minBelowAth < 1 ? opts.minBelowAth : JUNK_DEFAULT_MIN_BELOW_ATH;
   const minDays = opts.minListingDays != null && opts.minListingDays >= 0 ? opts.minListingDays : JUNK_DEFAULT_MIN_LISTING_DAYS;
   const topN = Math.min(Math.max(opts.topGainers ?? 20, 0), 50);
   const now = opts.now ?? Date.now();
+  const rule = { minCap, maxCap, minBelowAth };
 
-  const dailyBars = async (symbol: string): Promise<JunkBar[]> => {
-    const rows = await getJson<unknown[][]>(`${fapi}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${KLINE_LIMIT}`);
+  const bars = async (symbol: string, interval: '1d' | '1w', limit: number): Promise<JunkBar[]> => {
+    const rows = await getJson<unknown[][]>(`${fapi}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
     return rows.map((r) => ({ t: Number(r[0]), o: Number(r[1]), h: Number(r[2]), l: Number(r[3]), c: Number(r[4]), qv: Number(r[7]) }));
+  };
+  const weeklyBars = async (symbol: string): Promise<JunkBar[]> => {
+    const hit = weeklyCache.get(symbol);
+    if (hit && now - hit.at < ATH_CACHE_MS) return hit.bars;
+    const w = await bars(symbol, '1w', WEEKLY_LIMIT);
+    weeklyCache.set(symbol, { at: now, bars: w });
+    return w;
   };
 
   const [products, info, premium, tickers] = await Promise.all([
@@ -199,70 +269,84 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
   const t24 = new Map(tickers.map((t) => [t.symbol, t]));
 
   const perps = info.symbols.filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING');
-  const meta = (s: PerpSymbol) => {
+  const all = perps.map((s) => {
     const p = spot.get(s.baseAsset);
-    const mc = p ? (p.cs ?? 0) * Number(p.c) : null;
+    const supply = p?.cs ?? 0;
+    const mc = p ? supply * Number(p.c) : null;
     const listingDays = Math.floor((now - s.onboardDate) / DAY_MS);
-    const notJunkReason = !p
+    // Reasons decidable without candles; the cap/ATH test needs the price history below.
+    const preReason = !p
       ? 'not on Binance spot'
       : !mc
         ? 'no market-cap data'
-        : mc > maxMc
-          ? `market cap > $${maxMc / 1e6}M`
-          : listingDays < minDays
-            ? `futures listed < ${minDays} days`
+        : listingDays < minDays
+          ? `futures listed < ${minDays} days`
+          : mc > maxCap * PREFILTER_CAP_MULT
+            ? `cap > $${(maxCap * PREFILTER_CAP_MULT) / 1e6}M`
             : null;
-    return { perp: s, mc, listingDays, tags: p?.tags ?? [], notJunkReason };
-  };
-  const all = perps.map(meta);
-  const smallCaps = all.filter((u) => u.mc != null && u.mc > 0 && u.mc <= maxMc);
-  const eligible = all.filter((u) => u.notJunkReason == null);
-  const tooNew = smallCaps.filter((u) => u.listingDays < minDays);
+    return { perp: s, supply, mc, listingDays, tags: p?.tags ?? [], preReason };
+  });
+  const scanned = all.filter((u) => u.preReason == null);
+  const tooNew = all.filter((u) => u.preReason?.startsWith('futures listed') && u.mc != null && u.mc <= maxCap);
 
   // BTC regime — the single biggest filter in the study (setup A win 86% vs 67%).
-  const btcClosed = (await dailyBars('BTCUSDT')).slice(0, -1);
+  const btcClosed = (await bars('BTCUSDT', '1d', KLINE_LIMIT)).slice(0, -1);
   if (btcClosed.length < 51) throw new Error('not enough BTC history');
   const btcEma50 = at(emaSeries(btcClosed.map((b) => b.c), 50), -1);
   const btcClose = at(btcClosed, -1).c;
 
-  const evaluated = await mapLimit(eligible, CONCURRENCY, async (u) => {
-    let bars: JunkBar[];
+  const evaluated = await mapLimit(scanned, CONCURRENCY, async (u) => {
+    let daily: JunkBar[];
+    let weekly: JunkBar[];
     try {
-      bars = await dailyBars(u.perp.symbol);
+      [daily, weekly] = await Promise.all([bars(u.perp.symbol, '1d', KLINE_LIMIT), weeklyBars(u.perp.symbol)]);
     } catch {
       return null;
     }
-    const closed = bars.slice(0, -1); // the last bar is today's, still forming
+    const closed = daily.slice(0, -1); // the last bar is today's, still forming
     const ev = evaluateJunkSetup(closed);
     if (!ev) return null;
-    const today = at(bars, -1);
+    const i = closed.length - 1;
+    const today = at(daily, -1);
     const tk = t24.get(u.perp.symbol);
     const price = tk ? Number(tk.lastPrice) : today.c;
-    const pump3dIfClosedNow = closed.length >= 3 ? price / at(closed, -3).c - 1 : null;
+    const eligAt = (ref: number) => junkEligibilityAt(closed, weekly, ref, u.supply, rule);
+    const junkToday = eligAt(i);
+    // Top-gainer view: "before the pump" = 3 days before today's still-forming candle.
+    const gainerElig = eligAt(i - 2);
+    const pump3dIfClosedNow = price / at(closed, -3).c - 1;
+
     let candidate: JunkCandidate | null = null;
     if (ev.setup) {
-      const sig = at(closed, -1);
-      candidate = {
-        symbol: u.perp.symbol,
-        setup: ev.setup,
-        marketCapUsdM: sig4((u.mc ?? 0) / 1e6, 3),
-        monitoringTag: u.tags.includes('Monitoring'),
-        listingDays: u.listingDays,
-        pump3dPct: pct(ev.pump3d),
-        signalDate: new Date(sig.t).toISOString().slice(0, 10),
-        signalDayChangePct: pct(sig.c / at(closed, -2).c - 1),
-        volumeX20d: sig4(ev.volumeX20d, 3),
-        price: sig4(price, 6),
-        todayFromOpenPct: pct(price / today.o - 1),
-        pumpTop: sig4(Math.max(...closed.slice(-7).map((b) => b.h), today.h), 6),
-        ema20: sig4(ev.ema20, 6),
-        ema50: sig4(ev.ema50, 6),
-        fundingPct: sig4((funding.get(u.perp.symbol) ?? 0) * 100, 3),
-        change24hPct: tk ? Number(tk.priceChangePercent) : null,
-        plan: junkLadderPlan(ev.setup, price),
-      };
+      // A / WATCH are judged on the cap before the pump; B on the signal day itself.
+      const elig = eligAt(ev.setup === 'B_EMA_BOUNCE' ? i : i - 3);
+      if (elig.junk) {
+        const sig = at(closed, -1);
+        candidate = {
+          symbol: u.perp.symbol,
+          setup: ev.setup,
+          marketCapUsdM: sig4((u.mc ?? 0) / 1e6, 3),
+          capBeforePumpUsdM: sig4(elig.capUsd / 1e6, 3),
+          belowAthPct: pct(elig.belowAth),
+          athPrice: sig4(elig.athPrice, 6),
+          monitoringTag: u.tags.includes('Monitoring'),
+          listingDays: u.listingDays,
+          pump3dPct: pct(ev.pump3d),
+          signalDate: new Date(sig.t).toISOString().slice(0, 10),
+          signalDayChangePct: pct(sig.c / at(closed, -2).c - 1),
+          volumeX20d: sig4(ev.volumeX20d, 3),
+          price: sig4(price, 6),
+          todayFromOpenPct: pct(price / today.o - 1),
+          pumpTop: sig4(Math.max(...closed.slice(-7).map((b) => b.h), today.h), 6),
+          ema20: sig4(ev.ema20, 6),
+          ema50: sig4(ev.ema50, 6),
+          fundingPct: sig4((funding.get(u.perp.symbol) ?? 0) * 100, 3),
+          change24hPct: tk ? Number(tk.priceChangePercent) : null,
+          plan: junkLadderPlan(ev.setup, price),
+        };
+      }
     }
-    return { symbol: u.perp.symbol, candidate, pump3dIfClosedNow };
+    return { symbol: u.perp.symbol, candidate, junkToday: junkToday.junk, gainerElig, pump3dIfClosedNow };
   });
   const bySymbol = new Map(evaluated.filter((e): e is NonNullable<typeof e> => e != null).map((e) => [e.symbol, e]));
 
@@ -280,6 +364,7 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
     .map((t, idx) => {
       const u = metaBySymbol.get(t.symbol)!;
       const e = bySymbol.get(t.symbol);
+      const reason = u.preReason ?? (e ? e.gainerElig.reason : 'not enough candle history');
       return {
         rank: idx + 1,
         symbol: t.symbol,
@@ -289,27 +374,39 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
         fundingPct: sig4((funding.get(t.symbol) ?? 0) * 100, 3),
         spotListed: spot.has(u.perp.baseAsset),
         marketCapUsdM: u.mc != null ? sig4(u.mc / 1e6, 3) : null,
+        capBeforePumpUsdM: e ? sig4(e.gainerElig.capUsd / 1e6, 3) : null,
+        belowAthPct: e ? pct(e.gainerElig.belowAth) : null,
         listingDays: u.listingDays,
         monitoringTag: u.tags.includes('Monitoring'),
-        junk: u.notJunkReason == null,
-        notJunkReason: u.notJunkReason,
-        pump3dIfClosedNowPct: e?.pump3dIfClosedNow != null ? pct(e.pump3dIfClosedNow) : null,
+        junk: reason == null,
+        notJunkReason: reason,
+        pump3dIfClosedNowPct: e ? pct(e.pump3dIfClosedNow) : null,
         setup: e?.candidate?.setup ?? null,
       };
     });
 
   return {
     scannedAt: new Date(now).toISOString(),
-    filters: { maxMarketCapUsdM: maxMc / 1e6, minListingDays: minDays, signalCandle: 'last CLOSED D1 (UTC 00:00)' },
+    filters: {
+      capBeforePumpUsdM: [minCap / 1e6, maxCap / 1e6],
+      minBelowAthPct: minBelowAth * 100,
+      minListingDays: minDays,
+      signalCandle: 'last CLOSED D1 (UTC 00:00); cap & ATH measured 3 days before it for A/WATCH, on it for B',
+    },
     btc: { close: sig4(btcClose, 6), ema50D1: sig4(btcEma50, 6), bear: btcClose < btcEma50 },
-    universe: { smallCaps: smallCaps.length, eligible: eligible.length, excludedTooNew: tooNew.map((u) => u.perp.symbol) },
+    universe: {
+      scanned: bySymbol.size,
+      junkToday: [...bySymbol.values()].filter((e) => e.junkToday).length,
+      excludedTooNew: tooNew.map((u) => u.perp.symbol),
+    },
     candidates,
     topGainers,
     topGainersSummary: {
       count: topGainers.length,
       junk: topGainers.filter((g) => g.junk).length,
       notOnSpot: topGainers.filter((g) => !g.spotListed).length,
-      overCap: topGainers.filter((g) => g.notJunkReason?.startsWith('market cap')).length,
+      capOutOfRange: topGainers.filter((g) => /^cap /.test(g.notJunkReason ?? '')).length,
+      nearAth: topGainers.filter((g) => g.notJunkReason?.includes('below ATH')).length,
       tooNew: topGainers.filter((g) => g.notJunkReason?.startsWith('futures listed')).length,
     },
   };
@@ -323,16 +420,16 @@ export function formatJunkShortAlert(input: {
   setupA: readonly JunkCandidate[];
   movers: readonly JunkTopGainer[];
 }): string {
-  const lines: string[] = ['🗑️ <b>SHORT COIN RÁC</b> — Binance (vốn hoá ≤ $100M, list ≥ 90 ngày)'];
+  const lines: string[] = ['🗑️ <b>SHORT COIN RÁC</b> — Binance (vốn hoá trước pump $20–500M, giảm ≥50% từ ATH, list ≥ 90 ngày)'];
   lines.push(input.btcBear ? '🐻 BTC D1 dưới EMA50 — edge setup A mạnh (win ~86%)' : '🐂 BTC D1 trên EMA50 — edge setup A yếu hơn (win ~67%), giảm size');
   if (input.setupA.length) {
     lines.push('', '<b>Setup A · pump ≥ +50%/3D (nến D1 đã đóng)</b>');
     for (const c of input.setupA) {
-      const flags = [c.monitoringTag ? '⚠️Monitoring' : '', c.fundingPct <= -0.1 ? `⚠️funding ${c.fundingPct}%` : '', c.marketCapUsdM < 5 ? '⚠️cap<5M' : '']
+      const flags = [c.monitoringTag ? '⚠️Monitoring' : '', c.fundingPct <= -0.1 ? `⚠️funding ${c.fundingPct}%` : '']
         .filter(Boolean)
         .join(' ');
       lines.push(
-        `• <b>${c.symbol}</b> +${c.pump3dPct}% · cap ${c.marketCapUsdM}M · giá ${fmtPrice(c.price)} ${flags}`,
+        `• <b>${c.symbol}</b> +${c.pump3dPct}% · cap trước pump ${c.capBeforePumpUsdM}M · −${c.belowAthPct}% ATH · giá ${fmtPrice(c.price)} ${flags}`,
         `  3 tầng ${c.plan.entries.map(fmtPrice).join(' / ')} · stop ${fmtPrice(c.plan.hardStop)} · TP TB −20% · tối đa 30 ngày`,
       );
     }
@@ -341,7 +438,7 @@ export function formatJunkShortAlert(input: {
     lines.push('', '<b>Coin rác trong top tăng 24h (theo dõi, chưa vào)</b>');
     for (const m of input.movers) {
       const p3 = m.pump3dIfClosedNowPct != null ? ` · 3D nếu đóng giờ: +${m.pump3dIfClosedNowPct}%` : '';
-      lines.push(`• <b>${m.symbol}</b> #${m.rank} +${sig4(m.change24hPct, 3)}%/24h · cap ${m.marketCapUsdM}M${p3}`);
+      lines.push(`• <b>${m.symbol}</b> #${m.rank} +${sig4(m.change24hPct, 3)}%/24h · cap trước pump ${m.capBeforePumpUsdM}M${p3}`);
     }
   }
   lines.push('', 'Size ≤ 5% tài khoản cho cả 3 tầng, đòn bẩy ≤ x3, isolated, stop cứng bắt buộc.');
