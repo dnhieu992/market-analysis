@@ -19,6 +19,7 @@ export const TOOL_LABEL: Record<string, string> = {
   get_24h_ticker: 'Đang lấy thống kê 24h',
   propose_trade_setup: 'Đang tạo setup lệnh',
   get_tracking_coins: 'Đang đọc danh sách coin theo dõi',
+  scan_junk_shorts: 'Đang scan coin rác trên Binance',
   propose_swing_setup: 'Đang tạo setup swing',
   bitget_account: 'Đang đọc tài khoản Bitget',
   bitget_positions: 'Đang đọc vị thế đang mở',
