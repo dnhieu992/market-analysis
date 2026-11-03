@@ -6,6 +6,7 @@ import { AnalysisOrchestratorService } from '../analysis/analysis-orchestrator.s
 import { BingxHistoryService } from '../bingx-history/bingx-history.service';
 import { BitgetHistoryService } from '../bitget-history/bitget-history.service';
 import { BitgetQqeAlertService } from '../bitget-qqe-alert/bitget-qqe-alert.service';
+import { JunkShortAlertService } from '../junk-short-alert/junk-short-alert.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { OkxHistoryService } from '../okx-history/okx-history.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
@@ -21,6 +22,7 @@ export class SchedulerService {
     private readonly swingSignalService: SwingSignalService,
     private readonly bitgetHistoryService: BitgetHistoryService,
     private readonly bitgetQqeAlertService: BitgetQqeAlertService,
+    private readonly junkShortAlertService: JunkShortAlertService,
     private readonly mexcHistoryService: MexcHistoryService,
     private readonly bingxHistoryService: BingxHistoryService,
     private readonly okxHistoryService: OkxHistoryService,
@@ -187,6 +189,14 @@ export class SchedulerService {
   // as the H4 alert but on the just-closed daily candle. The 30s offset lets the
   // closed candle land on Binance first. Message is labelled "[D1]" so it is easy
   // to tell apart from the "[H4]" alert that also fires around 00:00 UTC.
+  // "Short coin rác" alert — every 15 min, 45s past (so the 00:00 UTC D1 candle has closed on
+  // Binance by the first tick of the day). Sends only what is new: setup A on the just-closed
+  // D1 and junk coins in Binance's top 24h gainers >= +25%; deduped per coin per day.
+  @Cron('45 */15 * * * *', { timeZone: 'UTC' })
+  async runJunkShortAlert() {
+    await this.junkShortAlertService.checkAndAlert();
+  }
+
   @Cron('30 0 0 * * *', { timeZone: 'UTC' })
   async runBitgetQqeD1Alert() {
     try {

@@ -3,6 +3,6 @@ export const EXAMPLE_QUESTIONS = [
   'Con nào vừa pump mạnh 3 ngày qua để short xả?',
   'BTC đang yếu, cho tôi danh sách short hồi EMA trên coin vốn hoá nhỏ',
   'Lên kế hoạch short chia tầng cho coin đứng đầu danh sách',
-  'Coin nào đang pump trong ngày, cần theo dõi để short ngày mai?',
+  'Top tăng Binance hôm nay có bao nhiêu coin rác? Con nào sắp thành setup short?',
   'Giải thích quy luật short coin rác bạn đang dùng'
 ];

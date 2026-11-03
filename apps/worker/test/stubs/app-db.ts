@@ -28,6 +28,9 @@ export function createTelegramMessageLogRepository() {
   return {
     async create(data: unknown) {
       return data;
+    },
+    async listTypesSince(_prefix: string, _since: Date): Promise<Array<{ messageType: string }>> {
+      return [];
     }
   };
 }
