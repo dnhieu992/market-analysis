@@ -5,11 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient, type TradeStrategyInfo } from '@web/shared/api/client';
 import type {
   BitgetAutoTrade,
-  BitgetHistoryResponse,
   BitgetPositionsResponse,
   BitgetPriceChange,
   BitgetSetupConfig,
-  MexcHistoryResponse,
   MexcPositionsResponse,
   TradingExchange,
   TradingListNote,
@@ -32,7 +30,7 @@ import { EMPTY_ENTRY_INTENT, EntryIntentFields, entryIntentOf, type EntryIntentD
 import { ExchangeConfigDialog, type ExchangeConfigInput } from './exchange-config-dialog';
 import { MarketOrderDialog } from './market-order-dialog';
 import { ExchangeFilterBar } from './exchange-filter';
-import { EXCHANGES, EXCHANGE_LABEL, EXCHANGE_SHORT, exchangesOf, type ExchangeFilter } from './exchanges';
+import { EXCHANGES, EXCHANGE_LABEL, EXCHANGE_SHORT, exchangesOf, exchangesOfCoin, type ExchangeFilter } from './exchanges';
 
 import styles from './trading-list.module.css';
 
@@ -44,44 +42,6 @@ const CHANGE_REFRESH_MS = 5 * 60_000;
 
 type SortCol = 'priority' | 'today' | 'h4' | 'd7' | 'd30';
 const DEFAULT_SORT: { col: SortCol; dir: 'desc' | 'asc' } = { col: 'priority', dir: 'desc' };
-
-// Same pins + built-in watchlist as the /bitget and /mexc Setup tabs.
-const PINNED_SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
-const WATCHLIST_SYMBOLS = [
-  'SOLUSDT',
-  'XRPUSDT',
-  'SHIBUSDT',
-  'PEPEUSDT',
-  'WLDUSDT',
-  'BCHUSDT',
-  'AVAXUSDT',
-  'AAVEUSDT',
-  'FILUSDT',
-  'ONDOUSDT',
-  'TIAUSDT',
-  'OPUSDT',
-  'ETCUSDT',
-  'ASTERUSDT',
-  'TAOUSDT',
-  'LTCUSDT',
-];
-
-/**
- * The coins /trading-list shows: pins, the built-in watchlist, the coins added
- * by hand, then every coin ever traded on either exchange (newest close first).
- */
-export function tradingListSymbols(
-  trades: Array<{ symbol: string; closedAt: string }>,
-  extra: string[] = [],
-): string[] {
-  const lastClose = new Map<string, number>();
-  for (const t of trades) {
-    const ts = new Date(t.closedAt).getTime();
-    if (ts > (lastClose.get(t.symbol) ?? 0)) lastClose.set(t.symbol, ts);
-  }
-  const traded = [...lastClose.keys()].sort((a, b) => (lastClose.get(b) ?? 0) - (lastClose.get(a) ?? 0));
-  return [...new Set([...PINNED_SYMBOLS, ...WATCHLIST_SYMBOLS, ...extra, ...traded])];
-}
 
 type HoldSide = 'long' | 'short';
 type SideConfig = { leverage: number; marginUsd: number };
@@ -121,10 +81,10 @@ function chgClass(ratio: number | null | undefined): string {
 }
 
 type Props = {
-  bitgetHistory: BitgetHistoryResponse;
-  mexcHistory: MexcHistoryResponse;
   bitgetPositions: BitgetPositionsResponse;
   mexcPositions: MexcPositionsResponse;
+  /** Coin list from the server render (the DB table); null = refetched on mount. */
+  initialWatchlist?: TradingListWatchlistSymbol[] | null;
   /** Which exchange lines the LONG / SHORT cells show. */
   filter: ExchangeFilter;
   onFilterChange: (next: ExchangeFilter) => void;
@@ -139,7 +99,7 @@ type Props = {
  * Market / Limit buttons. Stars, notes and hand-added coins live in the
  * trading-list tables (not the /bitget or /mexc ones); configs are per exchange.
  */
-export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, mexcPositions, filter, onFilterChange, onCount }: Props) {
+export function TradingListFeed({ bitgetPositions, mexcPositions, initialWatchlist, filter, onFilterChange, onCount }: Props) {
   const clientRef = useRef(createApiClient());
   const [bgPositions, setBgPositions] = useState(bitgetPositions);
   const [mxPositions, setMxPositions] = useState(mexcPositions);
@@ -147,7 +107,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
   const [autoTrades, setAutoTrades] = useState<Record<string, BitgetAutoTrade>>({});
   const [priorities, setPriorities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, TradingListNote>>({});
-  const [watchlist, setWatchlist] = useState<TradingListWatchlistSymbol[]>([]);
+  const [watchlist, setWatchlist] = useState<TradingListWatchlistSymbol[]>(initialWatchlist ?? []);
   const [qqe, setQqe] = useState<QqeMap>({});
   const [priceChanges, setPriceChanges] = useState<Record<string, BitgetPriceChange>>({});
   const [error, setError] = useState<string | null>(null);
@@ -210,10 +170,11 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
     };
   }, []);
 
-  const extraSymbols = useMemo(() => watchlist.map((w) => w.symbol), [watchlist]);
-  const symbols = useMemo(
-    () => tradingListSymbols([...bitgetHistory.trades, ...mexcHistory.trades], extraSymbols),
-    [bitgetHistory.trades, mexcHistory.trades, extraSymbols],
+  // The DB table is the only source of the list — no built-in coins, no trade history.
+  const symbols = useMemo(() => watchlist.map((w) => w.symbol), [watchlist]);
+  const onlyExchangeOf = useMemo(
+    () => Object.fromEntries(watchlist.map((w) => [w.symbol, w.onlyExchange])) as Record<string, TradingExchange | null>,
+    [watchlist],
   );
   const shownExchanges = useMemo(() => exchangesOf(filter), [filter]);
 
@@ -398,6 +359,10 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
 
   const openPosition = useCallback(
     (ex: TradingExchange, symbol: string, holdSide: HoldSide) => {
+      if (!exchangesOfCoin(onlyExchangeOf[symbol]).includes(ex)) {
+        setError(`${symbol} không có hợp đồng futures trên ${EXCHANGE_LABEL[ex]}.`);
+        return;
+      }
       const cfg = configs[ex][cfgKey(symbol, holdSide)];
       if (!cfg || !(cfg.marginUsd > 0)) {
         setError(`Cấu hình ký quỹ ${symbol} ${holdSide.toUpperCase()} trên ${EXCHANGE_LABEL[ex]} trước khi mở lệnh (bấm ⚙).`);
@@ -407,7 +372,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
       setIntent(EMPTY_ENTRY_INTENT);
       setMarketTarget({ ex, symbol, holdSide, isAdd: openSides.has(actKey(ex, symbol, holdSide)), cfg });
     },
-    [configs, openSides],
+    [configs, openSides, onlyExchangeOf],
   );
 
   const confirmMarket = useCallback(async () => {
@@ -489,8 +454,8 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
             <span className="bg-live-dot" />
             {live ? 'Realtime' : 'Đang kết nối…'}
           </span>
-          <button type="button" className="bg-bulk-btn" onClick={() => setAddOpen(true)} title="Thêm coin vào danh sách (dùng chung 2 sàn)">
-            + Thêm coin
+          <button type="button" className="bg-bulk-btn" onClick={() => setAddOpen(true)} title="Thêm / xoá coin trong danh sách (dùng chung 2 sàn)">
+            + Quản lý coin
           </button>
           <button className="bg-refresh" onClick={() => void refreshPositions()}>
             ↻ Làm mới
@@ -538,6 +503,9 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                 const pc = priceChanges[bareSymbol(symbol)];
                 const note = notes[symbol];
                 const auto = autoTrades[symbol];
+                const only = onlyExchangeOf[symbol] ?? null;
+                const coinExchanges = exchangesOfCoin(only);
+                const rowExchanges = shownExchanges.filter((ex) => coinExchanges.includes(ex));
                 return (
                   <tr key={symbol}>
                     <td className="bg-symbol" data-span="2">
@@ -565,6 +533,14 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                           >
                             ⚙
                           </button>
+                          {only && (
+                            <span
+                              className={`${styles.exTag} ${styles[`ex_${only}`]}`}
+                              title={`${symbol} chỉ có hợp đồng futures trên ${EXCHANGE_LABEL[only]}`}
+                            >
+                              chỉ {EXCHANGE_SHORT[only]}
+                            </span>
+                          )}
                           {auto?.enabled && (
                             <span className="bg-auto-badge" title="Auto vào lệnh đang bật trên Bitget (chỉnh ở /bitget)">
                               AUTO
@@ -597,7 +573,10 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
                     </td>
                     {(['long', 'short'] as const).map((holdSide) => (
                       <td key={holdSide} className={`bg-side-cell ${styles.sideCell}`} data-label={holdSide === 'long' ? 'Long' : 'Short'} data-span="3">
-                        {shownExchanges.map((ex) => {
+                        {rowExchanges.length === 0 && only && (
+                          <span className="bg-side-cfg bg-side-cfg--empty">không có trên {EXCHANGE_LABEL[filter as TradingExchange]}</span>
+                        )}
+                        {rowExchanges.map((ex) => {
                           const key = actKey(ex, symbol, holdSide);
                           const cfg = configs[ex][cfgKey(symbol, holdSide)];
                           const isOpen = openSides.has(key);
@@ -664,6 +643,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
       {editing && (
         <ExchangeConfigDialog
           symbol={editing}
+          exchanges={exchangesOfCoin(onlyExchangeOf[editing])}
           configs={{
             bitget: { long: configs.bitget[cfgKey(editing, 'long')], short: configs.bitget[cfgKey(editing, 'short')] },
             mexc: { long: configs.mexc[cfgKey(editing, 'long')], short: configs.mexc[cfgKey(editing, 'short')] },
@@ -748,7 +728,7 @@ export function TradingListFeed({ bitgetHistory, mexcHistory, bitgetPositions, m
 
       {chartSymbol && <SetupChartDialog symbol={chartSymbol} tf={DEFAULT_CHART_TF} onClose={() => setChartSymbol(null)} />}
 
-      {addOpen && <AddCoinDialog tracked={watchlist} onAdd={addCoin} onRemove={removeCoin} onClose={() => setAddOpen(false)} />}
+      {addOpen && <AddCoinDialog coins={watchlist} onAdd={addCoin} onRemove={removeCoin} onClose={() => setAddOpen(false)} />}
     </div>
   );
 }

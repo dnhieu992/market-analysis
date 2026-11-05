@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { TradingListWatchlistSymbol } from '@web/shared/api/types';
+import { EXCHANGE_LABEL, EXCHANGE_SHORT } from './exchanges';
 
 /**
  * Turn whatever the trader typed into a USDT-M symbol: uppercase, strip spaces
@@ -20,17 +21,17 @@ export function normalizeSymbol(raw: string): string {
 }
 
 /**
- * "Thêm coin" dialog for /trading-list (clone of the /mexc one; the list is shared by both exchanges): type a symbol to start tracking it, and
- * remove any coin added this way. Coins that come from the built-in list or
- * from trade history are not listed here — they are not removable.
+ * "Quản lý coin" dialog for /trading-list: the DB table is the whole coin list,
+ * so every coin can be added or removed here. A coin listed on only one
+ * exchange carries a "chỉ BG" / "chỉ MX" tag (checked by the API, not editable).
  */
 export function AddCoinDialog({
-  tracked,
+  coins: tracked,
   onAdd,
   onRemove,
   onClose,
 }: {
-  tracked: TradingListWatchlistSymbol[];
+  coins: TradingListWatchlistSymbol[];
   onAdd: (symbol: string) => Promise<void>;
   onRemove: (symbol: string) => Promise<void>;
   onClose: () => void;
@@ -68,12 +69,13 @@ export function AddCoinDialog({
 
   const remove = async (s: string) => {
     if (removing) return;
+    if (!window.confirm(`Xoá ${s} khỏi danh sách /trading-list? (Sao, đánh giá và cấu hình vẫn được giữ nếu thêm lại.)`)) return;
     setRemoving(s);
     setError(null);
     try {
       await onRemove(s);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bỏ theo dõi thất bại.');
+      setError(err instanceof Error ? err.message : 'Xoá coin thất bại.');
     } finally {
       setRemoving(null);
     }
@@ -87,11 +89,11 @@ export function AddCoinDialog({
         className="bg-setup-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label="Thêm coin theo dõi"
+        aria-label="Quản lý coin"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-setup-head">
-          <h3>Thêm coin theo dõi</h3>
+          <h3>Quản lý coin</h3>
           <button type="button" className="bg-setup-x" onClick={onClose} aria-label="Đóng">
             ×
           </button>
@@ -124,7 +126,7 @@ export function AddCoinDialog({
               ) : (
                 <>
                   Sẽ thêm <strong>{symbol}</strong> — hệ thống kiểm tra mã này có hợp đồng futures trên Bitget hoặc
-                  MEXC trước khi lưu.
+                  MEXC trước khi lưu (nếu chỉ một sàn có, coin được đánh dấu &quot;chỉ BG&quot; / &quot;chỉ MX&quot;).
                 </>
               )
             ) : (
@@ -135,23 +137,26 @@ export function AddCoinDialog({
           {error && <div className="bg-alert bg-alert--error">{error}</div>}
 
           <div className="bg-wl-list">
-            <span className="bg-wl-list-label">Coin đã thêm thủ công ({tracked.length})</span>
+            <span className="bg-wl-list-label">Danh sách coin ({tracked.length})</span>
             {tracked.length === 0 ? (
-              <p className="bg-setup-note">
-                Chưa có coin nào. Danh sách mặc định và các coin đã từng giao dịch vẫn hiện trong bảng.
-              </p>
+              <p className="bg-setup-note">Chưa có coin nào.</p>
             ) : (
               <div className="bg-wl-chips">
                 {tracked.map((t) => (
-                  <span key={t.symbol} className="bg-wl-chip">
+                  <span
+                    key={t.symbol}
+                    className="bg-wl-chip"
+                    title={t.onlyExchange ? `Chỉ có trên ${EXCHANGE_LABEL[t.onlyExchange]}` : 'Có trên cả Bitget và MEXC'}
+                  >
                     {t.symbol}
+                    {t.onlyExchange && <small> · chỉ {EXCHANGE_SHORT[t.onlyExchange]}</small>}
                     <button
                       type="button"
                       className="bg-wl-chip-x"
                       onClick={() => void remove(t.symbol)}
                       disabled={removing === t.symbol}
-                      title={`Bỏ theo dõi ${t.symbol}`}
-                      aria-label={`Bỏ theo dõi ${t.symbol}`}
+                      title={`Xoá ${t.symbol} khỏi danh sách`}
+                      aria-label={`Xoá ${t.symbol}`}
                     >
                       {removing === t.symbol ? '…' : '×'}
                     </button>

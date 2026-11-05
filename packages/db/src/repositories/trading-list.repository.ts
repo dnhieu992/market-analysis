@@ -48,14 +48,23 @@ export function createTradingListRepository(client = prisma) {
       return count;
     },
 
-    /** Hand-added coins, oldest first (the order they appear in the list). */
+    /** Every coin of /trading-list, oldest first (the order they appear in the list). */
     findWatchlist() {
       return client.tradingListWatchlistSymbol.findMany({ orderBy: { createdAt: 'asc' } });
     },
 
-    /** Idempotent: re-adding a tracked coin returns the existing row. */
-    addWatchlistSymbol(symbol: string) {
-      return client.tradingListWatchlistSymbol.upsert({ where: { symbol }, create: { symbol }, update: {} });
+    /** Idempotent: re-adding a tracked coin returns the existing row (with its exchange availability refreshed when known). */
+    addWatchlistSymbol(symbol: string, availability?: { onlyExchange: string | null; exchangesCheckedAt: Date }) {
+      return client.tradingListWatchlistSymbol.upsert({
+        where: { symbol },
+        create: { symbol, ...(availability ?? {}) },
+        update: { ...(availability ?? {}) },
+      });
+    },
+
+    /** Store the result of an exchange-availability check. */
+    setWatchlistAvailability(symbol: string, onlyExchange: string | null, exchangesCheckedAt: Date) {
+      return client.tradingListWatchlistSymbol.updateMany({ where: { symbol }, data: { onlyExchange, exchangesCheckedAt } });
     },
 
     async removeWatchlistSymbol(symbol: string): Promise<number> {

@@ -37,7 +37,7 @@ export class TradingListController {
   }
 
   @Get('watchlist')
-  @ApiOperation({ summary: 'Coins added to /trading-list by hand' })
+  @ApiOperation({ summary: 'Every coin of /trading-list (single source), with the exchange it is limited to' })
   listWatchlist() {
     return this.service.listWatchlist();
   }
@@ -49,7 +49,7 @@ export class TradingListController {
   }
 
   @Delete('watchlist/:symbol')
-  @ApiOperation({ summary: 'Stop tracking a hand-added coin' })
+  @ApiOperation({ summary: 'Remove a coin from /trading-list' })
   removeWatchlistSymbol(@Param('symbol') symbol: string) {
     return this.service.removeWatchlistSymbol(symbol);
   }

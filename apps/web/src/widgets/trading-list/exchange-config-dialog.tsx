@@ -42,6 +42,8 @@ function fmtUsd(n: number): string {
 
 type Props = {
   symbol: string;
+  /** The exchanges this coin trades on — a single-exchange coin shows (and saves) only that one. */
+  exchanges?: readonly TradingExchange[];
   configs: Record<TradingExchange, Record<HoldSide, SideConfig | undefined>>;
   saving: boolean;
   error: string | null;
@@ -54,7 +56,7 @@ type Props = {
  * Bitget and MEXC. Each exchange keeps its own config (the same rows /bitget and
  * /mexc read); Bitget's auto-entry switch stays on /bitget.
  */
-export function ExchangeConfigDialog({ symbol, configs, saving, error, onSave, onClose }: Props) {
+export function ExchangeConfigDialog({ symbol, exchanges = EXCHANGES, configs, saving, error, onSave, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
   const [drafts, setDrafts] = useState<Drafts>(() => ({
     bitget: { long: draftOf(configs.bitget.long), short: draftOf(configs.bitget.short) },
@@ -73,7 +75,8 @@ export function ExchangeConfigDialog({ symbol, configs, saving, error, onSave, o
     for (const ex of EXCHANGES) out[ex] = { long: parseSide(drafts[ex].long), short: parseSide(drafts[ex].short) };
     return out;
   }, [drafts]);
-  const invalid = EXCHANGES.some((ex) => parsed[ex].long.invalid || parsed[ex].short.invalid);
+  const invalid = exchanges.some((ex) => parsed[ex].long.invalid || parsed[ex].short.invalid);
+  const shown = (ex: TradingExchange) => exchanges.includes(ex);
 
   const setDraft = (ex: TradingExchange, holdSide: HoldSide, next: SideDraft) =>
     setDrafts((prev) => ({ ...prev, [ex]: { ...prev[ex], [holdSide]: next } }));
@@ -135,7 +138,7 @@ export function ExchangeConfigDialog({ symbol, configs, saving, error, onSave, o
         </div>
 
         <div className="bg-setup-body">
-          {EXCHANGES.map((ex) => (
+          {exchanges.map((ex) => (
             <section key={ex} className={styles.cfgSection}>
               <div className={styles.cfgSectionHead}>
                 <span className={`${styles.exTag} ${styles[`ex_${ex}`]}`}>{EXCHANGE_SHORT[ex]}</span>
@@ -148,6 +151,11 @@ export function ExchangeConfigDialog({ symbol, configs, saving, error, onSave, o
             <span className="bg-tpsl-hint bg-tpsl-hint--bad">
               Hướng đã nhập ký quỹ phải có đòn bẩy 1–125 và ký quỹ &gt; 0 (xoá trống ô ký quỹ nếu chưa muốn cấu hình hướng đó).
             </span>
+          )}
+          {exchanges.length === 1 && (
+            <p className="bg-setup-note">
+              {symbol} chỉ có hợp đồng futures trên <strong>{EXCHANGE_LABEL[exchanges[0]!]}</strong>.
+            </p>
           )}
           <p className="bg-setup-note">Cấu hình này dùng chung với tab Setup của /bitget và /mexc. Auto vào lệnh (Bitget) chỉnh ở /bitget.</p>
           {error && <span className="bg-tpsl-hint bg-tpsl-hint--bad">{error}</span>}
@@ -163,8 +171,8 @@ export function ExchangeConfigDialog({ symbol, configs, saving, error, onSave, o
             disabled={invalid || saving}
             onClick={() =>
               onSave({
-                bitget: { long: parsed.bitget.long.value, short: parsed.bitget.short.value },
-                mexc: { long: parsed.mexc.long.value, short: parsed.mexc.short.value },
+                bitget: shown('bitget') ? { long: parsed.bitget.long.value, short: parsed.bitget.short.value } : { long: null, short: null },
+                mexc: shown('mexc') ? { long: parsed.mexc.long.value, short: parsed.mexc.short.value } : { long: null, short: null },
               })
             }
           >

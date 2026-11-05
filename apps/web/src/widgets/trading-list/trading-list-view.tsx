@@ -8,10 +8,11 @@ import type {
   BitgetPositionsResponse,
   MexcHistoryResponse,
   MexcPositionsResponse,
+  TradingListWatchlistSymbol,
 } from '@web/shared/api/types';
 import type { ExchangeFilter } from './exchanges';
 import { TradingListAiChat } from './trading-list-ai-chat';
-import { TradingListFeed, tradingListSymbols } from './trading-list-feed';
+import { TradingListFeed } from './trading-list-feed';
 import { TradingListHistory } from './trading-list-history';
 import { TradingListPositions } from './trading-list-positions';
 
@@ -32,6 +33,8 @@ type Props = {
   bitgetHistory: BitgetHistoryResponse;
   mexcPositions: MexcPositionsResponse;
   mexcHistory: MexcHistoryResponse;
+  /** The coin list (DB table); null when the server load failed — the Setup tab refetches. */
+  watchlist: TradingListWatchlistSymbol[] | null;
 };
 
 /**
@@ -48,7 +51,7 @@ export function TradingListView(props: Props) {
   const [counts, setCounts] = useState<Record<Tab, number>>(() => ({
     positions: props.bitgetPositions.positions.length + props.mexcPositions.positions.length,
     history: props.bitgetHistory.trades.length + props.mexcHistory.trades.length,
-    setup: tradingListSymbols([...props.bitgetHistory.trades, ...props.mexcHistory.trades]).length,
+    setup: props.watchlist?.length ?? 0,
   }));
 
   const onPositionsCount = useCallback(
@@ -122,10 +125,9 @@ export function TradingListView(props: Props) {
       ) : (
         <TradingListFeed
           key={reloadKey}
-          bitgetHistory={snap.bitgetHistory}
-          mexcHistory={snap.mexcHistory}
           bitgetPositions={snap.bitgetPositions}
           mexcPositions={snap.mexcPositions}
+          initialWatchlist={snap.watchlist}
           filter={filters.setup}
           onFilterChange={setFilter('setup')}
           onCount={onSetupCount}

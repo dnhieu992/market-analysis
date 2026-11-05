@@ -820,10 +820,13 @@ model TradingListNote {
   @@map("trading_list_notes")
 }
 
+// THE coin list of /trading-list (single source since 2026-11-05): every row is one coin of the Setup table.
 model TradingListWatchlistSymbol {
-  id        String   @id @default(cuid())
-  symbol    String   @unique @db.VarChar(30)
-  createdAt DateTime @default(now())
+  id                 String    @id @default(cuid())
+  symbol             String    @unique @db.VarChar(30)
+  onlyExchange       String?   @db.VarChar(10) // null = on both exchanges (or not checked yet) | bitget | mexc
+  exchangesCheckedAt DateTime? // last time the Bitget/MEXC contract lists were checked; null = check on next read
+  createdAt          DateTime  @default(now())
 
   @@map("trading_list_watchlist_symbols")
 }

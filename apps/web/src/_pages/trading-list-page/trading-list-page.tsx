@@ -41,12 +41,14 @@ const EMPTY_HISTORY: BitgetHistoryResponse & MexcHistoryResponse = {
 /** /trading-list — both exchanges' snapshots, each non-fatal on its own. */
 export default async function TradingListPage() {
   const client = createServerApiClient();
-  const [bitgetPositions, bitgetHistory, mexcPositions, mexcHistory] = await Promise.all([
+  const [bitgetPositions, bitgetHistory, mexcPositions, mexcHistory, watchlist] = await Promise.all([
     withSsrFallback(client.fetchBitgetPositions(), EMPTY_POSITIONS),
     client.fetchBitgetHistory({ limit: 'all' }).catch(() => EMPTY_HISTORY),
     withSsrFallback(client.fetchMexcPositions(), EMPTY_POSITIONS),
     // The MEXC endpoint caps a page at 500 closed trades — plenty to list every traded coin.
     client.fetchMexcHistory({ limit: 500 }).catch(() => EMPTY_HISTORY),
+    // The coin list of the Setup tab (DB table = only source); null = load failed, the client retries.
+    client.fetchTradingListWatchlist().catch(() => null),
   ]);
   return (
     <TradingListView
@@ -54,6 +56,7 @@ export default async function TradingListPage() {
       bitgetHistory={bitgetHistory}
       mexcPositions={mexcPositions}
       mexcHistory={mexcHistory}
+      watchlist={watchlist}
     />
   );
 }

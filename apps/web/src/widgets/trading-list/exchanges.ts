@@ -15,3 +15,8 @@ export type ExchangeFilter = 'all' | TradingExchange;
 export function exchangesOf(filter: ExchangeFilter): readonly TradingExchange[] {
   return filter === 'all' ? EXCHANGES : EXCHANGES.filter((ex) => ex === filter);
 }
+
+/** The exchanges a coin trades on — `onlyExchange` null means both. */
+export function exchangesOfCoin(onlyExchange: TradingExchange | null | undefined): readonly TradingExchange[] {
+  return onlyExchange ? EXCHANGES.filter((ex) => ex === onlyExchange) : EXCHANGES;
+}

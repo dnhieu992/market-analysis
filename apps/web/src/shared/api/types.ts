@@ -1770,7 +1770,10 @@ export type TradingListNote = {
 };
 
 /** A coin added to /trading-list by hand. */
+/** One coin of /trading-list (the DB table is the only source of the list). */
 export type TradingListWatchlistSymbol = {
   symbol: string;
+  /** Set when only one exchange has a USDT-M contract for the coin; null = both. */
+  onlyExchange: TradingExchange | null;
   createdAt: string;
 };
