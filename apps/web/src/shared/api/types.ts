@@ -414,6 +414,8 @@ export type ChatMessage = {
   bitgetActions?: BitgetAiAction[];
   /** Action cards proposed by the /mexc AI chat. */
   mexcActions?: MexcAiAction[];
+  /** SHORT cards proposed by the /trades OKX short AI chat. */
+  okxActions?: OkxAiAction[];
 };
 
 export type BitgetAiActionType = 'OPEN' | 'DCA' | 'SET_TP' | 'CLOSE' | 'CANCEL';
@@ -465,6 +467,62 @@ export type BitgetAiActionEdits = Pick<BitgetAiActionParams, 'orderType' | 'marg
 /** The /mexc AI chat's cards — same shape as the /bitget ones, stored in `mexc_ai_actions`. */
 export type MexcAiAction = BitgetAiAction;
 export type MexcAiActionEdits = BitgetAiActionEdits;
+
+/** The /trades OKX short AI chat's cards (always holdSide 'short'), stored in `okx_ai_actions`. */
+export type OkxAiAction = BitgetAiAction;
+export type OkxAiActionEdits = BitgetAiActionEdits;
+
+/** One live OKX SWAP position (GET /okx/account). Size is in coin; contracts is the exchange unit. */
+export type OkxPosition = {
+  symbol: string;
+  instId: string;
+  holdSide: 'long' | 'short';
+  marginMode: string;
+  leverage: number;
+  size: number;
+  contracts: number;
+  entryPrice: number;
+  markPrice: number;
+  liquidationPrice: number | null;
+  marginUsd: number;
+  notionalUsd: number;
+  unrealizedPnlUsd: number;
+  roePct: number;
+  takeProfitPrice: number | null;
+  stopLossPrice: number | null;
+  openedAt: string | null;
+  posId: string | null;
+};
+
+export type OkxAccount = {
+  configured: boolean;
+  positions: OkxPosition[];
+  equityUsd: number | null;
+  availableUsd: number | null;
+  totalMarginUsd: number;
+  totalUnrealizedPnlUsd: number;
+  posMode: 'long_short_mode' | 'net_mode' | null;
+  /** False when the OKX API key has no Trade permission. */
+  canTrade: boolean | null;
+  fetchedAt: string;
+};
+
+/** Editable analysis skill of the OKX short chat (GET /okx/ai/skill). version 0 = code default. */
+export type ShortSkillVersion = {
+  version: number;
+  content: string;
+  note: string | null;
+  author: 'USER' | 'LLM';
+  createdAt: string;
+};
+
+export type ShortSkill = {
+  version: number;
+  content: string;
+  isDefault: boolean;
+  updatedAt: string | null;
+  history: Array<Omit<ShortSkillVersion, 'content'> & { chars: number }>;
+};
 
 /** Progress of the reply being generated (GET /chat/conversations/:id/live). */
 export type LiveReply = {

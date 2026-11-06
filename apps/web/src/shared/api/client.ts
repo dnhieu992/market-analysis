@@ -106,6 +106,11 @@ import type {
   BitgetAiActionEdits,
   MexcAiAction,
   MexcAiActionEdits,
+  OkxAccount,
+  OkxAiAction,
+  OkxAiActionEdits,
+  ShortSkill,
+  ShortSkillVersion,
   TradingListNote,
   TradingListPriority,
   TradingListWatchlistSymbol,
@@ -1280,6 +1285,40 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Bỏ qua thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as BitgetAiAction;
+    },
+
+    // ═══ OKX short AI chat (/trades) ════════════════════════════
+    async fetchOkxAccount(): Promise<OkxAccount> {
+      return fetchJson<OkxAccount>(fetchImpl, `${baseUrl}/okx/account`, withDefaults({}));
+    },
+
+    /** Run an OKX short AI card on the LIVE account — only from the user's confirm click. */
+    async executeOkxAiAction(id: string, edits: OkxAiActionEdits): Promise<OkxAiAction> {
+      return mutationJson<OkxAiAction>(fetchImpl, `${baseUrl}/okx/ai/actions/${encodeURIComponent(id)}/execute`, withDefaults({
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edits),
+      }));
+    },
+
+    async dismissOkxAiAction(id: string): Promise<OkxAiAction> {
+      return mutationJson<OkxAiAction>(fetchImpl, `${baseUrl}/okx/ai/actions/${encodeURIComponent(id)}/dismiss`, withDefaults({ method: 'POST' }));
+    },
+
+    async fetchOkxShortSkill(): Promise<ShortSkill> {
+      return fetchJson<ShortSkill>(fetchImpl, `${baseUrl}/okx/ai/skill`, withDefaults({}));
+    },
+
+    async fetchOkxShortSkillVersion(version: number): Promise<ShortSkillVersion> {
+      return fetchJson<ShortSkillVersion>(fetchImpl, `${baseUrl}/okx/ai/skill/versions/${version}`, withDefaults({}));
+    },
+
+    async updateOkxShortSkill(content: string, note?: string): Promise<ShortSkillVersion> {
+      return mutationJson<ShortSkillVersion>(fetchImpl, `${baseUrl}/okx/ai/skill`, withDefaults({
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, note }),
+      }));
+    },
+
+    async restoreOkxShortSkill(version: number): Promise<ShortSkillVersion> {
+      return mutationJson<ShortSkillVersion>(fetchImpl, `${baseUrl}/okx/ai/skill/versions/${version}/restore`, withDefaults({ method: 'POST' }));
     },
 
     /** Run a /mexc AI action card on the LIVE account — only from the user's confirm click. */

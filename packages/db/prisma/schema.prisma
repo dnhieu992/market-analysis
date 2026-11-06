@@ -1281,6 +1281,50 @@ model MexcAiAction {
   @@map("mexc_ai_actions")
 }
 
+// One action card proposed by the /trades OKX short AI chat (skill `okx-short-ai`).
+// SHORT only — holdSide is always "short". Claude only proposes; nothing reaches OKX
+// until the user confirms the card. `params` = proposal, `executedParams` = what was sent.
+model OkxAiAction {
+  id             String    @id @default(cuid())
+  conversationId String    @db.Char(36)
+  messageId      String?   @db.Char(36)
+  type           String    @db.VarChar(12) // OPEN | DCA | SET_TP | CLOSE | CANCEL
+  symbol         String    @db.VarChar(30)
+  holdSide       String    @default("short") @db.VarChar(8)
+  params         Json // { orderType, price, marginUsd, leverage, takeProfitPrice, closePct, orderId }
+  reason         String?   @db.Text
+  status         String    @default("PROPOSED") @db.VarChar(10) // PROPOSED | EXECUTED | FAILED | DISMISSED
+  executedParams Json?
+  result         Json?
+  orderId        String?   @db.VarChar(64) // OKX ordId when the exchange returned one
+  error          String?   @db.Text
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([conversationId])
+  @@index([messageId])
+  @@map("okx_ai_actions")
+}
+
+// Editable analysis skill of an AI chat (first user: the /trades OKX short chat), versioned
+// append-only: the highest `version` per skillId is the active one, a rollback writes a new
+// version with the old content. Lets the trader (or the chat, on request) change the skill
+// without a deploy. Empty table → the default prompt shipped in @app/skills is used.
+model ChatSkillVersion {
+  id             String   @id @default(cuid())
+  skillId        String   @db.VarChar(50)
+  version        Int
+  content        String   @db.LongText
+  note           String?  @db.VarChar(500)
+  author         String   @default("USER") @db.VarChar(8) // USER | LLM
+  conversationId String?  @db.Char(36)
+  createdAt      DateTime @default(now())
+
+  @@unique([skillId, version])
+  @@map("chat_skill_versions")
+}
+
 // One entry event of a Bitget/MEXC trade — the initial OPEN or a DCA add — with
 // WHY it was taken (declared strategy / grade / reason / tags) and the market
 // features at that moment (computed the same way for every entry), so trades can

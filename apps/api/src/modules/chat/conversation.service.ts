@@ -2,11 +2,12 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException } fr
 import {
   createBitgetAiActionRepository,
   createMexcAiActionRepository,
+  createOkxAiActionRepository,
   createSkillTradeSetupRepository,
   createStrategyPaperTradeRepository,
   createTrackingSetupRepository
 } from '@app/db';
-import { getSkillById } from '@app/skills';
+import { getSkillById, OKX_SHORT_SYSTEM_PROMPT } from '@app/skills';
 
 import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
 import { buildTrackingContext, TRACKING_SKILL_ID } from '../tracking-trades/tracking-context';
@@ -16,6 +17,7 @@ import { isRichToolResult } from './contracts/chat-tool';
 import { BITGET_AI_SKILL_ID, BitgetAiChatService } from './tools/bitget-ai.tools';
 import { MEXC_AI_SKILL_ID, MexcAiChatService } from './tools/mexc-ai.tools';
 import { TRADING_LIST_AI_SKILL_ID, TradingListAiChatService } from './tools/trading-list-ai.tools';
+import { OKX_SHORT_AI_SKILL_ID, OkxShortAiChatService } from './tools/okx-short-ai.tools';
 
 type ConversationRepo = ReturnType<typeof import('@app/db').createConversationRepository>;
 type OrderRepo = ReturnType<typeof import('@app/db').createOrderRepository>;
@@ -64,6 +66,7 @@ export class ConversationService {
   private readonly trackingRepo = createTrackingSetupRepository();
   private readonly bitgetActionRepo = createBitgetAiActionRepository();
   private readonly mexcActionRepo = createMexcAiActionRepository();
+  private readonly okxActionRepo = createOkxAiActionRepository();
   private readonly live = new Map<string, LiveReply>();
 
   constructor(
@@ -79,7 +82,8 @@ export class ConversationService {
     private readonly toolRegistry: ChatToolRegistry,
     private readonly bitgetAi: BitgetAiChatService,
     private readonly mexcAi: MexcAiChatService,
-    private readonly tradingListAi: TradingListAiChatService
+    private readonly tradingListAi: TradingListAiChatService,
+    private readonly okxShortAi: OkxShortAiChatService
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────
@@ -96,7 +100,7 @@ export class ConversationService {
   async getConversationMessages(id: string, userId: string) {
     const conv = await this.convRepo.findById(id);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
-    const [rawMessages, setups, tracking, bitgetActions, mexcActions] = await Promise.all([
+    const [rawMessages, setups, tracking, bitgetActions, mexcActions, okxActions] = await Promise.all([
       this.convRepo.listMessages(id),
       this.setupRepo.listByConversation(id),
       this.trackingRepo.listByConversation(id),
@@ -106,7 +110,8 @@ export class ConversationService {
         : Promise.resolve([]),
       conv.skillId === MEXC_AI_SKILL_ID || conv.skillId === TRADING_LIST_AI_SKILL_ID
         ? this.mexcActionRepo.listByConversation(id)
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      conv.skillId === OKX_SHORT_AI_SKILL_ID ? this.okxActionRepo.listByConversation(id) : Promise.resolve([])
     ]);
     // Swing setups proposed in a /tracking-coins panel chat, with their current status.
     const trackingByMessage = new Map<string, unknown[]>();
@@ -122,11 +127,16 @@ export class ConversationService {
     for (const a of mexcActions) {
       if (a.messageId) mexcByMessage.set(a.messageId, [...(mexcByMessage.get(a.messageId) ?? []), a]);
     }
+    const okxByMessage = new Map<string, unknown[]>();
+    for (const a of okxActions) {
+      if (a.messageId) okxByMessage.set(a.messageId, [...(okxByMessage.get(a.messageId) ?? []), a]);
+    }
     const messages = rawMessages.map((m) => {
       const extra: Record<string, unknown> = {};
       if (trackingByMessage.has(m.id)) extra.trackingSetups = trackingByMessage.get(m.id);
       if (bitgetByMessage.has(m.id)) extra.bitgetActions = bitgetByMessage.get(m.id);
       if (mexcByMessage.has(m.id)) extra.mexcActions = mexcByMessage.get(m.id);
+      if (okxByMessage.has(m.id)) extra.okxActions = okxByMessage.get(m.id);
       return Object.keys(extra).length ? { ...m, ...extra } : m;
     });
     if (setups.length === 0) return messages;
@@ -258,7 +268,9 @@ export class ConversationService {
               ? this.mexcAi
               : skillId === TRADING_LIST_AI_SKILL_ID
                 ? this.tradingListAi
-                : null;
+                : skillId === OKX_SHORT_AI_SKILL_ID
+                  ? this.okxShortAi
+                  : null;
       const nowVn = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
       // These chats never start over on their own: keep the newest messages verbatim, digest the rest.
       const history = exchangeAi ? fullHistory.slice(-EXCHANGE_AI_RECENT_MESSAGES) : fullHistory;
@@ -266,7 +278,8 @@ export class ConversationService {
         ? `${skill!.systemPrompt}\n\n---\n\nThời gian hiện tại: ${nowVn} (GMT+7)\n\n${await buildTrackingContext(meta?.symbol)}`
         : exchangeAi
           ? [
-              skill!.systemPrompt,
+              // The OKX short chat's analysis skill is editable at runtime — it comes from buildContext, not the code default.
+              skillId === OKX_SHORT_AI_SKILL_ID ? OKX_SHORT_SYSTEM_PROMPT : skill!.systemPrompt,
               '---',
               `Thời gian hiện tại: ${nowVn} (GMT+7)`,
               await exchangeAi.buildContext(conversationId, pageContext),
@@ -294,7 +307,7 @@ export class ConversationService {
         {
           signal: live.abort.signal,
           // Reading positions + setup + charts + signals before proposing takes more rounds (two accounts: more still).
-          ...(exchangeAi ? { maxToolIterations: exchangeAi === this.tradingListAi ? 14 : 10 } : {}),
+          ...(exchangeAi ? { maxToolIterations: exchangeAi === this.tradingListAi || exchangeAi === this.okxShortAi ? 14 : 10 } : {}),
           onProgress: (ev) => {
             if (ev.type === 'tool') {
               live.phase = 'tool';
@@ -313,6 +326,7 @@ export class ConversationService {
       await this.trackingRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.bitgetActionRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.mexcActionRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
+      await this.okxActionRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       // The first answer of a coin's panel chat is its analysis — keep it on the coin's timeline.
       if (tracking && meta?.symbol && !history.some((m) => m.role === 'assistant')) {
         await this.trackingRepo.addEvent({
@@ -333,6 +347,7 @@ export class ConversationService {
           await this.trackingRepo.attachToMessage(conversationId, msg.id, startedAt);
           await this.bitgetActionRepo.attachToMessage(conversationId, msg.id, startedAt);
           await this.mexcActionRepo.attachToMessage(conversationId, msg.id, startedAt);
+          await this.okxActionRepo.attachToMessage(conversationId, msg.id, startedAt);
           await this.convRepo.touch(conversationId);
         }
         finish('stopped');

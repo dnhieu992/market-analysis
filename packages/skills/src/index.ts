@@ -13,3 +13,4 @@ export { bitgetAiSkill } from './bitget-ai';
 export { mexcAiSkill } from './mexc-ai';
 export { tradingListAiSkill } from './trading-list-ai';
 export { tradingAnalysisSkill, TRADING_ANALYSIS_PROMPT } from './trading-analysis';
+export { okxShortAiSkill, OKX_SHORT_SYSTEM_PROMPT, OKX_SHORT_DEFAULT_ANALYSIS_SKILL } from './okx-short-ai';

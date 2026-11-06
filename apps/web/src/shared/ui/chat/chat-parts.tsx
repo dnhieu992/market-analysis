@@ -39,6 +39,15 @@ export const TOOL_LABEL: Record<string, string> = {
   mexc_charts: 'Đang xem chart đã lưu',
   mexc_signals: 'Đang đọc tín hiệu QQE',
   propose_mexc_action: 'Đang tạo thẻ đề xuất',
+  okx_account: 'Đang đọc tài khoản OKX',
+  okx_positions: 'Đang đọc vị thế OKX',
+  okx_pending_orders: 'Đang đọc lệnh chờ OKX',
+  okx_trades: 'Đang đọc lệnh OKX trong /trades',
+  okx_order_notes: 'Đang đọc note của lệnh',
+  add_order_note: 'Đang lưu note vào lệnh',
+  get_short_skill: 'Đang đọc skill phân tích',
+  update_short_skill: 'Đang cập nhật skill phân tích',
+  propose_okx_short: 'Đang tạo thẻ SHORT',
 };
 
 export function fmtTime(iso: string) {

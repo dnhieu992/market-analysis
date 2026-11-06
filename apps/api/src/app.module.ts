@@ -6,6 +6,7 @@ import { AnalysisModule } from './modules/analysis/analysis.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { BitgetModule } from './modules/bitget/bitget.module';
 import { MexcModule } from './modules/mexc/mexc.module';
+import { OkxModule } from './modules/okx/okx.module';
 import { TradingListModule } from './modules/trading-list/trading-list.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -58,6 +59,7 @@ import { TrackingTradesModule } from './modules/tracking-trades/tracking-trades.
     TrackingCoinsModule,
     BitgetModule,
     MexcModule,
+    OkxModule,
     TradingListModule,
     DeepseekModule,
     JournalModule,

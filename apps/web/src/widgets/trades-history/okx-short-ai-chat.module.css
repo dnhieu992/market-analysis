@@ -1,0 +1,71 @@
+/* /trades OKX short AI chat — extras on top of the /bitget AI chat styles. */
+
+.fab { background: #b91c1c; box-shadow: 0 10px 28px rgba(185, 28, 28, 0.32); }
+
+/* Steps aside while a /trades dialog or the order journal drawer is open. */
+:global(body:has(.dialog-backdrop, .bgj-overlay)) .fab { display: none; }
+
+.headBtnOn { background: rgba(185, 28, 28, 0.1); border-color: rgba(185, 28, 28, 0.35); }
+
+.exTag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #111;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ── history ── */
+.history { padding: 10px 12px; }
+.historyEmpty { color: var(--muted); text-align: center; margin-top: 40px; }
+.historyList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.historyItem { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.historyItemOn { border-color: rgba(185, 28, 28, 0.45); }
+.historyOpen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.historyTitle { font-weight: 600; font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.historyMeta { font-size: 0.74rem; color: var(--muted); }
+.historyDel { border: none; background: none; color: var(--muted); padding: 0 10px; cursor: pointer; border-radius: 0 10px 10px 0; }
+.historyDel:hover { color: #dc2626; background: rgba(220, 38, 38, 0.06); }
+.historyDel svg { width: 15px; height: 15px; }
+
+/* ── skill dialog ── */
+.skillModal { width: min(760px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; }
+.skillText { min-height: 46vh; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; line-height: 1.5; resize: vertical; }
+.skillView { max-height: 46vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; background: var(--surface); }
+.skillViewHead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 6px; }
+.versions ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; }
+.versionBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+.versionBtn:hover { border-color: var(--border); background: var(--surface); }
+.current { font-size: 0.68rem; padding: 0 5px; border-radius: 4px; background: rgba(22, 163, 74, 0.14); color: #15803d; }
+.versionNote { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.versionTime { color: var(--muted); white-space: nowrap; }

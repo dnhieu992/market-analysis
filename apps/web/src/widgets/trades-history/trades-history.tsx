@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { TradeForm } from '@web/features/create-trade/create-trade-form';
 import { CreateMultipleTradesForm } from '@web/features/create-trade/create-multiple-trades-form';
@@ -12,6 +13,7 @@ import { TradeAnalyzeDrawer } from '@web/widgets/trade-analyze-drawer/trade-anal
 
 import { TradesTable, NotesDialog } from './trades-table';
 import { OrderJournalDrawer, type OrderJournalTarget } from './order-journal-drawer';
+import { OkxShortAiChat } from './okx-short-ai-chat';
 
 type TradesHistoryProps = Readonly<{
   orders: DashboardOrder[];
@@ -35,6 +37,7 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
   const [analyzeLivePrice, setAnalyzeLivePrice] = useState<number | undefined>(undefined);
   const [journalTarget, setJournalTarget] = useState<OrderJournalTarget | null>(null);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   function openJournal(order: DashboardOrder, livePrice?: number) {
     const closed = order.status === 'closed';
@@ -219,6 +222,8 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
         </div>
       )}
 
+      {/* OKX short AI chat (floating button + panel) */}
+      <OkxShortAiChat onActionDone={() => startTransition(() => { router.refresh(); })} />
     </main>
   );
 }
