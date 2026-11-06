@@ -94,6 +94,8 @@ export type ChatRunOptions = {
   onProgress?: (event: ChatProgressEvent) => void;
   /** Tool-call rounds allowed before giving up (default MAX_TOOL_ITERATIONS). */
   maxToolIterations?: number;
+  /** Whole-reply time limit (default QUERY_TIMEOUT_MS) — a /backtest turn runs code in the sandbox, so it needs longer. */
+  timeoutMs?: number;
 };
 
 type ToolExecutor = (name: string, input: unknown) => Promise<string | ChatToolRichResult>;
@@ -170,7 +172,7 @@ export class ClaudeChatProvider extends ChatProvider {
     }));
 
     const abortController = new AbortController();
-    const timer = setTimeout(() => abortController.abort(), QUERY_TIMEOUT_MS);
+    const timer = setTimeout(() => abortController.abort(), run.timeoutMs ?? QUERY_TIMEOUT_MS);
     const onAbort = () => abortController.abort();
     if (run.signal?.aborted) abortController.abort();
     run.signal?.addEventListener('abort', onAbort);

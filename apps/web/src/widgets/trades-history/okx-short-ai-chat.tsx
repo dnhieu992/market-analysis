@@ -24,8 +24,9 @@ const api = createApiClient();
 export const OKX_SHORT_AI_SKILL_ID = 'okx-short-ai';
 const ICON = '🐻';
 const POLL_MS = 600;
-const WATCH_TIMEOUT_MS = 8 * 60 * 1000;
-const RESUME_WINDOW_MS = 10 * 60 * 1000;
+// A "/backtest" turn runs code in the sandbox — the server allows it 12 minutes.
+const WATCH_TIMEOUT_MS = 13 * 60 * 1000;
+const RESUME_WINDOW_MS = 14 * 60 * 1000;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type Status = 'idle' | 'waiting' | 'stopping' | 'error' | 'stopped';
@@ -331,7 +332,7 @@ function AiThread({ onActionDone, onClose }: { onActionDone: () => void; onClose
       onSend={() => { void send(); }}
       onStop={() => { void stop(); }}
       busy={busy}
-      placeholder="Hỏi setup short, nhờ vào lệnh, ghi note cho lệnh, hoặc sửa skill…"
+      placeholder="Hỏi setup short, vào lệnh, ghi note, sửa skill, hoặc /backtest <chiến lược>…"
       autoFocus
       inputRef={inputRef}
     />

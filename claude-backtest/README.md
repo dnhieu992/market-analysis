@@ -69,6 +69,11 @@ Strategies: `supertrend-engulfing-mtf`, `supertrend-engulfing`.
 
 ---
 
+## Backtest from the app chat (`/backtest`)
+The 🐻 Short AI chat on `/trades` can run backtests itself: `/backtest <strategy>` → Claude writes the
+code, the API runs it in a network-less Docker sandbox and computes the stats. Those runs and their
+write-ups live in the `backtest_runs` table, not in `runs/`. See `docs/features/chat-backtest/`.
+
 ## Convention: log every run
 After ANY backtest, create `claude-backtest/runs/<YYYY-MM-DD>-<slug>.md` containing:
 - Command(s) run

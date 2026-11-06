@@ -48,6 +48,10 @@ export const TOOL_LABEL: Record<string, string> = {
   get_short_skill: 'Đang đọc skill phân tích',
   update_short_skill: 'Đang cập nhật skill phân tích',
   propose_okx_short: 'Đang tạo thẻ SHORT',
+  run_backtest: 'Đang chạy backtest (sandbox)',
+  save_backtest_report: 'Đang lưu báo cáo backtest',
+  list_backtest_runs: 'Đang đọc các backtest cũ',
+  get_backtest_run: 'Đang mở backtest cũ',
 };
 
 export function fmtTime(iso: string) {

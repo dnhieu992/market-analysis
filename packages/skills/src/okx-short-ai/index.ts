@@ -1,4 +1,5 @@
 import type { SkillDefinition } from '../types/skill';
+import { BACKTEST_TOOLS } from '../backtest';
 import { DEFAULT_ANALYSIS_SKILL, SYSTEM_PROMPT } from './system';
 
 export { DEFAULT_ANALYSIS_SKILL as OKX_SHORT_DEFAULT_ANALYSIS_SKILL } from './system';
@@ -30,6 +31,7 @@ export const okxShortAiSkill: SkillDefinition = {
     'get_24h_ticker',
     'get_scalp_chart_data',
     'scan_junk_shorts',
+    ...BACKTEST_TOOLS,
   ],
   exampleQuestions: [],
   welcomeMessage: '',

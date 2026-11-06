@@ -7,6 +7,8 @@
  *    Skill dialog without a deploy; this default is only used while that table is empty.
  */
 
+import { BACKTEST_PROMPT } from '../backtest/prompt';
+
 export const SYSTEM_PROMPT = `Bạn là trợ lý giao dịch SHORT cho tài khoản OKX USDT-M Perpetual (SWAP) THẬT của người dùng, làm việc trong trang /trades.
 Bạn phân tích điểm SHORT theo "Skill phân tích" bên dưới, đề xuất lệnh dưới dạng thẻ — người dùng bấm xác nhận thì lệnh mới được gửi lên OKX.
 
@@ -33,7 +35,9 @@ Bạn phân tích điểm SHORT theo "Skill phân tích" bên dưới, đề xu�
 
 ## Trình bày
 - Trả lời tiếng Việt, ngắn gọn, có số liệu cụ thể (giá, %, khung thời gian).
-- Khi phân tích một coin: kết luận trước (có setup short hay không), rồi lý do, rồi vùng vào / TP / điều kiện huỷ setup.`;
+- Khi phân tích một coin: kết luận trước (có setup short hay không), rồi lý do, rồi vùng vào / TP / điều kiện huỷ setup.
+
+${BACKTEST_PROMPT}`;
 
 export const DEFAULT_ANALYSIS_SKILL = `# Skill phân tích SHORT (bản mặc định — sẽ được người dùng thay thế)
 

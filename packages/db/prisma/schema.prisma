@@ -1389,3 +1389,30 @@ model TradeStrategy {
   @@unique([key, version])
   @@map("trade_strategies")
 }
+
+/// One backtest run requested from an AI chat ("/backtest …"). The chat writes the strategy as JS,
+/// the API runs it in a network-less Docker sandbox over Binance klines and computes the stats
+/// itself (fees, win rate, drawdown, MAE). `report` is the chat's write-up — the in-app twin of
+/// claude-backtest/runs/<date>-<slug>.md.
+model BacktestRun {
+  id             String    @id @default(cuid())
+  conversationId String?   @db.Char(36)
+  skillId        String?   @db.VarChar(50)
+  title          String    @db.VarChar(200)
+  status         String    @db.VarChar(8) // OK | ERROR
+  spec           Json // { symbols, intervals, days, market, feePctPerSide, capitalUsd, params, sources }
+  code           String    @db.LongText
+  stats          Json?
+  trades         Json? // compact trade list, capped
+  logs           Json? // string[] printed by the strategy via ctx.log
+  error          String?   @db.Text
+  durationMs     Int?
+  report         String?   @db.LongText
+  reportAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("backtest_runs")
+}

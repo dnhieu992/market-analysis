@@ -308,6 +308,8 @@ export class ConversationService {
           signal: live.abort.signal,
           // Reading positions + setup + charts + signals before proposing takes more rounds (two accounts: more still).
           ...(exchangeAi ? { maxToolIterations: exchangeAi === this.tradingListAi || exchangeAi === this.okxShortAi ? 14 : 10 } : {}),
+          // "/backtest" writes + runs strategy code in the sandbox (maybe twice after a fix) — give the OKX short chat longer.
+          ...(exchangeAi === this.okxShortAi ? { timeoutMs: 12 * 60_000 } : {}),
           onProgress: (ev) => {
             if (ev.type === 'tool') {
               live.phase = 'tool';

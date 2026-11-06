@@ -125,3 +125,5 @@ export type {
   TradeEntryEvent,
   TradeEntrySource,
 } from './repositories/trade-entry.repository';
+export { createBacktestRunRepository } from './repositories/backtest-run.repository';
+export type { BacktestRunInput } from './repositories/backtest-run.repository';
