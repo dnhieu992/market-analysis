@@ -456,8 +456,8 @@ model TrackingCoin {
   // portfolio's Holding + CoinTransaction rows for this symbol, so the DCA tab and the
   // portfolio page can never disagree.
   dcaPortfolioId  String?                 @db.Char(36)
-  // 0–5 star rating the trader gives the coin on /tracking-coins (Spot Analytic). 0 = none.
-  rating          Int                     @default(0)
+  // 0–5 star rating the trader gives the coin on /tracking-coins (Spot Analytic). New coins start at 3.
+  rating          Int                     @default(3)
 
   @@map("tracking_coins")
 }

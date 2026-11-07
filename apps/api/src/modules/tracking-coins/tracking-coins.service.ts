@@ -92,7 +92,7 @@ export class TrackingCoinsService {
   }
 
   async ratings(): Promise<Array<{ symbol: string; rating: number }>> {
-    return prisma.trackingCoin.findMany({ where: { rating: { gt: 0 } }, select: { symbol: true, rating: true } });
+    return prisma.trackingCoin.findMany({ select: { symbol: true, rating: true } });
   }
 
   async setRating(symbol: string, rating: number) {

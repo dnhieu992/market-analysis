@@ -12,7 +12,10 @@ import { SpotHistoryDialog } from './spot-history-dialog';
 type Props = { initialCoins: TrackingCoinRow[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
-type SortCol = 'coin' | 'rating' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
+type SortCol = 'coin' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
+
+/** Stars a coin shows before the trader rates it (DB default too). */
+const DEFAULT_RATING = 3;
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
@@ -356,7 +359,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const numericValue = useCallback(
     (symbol: string, col: SortCol): number | null => {
       const v =
-        col === 'rating' ? ratings[symbol] ?? 0 :
         col === 'mcap'   ? meta[symbol]?.marketCap :
         col === 'price'  ? prices.get(symbol) :
         col === 'chg24h' ? changes24h.get(symbol) :
@@ -365,7 +367,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                            changes[symbol]?.change90d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
-    [ratings, meta, prices, changes24h, changes],
+    [meta, prices, changes24h, changes],
   );
 
   // Name/symbol search is the only filter left (2026-07-26 — the zone / quality /
@@ -471,7 +473,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </span>
                   </button>
                 </th>
-                <SortHeader label="Đánh giá" col="rating" sort={sort} onSort={cycleSort} title="Đánh giá 0–5 sao của bạn (bấm sao để chấm, bấm lại sao hiện tại để xoá)" />
                 <SortHeader label="Giá"   col="price"  sort={sort} onSort={cycleSort} title="Giá hiện tại (Binance, cập nhật mỗi 5 giây)" />
                 <SortHeader label="24h %" col="chg24h" sort={sort} onSort={cycleSort} title="Thay đổi 24 giờ (rolling, ticker Binance)" />
                 <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
@@ -485,7 +486,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="scr-empty">
+                  <td colSpan={9} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -501,6 +502,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 return (
                   <tr key={coin.id} className="scr-row" onClick={() => setPanel(coin.symbol)} style={{ cursor: 'pointer' }} title="Mở chat phân tích mua spot">
                     <td className="scr-td scr-td--coin">
+                      <div className="bg-symbol-cell">
                       <span className="tc-coin-line">
                         <span className="scr-symbol">{coin.symbol}</span>
                         <button
@@ -512,10 +514,13 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                           <IconChart />
                         </button>
                       </span>
+                      {/* Stars under the name, like /trading-list; clicks must not open the chat panel. */}
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <StarRating value={ratings[coin.symbol] ?? DEFAULT_RATING} symbol={coin.symbol} onChange={(v) => void saveRating(coin.symbol, v, ratings[coin.symbol] ?? DEFAULT_RATING)} />
+                      </span>
+                      </div>
                     </td>
-                    <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
-                      <StarRating value={ratings[coin.symbol] ?? 0} symbol={coin.symbol} onChange={(v) => void saveRating(coin.symbol, v, ratings[coin.symbol] ?? 0)} />
-                    </td>
+
                     {/* Live price — its own column since 2026-08-11 (was stacked under the ticker). */}
                     <td className="scr-td scr-td--num tc-td--price">
                       {price != null
