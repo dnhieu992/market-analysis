@@ -52,6 +52,11 @@ export const TOOL_LABEL: Record<string, string> = {
   save_backtest_report: 'Đang lưu báo cáo backtest',
   list_backtest_runs: 'Đang đọc các backtest cũ',
   get_backtest_run: 'Đang mở backtest cũ',
+  get_short_score: 'Đang chấm điểm short',
+  get_score_criteria: 'Đang đọc bộ tiêu chí',
+  update_score_criteria: 'Đang lưu bộ tiêu chí',
+  backtest_short_score: 'Đang backtest bộ tiêu chí',
+  find_resistance_levels: 'Đang tìm kháng cự',
 };
 
 export function fmtTime(iso: string) {

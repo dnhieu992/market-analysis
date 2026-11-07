@@ -3,6 +3,8 @@ import { createOkxAiActionRepository, createOrderJournalRepository, createOrderR
 
 import { OkxService, type OkxPosition } from '../../okx/okx.service';
 import { OKX_SHORT_AI_SKILL_ID, OkxShortSkillService } from '../../okx/okx-short-skill.service';
+import { ShortScoreService } from '../../short-score/short-score.service';
+import { formatScore } from './short-score.tools';
 import type { ChatTool } from '../contracts/chat-tool';
 
 export { OKX_SHORT_AI_SKILL_ID };
@@ -77,6 +79,7 @@ export class OkxShortAiChatService {
   constructor(
     private readonly okx: OkxService,
     private readonly skill: OkxShortSkillService,
+    private readonly shortScore: ShortScoreService,
   ) {}
 
   /** Appended to the fixed prompt on every reply: the live analysis skill, account snapshot, recent cards. */
@@ -88,6 +91,11 @@ export class OkxShortAiChatService {
         'Đây là phương pháp phân tích của người dùng — ưu tiên nó hơn kiến thức chung.\n\n' +
         sk.content,
     );
+    const sc = await this.shortScore.latest().catch(() => null);
+    if (sc) {
+      const ageH = (Date.now() - new Date(sc.takenAt).getTime()) / 3_600_000;
+      parts.push(`## Điểm SHORT gần nhất (đã lưu, ${ageH.toFixed(1)} giờ trước — gọi get_short_score để chấm lại)\n${formatScore(sc)}`);
+    }
     if (pageContext) parts.push(`## Trang người dùng đang xem\n${pageContext}`);
     try {
       const r = await this.okx.getAccount();

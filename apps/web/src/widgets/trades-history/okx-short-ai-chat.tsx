@@ -10,6 +10,7 @@ import type {
   OkxAccount,
   OkxAiAction,
   OkxAiActionEdits,
+  ShortScoreOverview,
   ShortSkill,
   ShortSkillVersion,
 } from '@web/shared/api/types';
@@ -49,6 +50,7 @@ const STATUS_LABEL: Record<Action['status'], string> = {
 };
 
 const SUGGESTIONS = [
+  'Chấm điểm short BTC hôm nay rồi tìm điểm vào swing (kháng cự H4 trở lên)',
   'Các lệnh short OKX đang mở thế nào? Lệnh nào chưa có TP?',
   'Phân tích BTC theo skill: có setup short không?',
   'Ghi note cho lệnh short đang mở của ETH: ',
@@ -357,6 +359,8 @@ function AiThread({ onActionDone, onClose }: { onActionDone: () => void; onClose
         </button>
         <button type="button" className={styles.close} onClick={onClose} aria-label="Đóng">✕</button>
       </div>
+
+      {view === 'chat' && <ScoreStrip busy={busy} />}
 
       {view === 'history' ? (
         <div className={`${c.scroller} ${s.history}`}>
@@ -874,5 +878,83 @@ function SkillDialog({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Latest BTC SHORT checklist score (cron 12:05 VN, or scored from the chat). Criteria are edited by
+ * asking the chat ("thêm tiêu chí…"); this strip only shows the result and can re-score now.
+ */
+function ScoreStrip({ busy }: { busy: boolean }) {
+  const [data, setData] = useState<ShortScoreOverview | null>(null);
+  const [open, setOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api.fetchShortScore().then(setData).catch(() => setData(null));
+  }, []);
+  // initial load + after every finished reply (the chat may have re-scored or edited the criteria)
+  useEffect(() => {
+    if (!busy) load();
+  }, [busy, load]);
+
+  const rescore = async () => {
+    setRunning(true);
+    setErr(null);
+    try {
+      await api.runShortScore();
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const l = data?.latest;
+  const tone = !l ? '' : l.scorePct >= 60 ? s.scoreHigh : l.scorePct >= 40 ? s.scoreMid : s.scoreLow;
+  return (
+    <div className={s.score}>
+      <div className={s.scoreRow}>
+        <button type="button" className={s.scoreMain} onClick={() => setOpen((o) => !o)} disabled={!l} title="Xem từng tiêu chí">
+          🎯 {l ? (
+            <>
+              <span>{l.symbol.replace('USDT', '')} short</span>
+              <strong className={`${s.scorePct} ${tone}`}>{l.scorePct}%</strong>
+              <span className={s.scoreMeta}>
+                {l.hitPoints}/{l.maxPoints} điểm · {fmtDateTime(l.takenAt)} · tiêu chí v{l.criteriaVersion}
+              </span>
+              <span className={s.scoreCaret}>{open ? '▴' : '▾'}</span>
+            </>
+          ) : (
+            <span className={s.scoreMeta}>Chưa có điểm short — bấm “Chấm lại” hoặc hỏi chat</span>
+          )}
+        </button>
+        <button type="button" className={s.scoreBtn} onClick={() => { void rescore(); }} disabled={running} title="Chấm lại với dữ liệu hiện tại">
+          {running ? '…' : '↻ Chấm lại'}
+        </button>
+      </div>
+      {err && <div className={s.scoreErr}>{err}</div>}
+      {open && l && (
+        <ul className={s.scoreList}>
+          {l.criteria.map((c) => (
+            <li key={c.id} className={s.scoreItem}>
+              <span aria-hidden>{c.error ? '⚠️' : c.hit ? '✅' : '❌'}</span>
+              <span className={s.scoreLabel}>
+                {c.label} <em>+{c.points}</em>
+                <small>{c.error ? `Lỗi: ${c.error}` : c.detail}</small>
+              </span>
+            </li>
+          ))}
+          {data && data.recent.length > 1 && (
+            <li className={s.scoreRecent}>
+              Gần đây: {data.recent.slice(0, 7).map((r) => `${r.takenAt.slice(5, 10)} ${r.scorePct}%`).join(' · ')}
+            </li>
+          )}
+          <li className={s.scoreHint}>Muốn thêm / sửa tiêu chí: nhắn chat, vd “thêm tiêu chí funding &gt; 0.01% +1 điểm”.</li>
+        </ul>
+      )}
+    </div>
   );
 }

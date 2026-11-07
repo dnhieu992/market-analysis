@@ -127,3 +127,5 @@ export type {
 } from './repositories/trade-entry.repository';
 export { createBacktestRunRepository } from './repositories/backtest-run.repository';
 export type { BacktestRunInput } from './repositories/backtest-run.repository';
+export { createShortScoreSnapshotRepository } from './repositories/short-score-snapshot.repository';
+export type { ShortScoreSnapshotInput } from './repositories/short-score-snapshot.repository';

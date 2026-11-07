@@ -109,6 +109,8 @@ import type {
   OkxAccount,
   OkxAiAction,
   OkxAiActionEdits,
+  ShortScoreOverview,
+  ShortScoreView,
   ShortSkill,
   ShortSkillVersion,
   TradingListNote,
@@ -1301,6 +1303,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async dismissOkxAiAction(id: string): Promise<OkxAiAction> {
       return mutationJson<OkxAiAction>(fetchImpl, `${baseUrl}/okx/ai/actions/${encodeURIComponent(id)}/dismiss`, withDefaults({ method: 'POST' }));
+    },
+
+    async fetchShortScore(): Promise<ShortScoreOverview> {
+      return fetchJson<ShortScoreOverview>(fetchImpl, `${baseUrl}/okx/ai/score`, withDefaults({}));
+    },
+
+    async runShortScore(): Promise<ShortScoreView> {
+      return mutationJson<ShortScoreView>(fetchImpl, `${baseUrl}/okx/ai/score/run`, withDefaults({ method: 'POST' }));
     },
 
     async fetchOkxShortSkill(): Promise<ShortSkill> {

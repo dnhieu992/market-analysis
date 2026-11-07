@@ -15,3 +15,4 @@ export { tradingListAiSkill } from './trading-list-ai';
 export { tradingAnalysisSkill, TRADING_ANALYSIS_PROMPT } from './trading-analysis';
 export { okxShortAiSkill, OKX_SHORT_SYSTEM_PROMPT, OKX_SHORT_DEFAULT_ANALYSIS_SKILL } from './okx-short-ai';
 export { BACKTEST_PROMPT, BACKTEST_TOOLS } from './backtest';
+export { SHORT_SCORE_PROMPT, SHORT_SCORE_TOOLS } from './short-score';

@@ -50,6 +50,8 @@ export type BacktestRunResult =
     }
   | { ok: false; runId: string | null; error: string; stack?: string; logs?: string[] };
 
+type DataSource = { symbol: string; interval: string; market: string; candles: number; from: string; to: string };
+
 type SandboxOutput =
   | { ok: true; result: { trades: unknown[] | null; tradesTotal: number | null; summary: unknown }; logs: string[] }
   | { ok: false; error: string; stack?: string; logs: string[] };
@@ -242,76 +244,27 @@ export class BacktestLabService implements OnModuleInit {
     }
 
     // ---- data ----
-    const data: Record<string, Record<string, SandboxCandle[]>> = {};
-    const sources: Array<{ symbol: string; interval: string; market: string; candles: number; from: string; to: string }> = [];
+    let data: Record<string, Record<string, SandboxCandle[]>>;
+    let sources: DataSource[];
     try {
-      for (const symbol of spec.symbols) {
-        data[symbol] = {};
-        for (const interval of spec.intervals) {
-          const warmFrom = fromMs - WARMUP_BARS * INTERVAL_MS[interval]!;
-          const max = Math.ceil((Date.now() - warmFrom) / INTERVAL_MS[interval]!) + 5;
-          const sr = await this.series(symbol, interval, warmFrom, market, max);
-          data[symbol]![interval] = sr.candles;
-          const first = sr.candles[0];
-          const last = sr.candles[sr.candles.length - 1];
-          sources.push({
-            symbol,
-            interval,
-            market: sr.market,
-            candles: sr.candles.length,
-            from: first ? new Date(first.time).toISOString().slice(0, 16) : '—',
-            to: last ? new Date(last.closeTime).toISOString().slice(0, 16) : '—',
-          });
-        }
-      }
+      ({ data, sources } = await this.loadData(spec.symbols, spec.intervals, fromMs, market, WARMUP_BARS));
     } catch (e) {
       return fail(`Lỗi tải dữ liệu: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // ---- sandbox ----
-    const name = `backtest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const input = JSON.stringify({
-      code: spec.code,
-      timeoutMs: CODE_TIMEOUT_MS,
-      ctx: {
-        data,
-        symbols: spec.symbols,
-        intervals: spec.intervals,
-        params: spec.params ?? {},
-        fromMs,
-        toMs: Date.now(),
-        feePctPerSide,
-        capitalUsd,
-      },
+    const sb = await this.runSandbox(spec.code, {
+      data,
+      symbols: spec.symbols,
+      intervals: spec.intervals,
+      params: spec.params ?? {},
+      fromMs,
+      toMs: Date.now(),
+      feePctPerSide,
+      capitalUsd,
     });
-    let out: SandboxOutput;
-    try {
-      const res = await this.exec(
-        [
-          'run', '--rm', '-i', '--name', name,
-          '--network', 'none',
-          '--memory', '512m', '--memory-swap', '512m', '--cpus', '1', '--pids-limit', '64',
-          '--read-only', '--tmpfs', '/tmp:rw,size=16m',
-          '--user', '65534:65534', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
-          ...this.mounts(),
-          IMAGE, 'node', '--max-old-space-size=420', '-e', RUNNER_SOURCE,
-        ],
-        input,
-        CODE_TIMEOUT_MS + 20_000,
-      );
-      if (res.code !== 0 || !res.stdout.trim()) {
-        void this.exec(['rm', '-f', name], undefined, 15_000).catch(() => undefined);
-        const why = res.truncated
-          ? 'Kết quả trả về quá lớn (> 80MB) — trả ít lệnh / bớt dữ liệu thừa.'
-          : res.code === 137 || res.code === null
-            ? 'Sandbox bị dừng (quá thời gian hoặc quá 512MB RAM).'
-            : `Sandbox lỗi (exit ${res.code}): ${res.stderr.trim().slice(-600)}`;
-        return fail(why, undefined, undefined, { sources });
-      }
-      out = JSON.parse(res.stdout) as SandboxOutput;
-    } catch (e) {
-      return fail(`Không chạy được sandbox: ${e instanceof Error ? e.message : String(e)}`, undefined, undefined, { sources });
-    }
+    if ('failure' in sb) return fail(sb.failure, undefined, undefined, { sources });
+    const out = sb.out;
 
     if (!out.ok) return fail(out.error, out.stack, out.logs, { sources });
     if (!Array.isArray(out.result.trades)) {
@@ -363,6 +316,116 @@ export class BacktestLabService implements OnModuleInit {
       summary: out.result.summary,
       logs: out.logs.slice(0, 40),
     };
+  }
+
+  private async loadData(symbols: string[], intervals: string[], fromMs: number, market: KlineMarket, warmupBars: number) {
+    const data: Record<string, Record<string, SandboxCandle[]>> = {};
+    const sources: DataSource[] = [];
+    for (const symbol of symbols) {
+      data[symbol] = {};
+      for (const interval of intervals) {
+        const warmFrom = fromMs - warmupBars * INTERVAL_MS[interval]!;
+        const max = Math.ceil((Date.now() - warmFrom) / INTERVAL_MS[interval]!) + 5;
+        const sr = await this.series(symbol, interval, warmFrom, market, max);
+        data[symbol]![interval] = sr.candles;
+        const first = sr.candles[0];
+        const last = sr.candles[sr.candles.length - 1];
+        sources.push({
+          symbol,
+          interval,
+          market: sr.market,
+          candles: sr.candles.length,
+          from: first ? new Date(first.time).toISOString().slice(0, 16) : '—',
+          to: last ? new Date(last.closeTime).toISOString().slice(0, 16) : '—',
+        });
+      }
+    }
+    return { data, sources };
+  }
+
+  /** Runs `code` in a fresh locked-down container. `failure` = the container itself failed (not the code). */
+  private async runSandbox(code: string, ctx: Record<string, unknown>): Promise<{ out: SandboxOutput } | { failure: string }> {
+    const name = `backtest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const input = JSON.stringify({ code, timeoutMs: CODE_TIMEOUT_MS, ctx });
+    try {
+      const res = await this.exec(
+        [
+          'run', '--rm', '-i', '--name', name,
+          '--network', 'none',
+          '--memory', '512m', '--memory-swap', '512m', '--cpus', '1', '--pids-limit', '64',
+          '--read-only', '--tmpfs', '/tmp:rw,size=16m',
+          '--user', '65534:65534', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+          ...this.mounts(),
+          IMAGE, 'node', '--max-old-space-size=420', '-e', RUNNER_SOURCE,
+        ],
+        input,
+        CODE_TIMEOUT_MS + 20_000,
+      );
+      if (res.code !== 0 || !res.stdout.trim()) {
+        void this.exec(['rm', '-f', name], undefined, 15_000).catch(() => undefined);
+        return {
+          failure: res.truncated
+            ? 'Kết quả trả về quá lớn (> 80MB) — trả ít lệnh / bớt dữ liệu thừa.'
+            : res.code === 137 || res.code === null
+              ? 'Sandbox bị dừng (quá thời gian hoặc quá 512MB RAM).'
+              : `Sandbox lỗi (exit ${res.code}): ${res.stderr.trim().slice(-600)}`,
+        };
+      }
+      return { out: JSON.parse(res.stdout) as SandboxOutput };
+    } catch (e) {
+      return { failure: `Không chạy được sandbox: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+
+  /**
+   * Runs code that only computes something (no trades, nothing persisted) over klines in the sandbox —
+   * used by the SHORT score, whose criteria are code the chat can edit. Returns the code's `summary`.
+   */
+  async evaluate(spec: {
+    symbols: string[];
+    intervals: string[];
+    /** Data window ending now; `warmupBars` more bars per interval are loaded before it. */
+    days: number;
+    warmupBars?: number;
+    market?: KlineMarket;
+    params?: Record<string, unknown>;
+    code: string;
+  }): Promise<{ ok: true; summary: unknown; logs: string[]; durationMs: number; data: DataSource[] } | { ok: false; error: string; stack?: string; logs?: string[] }> {
+    const symbols = [...new Set(spec.symbols.map(pair))];
+    const intervals = [...new Set(spec.intervals.map((i) => i.trim()))];
+    const warmupBars = Math.min(Math.max(spec.warmupBars ?? WARMUP_BARS, 0), 3000);
+    const invalid = this.validate({ title: 'evaluate', symbols, intervals, days: spec.days, code: spec.code });
+    if (invalid) return { ok: false, error: invalid };
+    const est = symbols.length * intervals.reduce((s, i) => s + (spec.days * 86_400_000) / INTERVAL_MS[i]! + warmupBars, 0);
+    if (est > MAX_TOTAL_CANDLES) return { ok: false, error: `Quá nhiều nến (~${Math.round(est)}) — giảm số ngày.` };
+    return this.serial(async () => {
+      const started = Date.now();
+      if (!(await (this.imageReady ??= this.ensureImage()))) {
+        this.imageReady = null;
+        return { ok: false as const, error: `Sandbox Docker chưa sẵn sàng (image ${IMAGE}).` };
+      }
+      const market: KlineMarket = spec.market === 'spot' ? 'spot' : 'futures';
+      const fromMs = Date.now() - spec.days * 86_400_000;
+      let loaded: { data: Record<string, Record<string, SandboxCandle[]>>; sources: DataSource[] };
+      try {
+        loaded = await this.loadData(symbols, intervals, fromMs, market, warmupBars);
+      } catch (e) {
+        return { ok: false as const, error: `Lỗi tải dữ liệu: ${e instanceof Error ? e.message : String(e)}` };
+      }
+      const sb = await this.runSandbox(spec.code, {
+        data: loaded.data,
+        symbols,
+        intervals,
+        params: spec.params ?? {},
+        fromMs,
+        toMs: Date.now(),
+        feePctPerSide: 0,
+        capitalUsd: 0,
+      });
+      if ('failure' in sb) return { ok: false as const, error: sb.failure };
+      if (!sb.out.ok) return { ok: false as const, error: sb.out.error, stack: sb.out.stack, logs: sb.out.logs };
+      return { ok: true as const, summary: sb.out.result.summary, logs: sb.out.logs, durationMs: Date.now() - started, data: loaded.sources };
+    });
   }
 
   getRun(id: string) {

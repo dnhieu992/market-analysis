@@ -524,6 +524,28 @@ export type ShortSkill = {
   history: Array<Omit<ShortSkillVersion, 'content'> & { chars: number }>;
 };
 
+/** BTC SHORT checklist score of the /trades OKX chat (GET /okx/ai/score). */
+export type ShortScoreCriterion = { id: string; label: string; points: number; hit: boolean; detail: string | null; error?: string };
+
+export type ShortScoreView = {
+  symbol: string;
+  takenAt: string;
+  price: number | null;
+  scorePct: number;
+  hitPoints: number;
+  maxPoints: number;
+  criteriaVersion: number;
+  trigger: string;
+  criteria: ShortScoreCriterion[];
+};
+
+export type ShortScoreOverview = {
+  latest: ShortScoreView | null;
+  recent: Array<{ takenAt: string; scorePct: number; hitPoints: number; maxPoints: number; price: number | null; version: number; trigger: string }>;
+  criteriaVersion: number;
+  criteriaCount: number;
+};
+
 /** Progress of the reply being generated (GET /chat/conversations/:id/live). */
 export type LiveReply = {
   active: boolean;

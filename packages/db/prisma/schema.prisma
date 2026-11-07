@@ -1416,3 +1416,22 @@ model BacktestRun {
   @@index([createdAt])
   @@map("backtest_runs")
 }
+
+// Daily (and on-demand) SHORT score of the /trades OKX chat: which of the user's criteria
+// (stored as a versioned JSON doc in chat_skill_versions, skillId `okx-short-score`) were met.
+model ShortScoreSnapshot {
+  id              String   @id @default(cuid())
+  symbol          String   @db.VarChar(20)
+  takenAt         DateTime
+  scorePct        Float
+  hitPoints       Float
+  maxPoints       Float
+  criteriaVersion Int
+  price           Float?
+  results         Json
+  trigger         String   @db.VarChar(8) // CRON | CHAT | UI
+  createdAt       DateTime @default(now())
+
+  @@index([symbol, takenAt])
+  @@map("short_score_snapshots")
+}
