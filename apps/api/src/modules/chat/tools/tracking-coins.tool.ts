@@ -80,6 +80,42 @@ function frame(candles: Candle[]) {
 /** Not altcoins for Strategy A's breadth / ranking (BTC & ETH are managed elsewhere). */
 const NON_ALT = new Set(['BTCUSDT', 'ETHUSDT', 'USDCUSDT', 'FDUSDUSDT', 'TUSDUSDT', 'USD1USDT', 'PAXGUSDT', 'XAUTUSDT']);
 
+const STABLE = new Set(['USDC', 'FDUSD', 'TUSD', 'USDP', 'DAI', 'BUSD', 'EUR', 'AEUR', 'USDE', 'USDS', 'USD1', 'EURI', 'BFUSD', 'PAXG', 'XAUT', 'XUSD', 'RLUSD', 'WBTC', 'WBETH', 'BNSOL', 'U']);
+const BREADTH_TTL = 6 * 3600_000; // weekly closes — a few refreshes a day is plenty
+let breadthCache: { at: number; value: { pct: number; oversold: number; total: number } } | null = null;
+
+/**
+ * Strategy A breadth exactly as backtested: % of ALL Binance USDT altcoins (listed ≥ ~200 days,
+ * no BTC/ETH/stables/leveraged tokens) whose last closed weekly RSI14 is below 35.
+ */
+async function marketBreadth(): Promise<{ pct: number; oversold: number; total: number } | null> {
+  if (breadthCache && Date.now() - breadthCache.at < BREADTH_TTL) return breadthCache.value;
+  // Only pairs that are TRADING now (ticker endpoints also list halted / delisted pairs).
+  const res = await fetch(`${BASE}/api/v3/exchangeInfo?permissions=SPOT`).catch(() => null);
+  if (!res?.ok) return breadthCache?.value ?? null;
+  const info = (await res.json()) as { symbols: Array<{ symbol: string; quoteAsset: string; status: string }> };
+  const pairs = info.symbols
+    .filter((x) => x.quoteAsset === 'USDT' && x.status === 'TRADING')
+    .map((x) => x.symbol)
+    .filter((p) => {
+      const b = p.slice(0, -4);
+      return !NON_ALT.has(p) && !STABLE.has(b) && !/(UP|DOWN|BULL|BEAR)$/.test(b);
+    });
+  const rsis = await mapLimit(pairs, CONCURRENCY, async (p) => {
+    try {
+      const closes = (await fetchCandles(p, '1w', 100)).slice(0, -1).map((x) => x.close);
+      return closes.length >= 29 ? calculateRsi(closes, 14) : null;
+    } catch {
+      return null;
+    }
+  });
+  const ok = rsis.filter((r): r is number => r != null && Number.isFinite(r));
+  if (ok.length < 50) return breadthCache?.value ?? null;
+  const oversold = ok.filter((r) => r < 35).length;
+  breadthCache = { at: Date.now(), value: { pct: (oversold / ok.length) * 100, oversold, total: ok.length } };
+  return breadthCache.value;
+}
+
 type CoinStat = { line: string; rsiW: number | null; vol30: number; weeks: number };
 
 async function coinRow(pair: string, name: string, ticker: Ticker | undefined): Promise<CoinStat> {
@@ -132,7 +168,7 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
   description:
     "Get the user's watchlist (the coins on their Spot Analytic / Tracking Coins page), computed live from Binance: price, 24h/7d/30d/90d " +
     'change, 24h volume, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
-    '20-day low and 90-day high, weekly RSI14 (rsiW), 30-day volume rank among alts (volRank), Strategy A market breadth (% of alts with weekly RSI < 35, always over the whole list) in the header, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
+    '20-day low and 90-day high, weekly RSI14 (rsiW), 30-day volume rank among alts (volRank), Strategy A market breadth (% of all Binance USDT alts with weekly RSI < 35) + regime in the header, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
     'shortlist coins before fetching detailed candles for a few of them (at most 3). Optionally pass symbols to get only those.',
   inputSchema: {
     type: 'object',
@@ -170,8 +206,9 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
     // volRank = rank by 30-day $ volume among those alts.
     const alts = coins.filter((c) => !NON_ALT.has(c.pair)).map((c) => ({ pair: c.pair, st: rows.get(c.pair)! })).filter((a) => a.st.rsiW != null && a.st.weeks >= 52);
     const rank = new Map([...alts].sort((a, b) => b.st.vol30 - a.st.vol30).map((a, i) => [a.pair, i + 1]));
-    const oversold = alts.filter((a) => (a.st.rsiW as number) < 35).length;
-    const breadth = alts.length ? (oversold / alts.length) * 100 : NaN;
+    const listOversold = alts.filter((a) => (a.st.rsiW as number) < 35).length;
+    const mb = await marketBreadth().catch(() => null);
+    const breadth = mb ? mb.pct : NaN;
     const regime = !Number.isFinite(breadth) ? 'không đủ dữ liệu'
       : breadth >= 25 ? 'MÙA MUA (≥25%): mở lệnh bình thường với coin top 100'
       : breadth >= 10 ? 'TRUNG TÍNH (10–25%): chỉ mua coin volRank ≤ 50'
@@ -183,7 +220,7 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
 
     return [
       `Watchlist (${shown.length}/${coins.length} coin), tính trực tiếp từ nến Binance lúc ${new Date().toISOString().slice(0, 16)}Z.`,
-      `Chiến lược A — breadth: ${r1(breadth)}% (${oversold}/${alts.length} alt niêm yết ≥1 năm có RSI tuần < 35) → chế độ ${regime}.`,
+      `Chiến lược A — breadth: ${r1(breadth)}%${mb ? ` (${mb.oversold}/${mb.total} alt USDT trên Binance có RSI tuần < 35)` : ''} → chế độ ${regime}. Trong danh sách theo dõi: ${listOversold}/${alts.length} alt có RSI tuần < 35.`,
       'ema = giá trên(Y)/dưới(N) EMA34,EMA89,EMA200. trend: Up = giá>EMA34>EMA89, Down = giá<EMA34<EMA89, Mixed = lẫn lộn. ' +
         'vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. stars = người dùng tự chấm 0–5 sao (trống = chưa chấm). mcapM = vốn hoá triệu USD (Binance). sectors = nhóm (L1, L2, Meme, DeFi, AI…).',
       'rsiW = RSI14 nến tuần đã đóng. volRank = hạng volume $ 30 ngày trong các alt niêm yết ≥1 năm (trống = BTC/ETH/stable hoặc < 1 năm).',

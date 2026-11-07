@@ -43,7 +43,7 @@ export const SPOT_STRATEGIES: SpotStrategy[] = [
       {
         title: '1. Chế độ thị trường (breadth)',
         items: [
-          'Breadth = % alt trong danh sách theo dõi (top 100 alt theo volume, niêm yết ≥ 1 năm, bỏ BTC/ETH/stable) có RSI tuần < 35.',
+          'Breadth = % TOÀN BỘ alt USDT trên Binance (niêm yết ≥ ~200 ngày, bỏ BTC/ETH/stable) có RSI tuần < 35 — đúng cách đã backtest; tool get_tracking_coins tính sẵn ở dòng đầu.',
           'Breadth ≥ 25% → MÙA MUA: mở lệnh bình thường.',
           'Breadth 10–25% → chỉ mua coin top 50 theo volume.',
           'Breadth < 10% → không mở lệnh mới, chỉ giữ và chờ TP (vùng này ~19% lệnh bị kẹt).',
