@@ -6,8 +6,6 @@ import type { TrackingCoinRow, TrackingCoinScore, TrackingPriceChange } from '@w
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 
 import { CoinPanel } from './coin-panel';
-import { TradesTab } from './trades-tab';
-import styles from './tracking.module.css';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 
@@ -16,27 +14,6 @@ type SortCol = 'coin' | 'score' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
-const ACTIVE_REFRESH_MS = 30_000;
-
-type ActiveSetups = Record<string, Array<{ id: string; status: string; direction: string }>>;
-
-const ACTIVE_LABEL: Record<string, string> = { PROPOSED: 'đề xuất', WATCHING: 'theo dõi', PENDING: 'chờ khớp', OPEN: 'mở' };
-
-/** Badge counts per stage for a coin's live setups — the "Setup" column. */
-function ActiveCell({ items }: { items: ActiveSetups[string] | undefined }) {
-  if (!items?.length) return <span className="scr-muted">—</span>;
-  const by = new Map<string, number>();
-  for (const x of items) by.set(x.status, (by.get(x.status) ?? 0) + 1);
-  return (
-    <span className={styles.badges}>
-      {['OPEN', 'PENDING', 'WATCHING', 'PROPOSED'].filter((k) => by.has(k)).map((k) => (
-        <span key={k} className={`${styles.badge} ${styles[`st${k}`] ?? ''}`} title={items.filter((x) => x.status === k).map((x) => x.direction).join(', ')}>
-          {by.get(k)} {ACTIVE_LABEL[k]}
-        </span>
-      ))}
-    </span>
-  );
-}
 const PRICE_REFRESH_MS = 5000;
 /** 7d / 30d / 90d / 180d only move on a daily close — poll them rarely. */
 const CHANGE_REFRESH_MS = 5 * 60_000;
@@ -280,11 +257,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   // No column sorts on load — rows keep the watchlist order until a header is clicked.
   const [sort, setSort] = useState<Sort | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [view, setView] = useState<'coins' | 'trades'>('coins');
+  const view = 'coins' as const;
   // Coin panel: a symbol, '*' = scan the whole watchlist, null = closed.
   const [panel, setPanel] = useState<string | null>(null);
-  const [active, setActive] = useState<ActiveSetups>({});
-  const [reloadKey, setReloadKey] = useState(0);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
@@ -297,24 +272,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
   useEffect(() => { setPage(1); }, [nameFilter, sort]);
 
-  const loadActive = useCallback(async () => {
-    try {
-      setActive(await createApiClient().fetchTrackingActiveByCoin());
-    } catch { /* non-fatal: the Setup column keeps its last-known values */ }
-  }, []);
-
-  useEffect(() => {
-    void loadActive();
-    const id = setInterval(() => void loadActive(), ACTIVE_REFRESH_MS);
-    return () => clearInterval(id);
-  }, [loadActive]);
-
-  const onSetupsChanged = useCallback(() => {
-    void loadActive();
-    setReloadKey((k) => k + 1);
-  }, [loadActive]);
-
-  const activeTotal = useMemo(() => Object.values(active).reduce((a, x) => a + x.length, 0), [active]);
+  const onSetupsChanged = useCallback(() => {}, []);
 
   useEffect(() => {
     if (symbols.length === 0) return;
@@ -458,7 +416,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <h1 className="scr-title">Tracking Coins</h1>
           </div>
           <div className="scr-toolbar-right">
-            <button className="scr-add-toggle" onClick={() => setPanel('*')} title="Claude quét cả danh sách và đề xuất setup">
+            <button className="scr-add-toggle" onClick={() => setPanel('*')} title="Claude quét cả danh sách, tìm coin đáng mua spot (mục tiêu ~30%/nhịp)">
               🧭 Quét
             </button>
             {view === 'coins' && (
@@ -468,19 +426,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             )}
           </div>
         </div>
-
-        <div className={styles.tabs}>
-          <button type="button" className={`${styles.tab} ${view === 'coins' ? styles.tabActive : ''}`} onClick={() => setView('coins')}>
-            Coins<span className={styles.count}>{coins.length}</span>
-          </button>
-          <button type="button" className={`${styles.tab} ${view === 'trades' ? styles.tabActive : ''}`} onClick={() => setView('trades')}>
-            Lệnh &amp; nhật ký{activeTotal > 0 && <span className={styles.count}>{activeTotal}</span>}
-          </button>
-        </div>
-
-        {view === 'trades' && (
-          <TradesTab symbols={symbols} onOpenCoin={setPanel} onScan={() => setPanel('*')} reloadKey={reloadKey} onChanged={onSetupsChanged} />
-        )}
 
         {view === 'coins' && (<>
 
@@ -526,14 +471,13 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 <SortHeader label="30d %" col="chg30d" sort={sort} onSort={cycleSort} title="Thay đổi 30 ngày (so với close 30 nến D1 trước)" />
                 <SortHeader label="90d %" col="chg90d" sort={sort} onSort={cycleSort} title="Thay đổi 90 ngày (so với close 90 nến D1 trước)" />
                 <SortHeader label="180d %" col="chg180d" sort={sort} onSort={cycleSort} title="Thay đổi 180 ngày (so với close 180 nến D1 trước)" />
-                <th className="scr-th scr-th--num" title="Setup swing đang chạy (đề xuất / theo dõi / chờ khớp / mở)">Setup</th>
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="scr-empty">
+                  <td colSpan={9} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -547,7 +491,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 const chg24h = changes24h.get(coin.symbol) ?? null;
                 const chg = changes[coin.symbol];
                 return (
-                  <tr key={coin.id} className="scr-row" onClick={() => setPanel(coin.symbol)} style={{ cursor: 'pointer' }} title="Mở panel phân tích / lệnh / nhật ký">
+                  <tr key={coin.id} className="scr-row" onClick={() => setPanel(coin.symbol)} style={{ cursor: 'pointer' }} title="Mở chat phân tích mua spot">
                     <td className="scr-td scr-td--coin">
                       <span className="tc-coin-line">
                         <span className="scr-symbol">{coin.symbol}</span>
@@ -577,7 +521,6 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change30d)}`}>{fmtChange(chg?.change30d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change90d)}`}>{fmtChange(chg?.change90d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change180d)}`}>{fmtChange(chg?.change180d)}</td>
-                    <td className="scr-td scr-td--num"><ActiveCell items={active[coin.symbol]} /></td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>

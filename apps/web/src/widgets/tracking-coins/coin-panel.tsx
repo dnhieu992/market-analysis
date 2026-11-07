@@ -1,13 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { ChatMessage, Conversation, LiveReply, TrackingEvent, TrackingSetup } from '@web/shared/api/types';
-import { renderChatMarkdown } from '@web/shared/lib/chat-markdown';
+import type { ChatMessage, Conversation, LiveReply, TrackingSetup } from '@web/shared/api/types';
 import { AssistantMessage, Composer, Icon, LiveMessage, UserMessage, chatStyles as c } from '@web/shared/ui/chat/chat-parts';
-import { ImageUpload, type ImageUploadValue } from '@web/shared/ui/image-upload/image-upload';
 
-import { SetupCard, SetupFormModal, fmtDateTime, fmtPx } from './setup-card';
+import { SetupCard, SetupFormModal, fmtDateTime } from './setup-card';
 import styles from './tracking.module.css';
 
 const api = createApiClient();
@@ -16,49 +14,14 @@ export const TRACKING_SKILL_ID = 'tracking-swing';
 const POLL_MS = 600;
 const WATCH_TIMEOUT_MS = 8 * 60 * 1000;
 const RESUME_WINDOW_MS = 10 * 60 * 1000;
-const REFRESH_MS = 30_000;
-
-const EVENT_LABEL: Record<string, string> = {
-  CREATED: 'Tạo setup',
-  ANALYSIS: 'Phân tích',
-  WATCHING: 'Theo dõi',
-  PLACED: 'Đặt lệnh',
-  FILLED: 'Khớp lệnh',
-  TP_HIT: 'Chạm TP',
-  STOP_MOVED: 'Dời SL',
-  MANUAL_CLOSE: 'Đóng tay',
-  CLOSED: 'Đóng lệnh',
-  CANCELLED: 'Huỷ',
-  DISCARDED: 'Bỏ',
-  EDITED: 'Sửa',
-  REVIEW: 'Tự đánh giá',
-  POSTMORTEM: 'Rút kinh nghiệm',
-  NOTE: 'Ghi chú',
-};
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-type Tab = 'chat' | 'setups' | 'journal';
 type Status = 'idle' | 'waiting' | 'stopping' | 'error' | 'stopped';
-
-function Markdown({ text }: { text: string }) {
-  const html = useMemo(() => renderChatMarkdown(text), [text]);
-  // eslint-disable-next-line react/no-danger
-  return <div className={styles.prose} dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
-  return (
-    <div className={styles.lightbox} onClick={onClose}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="" />
-    </div>
-  );
-}
 
 /**
  * Right-side panel for one coin (or the whole watchlist when `symbol` is null):
- * Claude analysis chat, the coin's setups, and its journal.
+ * Claude chat for spot dip-buying (target ~30% per leg).
  */
 export function CoinPanel({
   symbol,
@@ -71,27 +34,7 @@ export function CoinPanel({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>('chat');
-  const [setups, setSetups] = useState<TrackingSetup[]>([]);
-  const [events, setEvents] = useState<TrackingEvent[]>([]);
   const [editing, setEditing] = useState<TrackingSetup | null | 'new'>(null);
-
-  const loadCoin = useCallback(async () => {
-    if (!symbol) return;
-    try {
-      const res = await api.fetchTrackingCoin(symbol);
-      setSetups(res.setups);
-      setEvents(res.events);
-    } catch {
-      /* keep what we have */
-    }
-  }, [symbol]);
-
-  useEffect(() => {
-    void loadCoin();
-    const id = setInterval(() => void loadCoin(), REFRESH_MS);
-    return () => clearInterval(id);
-  }, [loadCoin]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !editing && onClose();
@@ -99,25 +42,17 @@ export function CoinPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, editing]);
 
-  const changed = useCallback(
-    (s: TrackingSetup) => {
-      setSetups((prev) => (prev.some((x) => x.id === s.id) ? prev.map((x) => (x.id === s.id ? s : x)) : [s, ...prev]));
-      void loadCoin();
-      onChanged();
-    },
-    [loadCoin, onChanged],
-  );
-
-  const active = setups.filter((s) => ['PROPOSED', 'WATCHING', 'PENDING', 'OPEN'].includes(s.status));
+  // Old swing setup cards (if any) can still be edited from a past reply.
+  const changed = useCallback(() => onChanged(), [onChanged]);
 
   return (
     <>
       <div className={styles.backdrop} onClick={onClose} />
-      <aside className={styles.drawer} aria-label={symbol ? `Swing ${symbol}` : 'Quét danh sách'}>
+      <aside className={styles.drawer} aria-label={symbol ? `Spot ${symbol}` : 'Quét danh sách'}>
         <div className={styles.drawerHead}>
           <div className={styles.drawerTitle}>
             {symbol ?? 'Quét cả danh sách'}
-            <span className={styles.drawerSub}>{symbol ? 'Swing 4H – 1D · paper' : 'Claude chọn coin có setup tốt nhất'}</span>
+            <span className={styles.drawerSub}>{symbol ? 'Mua lướt spot · mục tiêu ~30%/nhịp' : 'Claude tìm coin đáng mua spot nhất'}</span>
           </div>
           {symbol && (
             <a className={styles.btn} href={`https://www.tradingview.com/chart/?symbol=BINANCE:${symbol}USDT`} target="_blank" rel="noopener noreferrer">
@@ -127,42 +62,8 @@ export function CoinPanel({
           <button type="button" className={styles.close} onClick={onClose} aria-label="Đóng">✕</button>
         </div>
 
-        <div className={`${styles.tabs} ${styles.drawerTabs}`}>
-          <button type="button" className={`${styles.tab} ${tab === 'chat' ? styles.tabActive : ''}`} onClick={() => setTab('chat')}>Phân tích</button>
-          {symbol && (
-            <>
-              <button type="button" className={`${styles.tab} ${tab === 'setups' ? styles.tabActive : ''}`} onClick={() => setTab('setups')}>
-                Lệnh{active.length > 0 && <span className={styles.count}>{active.length}</span>}
-              </button>
-              <button type="button" className={`${styles.tab} ${tab === 'journal' ? styles.tabActive : ''}`} onClick={() => setTab('journal')}>
-                Nhật ký
-              </button>
-            </>
-          )}
-        </div>
-
-        {tab === 'chat' && (
-          <div className={styles.drawerChat}>
-            <AnalysisChat symbol={symbol} onSetupChange={changed} onEdit={(s) => setEditing(s)} />
-          </div>
-        )}
-        <div className={styles.drawerBody} hidden={tab === 'chat'}>
-          {tab === 'setups' && symbol && (
-            <>
-              <div className={styles.row} style={{ marginTop: 10 }}>
-                <span className={styles.hint}>{setups.length} setup</span>
-                <span className={styles.spacer} />
-                <button type="button" className={styles.btn} onClick={() => setEditing('new')}>+ Setup tay</button>
-              </div>
-              <div className={styles.cards}>
-                {setups.length === 0 && <p className={styles.hint}>Chưa có setup nào. Bấm “Phân tích” để Claude đề xuất, hoặc tự nhập.</p>}
-                {setups.map((s) => (
-                  <SetupCard key={s.id} setup={s} onChange={changed} onEdit={(x) => setEditing(x)} />
-                ))}
-              </div>
-            </>
-          )}
-          {tab === 'journal' && symbol && <Journal symbol={symbol} setups={setups} events={events} onAdded={() => void loadCoin()} />}
+        <div className={styles.drawerChat}>
+          <AnalysisChat symbol={symbol} onSetupChange={changed} onEdit={(s) => setEditing(s)} />
         </div>
       </aside>
 
@@ -186,16 +87,16 @@ const ICON = '🧭';
 function suggestionsFor(symbol: string | null): string[] {
   return symbol
     ? [
-        `Phân tích swing ${symbol} (1W / 1D / 4H) và đề xuất setup nếu đủ điều kiện.`,
-        `${symbol} đang ở vùng giá nào đáng chờ để vào lệnh?`,
-        `Rà lại các setup ${symbol} đang theo dõi / chờ khớp — còn hợp lệ không?`,
-        `Nên long hay short ${symbol} trong 1–2 tuần tới?`,
+        `${symbol} có đáng mua spot lúc này không? Vùng mua và mục tiêu +30% ở đâu?`,
+        `Lên kế hoạch mua ${symbol} chia 3 phần: giá mua từng phần, giá bán chốt lời.`,
+        `${symbol} đã về vùng đáy / hỗ trợ đẹp để gom chưa?`,
+        `Nếu đang cầm ${symbol} thì nên chốt lời ở đâu?`,
       ]
     : [
-        'Quét danh sách theo dõi, chọn tối đa 3 coin có cấu trúc swing đẹp nhất và đề xuất setup.',
-        'Coin nào trong danh sách đang khoẻ nhất theo trend 1D?',
-        'Coin nào đang về vùng hỗ trợ đẹp để canh long?',
-        'Rà lại các setup đang theo dõi / chờ khớp / mở trên toàn danh sách.',
+        'Quét danh sách, chọn tối đa 3 coin đáng mua spot nhất (còn dư địa +30%) và cho vùng mua.',
+        'Coin nào trong danh sách đang giảm sâu về hỗ trợ mạnh, đáng gom?',
+        'Coin nào vừa bật khỏi đáy và còn dư địa tăng ~30%?',
+        'Coin nào đã tăng quá nóng, không nên mua đuổi lúc này?',
       ];
 }
 
@@ -461,8 +362,8 @@ function AnalysisChat({
                 <h1 className={c.greetingTitle}>{symbol ?? 'Quét danh sách'}</h1>
                 <p className={c.greetingText}>
                   {symbol
-                    ? `Claude đọc cấu trúc 1W / 1D / 4H của ${symbol}, các setup đang có và bài học đã duyệt, rồi đề xuất setup (nếu có) để bạn Theo dõi / Đặt lệnh.`
-                    : 'Claude đọc toàn bộ danh sách theo dõi và chọn vài coin đáng chú ý nhất.'}
+                    ? `Claude đọc cấu trúc 1W / 1D của ${symbol}, tìm vùng mua spot, chia 3 phần mua và đặt mục tiêu ~+30% cho nhịp này.`
+                    : 'Claude đọc toàn bộ danh sách theo dõi và chọn tối đa 3 coin đáng mua spot nhất (còn dư địa ~+30%).'}
                 </p>
               </div>
               {composer}
@@ -534,134 +435,3 @@ function AnalysisChat({
   );
 }
 
-// ── Journal ──────────────────────────────────────────────────────────────────
-
-function Journal({
-  symbol,
-  setups,
-  events,
-  onAdded,
-}: {
-  symbol: string;
-  setups: TrackingSetup[];
-  events: TrackingEvent[];
-  onAdded: () => void;
-}) {
-  const [text, setText] = useState('');
-  const [setupId, setSetupId] = useState('');
-  const [images, setImages] = useState<ImageUploadValue>({ existingUrls: [], newFiles: [] });
-  const [uploadKey, setUploadKey] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState<string | null>(null);
-  const [filter, setFilter] = useState('');
-
-  const label = (id: string | null) => {
-    const s = setups.find((x) => x.id === id);
-    return s ? `${s.direction} @${fmtPx(s.entryPrice)}` : null;
-  };
-
-  async function save() {
-    if (!text.trim() && images.newFiles.length === 0) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const urls = images.newFiles.length ? await api.uploadImages(images.newFiles, symbol) : [];
-      await api.trackingAction('/notes', { symbol, setupId: setupId || null, message: text, images: urls });
-      setText('');
-      setImages({ existingUrls: [], newFiles: [] });
-      setUploadKey((k) => k + 1);
-      onAdded();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lưu ghi chú thất bại');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(id: string) {
-    try {
-      await api.trackingAction(`/notes/${id}`, {}, 'DELETE');
-      onAdded();
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const shown = filter ? events.filter((e) => e.setupId === filter) : events;
-
-  return (
-    <>
-      <div className={styles.noteForm}>
-        <textarea className={styles.textarea} placeholder="Ghi chú (markdown) — quan sát, cảm xúc, lý do…" value={text} onChange={(e) => setText(e.target.value)} />
-        <ImageUpload key={uploadKey} onChange={setImages} uploading={busy} />
-        <div className={styles.row}>
-          <select className={styles.select} value={setupId} onChange={(e) => setSetupId(e.target.value)}>
-            <option value="">Ghi chú chung cho {symbol}</option>
-            {setups.map((s) => (
-              <option key={s.id} value={s.id}>Gắn vào setup {s.direction} @{fmtPx(s.entryPrice)} ({s.status})</option>
-            ))}
-          </select>
-          <span className={styles.spacer} />
-          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} disabled={busy || (!text.trim() && images.newFiles.length === 0)} onClick={() => void save()}>
-            {busy ? 'Đang lưu…' : 'Lưu ghi chú'}
-          </button>
-        </div>
-        {error && <span className={styles.error}>{error}</span>}
-      </div>
-
-      {setups.length > 0 && (
-        <div className={styles.row} style={{ marginTop: 10 }}>
-          <span className={styles.hint}>Lọc:</span>
-          <select className={styles.select} value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="">Tất cả</option>
-            {setups.map((s) => (
-              <option key={s.id} value={s.id}>{s.direction} @{fmtPx(s.entryPrice)} ({s.status})</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className={styles.timeline}>
-        {shown.length === 0 && <p className={styles.hint}>Chưa có sự kiện nào.</p>}
-        {shown.map((e) => (
-          <div key={e.id} className={styles.event}>
-            <div>
-              <div className={styles.eventTime}>{fmtDateTime(e.createdAt)}</div>
-              <div className={styles.eventType}>{EVENT_LABEL[e.type] ?? e.type}</div>
-            </div>
-            <div>
-              {e.setupId && label(e.setupId) && <div className={styles.hint}>Setup {label(e.setupId)}</div>}
-              {e.type === 'ANALYSIS' || e.type === 'POSTMORTEM' || e.type === 'NOTE' ? (
-                <details open={e.type !== 'ANALYSIS'}>
-                  <summary className={styles.hint} style={{ cursor: 'pointer' }}>{e.type === 'ANALYSIS' ? 'Xem phân tích' : 'Nội dung'}</summary>
-                  <Markdown text={e.message} />
-                </details>
-              ) : (
-                <div className={styles.eventMsg}>{e.message}</div>
-              )}
-              {(e.chartUrl || (e.images?.length ?? 0) > 0) && (
-                <div className={styles.eventImages}>
-                  {e.chartUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className={`${styles.thumb} ${styles.chartThumb}`} src={e.chartUrl} alt="chart 4H" onClick={() => setLightbox(e.chartUrl)} />
-                  )}
-                  {e.images?.map((u) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={u} className={styles.thumb} src={u} alt="" onClick={() => setLightbox(u)} />
-                  ))}
-                </div>
-              )}
-              {e.type === 'NOTE' && (
-                <button type="button" className={`${styles.btn} ${styles.btnDanger}`} style={{ marginTop: 6 }} onClick={() => void remove(e.id)}>
-                  Xoá ghi chú
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      {lightbox && <Lightbox url={lightbox} onClose={() => setLightbox(null)} />}
-    </>
-  );
-}
