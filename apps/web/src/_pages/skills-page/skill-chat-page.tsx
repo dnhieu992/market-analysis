@@ -8,7 +8,7 @@ type Props = {
   conversationId: string;
 };
 
-export async function loadSkillChatData(skillId: string, conversationId: string): Promise<{
+async function loadSkillChatData(skillId: string, conversationId: string): Promise<{
   skill: Skill | null;
   conversations: Conversation[];
   initialMessages: ChatMessage[];
@@ -41,8 +41,8 @@ export async function loadSkillChatData(skillId: string, conversationId: string)
 }
 
 export default async function SkillChatPage({ skillId, conversationId }: Props) {
-  // Skills with their own page (chat + extra tools) live there; old links keep working.
-  if (skillId === 'short-junk') redirect(`/short-junk/chat/${conversationId}`);
+  // Short Coin Rác lives on /short-junk (coin list + AI chat panel); old links keep working.
+  if (skillId === 'short-junk') redirect('/short-junk');
   const { skill, conversations, initialMessages } = await loadSkillChatData(skillId, conversationId);
 
   return (

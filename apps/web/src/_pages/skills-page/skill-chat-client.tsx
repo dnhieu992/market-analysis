@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
@@ -46,13 +46,13 @@ function groupConversations(convs: Conversation[]): Array<{ label: string; items
 function ConvItem({
   conv,
   active,
-  basePath,
+  skillId,
   onRenamed,
   onDeleted,
 }: {
   conv: Conversation;
   active: boolean;
-  basePath: string;
+  skillId: string;
   onRenamed: (id: string, title: string) => void;
   onDeleted: (id: string) => void;
 }) {
@@ -102,7 +102,7 @@ function ConvItem({
         </div>
       ) : (
         <>
-          <Link href={`${basePath}/${conv.id}`} className={styles.convLink} title={conv.title}>
+          <Link href={`/skills/${skillId}/chat/${conv.id}`} className={styles.convLink} title={conv.title}>
             {conv.title}
           </Link>
           <div className={styles.convActions}>
@@ -127,23 +127,9 @@ type Props = {
   skill: Skill | null;
   initialConversations: Conversation[];
   initialMessages: ChatMessage[];
-  /** Where conversations live; default `/skills/<skillId>/chat` (a skill with its own page passes its route). */
-  basePath?: string;
-  backLink?: { href: string; label: string };
-  /** Extra controls in the chat header (e.g. the /short-junk coin list button). */
-  headerExtra?: ReactNode;
 };
 
-export function SkillChatClient({
-  skillId,
-  conversationId,
-  skill,
-  initialConversations,
-  initialMessages,
-  basePath = `/skills/${skillId}/chat`,
-  backLink = { href: '/skills', label: '← Tất cả skills' },
-  headerExtra,
-}: Props) {
+export function SkillChatClient({ skillId, conversationId, skill, initialConversations, initialMessages }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isNew = conversationId === 'new';
@@ -316,7 +302,7 @@ export function SkillChatClient({
         const conv = await api.createConversation(content.slice(0, 80), skillId);
         await api.sendMessage(conv.id, content);
         api.generateTitle(conv.id).catch(() => {});
-        router.replace(`${basePath}/${conv.id}`);
+        router.replace(`/skills/${skillId}/chat/${conv.id}`);
         return;
       }
       const saved = await api.sendMessage(activeConvId, content);
@@ -372,7 +358,7 @@ export function SkillChatClient({
       inputRef.current?.focus();
       return;
     }
-    router.push(`${basePath}/new`);
+    router.push(`/skills/${skillId}/chat/new`);
   }
 
   function toggleRail() {
@@ -432,7 +418,7 @@ export function SkillChatClient({
       <aside className={`${railCollapsed ? styles.railCollapsed : styles.rail} ${railOpen ? styles.railOpen : ''}`}>
         <div className={styles.railHead}>
           <div className={styles.railTop}>
-            <Link href={backLink.href} className={styles.backLink}>{backLink.label}</Link>
+            <Link href="/skills" className={styles.backLink}>← Tất cả skills</Link>
             <button type="button" className={styles.iconBtn} onClick={toggleRail} title="Ẩn danh sách" aria-label="Ẩn danh sách">
               {Icon.panel}
             </button>
@@ -471,11 +457,11 @@ export function SkillChatClient({
                     key={c.id}
                     conv={c}
                     active={c.id === conversationId}
-                    basePath={basePath}
+                    skillId={skillId}
                     onRenamed={(id, t) => setConversations((prev) => prev.map((x) => (x.id === id ? { ...x, title: t } : x)))}
                     onDeleted={(id) => {
                       setConversations((prev) => prev.filter((x) => x.id !== id));
-                      if (id === conversationId) router.push(`${basePath}/new`);
+                      if (id === conversationId) router.push(`/skills/${skillId}/chat/new`);
                     }}
                   />
                 ))}
@@ -501,7 +487,6 @@ export function SkillChatClient({
             {title}
             {skill && <span className={styles.headerSkill}>{skill.icon} {skill.name}</span>}
           </div>
-          {headerExtra}
           <button type="button" className={styles.iconBtn} onClick={newChat} title="Cuộc trò chuyện mới (⌘⇧O)" aria-label="Cuộc trò chuyện mới">
             {Icon.compose}
           </button>

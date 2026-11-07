@@ -1,5 +1,1 @@
-import { redirect } from 'next/navigation';
-
-export default function Page() {
-  redirect('/short-junk/chat/new');
-}
+export { default } from '@web/_pages/short-junk-page/short-junk-page';
