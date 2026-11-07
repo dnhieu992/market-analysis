@@ -7,9 +7,12 @@ Renamed from "Tracking Coins", listed right under Portfolio in the sidebar. Goal
 Coin · Đánh giá (0–5 stars, `tracking_coins.rating`, `PUT /tracking-coins/coins/:symbol/rating`) ·
 Giá · 24h/7d/30d/90d · Vốn hoá · Nhóm · Actions (History, delete).
 Score column (D1 Supertrend rule), 180d column and the "Quét" button were removed.
-Coin cell has two icons: chart (SonicR chart dialog) and chat (opens the coin's Claude chat drawer).
-Clicking anywhere on the row also opens the chat, but that has no visible cue on touch screens, so the
-chat icon is the mobile entry point (icons grow to 28px tap targets at ≤640px).
+Coin cell has one icon: chart (SonicR chart dialog). Since 2026-11-07 there is no per-coin chat:
+rows are no longer clickable and the per-row chat icon is gone. The page has a single floating
+"🧭 AI" button (bottom-right, same `.fab` style as /trading-list from `bitget-ai-chat.module.css`)
+that opens the watchlist-scope chat drawer (`CoinPanel` with `symbol=null`). Old per-coin
+conversations stay in the DB but are not listed by that drawer (it filters `metadata.symbol` empty).
+Page header is left-aligned (title + Chiến lược / + Coin buttons side by side).
 
 Vốn hoá / Nhóm come from Binance's public product list (`get-products`, cached 1h,
 `GET /tracking-coins/meta`): market cap = circulating supply × price; sectors map Binance tags to

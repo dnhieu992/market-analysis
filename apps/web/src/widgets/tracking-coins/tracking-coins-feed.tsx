@@ -6,6 +6,9 @@ import type { TrackingCoinMeta, TrackingCoinRow, TrackingPriceChange } from '@we
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { StarRating } from '@web/widgets/bitget/star-rating';
 
+// Floating AI button: same look as /trading-list (Bitget AI chat styles).
+import fab from '../bitget/bitget-ai-chat.module.css';
+
 import { CoinPanel } from './coin-panel';
 import { SpotHistoryDialog } from './spot-history-dialog';
 import { SpotStrategiesDialog } from './spot-strategies-dialog';
@@ -173,14 +176,6 @@ function IconChart() {
   );
 }
 
-function IconChat() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
 /* ── confirm remove dialog ──────────────────────────────────────── */
 
 function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
@@ -260,8 +255,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [sort, setSort] = useState<Sort | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const view = 'coins' as const;
-  // Coin panel: a symbol, '*' = scan the whole watchlist, null = closed.
-  const [panel, setPanel] = useState<string | null>(null);
+  // One page-wide chat (watchlist scope) opened from the floating AI button.
+  const [chatOpen, setChatOpen] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [page, setPage] = useState(1);
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null);
@@ -404,14 +399,13 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
   return (
     <>
-      {panel && (
-        <CoinPanel
-          key={panel}
-          symbol={panel === '*' ? null : panel}
-          symbols={symbols}
-          onClose={() => setPanel(null)}
-          onChanged={onSetupsChanged}
-        />
+      {chatOpen ? (
+        <CoinPanel symbol={null} symbols={symbols} onClose={() => setChatOpen(false)} onChanged={onSetupsChanged} />
+      ) : (
+        <button type="button" className={fab.fab} onClick={() => setChatOpen(true)} aria-label="Mở Spot Analytic AI" title="Spot Analytic AI">
+          <span aria-hidden>🧭</span>
+          <span className={fab.fabLabel}>AI</span>
+        </button>
       )}
       {confirmRemoveSymbol && (
         <ConfirmRemoveDialog
@@ -514,7 +508,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                 const chg24h = changes24h.get(coin.symbol) ?? null;
                 const chg = changes[coin.symbol];
                 return (
-                  <tr key={coin.id} className="scr-row" onClick={() => setPanel(coin.symbol)} style={{ cursor: 'pointer' }} title="Mở chat phân tích mua spot">
+                  <tr key={coin.id} className="scr-row">
                     <td className="scr-td scr-td--coin">
                       <div className="bg-symbol-cell">
                       <span className="tc-coin-line">
@@ -527,18 +521,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         >
                           <IconChart />
                         </button>
-                        {/* Explicit chat entry: the whole row opens the chat, but touch screens have no hover/title cue. */}
-                        <button
-                          className="tc-chart-btn tc-chat-btn"
-                          aria-label={`Chat phân tích ${coin.symbol}`}
-                          title="Mở chat phân tích mua spot"
-                          onClick={(e) => { e.stopPropagation(); setPanel(coin.symbol); }}
-                        >
-                          <IconChat />
-                        </button>
                       </span>
-                      {/* Stars under the name, like /trading-list; clicks must not open the chat panel. */}
-                      <span onClick={(e) => e.stopPropagation()}>
+                      {/* Stars under the name, like /trading-list. */}
+                      <span>
                         <StarRating value={ratings[coin.symbol] ?? DEFAULT_RATING} symbol={coin.symbol} onChange={(v) => void saveRating(coin.symbol, v, ratings[coin.symbol] ?? DEFAULT_RATING)} />
                       </span>
                       </div>
