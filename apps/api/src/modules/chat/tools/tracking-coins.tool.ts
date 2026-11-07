@@ -135,6 +135,7 @@ async function coinRow(pair: string, name: string, ticker: Ticker | undefined): 
       name.replace(/,/g, ' '),
       Number(price.toPrecision(6)),
       ticker ? r1(Number(ticker.priceChangePercent)) : '',
+      r1(pct(price, c[c.length - 3])),
       r1(pct(price, c[c.length - 7])),
       r1(pct(price, c[c.length - 30])),
       r1(pct(price, c[c.length - 90])),
@@ -166,7 +167,7 @@ let cache: { at: number; rows: Map<string, CoinStat> } | null = null;
 export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key: string]: unknown }, string> = {
   name: 'get_tracking_coins',
   description:
-    "Get the user's watchlist (the coins on their Spot Analytic / Tracking Coins page), computed live from Binance: price, 24h/7d/30d/90d " +
+    "Get the user's watchlist (the coins on their Spot Analytic / Tracking Coins page), computed live from Binance: price, 24h/3d/7d/30d/90d " +
     'change, 24h volume, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
     '20-day low and 90-day high, weekly RSI14 (rsiW), 30-day volume rank among alts (volRank), Strategy A market breadth (% of all Binance USDT alts with weekly RSI < 35) + regime in the header, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
     'shortlist coins before fetching detailed candles for a few of them (at most 3). Optionally pass symbols to get only those.',
@@ -224,7 +225,7 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
       'ema = giá trên(Y)/dưới(N) EMA34,EMA89,EMA200. trend: Up = giá>EMA34>EMA89, Down = giá<EMA34<EMA89, Mixed = lẫn lộn. ' +
         'vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. stars = người dùng tự chấm 0–5 sao (trống = chưa chấm). mcapM = vốn hoá triệu USD (Binance). sectors = nhóm (L1, L2, Meme, DeFi, AI…).',
       'rsiW = RSI14 nến tuần đã đóng. volRank = hạng volume $ 30 ngày trong các alt niêm yết ≥1 năm (trống = BTC/ETH/stable hoặc < 1 năm).',
-      'pair,name,price,chg24h%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,rsiW,stars,mcapM,sectors,volRank',
+      'pair,name,price,chg24h%,chg3d%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,rsiW,stars,mcapM,sectors,volRank',
       ...shown.map((c) => `${rows.get(c.pair)!.line},${extraOf(c.pair, c.rating)},${rank.get(c.pair) ?? ''}`),
     ].join('\n');
   },

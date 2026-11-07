@@ -201,7 +201,7 @@ Tất cả là **public endpoints**, không cần API key Binance.
 `tracking_coins`, xếp theo market cap) rồi tính trực tiếp từ nến Binance 1D + 4H (210 nến, 10 coin song song,
 cache 60s):
 
-- giá, % thay đổi 24h / 7d / 30d / 90d, volume 24h (triệu USDT)
+- giá, % thay đổi 24h / 3d / 7d / 30d / 90d, volume 24h (triệu USDT)
 - Supertrend(10,3) D1, cùng quy tắc với cột Score của trang
 - trend (giá vs EMA34 vs EMA89), RSI14, giá trên/dưới EMA34/89/200 cho cả 1D và 4H
 - khoảng cách tới đáy 20 ngày và đỉnh 90 ngày

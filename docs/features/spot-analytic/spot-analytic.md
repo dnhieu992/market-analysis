@@ -5,7 +5,7 @@ Renamed from "Tracking Coins", listed right under Portfolio in the sidebar. Goal
 
 ## Table
 Coin · Đánh giá (0–5 stars, `tracking_coins.rating`, `PUT /tracking-coins/coins/:symbol/rating`) ·
-Giá · 24h/7d/30d/90d · Vốn hoá · Nhóm · Actions (History, delete).
+Giá · 24h/3d/7d/30d/90d · Vốn hoá · Nhóm · Actions (History, delete).
 Score column (D1 Supertrend rule), 180d column and the "Quét" button were removed.
 Coin cell has one icon: chart (SonicR chart dialog). Since 2026-11-07 there is no per-coin chat:
 rows are no longer clickable and the per-row chat icon is gone. The page has a single floating
