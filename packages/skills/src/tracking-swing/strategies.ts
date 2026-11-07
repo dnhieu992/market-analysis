@@ -1,8 +1,8 @@
 /**
  * Spot Analytic strategies. One source of truth for both the chat skill (the ACTIVE strategy's rules
  * are injected into the system prompt) and the "Chiến lược" reference dialog on /tracking-coins
- * (served by GET /tracking-coins/strategies). Add new strategies as new entries (B, C…); switch the
- * chat to another one by changing ACTIVE_SPOT_STRATEGY.
+ * (served by GET /tracking-coins/strategies). Every strategy with status 'active' goes into the chat
+ * prompt (A and B since 2026-11-07); ACTIVE_SPOT_STRATEGY is only the dialog's default tab.
  */
 export type SpotStrategy = {
   id: string;
@@ -20,6 +20,8 @@ export type SpotStrategy = {
     period: string;
     universe: string;
     method: string;
+    /** Labels of the two number columns; default ['Lãi/năm', 'Sụt giảm tối đa'] (CAGR / max DD). */
+    columns?: [string, string];
     rows: Array<{ config: string; cagr: string; maxDd: string; note?: string }>;
     takeaways: string[];
   };
@@ -115,6 +117,76 @@ export const SPOT_STRATEGIES: SpotStrategy[] = [
       'claude-backtest/runs/2026-11-07-spot-30pct-strategy-scan.md',
     ],
   },
+  {
+    id: 'B',
+    name: 'Chiến lược B — Bắt cú hồi sau khi sập mạnh',
+    status: 'active',
+    createdAt: '2026-11-07',
+    summary:
+      'Mua spot alt ngay sau một cú sập nhanh nhiều ngày (3d ≤ −20% / 7d ≤ −25% / 30d ≤ −40%), chốt +10% (tối đa +15% khi sập rất mạnh), giữ tối đa 14 ngày. Lệnh ngắn, tách vốn khỏi Chiến lược A.',
+    target: 'Mỗi lệnh +10%; trung bình +4–7%/lệnh sau phí (đã tính cả lệnh không chạm TP). Ít cơ hội: vài chục lệnh/năm trên cả watchlist, dồn vào các đợt sập.',
+    rules: [
+      {
+        title: '1. Tín hiệu (nến D1 đã đóng, giảm tính close-to-close)',
+        items: [
+          'Coin giảm ≥ 20% trong 3 ngày, HOẶC ≥ 25% trong 7 ngày, HOẶC ≥ 40% trong 30 ngày → tín hiệu B.',
+          'Coin giảm ≥ 25% trong 3 ngày hoặc ≥ 30% trong 7 ngày → tín hiệu B+ (mạnh): ~83–87% chạm +10%, ~70% chạm +15% trong 14 ngày.',
+          'Thị trường sập kiểu B (alt trung vị watchlist 3d ≤ −15% / 7d ≤ −25% / 30d ≤ −30%) → cả danh sách có lợi thế; ưu tiên coin tốt nhất thay vì coin rơi sâu nhất.',
+          'KHÔNG mua chỉ vì sập 1 ngày (BTC −5% hoặc alt −7% trong ngày): backtest = mua bừa, còn dễ rơi thêm −10% trước khi hồi.',
+          'Không dùng ngưỡng nông hơn (3d −10%, 7d −15%, 30d −25%): tỷ lệ hồi ≈ ngày bình thường.',
+        ],
+      },
+      {
+        title: '2. Vào lệnh',
+        items: [
+          'Giá vào = giá đóng cửa nến D1 kích hoạt (sigBEntry). Tín hiệu còn hiệu lực 1–2 ngày sau nến kích hoạt nếu giá chưa hồi quá +5% so với giá vào; quá đó → bỏ, không đuổi.',
+          'Mua 1 lần (không DCA thang như A). Mỗi lệnh ~3–5% vốn spot alt, tối đa ~5 lệnh B cùng lúc (đề xuất, chưa mô phỏng danh mục).',
+          'Ưu tiên coin nhiều sao, thanh khoản cao (volRank thấp), L1/L2/Infra; tránh coin có tin xấu riêng (hack, huỷ niêm yết) — sập vì tin riêng không phải bán tháo cả thị trường.',
+        ],
+      },
+      {
+        title: '3. Thoát lệnh',
+        items: [
+          'TP = giá vào × 1.10 (đặt lệnh limit ngay sau khi mua). Tín hiệu B+ có thể để TP +15%.',
+          'Không chạm TP sau 14 ngày → bán ở giá đóng cửa ngày 14 (backtest: trung vị lệnh không chạm TP vẫn quanh hoà vốn).',
+          'Không stoploss (backtest không dùng SL). Rủi ro đuôi: đợt sập tiếp kiểu FTX 11/2022 (−15% sau 14 ngày) — giữ tỷ trọng nhỏ.',
+          'Coin vừa có tín hiệu A vừa có B → ưu tiên kế hoạch A (giữ dài, TP +30%); không mở 2 lệnh cho cùng coin.',
+        ],
+      },
+    ],
+    backtest: {
+      period: '2022-01 → 2026-11 (nến ngày)',
+      universe: '39 alt của watchlist /tracking-coins (41 coin, bỏ BTC/ETH)',
+      method: 'Mua ở close nến kích hoạt, TP +10% (hoặc +15%) theo high, không chạm → bán close ngày 14, không SL, phí 0.05%/chiều. Đối chứng = mua mọi ngày.',
+      columns: ['Chạm +10% / +15% (≤14 ngày)', 'Lời TB/lệnh (TP +10%)'],
+      rows: [
+        { config: 'Đối chứng: mua ngày bất kỳ', cagr: '51% / 36%', maxDd: '−0.2%' },
+        { config: 'Sập 1 ngày: BTC −5% / alt −7%', cagr: '53% / 34–37%', maxDd: '0.0 / +0.6%', note: 'không có lợi thế' },
+        { config: 'Coin 3d ≤ −20% (343 lệnh)', cagr: '69% / 52%', maxDd: '+4.1%' },
+        { config: 'Coin 3d ≤ −25% (128 lệnh)', cagr: '87% / 71%', maxDd: '+7.1%' },
+        { config: 'Coin 7d ≤ −25% (374 lệnh)', cagr: '75% / 57%', maxDd: '+5.2%' },
+        { config: 'Coin 7d ≤ −30% (174 lệnh)', cagr: '83% / 68%', maxDd: '+7.0%' },
+        { config: 'Coin 30d ≤ −40% (302 lệnh)', cagr: '75% / 56%', maxDd: '+4.6%' },
+        { config: 'Thị trường 7d ≤ −25% (10 đợt)', cagr: '91% / 72%', maxDd: '+8.7%' },
+        { config: 'Thị trường 3d ≤ −15% (19 đợt)', cagr: '63% / 44%', maxDd: '+4.0%', note: '14/19 đợt có lời' },
+      ],
+      takeaways: [
+        'Giảm càng nhanh càng hồi mạnh: cùng −30%, sập trong 3 ngày (95% chạm +10%) tốt hơn giảm dần 30 ngày (64%).',
+        'Mục tiêu thực tế là +10%; +15% chỉ đáng đặt với tín hiệu B+.',
+        'Khung 30 ngày yếu nhất — giảm dài thường là xu hướng giảm, không phải hoảng loạn.',
+      ],
+    },
+    lessons: [
+      'Các nhịp hồi tốt: LUNA 05/2022, 07/2024, 12/2024, 10/10/2025, 11/2025, 02/2026 (giỏ alt +8–10% trong ≤14 ngày).',
+      'Nhịp xấu: FTX 11/2022 (sập tiếp, giỏ −14.7%), 01/2022, 04/2024, 02/2025, 31/01/2026.',
+    ],
+    limits: [
+      'Danh sách coin chọn hôm nay → survivorship bias; năm 2022 chỉ 23 coin có dữ liệu.',
+      'Ngưỡng ở mức thị trường chỉ có 10–19 đợt; ngưỡng cực sâu (3d −30%, 30d −50%) 1–3 đợt — không đủ tin.',
+      'Chưa mô phỏng danh mục (tỷ trọng, số lệnh đồng thời, lãi kép); nến chạm cả TP và −10% cùng ngày tính là thua.',
+    ],
+    sources: ['claude-backtest/runs/2026-11-07-crash-rebound-alts.md'],
+  },
 ];
 
 export const ACTIVE_SPOT_STRATEGY = 'A';
@@ -123,15 +195,22 @@ export function getSpotStrategy(id = ACTIVE_SPOT_STRATEGY): SpotStrategy {
   return SPOT_STRATEGIES.find((s) => s.id === id) ?? SPOT_STRATEGIES[0]!;
 }
 
+/** All strategies the chat applies (status 'active'), as one prompt block. */
+export function activeSpotStrategiesPrompt(): string {
+  return SPOT_STRATEGIES.filter((s) => s.status === 'active').map((s) => spotStrategyPrompt(s)).join('\n\n');
+}
+
 /** The strategy as prompt text for the chat skill. */
 export function spotStrategyPrompt(s: SpotStrategy = getSpotStrategy()): string {
   return [
-    `## ${s.name} (đang áp dụng)`,
+    `## ${s.name}${s.status === 'active' ? ' (đang áp dụng)' : ''}`,
     s.summary,
     `Mục tiêu: ${s.target}`,
     ...s.rules.flatMap((g) => [`### ${g.title}`, ...g.items.map((i) => `- ${i}`)]),
     '### Căn cứ (backtest, để trích dẫn khi người dùng hỏi)',
-    ...s.backtest.rows.map((r) => `- ${r.config}: ${r.cagr}/năm, DD ${r.maxDd}${r.note ? ` (${r.note})` : ''}`),
+    ...s.backtest.rows.map((r) => s.backtest.columns
+      ? `- ${r.config}: ${s.backtest.columns[0]} ${r.cagr}; ${s.backtest.columns[1]} ${r.maxDd}${r.note ? ` (${r.note})` : ''}`
+      : `- ${r.config}: ${r.cagr}/năm, DD ${r.maxDd}${r.note ? ` (${r.note})` : ''}`),
     ...s.lessons.map((l) => `- ${l}`),
   ].join('\n');
 }

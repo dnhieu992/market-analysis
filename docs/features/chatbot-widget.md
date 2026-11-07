@@ -202,6 +202,7 @@ Tất cả là **public endpoints**, không cần API key Binance.
 cache 60s):
 
 - giá, % thay đổi 24h / 3d / 7d / 30d / 90d, volume 24h (triệu USDT)
+- tín hiệu Chiến lược B (sigB / sigBAgo / sigBEntry) + trạng thái sập kiểu B của thị trường
 - Supertrend(10,3) D1, cùng quy tắc với cột Score của trang
 - trend (giá vs EMA34 vs EMA89), RSI14, giá trên/dưới EMA34/89/200 cho cả 1D và 4H
 - khoảng cách tới đáy 20 ngày và đỉnh 90 ngày

@@ -116,7 +116,36 @@ async function marketBreadth(): Promise<{ pct: number; oversold: number; total: 
   return breadthCache.value;
 }
 
-type CoinStat = { line: string; rsiW: number | null; vol30: number; weeks: number };
+type CoinStat = {
+  line: string; rsiW: number | null; vol30: number; weeks: number;
+  /** Strategy B: close-to-close drop (%) over 3 / 7 / 30 closed daily candles, as backtested. */
+  b3: number | null; b7: number | null; b30: number | null;
+  /** Strategy B columns, comma-joined: sigB,sigBAgo,sigBEntry. */
+  bCols: string;
+};
+
+/** Strategy B trigger on one closed daily candle (thresholds from the 2026-11-07 sweep). */
+function strategyBLevel(closes: number[], i: number): '' | 'B' | 'B+' {
+  const drop = (w: number) => (i - w >= 0 && closes[i - w]! > 0 ? (closes[i]! / closes[i - w]! - 1) * 100 : null);
+  const d3 = drop(3), d7 = drop(7), d30 = drop(30);
+  if ((d3 != null && d3 <= -25) || (d7 != null && d7 <= -30)) return 'B+';
+  if ((d3 != null && d3 <= -20) || (d7 != null && d7 <= -25) || (d30 != null && d30 <= -40)) return 'B';
+  return '';
+}
+
+/**
+ * Most recent Strategy B trigger within the last 5 closed daily candles: level, how many days ago
+ * (0 = the last closed candle) and the trigger close (the backtested entry price).
+ */
+function strategyB(closes: number[]) {
+  const n = closes.length;
+  const drop = (w: number) => (n - 1 - w >= 0 ? pct(closes[n - 1]!, closes[n - 1 - w]) : null);
+  for (let ago = 0; ago < 5 && n - 1 - ago >= 0; ago++) {
+    const lvl = strategyBLevel(closes, n - 1 - ago);
+    if (lvl) return { b3: drop(3), b7: drop(7), b30: drop(30), bCols: [lvl, ago, Number(closes[n - 1 - ago]!.toPrecision(6))].join(',') };
+  }
+  return { b3: drop(3), b7: drop(7), b30: drop(30), bCols: ',,' };
+}
 
 async function coinRow(pair: string, name: string, ticker: Ticker | undefined): Promise<CoinStat> {
   try {
@@ -150,9 +179,9 @@ async function coinRow(pair: string, name: string, ticker: Ticker | undefined): 
       r1(pct(price, high90)),
       r1(rsiW),
     ].join(',');
-    return { line, rsiW, vol30, weeks: wClosed.length };
+    return { line, rsiW, vol30, weeks: wClosed.length, ...strategyB(c) };
   } catch {
-    return { line: `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`, rsiW: null, vol30: 0, weeks: 0 };
+    return { line: `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`, rsiW: null, vol30: 0, weeks: 0, b3: null, b7: null, b30: null, bCols: ',,' };
   }
 }
 
@@ -168,7 +197,8 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
   name: 'get_tracking_coins',
   description:
     "Get the user's watchlist (the coins on their Spot Analytic / Tracking Coins page), computed live from Binance: price, 24h/3d/7d/30d/90d " +
-    'change, 24h volume, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
+    'change, Strategy B crash-rebound signal per coin (sigB/sigBAgo/sigBEntry) + the market-wide Strategy B status in the header, ' +
+    '24h volume, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
     '20-day low and 90-day high, weekly RSI14 (rsiW), 30-day volume rank among alts (volRank), Strategy A market breadth (% of all Binance USDT alts with weekly RSI < 35) + regime in the header, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
     'shortlist coins before fetching detailed candles for a few of them (at most 3). Optionally pass symbols to get only those.',
   inputSchema: {
@@ -209,6 +239,18 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
     const rank = new Map([...alts].sort((a, b) => b.st.vol30 - a.st.vol30).map((a, i) => [a.pair, i + 1]));
     const listOversold = alts.filter((a) => (a.st.rsiW as number) < 35).length;
     const mb = await marketBreadth().catch(() => null);
+
+    // Strategy B market crash: median watchlist-alt drop over 3 / 7 / 30 closed daily candles.
+    const altStats = coins.filter((c) => !NON_ALT.has(c.pair)).map((c) => rows.get(c.pair)!);
+    const med = (xs: Array<number | null>) => {
+      const v = xs.filter((x): x is number => x != null && Number.isFinite(x)).sort((a, b) => a - b);
+      if (v.length < 10) return null;
+      const m = v.length >> 1;
+      return v.length % 2 ? v[m]! : (v[m - 1]! + v[m]!) / 2;
+    };
+    const m3 = med(altStats.map((x) => x.b3)), m7 = med(altStats.map((x) => x.b7)), m30 = med(altStats.map((x) => x.b30));
+    const marketB = (m3 != null && m3 <= -15) || (m7 != null && m7 <= -25) || (m30 != null && m30 <= -30);
+    const bCount = altStats.filter((x) => x.bCols.startsWith('B')).length;
     const breadth = mb ? mb.pct : NaN;
     const regime = !Number.isFinite(breadth) ? 'không đủ dữ liệu'
       : breadth >= 25 ? 'MÙA MUA (≥25%): mở lệnh bình thường với coin top 100'
@@ -225,8 +267,10 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
       'ema = giá trên(Y)/dưới(N) EMA34,EMA89,EMA200. trend: Up = giá>EMA34>EMA89, Down = giá<EMA34<EMA89, Mixed = lẫn lộn. ' +
         'vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. stars = người dùng tự chấm 0–5 sao (trống = chưa chấm). mcapM = vốn hoá triệu USD (Binance). sectors = nhóm (L1, L2, Meme, DeFi, AI…).',
       'rsiW = RSI14 nến tuần đã đóng. volRank = hạng volume $ 30 ngày trong các alt niêm yết ≥1 năm (trống = BTC/ETH/stable hoặc < 1 năm).',
-      'pair,name,price,chg24h%,chg3d%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,rsiW,stars,mcapM,sectors,volRank',
-      ...shown.map((c) => `${rows.get(c.pair)!.line},${extraOf(c.pair, c.rating)},${rank.get(c.pair) ?? ''}`),
+      `Chiến lược B — alt trung vị watchlist (nến D1 đã đóng): 3d ${r1(m3)}%, 7d ${r1(m7)}%, 30d ${r1(m30)}% → ${marketB ? 'THỊ TRƯỜNG ĐANG SẬP KIỂU B (3d ≤ −15% / 7d ≤ −25% / 30d ≤ −30%): cả danh sách có lợi thế hồi +10%' : 'thị trường chưa sập kiểu B'}. ${bCount}/${altStats.length} alt đang có tín hiệu B.`,
+      'sigB = tín hiệu Chiến lược B trong 5 nến D1 đóng gần nhất: B = 3d ≤ −20% / 7d ≤ −25% / 30d ≤ −40%; B+ = 3d ≤ −25% / 7d ≤ −30% (trống = không có). sigBAgo = số ngày từ nến kích hoạt (0 = nến D1 vừa đóng). sigBEntry = giá đóng cửa nến kích hoạt (giá vào đã backtest). Mức giảm tính close-to-close trên nến D1 đã đóng, khác chg3d%/chg7d% (giá hiện tại).',
+      'pair,name,price,chg24h%,chg3d%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,rsiW,stars,mcapM,sectors,volRank,sigB,sigBAgo,sigBEntry',
+      ...shown.map((c) => `${rows.get(c.pair)!.line},${extraOf(c.pair, c.rating)},${rank.get(c.pair) ?? ''},${rows.get(c.pair)!.bCols}`),
     ].join('\n');
   },
 };

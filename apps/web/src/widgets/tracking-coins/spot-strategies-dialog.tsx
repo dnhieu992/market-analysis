@@ -55,7 +55,7 @@ export function SpotStrategiesDialog({ onClose }: { onClose: () => void }) {
                     onClick={() => setSelected(x.id)}
                   >
                     Chiến lược {x.id}
-                    {x.id === data.active && <span className={styles.stratBadge}>chat đang dùng</span>}
+                    {x.status === 'active' && <span className={styles.stratBadge}>chat đang dùng</span>}
                   </button>
                 ))}
               </div>
@@ -78,7 +78,7 @@ export function SpotStrategiesDialog({ onClose }: { onClose: () => void }) {
                   <p className={styles.hint}>{s.backtest.period} · {s.backtest.universe}. {s.backtest.method}.</p>
                   <div className={styles.historyTableWrap}>
                     <table className={styles.historyTable}>
-                      <thead><tr><th>Cấu hình</th><th>Lãi/năm</th><th>Sụt giảm tối đa</th></tr></thead>
+                      <thead><tr><th>Cấu hình</th><th>{s.backtest.columns?.[0] ?? 'Lãi/năm'}</th><th>{s.backtest.columns?.[1] ?? 'Sụt giảm tối đa'}</th></tr></thead>
                       <tbody>
                         {s.backtest.rows.map((r) => (
                           <tr key={r.config}>

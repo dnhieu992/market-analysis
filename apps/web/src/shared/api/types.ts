@@ -1953,6 +1953,7 @@ export type SpotStrategy = {
     period: string;
     universe: string;
     method: string;
+    columns?: [string, string];
     rows: Array<{ config: string; cagr: string; maxDd: string; note?: string }>;
     takeaways: string[];
   };
