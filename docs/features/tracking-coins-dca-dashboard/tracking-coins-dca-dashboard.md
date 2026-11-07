@@ -57,7 +57,8 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
 | Scores | `GET /tracking-coins/scores` → rules passed / rules total (see below) | 5 min (server caches 5 min per coin) |
 | Giá | `GET /tracking-coins/tickers` → Binance MINI ticker `lastPrice`, flashes green/red on each tick; server-rendered on first paint | 5s poll (server caches 5s, shared by all viewers) |
 | 24h % | same request — rolling 24h `(lastPrice − openPrice) / openPrice` | 5s |
-| 7d % | `GET /tracking-coins/price-changes` → current close vs the close 7 daily candles back | 5 min (server caches 5 min per coin) |
+| 3d % | `GET /tracking-coins/price-changes` → current close vs the close 3 daily candles back (added 2026-11-07) | 5 min (server caches 5 min per coin) |
+| 7d % | same endpoint, 7 daily candles back | 5 min |
 | 30d % | same endpoint, 30 daily candles back | 5 min |
 | 90d % | same endpoint, 90 daily candles back | 5 min |
 | 180d % | same endpoint, 180 daily candles back | 5 min |
@@ -75,7 +76,7 @@ the last good snapshot), filters it locally and maps `1000X` → `X` price × 10
 while the tab is hidden and refreshes on return. 7d/30d/90d/180d come from `/price-changes`, where a
 5-minute cache is enough (they only move on a daily close).
 
-All table headers and values are left-aligned (`.tc-table--left-th`), including the numeric columns and the Actions buttons (numbers keep tabular digits).
+All table headers and values are left-aligned (`.tc-table--left-th`), including the numeric columns and the Actions buttons (numbers keep tabular digits). The **Coin column is sticky** (`position: sticky; left: 0`) so it stays visible while the table scrolls sideways.
 
 ## Scores column (2026-08-11)
 `passed/total` over a list of checks — `1/1` when the coin passes everything, `0/1` when it passes

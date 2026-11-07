@@ -16,7 +16,7 @@ import { SpotStrategiesDialog } from './spot-strategies-dialog';
 type Props = { initialCoins: TrackingCoinRow[]; initialTickers?: TrackingTicker[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
-type SortCol = 'coin' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
+type SortCol = 'coin' | 'price' | 'chg24h' | 'chg3d' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
 
 /** Stars a coin shows before the trader rates it (DB default too). */
 const DEFAULT_RATING = 3;
@@ -373,6 +373,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
         col === 'mcap'   ? meta[symbol]?.marketCap :
         col === 'price'  ? prices.get(symbol) :
         col === 'chg24h' ? changes24h.get(symbol) :
+        col === 'chg3d'  ? changes[symbol]?.change3d :
         col === 'chg7d'  ? changes[symbol]?.change7d :
         col === 'chg30d' ? changes[symbol]?.change30d :
                            changes[symbol]?.change90d;
@@ -489,6 +490,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
                 </th>
                 <SortHeader label="Giá"   col="price"  sort={sort} onSort={cycleSort} title="Giá hiện tại (Binance, cache 5 giây trên server)" />
                 <SortHeader label="24h %" col="chg24h" sort={sort} onSort={cycleSort} title="Thay đổi 24 giờ (rolling, ticker Binance)" />
+                <SortHeader label="3d %"  col="chg3d"  sort={sort} onSort={cycleSort} title="Thay đổi 3 ngày (so với close 3 nến D1 trước)" />
                 <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
                 <SortHeader label="30d %" col="chg30d" sort={sort} onSort={cycleSort} title="Thay đổi 30 ngày (so với close 30 nến D1 trước)" />
                 <SortHeader label="90d %" col="chg90d" sort={sort} onSort={cycleSort} title="Thay đổi 90 ngày (so với close 90 nến D1 trước)" />
@@ -500,7 +502,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="scr-empty">
+                  <td colSpan={10} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -544,6 +546,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
                         : <span className="scr-muted">—</span>}
                     </td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg24h)}`}>{fmtChange(chg24h)}</td>
+                    <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change3d)}`}>{fmtChange(chg?.change3d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change7d)}`}>{fmtChange(chg?.change7d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change30d)}`}>{fmtChange(chg?.change30d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change90d)}`}>{fmtChange(chg?.change90d)}</td>

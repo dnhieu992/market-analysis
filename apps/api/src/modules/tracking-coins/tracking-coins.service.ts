@@ -12,12 +12,13 @@ type CoinSetup = {
 };
 
 /**
- * Price change as a ratio (0.0123 = +1.23%) over 7 / 30 / 90 / 180 days, each
+ * Price change as a ratio (0.0123 = +1.23%) over 3 / 7 / 30 / 90 / 180 days, each
  * comparing the current close with the close that many days back. The 24h column
  * is not here: the page reads the exchange's rolling 24h ticker with the price.
  */
 export type TrackingPriceChange = {
   symbol: string;
+  change3d: number | null;
   change7d: number | null;
   change30d: number | null;
   change90d: number | null;
@@ -132,6 +133,7 @@ export class TrackingCoinsService {
       };
       return {
         symbol: bare,
+        change3d: changeAgo(3),
         change7d: changeAgo(7),
         change30d: changeAgo(30),
         change90d: changeAgo(90),

@@ -7244,6 +7244,18 @@ a.metric-card--link:hover {
 .tc-table--left-th .scr-td { text-align: left; }
 .tc-table--left-th .bg-th-sort-btn,
 .tc-table--left-th .tt-actions { justify-content: flex-start; }
+/* Coin column pinned while the table scrolls sideways, so every value stays tied to its coin. */
+.tc-table--left-th .scr-th--coin,
+.tc-table--left-th .scr-td--coin {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--background-elevated);
+  box-shadow: inset -1px 0 0 var(--border);
+}
+.tc-table--left-th .scr-row:hover .scr-td--coin {
+  background: linear-gradient(rgba(0,0,0,0.025), rgba(0,0,0,0.025)), var(--background-elevated);
+}
 
 /* ── tracking coins: 24h / 7d / 30d / 90d change columns ── */
 /* Colour + weight come from the shared .bg-chg--up/--down rules. */
