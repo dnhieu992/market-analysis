@@ -8,6 +8,7 @@ import { createJunkShortCoinRepository } from '@app/db';
  *    24h tickers, premium index (funding rate + next funding time)
  *  · cached 1 h: futures exchangeInfo (listing date), fundingInfo (1h / 4h interval; absent = 8h)
  *  · cached until the next UTC day: 92 closed D1 futures candles per coin (3D…90D baselines)
+ *  · cached 24 h: all-time high = highest weekly high on Binance spot (longer history) and USDT-M futures
  *  · stored once in DB: first spot D1 candle = spot listing date
  */
 
@@ -18,6 +19,7 @@ const DAY_MS = 86_400_000;
 const LIVE_CACHE_MS = 15_000;
 const META_CACHE_MS = 3_600_000;
 const CONCURRENCY = 8;
+const ATH_CACHE_MS = 24 * 3_600_000;
 
 /** Binance product tags → ecosystem label. Program tags (Seed, Launchpool, HODLer…) are left out. */
 const ECOSYSTEM: Record<string, string> = {
@@ -54,6 +56,11 @@ export type JunkCoinStat = {
   change7dPct: number | null;
   change30dPct: number | null;
   change90dPct: number | null;
+  /** Highest weekly high on Binance spot + USDT-M futures (or the live price if above). */
+  athPrice: number | null;
+  athDate: string | null;
+  /** % the price is below the ATH (85 = 85% below). */
+  belowAthPct: number | null;
   fundingRatePct: number | null;
   fundingIntervalHours: number;
   nextFundingTime: number | null;
@@ -91,6 +98,7 @@ export class JunkShortStatsService {
   /** Closed D1 futures closes per symbol, oldest → newest, valid for one UTC day. */
   private readonly closes = new Map<string, { day: number; closes: number[] }>();
   private inflight: Promise<JunkCoinStatsResponse> | null = null;
+  private readonly ath = new Map<string, { at: number; price: number; time: number }>();
 
   async stats(): Promise<JunkCoinStatsResponse> {
     const rows = await this.repo.findAll();
@@ -125,6 +133,31 @@ export class JunkShortStatsService {
       }
     });
 
+    // All-time high from weekly candles of both markets (spot history usually starts earlier).
+    const athStale = rows.filter((r) => {
+      const hit = this.ath.get(r.symbol);
+      return !hit || Date.now() - hit.at > ATH_CACHE_MS;
+    });
+    await mapLimit(athStale, async (r) => {
+      const weekly = async (url: string) => {
+        try {
+          return await get<unknown[][]>(url);
+        } catch {
+          return [];
+        }
+      };
+      const [fut, sp] = await Promise.all([
+        weekly(`${FAPI()}/fapi/v1/klines?symbol=${r.symbol}&interval=1w&limit=499`),
+        spot.has(r.symbol) ? weekly(`${SPOT}/api/v3/klines?symbol=${r.symbol}&interval=1w&limit=1000`) : Promise.resolve([]),
+      ]);
+      let best = { price: 0, time: 0 };
+      for (const k of [...fut, ...sp]) {
+        const h = Number(k[2]);
+        if (h > best.price) best = { price: h, time: Number(k[0]) };
+      }
+      if (best.price > 0) this.ath.set(r.symbol, { at: Date.now(), ...best });
+    });
+
     // Spot listing date: first spot D1 candle, fetched once and stored.
     const missingListing = rows.filter((r) => !r.spotListedAt && spot.has(r.symbol));
     const listed = new Map<string, Date>();
@@ -152,6 +185,8 @@ export class JunkShortStatsService {
       const tags = p?.tags ?? [];
       const spotAt = r.spotListedAt ?? listed.get(r.symbol) ?? null;
       const onboard = meta.onboard.get(r.symbol);
+      const athHit = this.ath.get(r.symbol);
+      const ath = athHit ? (price && price > athHit.price ? { price, time: Date.now() } : athHit) : null;
       return {
         symbol: r.symbol,
         name: p?.an ?? null,
@@ -163,6 +198,9 @@ export class JunkShortStatsService {
         change7dPct: chg(7),
         change30dPct: chg(30),
         change90dPct: chg(90),
+        athPrice: ath ? ath.price : null,
+        athDate: ath ? new Date(ath.time).toISOString() : null,
+        belowAthPct: ath && price ? round((1 - price / ath.price) * 100, 1) : null,
         fundingRatePct: pr ? round(Number(pr.lastFundingRate) * 100, 4) : null,
         fundingIntervalHours: meta.interval.get(r.symbol) ?? 8,
         nextFundingTime: pr?.nextFundingTime || null,

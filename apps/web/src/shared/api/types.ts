@@ -1876,6 +1876,11 @@ export type JunkCoinStat = {
   change7dPct: number | null;
   change30dPct: number | null;
   change90dPct: number | null;
+  /** Highest weekly high on Binance spot + futures. */
+  athPrice: number | null;
+  athDate: string | null;
+  /** % below the ATH (85 = 85% below). */
+  belowAthPct: number | null;
   /** Last funding rate in % (0.01 = 0.01%). */
   fundingRatePct: number | null;
   /** 1 | 4 | 8 — Binance funding settlement interval. */

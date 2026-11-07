@@ -15,7 +15,9 @@ as warnings / red flags.
    removes; synced coins that no longer pass are listed in the result banner with a one-click
    "Xoá các coin này". Search by coin / name.
 3. Live stats table (`GET /junk-short/coins/stats`, polled every 30 s while the tab is visible, API caches
-   15 s): market cap (circulating supply × price), 24h / 3D / 7D / 30D / 90D change (price now vs the D1
+   15 s): market cap (circulating supply × price), ATH + its date (highest weekly high on Binance spot
+   and USDT-M futures, cached 24 h; the live price replaces it when higher) and % below ATH (red when
+   < 50%, outside the study's junk gate), 24h / 3D / 7D / 30D / 90D change (price now vs the D1
    close N candles back), funding rate + interval (1h / 4h / 8h from `fapi/v1/fundingInfo`, absent = 8h)
    + live countdown to the next funding, ecosystem chips from Binance product tags (Meme, Layer 1/2, DeFi,
    AI, Gaming, RWA, Solana, BNB Chain… — program tags like Seed / Launchpool are dropped), Monitoring /

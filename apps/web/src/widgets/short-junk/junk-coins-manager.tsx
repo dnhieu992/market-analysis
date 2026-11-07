@@ -25,12 +25,14 @@ const bySymbol = (a: JunkShortCoin, b: JunkShortCoin) => a.symbol.localeCompare(
 
 type Banner = { kind: 'info' | 'error'; text: string; stale?: string[] };
 
-type SortKey = 'symbol' | 'cap' | 'c24' | 'c3' | 'c7' | 'c30' | 'c90' | 'funding' | 'spot';
+type SortKey = 'symbol' | 'cap' | 'ath' | 'below' | 'c24' | 'c3' | 'c7' | 'c30' | 'c90' | 'funding' | 'spot';
 const POLL_MS = 30_000;
 
 const SORT_VALUE: Record<SortKey, (s: JunkCoinStat | undefined, c: JunkShortCoin) => number | string | null> = {
   symbol: (_s, c) => c.symbol,
   cap: (s) => s?.marketCapUsd ?? null,
+  ath: (s) => (s?.athDate ? Date.parse(s.athDate) : null),
+  below: (s) => s?.belowAthPct ?? null,
   c24: (s) => s?.change24hPct ?? null,
   c3: (s) => s?.change3dPct ?? null,
   c7: (s) => s?.change7dPct ?? null,
@@ -271,6 +273,8 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
                 <Th k="symbol" label="Coin" num={false} />
                 <th>Hệ sinh thái</th>
                 <Th k="cap" label="Vốn hoá" title="Circulating supply × giá (Binance)" />
+                <Th k="ath" label="ATH" title="Đỉnh mọi thời đại (nến tuần cao nhất trên Binance spot + futures) · ngày đạt đỉnh — sắp xếp theo ngày" />
+                <Th k="below" label="% dưới ATH" title="Giá hiện tại thấp hơn ATH bao nhiêu % — nghiên cứu: coin còn cách ATH < 50% short lỗ (PF 0.75)" />
                 <Th k="c24" label="24h" />
                 <Th k="c3" label="3D" title="Giá hiện tại so với giá đóng nến D1 3 ngày trước" />
                 <Th k="c7" label="7D" />
@@ -302,6 +306,25 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
                       </div>
                     </td>
                     <td className={styles.num}>{fmtCap(st?.marketCapUsd)}</td>
+                    <td className={styles.num}>
+                      {st?.athPrice != null ? (
+                        <>
+                          <div>{fmtPrice(st.athPrice)}</div>
+                          {st.athDate && <div className={styles.sub}>{fmtDate(st.athDate)}</div>}
+                        </>
+                      ) : (
+                        <span className={styles.muted}>—</span>
+                      )}
+                    </td>
+                    <td className={styles.num}>
+                      {st?.belowAthPct != null ? (
+                        <span className={st.belowAthPct < 50 ? styles.warnText : ''} title={st.belowAthPct < 50 ? 'Còn cách ATH < 50% — ngoài tiêu chí coin rác của nghiên cứu' : undefined}>
+                          −{st.belowAthPct.toFixed(1)}%
+                        </span>
+                      ) : (
+                        <span className={styles.muted}>—</span>
+                      )}
+                    </td>
                     <td className={styles.num}><Pct v={st?.change24hPct} /></td>
                     <td className={styles.num}><Pct v={st?.change3dPct} /></td>
                     <td className={styles.num}><Pct v={st?.change7dPct} /></td>
@@ -352,7 +375,7 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
               })}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={12} className={styles.empty}>Không tìm thấy.</td>
+                  <td colSpan={14} className={styles.empty}>Không tìm thấy.</td>
                 </tr>
               )}
             </tbody>
