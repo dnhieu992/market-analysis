@@ -58,6 +58,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
+    href: '/short-junk',
+    label: 'Short Coin Rác',
+    description: 'Chat short coin rác · chỉ scan danh sách coin bạn tự quản lý'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

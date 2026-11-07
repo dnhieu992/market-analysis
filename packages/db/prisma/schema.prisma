@@ -1435,3 +1435,15 @@ model ShortScoreSnapshot {
   @@index([symbol, takenAt])
   @@map("short_score_snapshots")
 }
+
+// The user's hand-kept "coin rác" list on /short-junk — the short-junk skill and its Telegram
+// alert scan ONLY these coins (Binance USDT-M symbols).
+model JunkShortCoin {
+  id        String   @id @default(cuid())
+  symbol    String   @unique @db.VarChar(30)
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("junk_short_coins")
+}

@@ -1,5 +1,6 @@
 import { createServerApiClient } from '@web/shared/auth/api-auth';
 import type { Skill, Conversation, ChatMessage } from '@web/shared/api/types';
+import { redirect } from 'next/navigation';
 import { SkillChatClient } from './skill-chat-client';
 
 type Props = {
@@ -7,7 +8,7 @@ type Props = {
   conversationId: string;
 };
 
-async function loadData(skillId: string, conversationId: string): Promise<{
+export async function loadSkillChatData(skillId: string, conversationId: string): Promise<{
   skill: Skill | null;
   conversations: Conversation[];
   initialMessages: ChatMessage[];
@@ -40,7 +41,9 @@ async function loadData(skillId: string, conversationId: string): Promise<{
 }
 
 export default async function SkillChatPage({ skillId, conversationId }: Props) {
-  const { skill, conversations, initialMessages } = await loadData(skillId, conversationId);
+  // Skills with their own page (chat + extra tools) live there; old links keep working.
+  if (skillId === 'short-junk') redirect(`/short-junk/chat/${conversationId}`);
+  const { skill, conversations, initialMessages } = await loadSkillChatData(skillId, conversationId);
 
   return (
     <SkillChatClient

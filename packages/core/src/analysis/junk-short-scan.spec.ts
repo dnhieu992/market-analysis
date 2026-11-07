@@ -54,7 +54,7 @@ describe('formatJunkShortAlert', () => {
         {
           symbol: 'FOOUSDT', setup: 'A_PUMP_FADE', marketCapUsdM: 120, capBeforePumpUsdM: 60, belowAthPct: 90, athPrice: 5, monitoringTag: true, listingDays: 400, pump3dPct: 80,
           signalDate: '2026-11-02', signalDayChangePct: 30, volumeX20d: 8, price: 0.5, todayFromOpenPct: -2, pumpTop: 0.6,
-          ema20: 0.35, ema50: 0.3, fundingPct: -0.2, change24hPct: 20, plan: junkLadderPlan('A_PUMP_FADE', 0.5),
+          ema20: 0.35, ema50: 0.3, fundingPct: -0.2, change24hPct: 20, plan: junkLadderPlan('A_PUMP_FADE', 0.5), warnings: [],
         },
       ],
       movers: [

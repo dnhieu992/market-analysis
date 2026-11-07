@@ -1,8 +1,14 @@
 import { scanJunkShorts } from '@app/core';
+import { createJunkShortCoinRepository } from '@app/db';
 
 import type { ChatTool } from '../contracts/chat-tool';
 
-/** Thin chat wrapper over `scanJunkShorts` (@app/core) — same scan the worker's Telegram alert runs. */
+/**
+ * Thin chat wrapper over `scanJunkShorts` (@app/core) — same scan the worker's Telegram alert runs.
+ * Scans ONLY the user's coin list from /short-junk (table junk_short_coins); an empty list returns
+ * an error telling the model to ask the user to add coins, never a fallback to the whole market.
+ */
+const coinRepo = createJunkShortCoinRepository();
 
 type ScanInput = { minMarketCapUsd?: number; maxMarketCapUsd?: number; minBelowAthPct?: number; minListingDays?: number; topGainers?: number };
 
@@ -12,7 +18,8 @@ let cache: { key: string; at: number; result: string } | null = null;
 export const scanJunkShortsTool: ChatTool<ScanInput, string> = {
   name: 'scan_junk_shorts',
   description:
-    'Scan Binance for junk-coin SHORT setups. Junk = listed on BOTH Binance spot (USDT) and USDT-M perpetuals, futures listed ' +
+    'Scan the user\'s junk-coin list (managed on the /short-junk page — ONLY those coins are scanned, including topGainers) ' +
+    'for SHORT setups. Coins failing the study\'s junk gates are still scanned and carry warnings[]. Study junk gates = listed on BOTH Binance spot (USDT) and USDT-M perpetuals, futures listed ' +
     '≥ minListingDays (default 90), and BEFORE the pump (3 days before the signal candle; the signal candle for setup B): ' +
     'market cap between minMarketCapUsd and maxMarketCapUsd (default $20M–$500M, circulating supply × price then) and price ' +
     '≥ minBelowAthPct below its all-time high (default 50%). ' +
@@ -31,7 +38,16 @@ export const scanJunkShortsTool: ChatTool<ScanInput, string> = {
     }
   },
   async execute(input) {
-    const key = JSON.stringify(input ?? {});
+    let symbols: string[];
+    try {
+      symbols = await coinRepo.symbols();
+    } catch (err) {
+      return JSON.stringify({ error: `could not read the junk coin list: ${(err as Error).message}` });
+    }
+    if (symbols.length === 0) {
+      return JSON.stringify({ error: 'The junk coin list is empty — ask the user to add coins on the /short-junk page (🗑️ Coin rác).' });
+    }
+    const key = JSON.stringify({ ...(input ?? {}), symbols });
     if (cache && cache.key === key && Date.now() - cache.at < CACHE_MS) return cache.result;
     try {
       const result = JSON.stringify(
@@ -41,7 +57,8 @@ export const scanJunkShortsTool: ChatTool<ScanInput, string> = {
           minBelowAth: input?.minBelowAthPct != null ? input.minBelowAthPct / 100 : undefined,
           minListingDays: input?.minListingDays,
           topGainers: input?.topGainers,
-          fapiBaseUrl: process.env.BINANCE_FAPI_BASE_URL
+          fapiBaseUrl: process.env.BINANCE_FAPI_BASE_URL,
+          symbols
         })
       );
       cache = { key, at: Date.now(), result };

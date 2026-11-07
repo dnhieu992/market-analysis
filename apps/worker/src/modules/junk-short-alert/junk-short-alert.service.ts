@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { formatJunkShortAlert, scanJunkShorts } from '@app/core';
-import { createTelegramMessageLogRepository } from '@app/db';
+import { createJunkShortCoinRepository, createTelegramMessageLogRepository } from '@app/db';
 
 import { TelegramService } from '../telegram/telegram.service';
 
@@ -13,12 +13,14 @@ const LOG_PREFIX = 'junk-short:';
  * sends ONE message with what is new: coins whose just-closed D1 printed setup A, and junk
  * coins sitting in Binance's top gainers ≥ +25%/24h. Each (kind, coin, UTC day) is sent at
  * most once — the keys are stored as TelegramMessageLog rows, so a worker restart or deploy
- * does not resend. No heartbeat: silence = nothing new.
+ * does not resend. No heartbeat: silence = nothing new. Only the coins on the /short-junk list
+ * are scanned; an empty list means no alert.
  */
 @Injectable()
 export class JunkShortAlertService {
   private readonly logger = new Logger(JunkShortAlertService.name);
   private readonly logRepo = createTelegramMessageLogRepository();
+  private readonly coinRepo = createJunkShortCoinRepository();
   private running = false;
 
   constructor(private readonly telegram: TelegramService) {}
@@ -28,10 +30,13 @@ export class JunkShortAlertService {
     this.running = true;
     try {
       const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
-      const scan = await scanJunkShorts({ fapiBaseUrl: process.env.BINANCE_FAPI_BASE_URL });
+      const symbols = await this.coinRepo.symbols();
+      if (symbols.length === 0) return;
+      const scan = await scanJunkShorts({ fapiBaseUrl: process.env.BINANCE_FAPI_BASE_URL, symbols });
       const day = scan.scannedAt.slice(0, 10);
       const setupA = scan.candidates.filter((c) => c.setup === 'A_PUMP_FADE');
-      const movers = scan.topGainers.filter((g) => g.junk && g.change24hPct >= MOVER_MIN_24H_PCT && g.setup !== 'A_PUMP_FADE');
+      // Every top gainer is on the user's list, so the study's junk gates do not filter movers here.
+      const movers = scan.topGainers.filter((g) => g.change24hPct >= MOVER_MIN_24H_PCT && g.setup !== 'A_PUMP_FADE');
 
       const keyA = (s: string, d: string) => `${LOG_PREFIX}A:${s}:${d}`;
       const keyM = (s: string) => `${LOG_PREFIX}mover:${s}:${day}`;

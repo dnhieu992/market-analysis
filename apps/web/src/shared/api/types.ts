@@ -1851,6 +1851,17 @@ export type TradingListNote = {
 
 /** A coin added to /trading-list by hand. */
 /** One coin of /trading-list (the DB table is the only source of the list). */
+/** A coin on the /short-junk list — the only coins the short-junk skill scans. */
+export type JunkShortCoin = {
+  id: string;
+  symbol: string;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AddJunkCoinsResult = { added: JunkShortCoin[]; rejected: string[] };
+
 export type TradingListWatchlistSymbol = {
   symbol: string;
   /** Set when only one exchange has a USDT-M contract for the coin; null = both. */

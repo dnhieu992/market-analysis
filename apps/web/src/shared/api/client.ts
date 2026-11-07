@@ -116,6 +116,8 @@ import type {
   TradingListNote,
   TradingListPriority,
   TradingListWatchlistSymbol,
+  JunkShortCoin,
+  AddJunkCoinsResult,
 } from './types';
 
 /** Optional "why" of an order — saved to trade_entries and the trade journal. */
@@ -236,6 +238,13 @@ function parseJsonArray(value: unknown): number[] {
   } catch {
     return [];
   }
+}
+
+/** The NestJS error `message` (string or validation list), or `fallback (HTTP n)`. */
+async function errorMessage(response: Response, fallback: string): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+  const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+  return msg || `${fallback} (HTTP ${response.status})`;
 }
 
 async function fetchJson<T>(fetchImpl: FetchLike, url: string, init?: RequestInit): Promise<T> {
@@ -1949,6 +1958,37 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Lưu đánh giá thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as TradingListNote;
+    },
+
+    // ── /short-junk coin list ────
+    async fetchJunkCoins(): Promise<JunkShortCoin[]> {
+      return fetchJson<JunkShortCoin[]>(fetchImpl, `${baseUrl}/junk-short/coins`, withDefaults({}));
+    },
+
+    async addJunkCoins(symbols: string[], note?: string): Promise<AddJunkCoinsResult> {
+      const response = await fetchImpl(
+        `${baseUrl}/junk-short/coins`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols, note }) }),
+      );
+      if (!response.ok) throw new Error(await errorMessage(response, 'Thêm coin thất bại'));
+      return (await response.json()) as AddJunkCoinsResult;
+    },
+
+    async updateJunkCoin(symbol: string, note: string): Promise<JunkShortCoin> {
+      const response = await fetchImpl(
+        `${baseUrl}/junk-short/coins/${encodeURIComponent(symbol)}`,
+        withDefaults({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) }),
+      );
+      if (!response.ok) throw new Error(await errorMessage(response, 'Lưu ghi chú thất bại'));
+      return (await response.json()) as JunkShortCoin;
+    },
+
+    async deleteJunkCoin(symbol: string): Promise<void> {
+      const response = await fetchImpl(
+        `${baseUrl}/junk-short/coins/${encodeURIComponent(symbol)}`,
+        withDefaults({ method: 'DELETE' }),
+      );
+      if (!response.ok) throw new Error(await errorMessage(response, 'Xoá coin thất bại'));
     },
 
     async fetchTradingListWatchlist(): Promise<TradingListWatchlistSymbol[]> {

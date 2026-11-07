@@ -70,3 +70,11 @@ export function createDailyAnalysisRepository() {
     }
   };
 }
+
+export function createJunkShortCoinRepository() {
+  return {
+    async symbols(): Promise<string[]> {
+      return [];
+    }
+  };
+}

@@ -116,6 +116,7 @@ export type { OkxAiActionInput } from './repositories/okx-ai-action.repository';
 export { createChatSkillVersionRepository } from './repositories/chat-skill-version.repository';
 export type { ChatSkillVersionInput } from './repositories/chat-skill-version.repository';
 export { createTradingListRepository } from './repositories/trading-list.repository';
+export { createJunkShortCoinRepository } from './repositories/junk-short-coin.repository';
 export type { TradingListPriorityInput, TradingListNoteInput } from './repositories/trading-list.repository';
 export { createTradeEntryRepository } from './repositories/trade-entry.repository';
 export type {

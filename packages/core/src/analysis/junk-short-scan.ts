@@ -11,6 +11,9 @@
  *   A. pump fade  — 3-day close-to-close ≥ +50% on the last CLOSED D1 candle
  *   B. EMA bounce — D1 downtrend, red candle wicks into EMA20 but closes under EMA50
  * Also returns Binance's top 24h gainers, since junk coins live there.
+ * With `symbols` (the user's hand-kept junk list on /short-junk) ONLY those coins are scanned —
+ * setups, top gainers and all — and the cap / ATH / listing-age / spot gates no longer drop a
+ * coin: the user already decided it is junk, so a failed gate is returned as a warning instead.
  * Change the rules in the study first, then here.
  */
 
@@ -49,6 +52,8 @@ export type JunkCandidate = {
   fundingPct: number;
   change24hPct: number | null;
   plan: JunkLadderPlan;
+  /** List mode only: the study's junk gates this coin fails (it is still scanned, the user listed it). */
+  warnings: string[];
 };
 
 export type JunkTopGainer = {
@@ -83,7 +88,15 @@ export type JunkShortScan = {
     signalCandle: string;
   };
   btc: { close: number; ema50D1: number; bear: boolean };
-  universe: { scanned: number; junkToday: number; excludedTooNew: string[] };
+  universe: {
+    /** 'list' = only the user's junk list was scanned; 'all' = every Binance perp through the junk gates. */
+    source: 'list' | 'all';
+    /** List mode: listed coins with no trading Binance USDT-M perpetual (cannot be shorted there). */
+    notOnBinanceFutures: string[];
+    scanned: number;
+    junkToday: number;
+    excludedTooNew: string[];
+  };
   candidates: JunkCandidate[];
   topGainers: JunkTopGainer[];
   topGainersSummary: { count: number; junk: number; notOnSpot: number; capOutOfRange: number; nearAth: number; tooNew: number };
@@ -97,6 +110,8 @@ export type JunkShortScanOptions = {
   topGainers?: number;
   fapiBaseUrl?: string;
   now?: number;
+  /** Scan ONLY these USDT-M symbols (e.g. ['ORDIUSDT']). Omit to scan every Binance perp. */
+  symbols?: readonly string[];
 };
 
 export const JUNK_PUMP_A = 0.5;
@@ -268,7 +283,12 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
   const funding = new Map(premium.map((p) => [p.symbol, Number(p.lastFundingRate)]));
   const t24 = new Map(tickers.map((t) => [t.symbol, t]));
 
-  const perps = info.symbols.filter((s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING');
+  const listSet = opts.symbols ? new Set(opts.symbols.map((x) => x.toUpperCase())) : null;
+  const listMode = listSet != null;
+  const perps = info.symbols.filter(
+    (s) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING' && (!listSet || listSet.has(s.symbol)),
+  );
+  const notOnBinanceFutures = listSet ? [...listSet].filter((sym) => !perps.some((p) => p.symbol === sym)) : [];
   const all = perps.map((s) => {
     const p = spot.get(s.baseAsset);
     const supply = p?.cs ?? 0;
@@ -286,8 +306,9 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
             : null;
     return { perp: s, supply, mc, listingDays, tags: p?.tags ?? [], preReason };
   });
-  const scanned = all.filter((u) => u.preReason == null);
-  const tooNew = all.filter((u) => u.preReason?.startsWith('futures listed') && u.mc != null && u.mc <= maxCap);
+  // List mode: every listed coin is scanned; the gates become warnings on the result.
+  const scanned = listMode ? all : all.filter((u) => u.preReason == null);
+  const tooNew = listMode ? [] : all.filter((u) => u.preReason?.startsWith('futures listed') && u.mc != null && u.mc <= maxCap);
 
   // BTC regime — the single biggest filter in the study (setup A win 86% vs 67%).
   const btcClosed = (await bars('BTCUSDT', '1d', KLINE_LIMIT)).slice(0, -1);
@@ -320,7 +341,10 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
     if (ev.setup) {
       // A / WATCH are judged on the cap before the pump; B on the signal day itself.
       const elig = eligAt(ev.setup === 'B_EMA_BOUNCE' ? i : i - 3);
-      if (elig.junk) {
+      if (elig.junk || listMode) {
+        const warnings = listMode
+          ? [u.preReason?.startsWith('cap >') ? null : u.preReason, elig.reason].filter((w): w is string => w != null)
+          : [];
         const sig = at(closed, -1);
         candidate = {
           symbol: u.perp.symbol,
@@ -343,6 +367,7 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
           fundingPct: sig4((funding.get(u.perp.symbol) ?? 0) * 100, 3),
           change24hPct: tk ? Number(tk.priceChangePercent) : null,
           plan: junkLadderPlan(ev.setup, price),
+          warnings,
         };
       }
     }
@@ -364,7 +389,8 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
     .map((t, idx) => {
       const u = metaBySymbol.get(t.symbol)!;
       const e = bySymbol.get(t.symbol);
-      const reason = u.preReason ?? (e ? e.gainerElig.reason : 'not enough candle history');
+      const pre = listMode && u.preReason?.startsWith('cap >') ? null : u.preReason;
+      const reason = pre ?? (e ? e.gainerElig.reason : 'not enough candle history');
       return {
         rank: idx + 1,
         symbol: t.symbol,
@@ -395,6 +421,8 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
     },
     btc: { close: sig4(btcClose, 6), ema50D1: sig4(btcEma50, 6), bear: btcClose < btcEma50 },
     universe: {
+      source: listMode ? 'list' : 'all',
+      notOnBinanceFutures,
       scanned: bySymbol.size,
       junkToday: [...bySymbol.values()].filter((e) => e.junkToday).length,
       excludedTooNew: tooNew.map((u) => u.perp.symbol),
@@ -420,12 +448,16 @@ export function formatJunkShortAlert(input: {
   setupA: readonly JunkCandidate[];
   movers: readonly JunkTopGainer[];
 }): string {
-  const lines: string[] = ['🗑️ <b>SHORT COIN RÁC</b> — Binance (vốn hoá trước pump $20–500M, giảm ≥50% từ ATH, list ≥ 90 ngày)'];
+  const lines: string[] = ['🗑️ <b>SHORT COIN RÁC</b> — Binance · danh sách coin rác trên /short-junk'];
   lines.push(input.btcBear ? '🐻 BTC D1 dưới EMA50 — edge setup A mạnh (win ~86%)' : '🐂 BTC D1 trên EMA50 — edge setup A yếu hơn (win ~67%), giảm size');
   if (input.setupA.length) {
     lines.push('', '<b>Setup A · pump ≥ +50%/3D (nến D1 đã đóng)</b>');
     for (const c of input.setupA) {
-      const flags = [c.monitoringTag ? '⚠️Monitoring' : '', c.fundingPct <= -0.1 ? `⚠️funding ${c.fundingPct}%` : '']
+      const flags = [
+        c.monitoringTag ? '⚠️Monitoring' : '',
+        c.fundingPct <= -0.1 ? `⚠️funding ${c.fundingPct}%` : '',
+        ...(c.warnings ?? []).map((w) => `⚠️${w}`),
+      ]
         .filter(Boolean)
         .join(' ');
       lines.push(
@@ -435,7 +467,7 @@ export function formatJunkShortAlert(input: {
     }
   }
   if (input.movers.length) {
-    lines.push('', '<b>Coin rác trong top tăng 24h (theo dõi, chưa vào)</b>');
+    lines.push('', '<b>Coin rác đang tăng mạnh 24h (theo dõi, chưa vào)</b>');
     for (const m of input.movers) {
       const p3 = m.pump3dIfClosedNowPct != null ? ` · 3D nếu đóng giờ: +${m.pump3dIfClosedNowPct}%` : '';
       lines.push(`• <b>${m.symbol}</b> #${m.rank} +${sig4(m.change24hPct, 3)}%/24h · cap trước pump ${m.capBeforePumpUsdM}M${p3}`);
