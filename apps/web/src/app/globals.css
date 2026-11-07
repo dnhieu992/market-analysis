@@ -7210,17 +7210,17 @@ a.metric-card--link:hover {
   color: #2563eb;
 }
 
-/* ── tracking coins: Scores column ── */
-/* passed/total over the scoring rules; full marks go green, the rest stay muted. */
-.tc-score {
-  font-size: 0.85rem;
+/* ── tracking coins (Spot Analytic): sector chips ── */
+.tc-sectors { display: inline-flex; flex-wrap: wrap; gap: 3px; max-width: 190px; }
+.tc-sector {
+  font-size: 0.7rem;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
   color: var(--muted);
-  cursor: help;
+  white-space: nowrap;
 }
-.tc-score--full { color: #16a34a; }
-.tc-td--score { min-width: 62px; }
 
 /* ── tracking coins: live price column ── */
 /* Flashes green/red for ~600ms on each tick, then settles back to --idle. */

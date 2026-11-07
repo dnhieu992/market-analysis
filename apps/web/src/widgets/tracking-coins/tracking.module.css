@@ -329,3 +329,18 @@
   .event { grid-template-columns: 1fr; gap: 2px; }
   .formGrid { grid-template-columns: 1fr; }
 }
+
+/* ── spot history dialog (Spot Analytic) ── */
+
+.up { color: #15803d; }
+.down { color: #dc2626; }
+.historyTitle { font-size: 0.9rem; font-weight: 700; margin: 4px 0 8px; }
+.historyTitle + .hint, .historyTableWrap + .hint { margin-bottom: 14px; }
+.historyTableWrap { overflow-x: auto; margin-bottom: 6px; }
+.historyTable { width: 100%; border-collapse: collapse; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.historyTable th { text-align: left; font-size: 0.72rem; color: var(--muted); font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.historyTable td { padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.historyTotal td { font-weight: 700; }
+.historyList { list-style: none; padding: 0; margin: 0 0 4px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; line-height: 1.5; }
+.historyList li { padding: 6px 8px; border-radius: 8px; background: rgba(23, 18, 13, 0.03); }
+.historyRemoved { opacity: 0.55; text-decoration: line-through; }

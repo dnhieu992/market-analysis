@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createApiClient } from '@web/shared/api/client';
-import type { ChatMessage, Conversation, LiveReply, TrackingSetup } from '@web/shared/api/types';
+import type { ChatMessage, Conversation, LiveReply, SpotTradeCard, TrackingSetup } from '@web/shared/api/types';
 import { AssistantMessage, Composer, Icon, LiveMessage, UserMessage, chatStyles as c } from '@web/shared/ui/chat/chat-parts';
 
 import { SetupCard, SetupFormModal, fmtDateTime } from './setup-card';
+import { SpotTradeCardView } from './spot-trade-card';
 import styles from './tracking.module.css';
 
 const api = createApiClient();
@@ -88,9 +89,9 @@ function suggestionsFor(symbol: string | null): string[] {
   return symbol
     ? [
         `${symbol} có đáng mua spot lúc này không? Vùng mua và mục tiêu +30% ở đâu?`,
+        `Mình đang giữ ${symbol} thế nào trong portfolio? Nên gom thêm hay chốt lời?`,
         `Lên kế hoạch mua ${symbol} chia 3 phần: giá mua từng phần, giá bán chốt lời.`,
-        `${symbol} đã về vùng đáy / hỗ trợ đẹp để gom chưa?`,
-        `Nếu đang cầm ${symbol} thì nên chốt lời ở đâu?`,
+        `Vừa mua ${symbol}: ghi lệnh vào portfolio giúp mình (số lượng, giá).`,
       ]
     : [
         'Quét danh sách, chọn tối đa 3 coin đáng mua spot nhất (còn dư địa +30%) và cho vùng mua.',
@@ -316,6 +317,10 @@ function AnalysisChat({
     }
   }
 
+  function spotChanged(t: SpotTradeCard) {
+    setMessages((prev) => prev.map((m) => (m.spotTrades?.some((x) => x.id === t.id) ? { ...m, spotTrades: m.spotTrades.map((x) => (x.id === t.id ? t : x)) } : m)));
+  }
+
   function setupChanged(s: TrackingSetup) {
     setMessages((prev) => prev.map((m) => (m.trackingSetups?.some((x) => x.id === s.id) ? { ...m, trackingSetups: m.trackingSetups.map((x) => (x.id === s.id ? s : x)) } : m)));
     onSetupChange(s);
@@ -362,7 +367,7 @@ function AnalysisChat({
                 <h1 className={c.greetingTitle}>{symbol ?? 'Quét danh sách'}</h1>
                 <p className={c.greetingText}>
                   {symbol
-                    ? `Claude đọc cấu trúc 1W / 1D của ${symbol}, tìm vùng mua spot, chia 3 phần mua và đặt mục tiêu ~+30% cho nhịp này.`
+                    ? `Claude đọc cấu trúc 1W / 1D và vị thế ${symbol} trong portfolio của bạn, tìm vùng mua spot, chia 3 phần mua, mục tiêu ~+30% mỗi nhịp. Báo “đã mua / đã bán …” để Claude tạo thẻ ghi lệnh vào portfolio.`
                     : 'Claude đọc toàn bộ danh sách theo dõi và chọn tối đa 3 coin đáng mua spot nhất (còn dư địa ~+30%).'}
                 </p>
               </div>
@@ -384,6 +389,13 @@ function AnalysisChat({
                 <UserMessage key={m.id} msg={m} />
               ) : (
                 <AssistantMessage key={m.id} msg={m} icon={ICON} isLast={m.id === lastAssistantId && !busy}>
+                  {m.spotTrades && m.spotTrades.length > 0 && (
+                    <div className={styles.cards}>
+                      {m.spotTrades.map((t) => (
+                        <SpotTradeCardView key={t.id} trade={t} onChange={spotChanged} />
+                      ))}
+                    </div>
+                  )}
                   {m.trackingSetups && m.trackingSetups.length > 0 && (
                     <div className={styles.cards}>
                       {m.trackingSetups.map((s) => (

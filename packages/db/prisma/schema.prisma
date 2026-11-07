@@ -456,8 +456,35 @@ model TrackingCoin {
   // portfolio's Holding + CoinTransaction rows for this symbol, so the DCA tab and the
   // portfolio page can never disagree.
   dcaPortfolioId  String?                 @db.Char(36)
+  // 0–5 star rating the trader gives the coin on /tracking-coins (Spot Analytic). 0 = none.
+  rating          Int                     @default(0)
 
   @@map("tracking_coins")
+}
+
+// A spot buy/sell proposed by the /tracking-coins (Spot Analytic) chat. It is only written to the
+// portfolio (CoinTransaction + Holding) when the trader confirms the card; the coin's History
+// dialog lists the CONFIRMED rows. Trades typed on the portfolio page never appear here.
+model SpotTrade {
+  id             String    @id @default(cuid())
+  symbol         String    @db.VarChar(30) // bare, e.g. "ADA"
+  side           String    @db.VarChar(4) // buy | sell
+  price          Float
+  amount         Float
+  portfolioId    String    @db.Char(36)
+  transactedAt   DateTime
+  note           String?   @db.Text
+  status         String    @default("PENDING") @db.VarChar(10) // PENDING | CONFIRMED | CANCELLED
+  conversationId String?   @db.Char(36)
+  messageId      String?   @db.Char(36)
+  transactionId  String?   @db.Char(36)
+  confirmedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([symbol, status])
+  @@index([conversationId])
+  @@map("spot_trades")
 }
 
 // Activity log for a tracked coin — the /tracking-coins "Activity logs" tab. Mirrors

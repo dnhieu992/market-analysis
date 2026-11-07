@@ -43,6 +43,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Coin holdings & PnL tracker'
   },
   {
+    href: '/tracking-coins',
+    label: 'Spot Analytic',
+    description: 'Mua lướt spot ~+30%/nhịp · chat đọc & ghi lệnh vào portfolio'
+  },
+  {
     href: '/trades',
     label: 'Trading History',
     description: 'Manual orders'
@@ -51,11 +56,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/trading-list',
     label: 'Trading List',
     description: 'Danh sách coin chung Bitget + MEXC · setup, vào lệnh 2 sàn, AI chat'
-  },
-  {
-    href: '/tracking-coins',
-    label: 'Tracking Coins · Gom đáy',
-    description: 'Gom đáy mạnh no-SL · cổng dcaScore≥50 · target x2'
   },
   {
     href: '/short-junk',

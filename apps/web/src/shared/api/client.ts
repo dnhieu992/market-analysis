@@ -45,7 +45,9 @@ import type {
   TrackingOverview,
   TrackingSetup,
   TrackingSetupInput,
-  TrackingCoinScore,
+  TrackingCoinMeta,
+  SpotTradeCard,
+  SpotHistory,
   TrackingPriceChange,
   TrackingCoinSetup,
   BitgetPositionsResponse,
@@ -1154,14 +1156,42 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
     },
 
-    async fetchTrackingScores(symbols: string[]): Promise<TrackingCoinScore[]> {
+    async fetchTrackingMeta(symbols: string[]): Promise<TrackingCoinMeta[]> {
       if (symbols.length === 0) return [];
       const q = encodeURIComponent(symbols.join(','));
-      return fetchJson<TrackingCoinScore[]>(
+      return fetchJson<TrackingCoinMeta[]>(fetchImpl, `${baseUrl}/tracking-coins/meta?symbols=${q}`, withDefaults());
+    },
+
+    async fetchTrackingRatings(): Promise<Array<{ symbol: string; rating: number }>> {
+      return fetchJson<Array<{ symbol: string; rating: number }>>(fetchImpl, `${baseUrl}/tracking-coins/ratings`, withDefaults());
+    },
+
+    async saveTrackingRating(symbol: string, rating: number): Promise<{ symbol: string; rating: number }> {
+      return fetchJson<{ symbol: string; rating: number }>(
         fetchImpl,
-        `${baseUrl}/tracking-coins/scores?symbols=${q}`,
-        withDefaults(),
+        `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/rating`,
+        withDefaults({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating }) }),
       );
+    },
+
+    async fetchSpotHistory(symbol: string): Promise<SpotHistory> {
+      return fetchJson<SpotHistory>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/history`, withDefaults());
+    },
+
+    async fetchSpotPortfolios(): Promise<Array<{ id: string; name: string }>> {
+      return fetchJson<Array<{ id: string; name: string }>>(fetchImpl, `${baseUrl}/tracking-coins/portfolios`, withDefaults());
+    },
+
+    async confirmSpotTrade(id: string, edit: { price?: number; amount?: number; portfolioId?: string; transactedAt?: string } = {}): Promise<SpotTradeCard> {
+      return mutationJson<SpotTradeCard>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/spot-trades/${encodeURIComponent(id)}/confirm`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit) }),
+      );
+    },
+
+    async cancelSpotTrade(id: string): Promise<SpotTradeCard> {
+      return mutationJson<SpotTradeCard>(fetchImpl, `${baseUrl}/tracking-coins/spot-trades/${encodeURIComponent(id)}/cancel`, withDefaults({ method: 'POST' }));
     },
 
     async addTrackingCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {

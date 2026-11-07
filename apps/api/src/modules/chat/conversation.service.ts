@@ -11,6 +11,7 @@ import { getSkillById, OKX_SHORT_SYSTEM_PROMPT } from '@app/skills';
 
 import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
 import { buildTrackingContext, TRACKING_SKILL_ID } from '../tracking-trades/tracking-context';
+import { attachSpotTrades, listSpotTradeCards } from '../tracking-coins/spot-trade-cards';
 import { ClaudeChatProvider } from './providers/claude-chat.provider';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
 import { isRichToolResult } from './contracts/chat-tool';
@@ -100,7 +101,7 @@ export class ConversationService {
   async getConversationMessages(id: string, userId: string) {
     const conv = await this.convRepo.findById(id);
     if (!conv || conv.userId !== userId) throw new NotFoundException('Conversation not found');
-    const [rawMessages, setups, tracking, bitgetActions, mexcActions, okxActions] = await Promise.all([
+    const [rawMessages, setups, tracking, bitgetActions, mexcActions, okxActions, spotTrades] = await Promise.all([
       this.convRepo.listMessages(id),
       this.setupRepo.listByConversation(id),
       this.trackingRepo.listByConversation(id),
@@ -111,7 +112,8 @@ export class ConversationService {
       conv.skillId === MEXC_AI_SKILL_ID || conv.skillId === TRADING_LIST_AI_SKILL_ID
         ? this.mexcActionRepo.listByConversation(id)
         : Promise.resolve([]),
-      conv.skillId === OKX_SHORT_AI_SKILL_ID ? this.okxActionRepo.listByConversation(id) : Promise.resolve([])
+      conv.skillId === OKX_SHORT_AI_SKILL_ID ? this.okxActionRepo.listByConversation(id) : Promise.resolve([]),
+      conv.skillId === TRACKING_SKILL_ID ? listSpotTradeCards(id) : Promise.resolve([])
     ]);
     // Swing setups proposed in a /tracking-coins panel chat, with their current status.
     const trackingByMessage = new Map<string, unknown[]>();
@@ -131,8 +133,14 @@ export class ConversationService {
     for (const a of okxActions) {
       if (a.messageId) okxByMessage.set(a.messageId, [...(okxByMessage.get(a.messageId) ?? []), a]);
     }
+    // Spot buy/sell cards of the /tracking-coins (Spot Analytic) chat.
+    const spotByMessage = new Map<string, unknown[]>();
+    for (const a of spotTrades) {
+      if (a.messageId) spotByMessage.set(a.messageId, [...(spotByMessage.get(a.messageId) ?? []), a]);
+    }
     const messages = rawMessages.map((m) => {
       const extra: Record<string, unknown> = {};
+      if (spotByMessage.has(m.id)) extra.spotTrades = spotByMessage.get(m.id);
       if (trackingByMessage.has(m.id)) extra.trackingSetups = trackingByMessage.get(m.id);
       if (bitgetByMessage.has(m.id)) extra.bitgetActions = bitgetByMessage.get(m.id);
       if (mexcByMessage.has(m.id)) extra.mexcActions = mexcByMessage.get(m.id);
@@ -275,7 +283,7 @@ export class ConversationService {
       // These chats never start over on their own: keep the newest messages verbatim, digest the rest.
       const history = exchangeAi ? fullHistory.slice(-EXCHANGE_AI_RECENT_MESSAGES) : fullHistory;
       const systemPrompt = tracking
-        ? `${skill!.systemPrompt}\n\n---\n\nThời gian hiện tại: ${nowVn} (GMT+7)\n\n${await buildTrackingContext(meta?.symbol)}`
+        ? `${skill!.systemPrompt}\n\n---\n\nThời gian hiện tại: ${nowVn} (GMT+7)\n\n${await buildTrackingContext(meta?.symbol, conversationId)}`
         : exchangeAi
           ? [
               // The OKX short chat's analysis skill is editable at runtime — it comes from buildContext, not the code default.
@@ -326,6 +334,7 @@ export class ConversationService {
       const assistantMsg = await this.convRepo.addMessage(conversationId, 'assistant', reply);
       await this.setupRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.trackingRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
+      await attachSpotTrades(conversationId, assistantMsg.id, startedAt);
       await this.bitgetActionRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.mexcActionRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.okxActionRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);

@@ -8,6 +8,7 @@ import { getScalpChartDataTool } from './scalp-chart.tool';
 import { createProposeTradeSetupTool } from './trade-setup.tool';
 import { proposeSwingSetupTool } from './swing-setup.tool';
 import { getTrackingCoinsTool } from './tracking-coins.tool';
+import { getPortfolioPositionTool, proposeSpotTradeTool } from './spot-analytic.tools';
 import { scanJunkShortsTool } from './junk-short-scan.tool';
 import { BitgetAiChatService } from './bitget-ai.tools';
 import { MexcAiChatService } from './mexc-ai.tools';
@@ -25,6 +26,8 @@ export class TradingChatToolRegistry extends ChatToolRegistry {
     [analyzeMarketStructureTool.name,  analyzeMarketStructureTool],
     [getScalpChartDataTool.name,       getScalpChartDataTool],
     [getTrackingCoinsTool.name,        getTrackingCoinsTool],
+    [getPortfolioPositionTool.name,    getPortfolioPositionTool],
+    [proposeSpotTradeTool.name,        proposeSpotTradeTool],
     [scanJunkShortsTool.name,          scanJunkShortsTool],
     [proposeSwingSetupTool.name,       proposeSwingSetupTool],
     ['propose_trade_setup',            createProposeTradeSetupTool()]

@@ -416,6 +416,8 @@ export type ChatMessage = {
   mexcActions?: MexcAiAction[];
   /** SHORT cards proposed by the /trades OKX short AI chat. */
   okxActions?: OkxAiAction[];
+  /** Spot buy/sell cards proposed by the Spot Analytic (/tracking-coins) chat. */
+  spotTrades?: SpotTradeCard[];
 };
 
 export type BitgetAiActionType = 'OPEN' | 'DCA' | 'SET_TP' | 'CLOSE' | 'CANCEL';
@@ -630,16 +632,39 @@ export type TrackingPriceChange = {
   change180d: number | null;
 };
 
-/**
- * Rule score for the "Scores" column: how many checks the coin passes out of
- * `maxScore`, plus the per-rule breakdown. `score: null` = nothing could be
- * evaluated (no data). One rule today — D1 Supertrend(10,3) bullish.
- */
-export type TrackingCoinScore = {
+/** Market cap (Binance circulating supply × price) and sector labels (L1, L2, Meme, DeFi, AI…). */
+export type TrackingCoinMeta = { symbol: string; marketCap: number | null; sectors: string[] };
+
+/** A spot buy/sell card proposed by the Spot Analytic chat; written to the portfolio on confirm. */
+export type SpotTradeCard = {
+  id: string;
   symbol: string;
-  score: number | null;
-  maxScore: number;
-  rules: Record<string, boolean | null>;
+  side: 'buy' | 'sell';
+  price: number;
+  amount: number;
+  portfolioId: string;
+  portfolioName?: string;
+  transactedAt: string;
+  note: string | null;
+  status: 'PENDING' | 'CONFIRMING' | 'CONFIRMED' | 'CANCELLED';
+  transactionId: string | null;
+};
+
+export type SpotPosition = {
+  portfolioId: string;
+  portfolioName: string;
+  amount: number;
+  avgCost: number;
+  totalCost: number;
+  realizedPnl: number;
+  txCount: number;
+  lastTxAt: string | null;
+};
+
+export type SpotHistory = {
+  symbol: string;
+  trades: Array<{ id: string; side: 'buy' | 'sell'; price: number; amount: number; value: number; portfolioId: string; portfolioName: string; transactedAt: string; note: string | null; removed: boolean }>;
+  positions: SpotPosition[];
 };
 
 export type TrackingCoinRow = {

@@ -2,28 +2,33 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinRow, TrackingCoinScore, TrackingPriceChange } from '@web/shared/api/types';
+import type { TrackingCoinMeta, TrackingCoinRow, TrackingPriceChange } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
+import { StarRating } from '@web/widgets/bitget/star-rating';
 
 import { CoinPanel } from './coin-panel';
+import { SpotHistoryDialog } from './spot-history-dialog';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
-type SortCol = 'coin' | 'score' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d' | 'chg180d';
+type SortCol = 'coin' | 'rating' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
-/** 7d / 30d / 90d / 180d only move on a daily close — poll them rarely. */
+/** 7d / 30d / 90d only move on a daily close — poll them rarely. */
 const CHANGE_REFRESH_MS = 5 * 60_000;
-/** Scores read closed daily candles, so they move once a day. Same slow cadence. */
-const SCORE_REFRESH_MS = 5 * 60_000;
+/** Market cap / sectors (Binance) — cached 1h server-side. */
+const META_REFRESH_MS = 10 * 60_000;
 
-/** Human label per rule id — the Scores tooltip explains where the point came from. */
-const RULE_LABELS: Record<string, string> = {
-  supertrendD1: 'Supertrend(10,3) D1 bullish',
-};
+/** $1.23B / $456M style market cap. */
+function fmtCap(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v) || v <= 0) return '—';
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(v >= 1e11 ? 0 : 2)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+  return `$${(v / 1e3).toFixed(0)}K`;
+}
 
 /* ── live price hook ────────────────────────────────────────────── */
 
@@ -107,31 +112,6 @@ function chgClass(ratio: number | null | undefined): string {
   return ratio > 0 ? 'bg-chg--up' : ratio < 0 ? 'bg-chg--down' : '';
 }
 
-/* ── Scores cell ────────────────────────────────────────────────── */
-
-/**
- * `passed/total` over the scoring rules — `1/1` when the coin's D1 Supertrend is
- * bullish. Full marks read green, anything less reads muted, and hovering lists
- * each rule so the number is never a mystery.
- */
-function ScoreCell({ score }: { score: TrackingCoinScore | undefined }) {
-  if (!score || score.score === null) return <span className="scr-muted">—</span>;
-
-  const full = score.score === score.maxScore;
-  const title = Object.entries(score.rules)
-    .map(([id, passed]) => {
-      const mark = passed === null ? '–' : passed ? '✓' : '✕';
-      return `${mark} ${RULE_LABELS[id] ?? id}`;
-    })
-    .join('\n');
-
-  return (
-    <span className={`tc-score${full ? ' tc-score--full' : ''}`} title={title}>
-      {score.score}/{score.maxScore}
-    </span>
-  );
-}
-
 /**
  * A sortable column header — cycles desc → asc → off. "Off" returns the table to
  * the watchlist's own order, which is where it starts: no column sorts by default.
@@ -163,6 +143,16 @@ function IconTrash() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function IconHistory() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l3 2" />
     </svg>
   );
 }
@@ -267,8 +257,10 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   // 7d / 30d / 90d change per bare symbol, from the API (Binance daily closes).
   const [changes, setChanges] = useState<Record<string, Omit<TrackingPriceChange, 'symbol'>>>({});
-  // Rule score per bare symbol — the "Scores" column.
-  const [scores, setScores] = useState<Record<string, TrackingCoinScore>>({});
+  // Market cap + sectors per bare symbol (Binance), and the trader's 0–5 stars.
+  const [meta, setMeta] = useState<Record<string, TrackingCoinMeta>>({});
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [historySymbol, setHistorySymbol] = useState<string | null>(null);
 
   useEffect(() => { setPage(1); }, [nameFilter, sort]);
 
@@ -301,19 +293,36 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
     let cancelled = false;
     const load = async () => {
       try {
-        const rows = await createApiClient().fetchTrackingScores(symbols);
+        const rows = await createApiClient().fetchTrackingMeta(symbols);
         if (cancelled) return;
-        setScores((prev) => {
+        setMeta((prev) => {
           const next = { ...prev };
           for (const r of rows) next[r.symbol] = r;
           return next;
         });
-      } catch { /* non-fatal: the Scores column keeps its last-known values */ }
+      } catch { /* non-fatal: cap / sector columns keep their last-known values */ }
     };
     void load();
-    const id = setInterval(() => void load(), SCORE_REFRESH_MS);
+    const id = setInterval(() => void load(), META_REFRESH_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [symbols]);
+
+  useEffect(() => {
+    createApiClient()
+      .fetchTrackingRatings()
+      .then((l) => setRatings(Object.fromEntries(l.map((r) => [r.symbol, r.rating]))))
+      .catch(() => {});
+  }, []);
+
+  const saveRating = useCallback(async (symbol: string, rating: number, before: number) => {
+    setRatings((prev) => ({ ...prev, [symbol]: rating }));
+    try {
+      await createApiClient().saveTrackingRating(symbol, rating);
+    } catch {
+      setRatings((prev) => ({ ...prev, [symbol]: before }));
+      setStatusMsg(`Lưu sao ${symbol} thất bại.`);
+    }
+  }, []);
 
   async function handleRemoveCoin(symbol: string) {
     setRemovingSymbol(symbol);
@@ -347,16 +356,16 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const numericValue = useCallback(
     (symbol: string, col: SortCol): number | null => {
       const v =
-        col === 'score'  ? scores[symbol]?.score :
+        col === 'rating' ? ratings[symbol] ?? 0 :
+        col === 'mcap'   ? meta[symbol]?.marketCap :
         col === 'price'  ? prices.get(symbol) :
         col === 'chg24h' ? changes24h.get(symbol) :
         col === 'chg7d'  ? changes[symbol]?.change7d :
         col === 'chg30d' ? changes[symbol]?.change30d :
-        col === 'chg90d' ? changes[symbol]?.change90d :
-                           changes[symbol]?.change180d;
+                           changes[symbol]?.change90d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
-    [scores, prices, changes24h, changes],
+    [ratings, meta, prices, changes24h, changes],
   );
 
   // Name/symbol search is the only filter left (2026-07-26 — the zone / quality /
@@ -400,6 +409,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
           onCancel={() => setConfirmRemoveSymbol(null)}
         />
       )}
+      {historySymbol && <SpotHistoryDialog symbol={historySymbol} onClose={() => setHistorySymbol(null)} />}
       {chartSymbol && (
         <SetupChartDialog
           symbol={chartSymbol}
@@ -413,12 +423,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         {/* header */}
         <div className="tc-page-header">
           <div className="tc-page-title-row">
-            <h1 className="scr-title">Tracking Coins</h1>
+            <h1 className="scr-title">Spot Analytic</h1>
           </div>
           <div className="scr-toolbar-right">
-            <button className="scr-add-toggle" onClick={() => setPanel('*')} title="Claude quét cả danh sách, tìm coin đáng mua spot (mục tiêu ~30%/nhịp)">
-              🧭 Quét
-            </button>
             {view === 'coins' && (
               <button className="scr-add-toggle" onClick={() => setShowAddForm((v) => !v)}>
                 {showAddForm ? '✕' : '+ Coin'}
@@ -464,20 +471,21 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </span>
                   </button>
                 </th>
-                <SortHeader label="Scores" col="score" sort={sort} onSort={cycleSort} title="Số tiêu chí coin đang thoả / tổng số tiêu chí. Hiện chỉ có 1: Supertrend(10,3) D1 bullish (nến D1 đã đóng)." />
+                <SortHeader label="Đánh giá" col="rating" sort={sort} onSort={cycleSort} title="Đánh giá 0–5 sao của bạn (bấm sao để chấm, bấm lại sao hiện tại để xoá)" />
                 <SortHeader label="Giá"   col="price"  sort={sort} onSort={cycleSort} title="Giá hiện tại (Binance, cập nhật mỗi 5 giây)" />
                 <SortHeader label="24h %" col="chg24h" sort={sort} onSort={cycleSort} title="Thay đổi 24 giờ (rolling, ticker Binance)" />
                 <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
                 <SortHeader label="30d %" col="chg30d" sort={sort} onSort={cycleSort} title="Thay đổi 30 ngày (so với close 30 nến D1 trước)" />
                 <SortHeader label="90d %" col="chg90d" sort={sort} onSort={cycleSort} title="Thay đổi 90 ngày (so với close 90 nến D1 trước)" />
-                <SortHeader label="180d %" col="chg180d" sort={sort} onSort={cycleSort} title="Thay đổi 180 ngày (so với close 180 nến D1 trước)" />
+                <SortHeader label="Vốn hoá" col="mcap" sort={sort} onSort={cycleSort} title="Vốn hoá hiện tại = lượng cung lưu hành × giá (Binance)" />
+                <th className="scr-th" title="Nhóm / hệ sinh thái theo tag của Binance (L1, L2, Meme, DeFi, AI, RWA…)">Nhóm</th>
                 <th className="scr-th scr-th--num">Actions</th>
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="scr-empty">
+                  <td colSpan={10} className="scr-empty">
                     {coins.length === 0
                       ? 'Chưa có coin nào. Nhấn "+ Coin" để thêm.'
                       : nameFilter
@@ -505,8 +513,8 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                         </button>
                       </span>
                     </td>
-                    <td className="scr-td scr-td--num tc-td--score">
-                      <ScoreCell score={scores[coin.symbol]} />
+                    <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
+                      <StarRating value={ratings[coin.symbol] ?? 0} symbol={coin.symbol} onChange={(v) => void saveRating(coin.symbol, v, ratings[coin.symbol] ?? 0)} />
                     </td>
                     {/* Live price — its own column since 2026-08-11 (was stacked under the ticker). */}
                     <td className="scr-td scr-td--num tc-td--price">
@@ -520,9 +528,17 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change7d)}`}>{fmtChange(chg?.change7d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change30d)}`}>{fmtChange(chg?.change30d)}</td>
                     <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change90d)}`}>{fmtChange(chg?.change90d)}</td>
-                    <td className={`scr-td scr-td--num tc-td--chg ${chgClass(chg?.change180d)}`}>{fmtChange(chg?.change180d)}</td>
+                    <td className="scr-td scr-td--num">{fmtCap(meta[coin.symbol]?.marketCap)}</td>
+                    <td className="scr-td">
+                      {meta[coin.symbol]?.sectors.length
+                        ? <span className="tc-sectors">{meta[coin.symbol]!.sectors.map((t) => <span key={t} className="tc-sector">{t}</span>)}</span>
+                        : <span className="scr-muted">—</span>}
+                    </td>
                     <td className="scr-td scr-td--num" onClick={(e) => e.stopPropagation()}>
                       <div className="tt-actions">
+                        <button className="tt-btn" data-tooltip="Lịch sử mua/bán" aria-label={`Lịch sử ${coin.symbol}`} onClick={() => setHistorySymbol(coin.symbol)}>
+                          <IconHistory />
+                        </button>
                         <button className="tt-btn tt-btn--danger" data-tooltip="Xóa" aria-label={`Xóa ${coin.symbol}`} onClick={() => setConfirmRemoveSymbol(coin.symbol)} disabled={removingSymbol === coin.symbol}>
                           {removingSymbol === coin.symbol ? '…' : <IconTrash />}
                         </button>

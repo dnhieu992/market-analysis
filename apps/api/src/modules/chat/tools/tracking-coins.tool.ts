@@ -1,5 +1,7 @@
-import { calculateEma, calculateRsi, isSupertrendBullish, type Candle } from '@app/core';
-import { createTrackingCoinsRepository, createTrackingSetupRepository, TRACKING_ACTIVE_STATUSES } from '@app/db';
+import { calculateEma, calculateRsi, type Candle } from '@app/core';
+import { createTrackingCoinsRepository } from '@app/db';
+
+import { coinMeta } from '../../tracking-coins/spot-portfolio';
 
 import type { ChatTool } from '../contracts/chat-tool';
 
@@ -84,8 +86,6 @@ async function coinRow(pair: string, name: string, ticker: Ticker | undefined): 
     const c = d.closes;
     const low20 = Math.min(...d.closed.slice(-20).map((x) => x.low));
     const high90 = Math.max(...d.closed.slice(-90).map((x) => x.high));
-    // Same rule as the Score column on /tracking-coins (needs 60 closed days).
-    const st = d.closed.length >= 60 ? (isSupertrendBullish(d.closed, 10, 3) ? 'Bull' : 'Bear') : '';
     return [
       pair,
       name.replace(/,/g, ' '),
@@ -95,7 +95,6 @@ async function coinRow(pair: string, name: string, ticker: Ticker | undefined): 
       r1(pct(price, c[c.length - 30])),
       r1(pct(price, c[c.length - 90])),
       ticker ? r1(Number(ticker.quoteVolume) / 1e6) : '',
-      st,
       d.trend,
       r1(d.rsi),
       d.ema,
@@ -121,9 +120,9 @@ let cache: { at: number; rows: Map<string, string> } | null = null;
 export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key: string]: unknown }, string> = {
   name: 'get_tracking_coins',
   description:
-    "Get the user's watchlist (the coins on their Tracking Coins page), computed live from Binance: price, 24h/7d/30d/90d " +
-    'change, 24h volume, Supertrend(10,3) D1, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
-    '20-day low and 90-day high. Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
+    "Get the user's watchlist (the coins on their Spot Analytic / Tracking Coins page), computed live from Binance: price, 24h/7d/30d/90d " +
+    'change, 24h volume, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
+    '20-day low and 90-day high, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
     'shortlist coins before fetching detailed candles for a few of them (at most 3). Optionally pass symbols to get only those.',
   inputSchema: {
     type: 'object',
@@ -139,7 +138,7 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
     // Same order as the page: market cap first, then when the coin was added.
     const coins = (await createTrackingCoinsRepository().findAllCoins())
       .sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1))
-      .map((c) => ({ pair: pairOf(c.symbol), name: c.name || c.symbol }))
+      .map((c) => ({ pair: pairOf(c.symbol), name: c.name || c.symbol, rating: (c as { rating?: number }).rating ?? 0 }))
       .filter((c) => want.size === 0 || want.has(c.pair));
     if (coins.length === 0) {
       return want.size ? `Không có coin nào trong danh sách theo dõi khớp ${[...want].join(', ')}.` : 'Danh sách theo dõi đang trống.';
@@ -154,21 +153,19 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
       missing.forEach((c, i) => rows.set(c.pair, computed[i]!));
     }
 
-    // Setups alive on the /tracking-coins page (read-only here), so suggestions don't clash with them.
-    const active = await createTrackingSetupRepository().list({ statuses: TRACKING_ACTIVE_STATUSES }, 1000);
-    const setupsOf = (pair: string) =>
-      active
-        .filter((x) => pairOf(x.symbol) === pair)
-        .map((x) => `${x.status} ${x.direction} @${Number(x.entryPrice.toPrecision(6))}`)
-        .join(' | ');
+    // Star rating (user) + market cap / sectors (Binance) per coin.
+    const meta = new Map((await coinMeta(coins.map((c) => c.pair)).catch(() => [])).map((m) => [`${m.symbol}USDT`, m]));
+    const extraOf = (pair: string, rating: number) => {
+      const m = meta.get(pair);
+      return [rating || '', m?.marketCap ? r1(m.marketCap / 1e6) : '', (m?.sectors ?? []).join(' ')].join(',');
+    };
 
     return [
       `Watchlist (${coins.length} coin), tính trực tiếp từ nến Binance lúc ${new Date().toISOString().slice(0, 16)}Z.`,
       'ema = giá trên(Y)/dưới(N) EMA34,EMA89,EMA200. trend: Up = giá>EMA34>EMA89, Down = giá<EMA34<EMA89, Mixed = lẫn lộn. ' +
-        'supertrendD1 = cột Score trên trang Tracking Coins. vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. ' +
-        'activeSetups = setup paper trên trang Tracking Coins (PROPOSED/WATCHING/PENDING/OPEN), chỉ đọc — đừng đề xuất trùng hay ngược chiều mà không nói rõ.',
-      'pair,name,price,chg24h%,chg7d%,chg30d%,chg90d%,vol24hM,supertrendD1,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,activeSetups',
-      ...coins.map((c) => `${rows.get(c.pair)!},${setupsOf(c.pair)}`),
+        'vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. stars = người dùng tự chấm 0–5 sao (trống = chưa chấm). mcapM = vốn hoá triệu USD (Binance). sectors = nhóm (L1, L2, Meme, DeFi, AI…).',
+      'pair,name,price,chg24h%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,stars,mcapM,sectors',
+      ...coins.map((c) => `${rows.get(c.pair)!},${extraOf(c.pair, c.rating)}`),
     ].join('\n');
   },
 };

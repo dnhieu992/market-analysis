@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { createTrackingCoinsRepository } from '@app/db';
+import { createTrackingCoinsRepository, prisma } from '@app/db';
 
 import { BinanceMarketDataService } from '../market/binance-market-data.service';
 import { DailyCandleCacheService } from '../market/daily-candle-cache.service';
@@ -89,6 +89,18 @@ export class TrackingCoinsService {
   async listCoins(): Promise<TrackingCoinRow[]> {
     const rows = await this.repo.listCoins();
     return rows.map((c) => ({ id: c.id, symbol: c.symbol, name: c.name, marketCap: c.marketCap, addedAt: c.addedAt }));
+  }
+
+  async ratings(): Promise<Array<{ symbol: string; rating: number }>> {
+    return prisma.trackingCoin.findMany({ where: { rating: { gt: 0 } }, select: { symbol: true, rating: true } });
+  }
+
+  async setRating(symbol: string, rating: number) {
+    const upper = bareSymbol(symbol);
+    const coin = await this.repo.findCoinBySymbol(upper);
+    if (!coin) throw new NotFoundException(`Coin ${upper} not found`);
+    await prisma.trackingCoin.update({ where: { id: coin.id }, data: { rating } });
+    return { symbol: upper, rating };
   }
 
   async addCoin(symbol: string, name?: string): Promise<{ id: string; symbol: string; name: string }> {

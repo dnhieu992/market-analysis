@@ -7,12 +7,12 @@ import { SYSTEM_PROMPT } from './system';
  */
 export const trackingSwingSkill: SkillDefinition = {
   id: 'tracking-swing',
-  name: 'Spot Tracking',
+  name: 'Spot Analytic',
   description: 'Mua lướt spot cho coin trong danh sách theo dõi: tìm vùng mua, chia 3 phần, mục tiêu ~+30% mỗi nhịp.',
   icon: '🧭',
   category: 'strategy',
   systemPrompt: SYSTEM_PROMPT,
-  tools: ['analyze_market_structure', 'get_klines', 'get_ticker_price', 'get_tracking_coins'],
+  tools: ['analyze_market_structure', 'get_klines', 'get_ticker_price', 'get_tracking_coins', 'get_portfolio_position', 'propose_spot_trade'],
   exampleQuestions: [],
   welcomeMessage: '',
   hidden: true,
