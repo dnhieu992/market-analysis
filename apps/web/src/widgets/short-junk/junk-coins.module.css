@@ -67,7 +67,9 @@
 }
 .table td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .table tbody tr:last-child td { border-bottom: 0; }
-.sym { font-weight: 600; white-space: nowrap; width: 90px; }
+.sym { font-weight: 600; width: 110px; max-width: 110px; }
+.symName,
+.projName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; }
 .note { white-space: pre-wrap; word-break: break-word; cursor: text; min-height: 18px; }
 .noteEmpty { color: var(--muted); font-style: italic; }
 .date { color: var(--muted); white-space: nowrap; font-size: 12px; width: 90px; }
@@ -77,6 +79,13 @@
 .linkBtn:disabled { opacity: 0.5; cursor: default; }
 
 @media (max-width: 560px) {
+  /* Pinned coin column stays narrow on phones: symbol + price only, the rest scrolls. */
+  .sym { width: 72px; max-width: 72px; padding-right: 4px !important; }
+  .symName { max-width: 72px; }
+  .projName { display: none; }
+  .badgeWarn { font-size: 10px; padding: 0 5px; }
+  .table { font-size: 12px; }
+  .table th, .table td { padding: 6px 5px; }
   .date { display: none; }
   .searchInput { width: 100%; }
   .toolbarActions { width: 100%; }

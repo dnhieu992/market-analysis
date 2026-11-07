@@ -288,13 +288,13 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
                 return (
                   <tr key={c.symbol}>
                     <td className={styles.sym}>
-                      <div>{c.symbol.replace(/USDT$/, '')}</div>
-                      <div className={styles.sub}>
-                        {st?.price != null ? fmtPrice(st.price) : ''}
-                        {st?.name && st.name.toUpperCase() !== c.symbol.replace(/USDT$/, '') ? ` · ${st.name}` : ''}
-                      </div>
+                      <div className={styles.symName} title={st?.name ?? undefined}>{c.symbol.replace(/USDT$/, '')}</div>
+                      {st?.price != null && <div className={styles.sub}>{fmtPrice(st.price)}</div>}
+                      {st?.name && st.name.toUpperCase() !== c.symbol.replace(/USDT$/, '') && (
+                        <div className={`${styles.sub} ${styles.projName}`} title={st.name}>{st.name}</div>
+                      )}
                       {st?.monitoring && <span className={`${styles.badge} ${styles.badgeWarn}`} title="Binance gắn tag Monitoring — rủi ro delist, tail rất dày">Monitoring</span>}
-                      {st && !st.onSpot && <span className={`${styles.badge} ${styles.badgeWarn}`}>không có spot</span>}
+                      {st && !st.onSpot && <span className={`${styles.badge} ${styles.badgeWarn}`}>không spot</span>}
                     </td>
                     <td>
                       <div className={styles.ecoList}>
