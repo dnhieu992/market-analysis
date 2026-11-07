@@ -173,6 +173,14 @@ function IconChart() {
   );
 }
 
+function IconChat() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
 /* ── confirm remove dialog ──────────────────────────────────────── */
 
 function ConfirmRemoveDialog({ symbol, isRemoving, onConfirm, onCancel }: {
@@ -518,6 +526,15 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                           onClick={(e) => { e.stopPropagation(); setChartSymbol(coin.symbol); }}
                         >
                           <IconChart />
+                        </button>
+                        {/* Explicit chat entry: the whole row opens the chat, but touch screens have no hover/title cue. */}
+                        <button
+                          className="tc-chart-btn tc-chat-btn"
+                          aria-label={`Chat phân tích ${coin.symbol}`}
+                          title="Mở chat phân tích mua spot"
+                          onClick={(e) => { e.stopPropagation(); setPanel(coin.symbol); }}
+                        >
+                          <IconChat />
                         </button>
                       </span>
                       {/* Stars under the name, like /trading-list; clicks must not open the chat panel. */}

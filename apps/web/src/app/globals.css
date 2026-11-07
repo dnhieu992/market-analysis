@@ -7209,6 +7209,12 @@ a.metric-card--link:hover {
   border-color: rgba(59, 130, 246, 0.45);
   color: #2563eb;
 }
+.tc-chat-btn { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.tc-chat-btn:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: var(--accent); color: var(--accent); }
+@media (max-width: 640px) {
+  /* bigger tap targets on phones */
+  .tc-chart-btn { width: 28px; height: 28px; }
+}
 
 /* ── tracking coins (Spot Analytic): sector chips ── */
 .tc-sectors { display: inline-flex; flex-wrap: wrap; gap: 3px; max-width: 190px; }
