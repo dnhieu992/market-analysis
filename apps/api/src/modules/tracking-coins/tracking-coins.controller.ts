@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Header, Inject, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ACTIVE_SPOT_STRATEGY, SPOT_STRATEGIES } from '@app/skills';
 
 import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
@@ -32,6 +33,12 @@ export class TrackingCoinsController {
   getPriceChanges(@Query('symbols') symbols = '') {
     const list = symbols.split(',').map((s) => s.trim()).filter(Boolean);
     return this.service.getPriceChanges(list);
+  }
+
+  @Get('strategies')
+  @ApiOperation({ summary: 'Spot Analytic strategies (rules, target, backtest) — the active one drives the chat skill' })
+  getStrategies() {
+    return { active: ACTIVE_SPOT_STRATEGY, strategies: SPOT_STRATEGIES };
   }
 
   @Get('meta')

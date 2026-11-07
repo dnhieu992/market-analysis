@@ -48,6 +48,7 @@ import type {
   TrackingCoinMeta,
   SpotTradeCard,
   SpotHistory,
+  SpotStrategy,
   TrackingPriceChange,
   TrackingCoinSetup,
   BitgetPositionsResponse,
@@ -1176,6 +1177,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async fetchSpotHistory(symbol: string): Promise<SpotHistory> {
       return fetchJson<SpotHistory>(fetchImpl, `${baseUrl}/tracking-coins/coins/${encodeURIComponent(symbol)}/history`, withDefaults());
+    },
+
+    async fetchSpotStrategies(): Promise<{ active: string; strategies: SpotStrategy[] }> {
+      return fetchJson<{ active: string; strategies: SpotStrategy[] }>(fetchImpl, `${baseUrl}/tracking-coins/strategies`, withDefaults());
     },
 
     async fetchSpotPortfolios(): Promise<Array<{ id: string; name: string }>> {

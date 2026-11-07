@@ -26,3 +26,10 @@ L1 / L2 (known-rollup list) / Meme / DeFi / AI / RWA / Infra / Gaming / …
 `GET /tracking-coins/coins/:symbol/history`: CONFIRMED spot trades of this page only (flagged
 when the transaction was deleted on the portfolio page) + real holdings per portfolio (so totals
 match the portfolio page, including trades typed there).
+
+## Chiến lược (2026-11-07)
+- Chiến lược định nghĩa trong code: `packages/skills/src/tracking-swing/strategies.ts` (`SPOT_STRATEGIES`, `ACTIVE_SPOT_STRATEGY`). Chiến lược đang áp dụng được chèn vào system prompt của chat. Thêm chiến lược mới = thêm phần tử B, C…; đổi chiến lược của chat = đổi `ACTIVE_SPOT_STRATEGY`.
+- **Chiến lược A**: alt quá bán (RSI tuần < 35) + breadth alt (≥25% mua, 10–25% chỉ top 50, <10% không mở lệnh mới), 8–12 phần vốn, thang 30/30/40 ở 0/−15/−35%, TP = TB × 1.3, không SL. Mục tiêu 15–25%/năm. Nguồn: claude-backtest/runs/2026-11-07-spot-alt-pump-regime.md.
+- `GET /tracking-coins/strategies` → nút **Chiến lược** trên trang mở dialog xem quy tắc / backtest.
+- Tool `get_tracking_coins` thêm cột rsiW, volRank và dòng breadth (tính trên toàn bộ danh sách, bỏ BTC/ETH/stable, coin ≥ 52 nến tuần).
+- Danh sách theo dõi được bổ sung top 100 alt theo volume 30 ngày (niêm yết ≥ 1 năm), 65 coin mới, mặc định 3 sao.

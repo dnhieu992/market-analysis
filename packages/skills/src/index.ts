@@ -16,3 +16,4 @@ export { tradingAnalysisSkill, TRADING_ANALYSIS_PROMPT } from './trading-analysi
 export { okxShortAiSkill, OKX_SHORT_SYSTEM_PROMPT, OKX_SHORT_DEFAULT_ANALYSIS_SKILL } from './okx-short-ai';
 export { BACKTEST_PROMPT, BACKTEST_TOOLS } from './backtest';
 export { SHORT_SCORE_PROMPT, SHORT_SCORE_TOOLS } from './short-score';
+export { SPOT_STRATEGIES, ACTIVE_SPOT_STRATEGY, getSpotStrategy, spotStrategyPrompt, type SpotStrategy } from './tracking-swing/strategies';

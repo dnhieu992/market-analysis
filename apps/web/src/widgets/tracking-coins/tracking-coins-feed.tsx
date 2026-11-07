@@ -8,6 +8,7 @@ import { StarRating } from '@web/widgets/bitget/star-rating';
 
 import { CoinPanel } from './coin-panel';
 import { SpotHistoryDialog } from './spot-history-dialog';
+import { SpotStrategiesDialog } from './spot-strategies-dialog';
 
 type Props = { initialCoins: TrackingCoinRow[] };
 
@@ -264,6 +265,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
   const [meta, setMeta] = useState<Record<string, TrackingCoinMeta>>({});
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [historySymbol, setHistorySymbol] = useState<string | null>(null);
+  const [showStrategies, setShowStrategies] = useState(false);
 
   useEffect(() => { setPage(1); }, [nameFilter, sort]);
 
@@ -412,6 +414,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
         />
       )}
       {historySymbol && <SpotHistoryDialog symbol={historySymbol} onClose={() => setHistorySymbol(null)} />}
+      {showStrategies && <SpotStrategiesDialog onClose={() => setShowStrategies(false)} />}
       {chartSymbol && (
         <SetupChartDialog
           symbol={chartSymbol}
@@ -428,6 +431,9 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
             <h1 className="scr-title">Spot Analytic</h1>
           </div>
           <div className="scr-toolbar-right">
+            <button className="scr-add-toggle" onClick={() => setShowStrategies(true)} title="Xem quy tắc, mục tiêu và backtest của các chiến lược">
+              Chiến lược
+            </button>
             {view === 'coins' && (
               <button className="scr-add-toggle" onClick={() => setShowAddForm((v) => !v)}>
                 {showAddForm ? '✕' : '+ Coin'}

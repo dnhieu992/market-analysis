@@ -18,8 +18,8 @@ const pairOf = (symbol: string) => {
   return s.endsWith('USDT') ? s : `${s}USDT`;
 };
 
-async function fetchCandles(pair: string, interval: string): Promise<Candle[]> {
-  const res = await fetch(`${BASE}/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${BARS}`);
+async function fetchCandles(pair: string, interval: string, limit = BARS): Promise<Candle[]> {
+  const res = await fetch(`${BASE}/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${limit}`);
   if (!res.ok) throw new Error(`Binance ${res.status} ${pair} ${interval}`);
   return ((await res.json()) as KlineRow[]).map((r) => ({
     open: parseFloat(r[1]),
@@ -77,16 +77,24 @@ function frame(candles: Candle[]) {
   return { closed, closes, trend, rsi: calculateRsi(closes, 14), ema: `${yn(e34)}${yn(e89)}${yn(e200)}` };
 }
 
-async function coinRow(pair: string, name: string, ticker: Ticker | undefined): Promise<string> {
+/** Not altcoins for Strategy A's breadth / ranking (BTC & ETH are managed elsewhere). */
+const NON_ALT = new Set(['BTCUSDT', 'ETHUSDT', 'USDCUSDT', 'FDUSDUSDT', 'TUSDUSDT', 'USD1USDT', 'PAXGUSDT', 'XAUTUSDT']);
+
+type CoinStat = { line: string; rsiW: number | null; vol30: number; weeks: number };
+
+async function coinRow(pair: string, name: string, ticker: Ticker | undefined): Promise<CoinStat> {
   try {
-    const [d1, h4] = await Promise.all([fetchCandles(pair, '1d'), fetchCandles(pair, '4h')]);
+    const [d1, h4, w1] = await Promise.all([fetchCandles(pair, '1d'), fetchCandles(pair, '4h'), fetchCandles(pair, '1w', 100)]);
+    const wClosed = w1.slice(0, -1).map((x) => x.close);
+    const rsiW = wClosed.length > 15 ? calculateRsi(wClosed, 14) : null;
     const d = frame(d1);
     const h = frame(h4);
     const price = ticker ? Number(ticker.lastPrice) : d1[d1.length - 1]!.close;
     const c = d.closes;
     const low20 = Math.min(...d.closed.slice(-20).map((x) => x.low));
     const high90 = Math.max(...d.closed.slice(-90).map((x) => x.high));
-    return [
+    const vol30 = d1.slice(-31, -1).reduce((a, x) => a + x.close * (x.volume ?? 0), 0) / 30;
+    const line = [
       pair,
       name.replace(/,/g, ' '),
       Number(price.toPrecision(6)),
@@ -103,14 +111,16 @@ async function coinRow(pair: string, name: string, ticker: Ticker | undefined): 
       h.ema,
       r1(pct(price, low20)),
       r1(pct(price, high90)),
+      r1(rsiW),
     ].join(',');
+    return { line, rsiW, vol30, weeks: wClosed.length };
   } catch {
-    return `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`;
+    return { line: `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`, rsiW: null, vol30: 0, weeks: 0 };
   }
 }
 
 // Several skills may read the list within one reply — rows computed in the last minute are reused.
-let cache: { at: number; rows: Map<string, string> } | null = null;
+let cache: { at: number; rows: Map<string, CoinStat> } | null = null;
 
 /**
  * The user's watchlist from /tracking-coins, computed live from Binance daily + 4h candles
@@ -122,7 +132,7 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
   description:
     "Get the user's watchlist (the coins on their Spot Analytic / Tracking Coins page), computed live from Binance: price, 24h/7d/30d/90d " +
     'change, 24h volume, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
-    '20-day low and 90-day high, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
+    '20-day low and 90-day high, weekly RSI14 (rsiW), 30-day volume rank among alts (volRank), Strategy A market breadth (% of alts with weekly RSI < 35, always over the whole list) in the header, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
     'shortlist coins before fetching detailed candles for a few of them (at most 3). Optionally pass symbols to get only those.',
   inputSchema: {
     type: 'object',
@@ -138,9 +148,9 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
     // Same order as the page: market cap first, then when the coin was added.
     const coins = (await createTrackingCoinsRepository().findAllCoins())
       .sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1))
-      .map((c) => ({ pair: pairOf(c.symbol), name: c.name || c.symbol, rating: (c as { rating?: number }).rating ?? 0 }))
-      .filter((c) => want.size === 0 || want.has(c.pair));
-    if (coins.length === 0) {
+      .map((c) => ({ pair: pairOf(c.symbol), name: c.name || c.symbol, rating: (c as { rating?: number }).rating ?? 0 }));
+    const shown = coins.filter((c) => want.size === 0 || want.has(c.pair));
+    if (shown.length === 0) {
       return want.size ? `Không có coin nào trong danh sách theo dõi khớp ${[...want].join(', ')}.` : 'Danh sách theo dõi đang trống.';
     }
 
@@ -154,18 +164,31 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
     }
 
     // Star rating (user) + market cap / sectors (Binance) per coin.
-    const meta = new Map((await coinMeta(coins.map((c) => c.pair)).catch(() => [])).map((m) => [`${m.symbol}USDT`, m]));
+    const meta = new Map((await coinMeta(shown.map((c) => c.pair)).catch(() => [])).map((m) => [`${m.symbol}USDT`, m]));
+
+    // Strategy A: breadth = % of listed ≥1y alts (whole watchlist ≈ top-100 alts by volume) with weekly RSI < 35;
+    // volRank = rank by 30-day $ volume among those alts.
+    const alts = coins.filter((c) => !NON_ALT.has(c.pair)).map((c) => ({ pair: c.pair, st: rows.get(c.pair)! })).filter((a) => a.st.rsiW != null && a.st.weeks >= 52);
+    const rank = new Map([...alts].sort((a, b) => b.st.vol30 - a.st.vol30).map((a, i) => [a.pair, i + 1]));
+    const oversold = alts.filter((a) => (a.st.rsiW as number) < 35).length;
+    const breadth = alts.length ? (oversold / alts.length) * 100 : NaN;
+    const regime = !Number.isFinite(breadth) ? 'không đủ dữ liệu'
+      : breadth >= 25 ? 'MÙA MUA (≥25%): mở lệnh bình thường với coin top 100'
+      : breadth >= 10 ? 'TRUNG TÍNH (10–25%): chỉ mua coin volRank ≤ 50'
+      : 'KHÔNG MỞ LỆNH MỚI (<10%): chỉ giữ và chờ TP';
     const extraOf = (pair: string, rating: number) => {
       const m = meta.get(pair);
       return [rating || '', m?.marketCap ? r1(m.marketCap / 1e6) : '', (m?.sectors ?? []).join(' ')].join(',');
     };
 
     return [
-      `Watchlist (${coins.length} coin), tính trực tiếp từ nến Binance lúc ${new Date().toISOString().slice(0, 16)}Z.`,
+      `Watchlist (${shown.length}/${coins.length} coin), tính trực tiếp từ nến Binance lúc ${new Date().toISOString().slice(0, 16)}Z.`,
+      `Chiến lược A — breadth: ${r1(breadth)}% (${oversold}/${alts.length} alt niêm yết ≥1 năm có RSI tuần < 35) → chế độ ${regime}.`,
       'ema = giá trên(Y)/dưới(N) EMA34,EMA89,EMA200. trend: Up = giá>EMA34>EMA89, Down = giá<EMA34<EMA89, Mixed = lẫn lộn. ' +
         'vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. stars = người dùng tự chấm 0–5 sao (trống = chưa chấm). mcapM = vốn hoá triệu USD (Binance). sectors = nhóm (L1, L2, Meme, DeFi, AI…).',
-      'pair,name,price,chg24h%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,stars,mcapM,sectors',
-      ...coins.map((c) => `${rows.get(c.pair)!},${extraOf(c.pair, c.rating)}`),
+      'rsiW = RSI14 nến tuần đã đóng. volRank = hạng volume $ 30 ngày trong các alt niêm yết ≥1 năm (trống = BTC/ETH/stable hoặc < 1 năm).',
+      'pair,name,price,chg24h%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,rsiW,stars,mcapM,sectors,volRank',
+      ...shown.map((c) => `${rows.get(c.pair)!.line},${extraOf(c.pair, c.rating)},${rank.get(c.pair) ?? ''}`),
     ].join('\n');
   },
 };

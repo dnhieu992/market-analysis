@@ -344,3 +344,18 @@
 .historyList { list-style: none; padding: 0; margin: 0 0 4px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; line-height: 1.5; }
 .historyList li { padding: 6px 8px; border-radius: 8px; background: rgba(23, 18, 13, 0.03); }
 .historyRemoved { opacity: 0.55; text-decoration: line-through; }
+
+/* Strategies reference dialog */
+.stratTabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.stratTab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 0.84rem; cursor: pointer; }
+.stratTabActive { border-color: var(--accent, #3b82f6); font-weight: 700; }
+.stratBadge { font-size: 0.68rem; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent, #3b82f6) 18%, transparent); }
+.strat { font-size: 0.86rem; line-height: 1.5; }
+.strat p { margin: 4px 0 8px; }
+.stratName { font-size: 1rem; font-weight: 700; margin: 0 0 2px; }
+.stratTarget { padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--accent, #3b82f6) 10%, transparent); }
+.stratGroup { margin-bottom: 8px; }
+.stratGroupTitle { font-weight: 600; margin-bottom: 2px; }
+.stratList { margin: 0 0 10px; padding-left: 18px; }
+.stratList li { margin: 2px 0; }
+.stratWrap { white-space: normal !important; }

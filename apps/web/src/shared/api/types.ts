@@ -1935,3 +1935,24 @@ export type TradingListWatchlistSymbol = {
   onlyExchange: TradingExchange | null;
   createdAt: string;
 };
+
+/** A Spot Analytic strategy (GET /tracking-coins/strategies; source: packages/skills tracking-swing/strategies.ts). */
+export type SpotStrategy = {
+  id: string;
+  name: string;
+  status: 'active' | 'draft' | 'retired';
+  createdAt: string;
+  summary: string;
+  target: string;
+  rules: Array<{ title: string; items: string[] }>;
+  backtest: {
+    period: string;
+    universe: string;
+    method: string;
+    rows: Array<{ config: string; cagr: string; maxDd: string; note?: string }>;
+    takeaways: string[];
+  };
+  lessons: string[];
+  limits: string[];
+  sources: string[];
+};

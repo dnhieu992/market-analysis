@@ -8,7 +8,7 @@ import { SYSTEM_PROMPT } from './system';
 export const trackingSwingSkill: SkillDefinition = {
   id: 'tracking-swing',
   name: 'Spot Analytic',
-  description: 'Mua lướt spot cho coin trong danh sách theo dõi: tìm vùng mua, chia 3 phần, mục tiêu ~+30% mỗi nhịp.',
+  description: 'Mua lướt spot altcoin theo Chiến lược A: RSI tuần < 35 + breadth alt, chia 3 phần, +30% mỗi nhịp, mục tiêu 15–25%/năm.',
   icon: '🧭',
   category: 'strategy',
   systemPrompt: SYSTEM_PROMPT,
