@@ -119,6 +119,7 @@ import type {
   JunkShortCoin,
   AddJunkCoinsResult,
   SyncJunkCoinsResult,
+  JunkCoinStatsResponse,
 } from './types';
 
 /** Optional "why" of an order — saved to trade_entries and the trade journal. */
@@ -1973,6 +1974,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
       if (!response.ok) throw new Error(await errorMessage(response, 'Thêm coin thất bại'));
       return (await response.json()) as AddJunkCoinsResult;
+    },
+
+    async fetchJunkCoinStats(): Promise<JunkCoinStatsResponse> {
+      return fetchJson<JunkCoinStatsResponse>(fetchImpl, `${baseUrl}/junk-short/coins/stats`, withDefaults({}));
     },
 
     async syncJunkCoins(): Promise<SyncJunkCoinsResult> {

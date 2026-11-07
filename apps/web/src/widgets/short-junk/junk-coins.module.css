@@ -1,4 +1,4 @@
-.page { max-width: 1000px; }
+.page { max-width: 1400px; }
 .lead { color: var(--muted); font-size: 14px; margin: 0 0 16px; line-height: 1.5; }
 
 .card {
@@ -82,3 +82,43 @@
   .toolbarActions { width: 100%; }
   .toolbarActions > button { flex: 1; }
 }
+
+.updated { margin-left: 10px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chip small { color: var(--muted); margin-left: 3px; }
+.chipActive { border-color: var(--accent); color: var(--accent); background: rgba(31, 111, 91, 0.08); }
+
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.table th.num .sortBtn { justify-content: flex-end; }
+.sortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+.sortMark { font-size: 9px; min-width: 9px; }
+.sub { font-size: 11px; color: var(--muted); font-weight: 400; white-space: nowrap; }
+.muted { color: var(--muted); }
+.up { color: #1a8f5a; }
+.down { color: #c0392b; }
+.ecoList { display: flex; flex-wrap: wrap; gap: 3px; min-width: 90px; max-width: 170px; }
+.badgeWarn { border-color: #c0392b; color: #c0392b; margin-top: 3px; margin-right: 3px; }
+.table td.sym { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.table th:first-child { position: sticky; left: 0; background: var(--surface); z-index: 2; }

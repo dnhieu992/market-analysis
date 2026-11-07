@@ -29,6 +29,10 @@ export function createJunkShortCoinRepository(client = prisma) {
       return count;
     },
 
+    setSpotListedAt(symbol: string, spotListedAt: Date) {
+      return client.junkShortCoin.updateMany({ where: { symbol }, data: { spotListedAt } });
+    },
+
     updateNote(symbol: string, note: string | null) {
       return client.junkShortCoin.update({ where: { symbol }, data: { note: note?.trim() ? note.trim() : null } });
     },

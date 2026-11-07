@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { JunkShortCoin } from '@web/shared/api/types';
+import type { JunkCoinStat, JunkShortCoin } from '@web/shared/api/types';
 
 import styles from './junk-coins.module.css';
 
@@ -25,23 +25,116 @@ const bySymbol = (a: JunkShortCoin, b: JunkShortCoin) => a.symbol.localeCompare(
 
 type Banner = { kind: 'info' | 'error'; text: string; stale?: string[] };
 
-/** The /short-junk coin list: toolbar (add dialog · Binance sync · search) + table (edit note · delete). */
+type SortKey = 'symbol' | 'cap' | 'c24' | 'c3' | 'c7' | 'c30' | 'c90' | 'funding' | 'spot';
+const POLL_MS = 30_000;
+
+const SORT_VALUE: Record<SortKey, (s: JunkCoinStat | undefined, c: JunkShortCoin) => number | string | null> = {
+  symbol: (_s, c) => c.symbol,
+  cap: (s) => s?.marketCapUsd ?? null,
+  c24: (s) => s?.change24hPct ?? null,
+  c3: (s) => s?.change3dPct ?? null,
+  c7: (s) => s?.change7dPct ?? null,
+  c30: (s) => s?.change30dPct ?? null,
+  c90: (s) => s?.change90dPct ?? null,
+  funding: (s) => s?.fundingRatePct ?? null,
+  spot: (s) => (s?.spotListedAt ? Date.parse(s.spotListedAt) : null),
+};
+
+const fmtCap = (n: number | null | undefined) =>
+  n == null ? '—' : n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(n >= 1e8 ? 0 : 1)}M` : `$${(n / 1e3).toFixed(0)}K`;
+const fmtPrice = (n: number | null | undefined) =>
+  n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: n >= 100 ? 2 : n >= 1 ? 4 : 8 });
+
+function Pct({ v }: { v: number | null | undefined }) {
+  if (v == null) return <span className={styles.muted}>—</span>;
+  return <span className={v > 0 ? styles.up : v < 0 ? styles.down : ''}>{v > 0 ? '+' : ''}{v.toFixed(1)}%</span>;
+}
+
+function countdown(ms: number): string {
+  if (ms <= 0) return 'đang tính';
+  const t = Math.floor(ms / 1000);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function age(iso: string, now: number): string {
+  const days = Math.floor((now - Date.parse(iso)) / 86_400_000);
+  return days >= 365 ? `${(days / 365).toFixed(1)} năm` : `${days} ngày`;
+}
+
+/** The /short-junk coin list: toolbar (add dialog · Binance sync · search) + live Binance stats table. */
 export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; onChange: (coins: JunkShortCoin[]) => void }) {
   const [query, setQuery] = useState('');
+  const [eco, setEco] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'c24', dir: -1 });
   const [adding, setAdding] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ symbol: string; draft: string } | null>(null);
   const [banner, setBanner] = useState<Banner | null>(null);
+  const [stats, setStats] = useState<Map<string, JunkCoinStat>>(new Map());
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const symbolsKey = coins.map((c) => c.symbol).join(',');
+
+  // Live stats: refetch every 30 s while the tab is visible, and whenever the list changes.
+  useEffect(() => {
+    if (!symbolsKey) return;
+    let cancelled = false;
+    const load = () => {
+      if (document.visibilityState === 'hidden') return;
+      api
+        .fetchJunkCoinStats()
+        .then((r) => {
+          if (cancelled) return;
+          setStats(new Map(r.stats.map((x) => [x.symbol, x])));
+          setUpdatedAt(r.updatedAt);
+          setStatsError(null);
+        })
+        .catch((e) => !cancelled && setStatsError(e instanceof Error ? e.message : 'Không tải được số liệu Binance.'));
+    };
+    load();
+    const id = setInterval(load, POLL_MS);
+    document.addEventListener('visibilitychange', load);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', load);
+    };
+  }, [symbolsKey]);
+
+  // Funding countdown ticks every second.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const ecoCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of coins) for (const e of stats.get(c.symbol)?.ecosystems ?? []) m.set(e, (m.get(e) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [coins, stats]);
 
   const q = query.trim().toUpperCase();
-  const shown = q ? coins.filter((c) => c.symbol.includes(q) || (c.note ?? '').toUpperCase().includes(q)) : coins;
-
-  const merge = (rows: JunkShortCoin[]) => {
-    const map = new Map(coins.map((c) => [c.symbol, c]));
-    for (const r of rows) map.set(r.symbol, r);
-    onChange([...map.values()].sort(bySymbol));
-  };
+  const shown = useMemo(() => {
+    const rows = coins.filter((c) => {
+      const st = stats.get(c.symbol);
+      if (eco && !st?.ecosystems.includes(eco)) return false;
+      return !q || c.symbol.includes(q) || (st?.name ?? '').toUpperCase().includes(q);
+    });
+    const val = SORT_VALUE[sort.key];
+    return rows.sort((a, b) => {
+      const va = val(stats.get(a.symbol), a);
+      const vb = val(stats.get(b.symbol), b);
+      if (va == null && vb == null) return a.symbol.localeCompare(b.symbol);
+      if (va == null) return 1; // missing values always last
+      if (vb == null) return -1;
+      return (typeof va === 'string' ? va.localeCompare(vb as string) : va - (vb as number)) * sort.dir;
+    });
+  }, [coins, stats, eco, q, sort]);
 
   const sync = async () => {
     if (syncing) return;
@@ -81,22 +174,6 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
     setBanner({ kind: gone.length === symbols.length ? 'info' : 'error', text: `Đã xoá ${gone.length}/${symbols.length} coin.` });
   };
 
-  const saveNote = async () => {
-    if (!editing) return;
-    const { symbol, draft } = editing;
-    const old = coins.find((c) => c.symbol === symbol)?.note ?? '';
-    setEditing(null);
-    if (draft.trim() === old.trim()) return;
-    setRowBusy(symbol);
-    try {
-      merge([await api.updateJunkCoin(symbol, draft)]);
-    } catch (err) {
-      setBanner({ kind: 'error', text: err instanceof Error ? err.message : 'Lưu ghi chú thất bại.' });
-    } finally {
-      setRowBusy(null);
-    }
-  };
-
   const remove = async (symbol: string) => {
     if (rowBusy || !window.confirm(`Xoá ${symbol} khỏi danh sách coin rác? Skill sẽ không scan coin này nữa.`)) return;
     setRowBusy(symbol);
@@ -110,13 +187,33 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
     }
   };
 
+  const Th = ({ k, label, title, num = true }: { k: SortKey; label: string; title?: string; num?: boolean }) => (
+    <th className={num ? styles.num : ''} title={title} aria-sort={sort.key === k ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+      <button
+        type="button"
+        className={styles.sortBtn}
+        onClick={() => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 1 ? -1 : 1 } : { key: k, dir: k === 'symbol' ? 1 : -1 }))}
+      >
+        {label}
+        <span className={styles.sortMark}>{sort.key === k ? (sort.dir === 1 ? '▲' : '▼') : ''}</span>
+      </button>
+    </th>
+  );
+
   return (
     <section className={styles.card}>
       <div className={styles.toolbar}>
-        <h2 className={styles.cardTitle}>Danh sách coin rác ({coins.length})</h2>
+        <h2 className={styles.cardTitle}>
+          Danh sách coin rác ({coins.length})
+          {updatedAt && (
+            <span className={styles.updated} title={statsError ?? 'Số liệu Binance tự cập nhật mỗi 30 giây'}>
+              {statsError ? '⚠ lỗi cập nhật' : `● Binance ${new Date(updatedAt).toLocaleTimeString('vi-VN')}`}
+            </span>
+          )}
+        </h2>
         <div className={styles.toolbarActions}>
           {coins.length > 0 && (
-            <input className={styles.searchInput} type="search" value={query} placeholder="Tìm coin / ghi chú…" onChange={(e) => setQuery(e.target.value)} />
+            <input className={styles.searchInput} type="search" value={query} placeholder="Tìm coin…" onChange={(e) => setQuery(e.target.value)} />
           )}
           <button
             type="button"
@@ -149,6 +246,19 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
         </div>
       )}
 
+      {ecoCounts.length > 0 && (
+        <div className={styles.chips} role="group" aria-label="Lọc theo hệ sinh thái">
+          <button type="button" className={`${styles.chip} ${eco == null ? styles.chipActive : ''}`} onClick={() => setEco(null)}>
+            Tất cả <small>{coins.length}</small>
+          </button>
+          {ecoCounts.map(([name, n]) => (
+            <button key={name} type="button" className={`${styles.chip} ${eco === name ? styles.chipActive : ''}`} onClick={() => setEco(eco === name ? null : name)}>
+              {name} <small>{n}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
       {coins.length === 0 ? (
         <p className={styles.empty}>
           Chưa có coin nào — bấm <strong>⟳ Sync từ Binance</strong> để lấy toàn bộ coin rác theo tiêu chí nghiên cứu, hoặc <strong>+ Thêm coin</strong> để tự thêm.
@@ -158,65 +268,91 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Coin</th>
-                <th>Ghi chú</th>
-                <th className={styles.date}>Nguồn</th>
-                <th className={styles.date}>Ngày thêm</th>
+                <Th k="symbol" label="Coin" num={false} />
+                <th>Hệ sinh thái</th>
+                <Th k="cap" label="Vốn hoá" title="Circulating supply × giá (Binance)" />
+                <Th k="c24" label="24h" />
+                <Th k="c3" label="3D" title="Giá hiện tại so với giá đóng nến D1 3 ngày trước" />
+                <Th k="c7" label="7D" />
+                <Th k="c30" label="30D" />
+                <Th k="c90" label="90D" />
+                <Th k="funding" label="Funding" title="Funding rate hiện tại · chu kỳ tính (1h / 4h / 8h) · thời gian tới lần tính tiếp" />
+                <Th k="spot" label="List spot" title="Ngày list spot trên Binance (nến D1 đầu tiên)" />
+                <th>Nguồn</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {shown.map((c) => (
-                <tr key={c.symbol}>
-                  <td className={styles.sym}>{c.symbol.replace(/USDT$/, '')}</td>
-                  <td>
-                    {editing?.symbol === c.symbol ? (
-                      <textarea
-                        className={styles.noteInput}
-                        value={editing.draft}
-                        autoFocus
-                        rows={2}
-                        onChange={(e) => setEditing({ symbol: c.symbol, draft: e.target.value })}
-                        onBlur={() => void saveNote()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            void saveNote();
-                          }
-                          if (e.key === 'Escape') setEditing(null);
-                        }}
-                      />
-                    ) : (
-                      <div
-                        className={`${styles.note} ${c.note ? '' : styles.noteEmpty}`}
-                        onClick={() => setEditing({ symbol: c.symbol, draft: c.note ?? '' })}
-                        title="Bấm để sửa ghi chú"
-                      >
-                        {c.note || 'thêm ghi chú…'}
+              {shown.map((c) => {
+                const st = stats.get(c.symbol);
+                return (
+                  <tr key={c.symbol}>
+                    <td className={styles.sym}>
+                      <div>{c.symbol.replace(/USDT$/, '')}</div>
+                      <div className={styles.sub}>
+                        {st?.price != null ? fmtPrice(st.price) : ''}
+                        {st?.name && st.name.toUpperCase() !== c.symbol.replace(/USDT$/, '') ? ` · ${st.name}` : ''}
                       </div>
-                    )}
-                  </td>
-                  <td className={styles.date}>
-                    <span className={`${styles.badge} ${c.source === 'BINANCE_SYNC' ? styles.badgeSync : ''}`}>
-                      {c.source === 'BINANCE_SYNC' ? 'Binance' : 'Tự thêm'}
-                    </span>
-                  </td>
-                  <td className={styles.date}>{fmtDate(c.createdAt)}</td>
-                  <td className={styles.rowActions}>
-                    <button
-                      type="button"
-                      className={`${styles.linkBtn} ${styles.linkBtnDanger}`}
-                      disabled={rowBusy === c.symbol}
-                      onClick={() => void remove(c.symbol)}
-                    >
-                      {rowBusy === c.symbol ? '…' : 'Xoá'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {st?.monitoring && <span className={`${styles.badge} ${styles.badgeWarn}`} title="Binance gắn tag Monitoring — rủi ro delist, tail rất dày">Monitoring</span>}
+                      {st && !st.onSpot && <span className={`${styles.badge} ${styles.badgeWarn}`}>không có spot</span>}
+                    </td>
+                    <td>
+                      <div className={styles.ecoList}>
+                        {st?.ecosystems.length ? st.ecosystems.map((e) => <span key={e} className={styles.badge}>{e}</span>) : <span className={styles.muted}>—</span>}
+                      </div>
+                    </td>
+                    <td className={styles.num}>{fmtCap(st?.marketCapUsd)}</td>
+                    <td className={styles.num}><Pct v={st?.change24hPct} /></td>
+                    <td className={styles.num}><Pct v={st?.change3dPct} /></td>
+                    <td className={styles.num}><Pct v={st?.change7dPct} /></td>
+                    <td className={styles.num}><Pct v={st?.change30dPct} /></td>
+                    <td className={styles.num}><Pct v={st?.change90dPct} /></td>
+                    <td className={styles.num}>
+                      {st?.fundingRatePct != null ? (
+                        <>
+                          <div className={st.fundingRatePct < 0 ? styles.down : st.fundingRatePct > 0.01 ? styles.up : ''}>
+                            {st.fundingRatePct > 0 ? '+' : ''}
+                            {st.fundingRatePct.toFixed(4)}%
+                          </div>
+                          <div className={styles.sub}>
+                            mỗi {st.fundingIntervalHours}h{st.nextFundingTime ? ` · ${countdown(st.nextFundingTime - now)}` : ''}
+                          </div>
+                        </>
+                      ) : (
+                        <span className={styles.muted}>—</span>
+                      )}
+                    </td>
+                    <td className={styles.num}>
+                      {st?.spotListedAt ? (
+                        <>
+                          <div>{fmtDate(st.spotListedAt)}</div>
+                          <div className={styles.sub}>{age(st.spotListedAt, now)}</div>
+                        </>
+                      ) : (
+                        <span className={styles.muted}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`${styles.badge} ${c.source === 'BINANCE_SYNC' ? styles.badgeSync : ''}`}>
+                        {c.source === 'BINANCE_SYNC' ? 'Binance' : 'Tự thêm'}
+                      </span>
+                    </td>
+                    <td className={styles.rowActions}>
+                      <button
+                        type="button"
+                        className={`${styles.linkBtn} ${styles.linkBtnDanger}`}
+                        disabled={rowBusy === c.symbol}
+                        onClick={() => void remove(c.symbol)}
+                      >
+                        {rowBusy === c.symbol ? '…' : 'Xoá'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={5} className={styles.empty}>Không tìm thấy.</td>
+                  <td colSpan={12} className={styles.empty}>Không tìm thấy.</td>
                 </tr>
               )}
             </tbody>
@@ -242,6 +378,12 @@ export function JunkCoinsManager({ coins, onChange }: { coins: JunkShortCoin[]; 
       )}
     </section>
   );
+
+  function merge(rows: JunkShortCoin[]) {
+    const map = new Map(coins.map((c) => [c.symbol, c]));
+    for (const r of rows) map.set(r.symbol, r);
+    onChange([...map.values()].sort(bySymbol));
+  }
 }
 
 function AddCoinsDialog({
@@ -255,7 +397,6 @@ function AddCoinsDialog({
 }) {
   const [mounted, setMounted] = useState(false);
   const [raw, setRaw] = useState('');
-  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -274,7 +415,7 @@ function AddCoinsDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await api.addJunkCoins(parsed, note || undefined);
+      const res = await api.addJunkCoins(parsed);
       onAdded(res.added, res.rejected);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Thêm coin thất bại.');
@@ -311,14 +452,10 @@ function AddCoinsDialog({
               }}
             />
           </label>
-          <label className="bg-setup-field">
-            <span>Ghi chú (tuỳ chọn)</span>
-            <input type="text" value={note} placeholder="vd: narrative AI, hay pump cuối tuần" onChange={(e) => setNote(e.target.value)} />
-          </label>
           <p className="bg-setup-note">
             {parsed.length === 0
               ? 'Không cần gõ đuôi USDT. Chỉ nhận coin có futures USDT-M trên Binance.'
-              : `${parsed.length} mã · ${fresh.length} mới${parsed.length > fresh.length ? ` · ${parsed.length - fresh.length} đã có (cập nhật ghi chú nếu có)` : ''}`}
+              : `${parsed.length} mã · ${fresh.length} mới${parsed.length > fresh.length ? ` · ${parsed.length - fresh.length} đã có` : ''}`}
           </p>
           {error && <div className="bg-alert bg-alert--error">{error}</div>}
         </div>

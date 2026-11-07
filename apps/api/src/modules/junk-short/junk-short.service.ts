@@ -53,7 +53,6 @@ export class JunkShortService {
     } catch (err) {
       throw new BadRequestException(`Không quét được Binance: ${(err as Error).message}`);
     }
-    const day = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const junk = scan.universe.junkTodayCoins;
     const before = await this.repo.findAll();
     const listed = new Set(before.map((c) => c.symbol));
@@ -62,7 +61,7 @@ export class JunkShortService {
       fresh.map((j) => ({
         symbol: j.symbol,
         source: 'BINANCE_SYNC',
-        note: `Sync Binance ${day} · cap $${j.capUsdM}M · −${j.belowAthPct}% ATH · list ${j.listingDays} ngày`,
+        note: null,
       })),
     );
     const junkSet = new Set(junk.map((j) => j.symbol));

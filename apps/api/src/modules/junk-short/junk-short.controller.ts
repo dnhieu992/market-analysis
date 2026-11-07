@@ -4,12 +4,22 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AddJunkCoinsDto } from './dto/add-junk-coins.dto';
 import { UpdateJunkCoinDto } from './dto/update-junk-coin.dto';
 import { JunkShortService } from './junk-short.service';
+import { JunkShortStatsService } from './junk-short-stats.service';
 
 @ApiTags('junk-short')
 @ApiCookieAuth('market_analysis_session')
 @Controller('junk-short')
 export class JunkShortController {
-  constructor(@Inject(JunkShortService) private readonly service: JunkShortService) {}
+  constructor(
+    @Inject(JunkShortService) private readonly service: JunkShortService,
+    @Inject(JunkShortStatsService) private readonly statsService: JunkShortStatsService,
+  ) {}
+
+  @Get('coins/stats')
+  @ApiOperation({ summary: 'Live Binance stats per listed coin: cap, 24h/3D/7D/30D/90D, funding + interval, ecosystem, listing dates' })
+  stats() {
+    return this.statsService.stats();
+  }
 
   @Get('coins')
   @ApiOperation({ summary: 'The /short-junk coin list (the only coins the short-junk skill scans)' })

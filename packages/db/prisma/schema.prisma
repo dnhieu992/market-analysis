@@ -1443,6 +1443,7 @@ model JunkShortCoin {
   symbol    String   @unique @db.VarChar(30)
   note      String?  @db.Text
   source    String   @default("MANUAL") @db.VarChar(20) // MANUAL | BINANCE_SYNC (imported by "Sync từ Binance")
+  spotListedAt DateTime? // open time of the first Binance spot D1 candle; filled on first stats read (never changes)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

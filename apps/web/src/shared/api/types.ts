@@ -1864,6 +1864,32 @@ export type JunkShortCoin = {
 
 export type AddJunkCoinsResult = { added: JunkShortCoin[]; rejected: string[] };
 
+/** Live Binance stats for one listed coin (GET /junk-short/coins/stats). */
+export type JunkCoinStat = {
+  symbol: string;
+  name: string | null;
+  price: number | null;
+  marketCapUsd: number | null;
+  quoteVolume24hUsd: number | null;
+  change24hPct: number | null;
+  change3dPct: number | null;
+  change7dPct: number | null;
+  change30dPct: number | null;
+  change90dPct: number | null;
+  /** Last funding rate in % (0.01 = 0.01%). */
+  fundingRatePct: number | null;
+  /** 1 | 4 | 8 — Binance funding settlement interval. */
+  fundingIntervalHours: number;
+  nextFundingTime: number | null;
+  ecosystems: string[];
+  monitoring: boolean;
+  onSpot: boolean;
+  spotListedAt: string | null;
+  futuresListedAt: string | null;
+};
+
+export type JunkCoinStatsResponse = { updatedAt: string; stats: JunkCoinStat[] };
+
 export type SyncJunkCoinsResult = {
   scanned: number;
   junk: number;
