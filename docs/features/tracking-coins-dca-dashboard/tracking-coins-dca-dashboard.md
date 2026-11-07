@@ -75,7 +75,7 @@ the last good snapshot), filters it locally and maps `1000X` → `X` price × 10
 while the tab is hidden and refreshes on return. 7d/30d/90d/180d come from `/price-changes`, where a
 5-minute cache is enough (they only move on a daily close).
 
-All table headers are left-aligned (`.tc-table--left-th`), including the sortable numeric ones.
+All table headers and values are left-aligned (`.tc-table--left-th`), including the numeric columns and the Actions buttons (numbers keep tabular digits).
 
 ## Scores column (2026-08-11)
 `passed/total` over a list of checks — `1/1` when the coin passes everything, `0/1` when it passes

@@ -7239,9 +7239,11 @@ a.metric-card--link:hover {
 .tc-live-price--down { color: #dc2626; }
 .tc-live-price--idle { color: var(--foreground); }
 .tc-td--price { min-width: 96px; }
-/* /tracking-coins: every header left-aligned (incl. sortable numeric ones). */
-.tc-table--left-th .scr-th { text-align: left; }
-.tc-table--left-th .bg-th-sort-btn { justify-content: flex-start; }
+/* /tracking-coins: every header and value left-aligned (incl. numeric columns). */
+.tc-table--left-th .scr-th,
+.tc-table--left-th .scr-td { text-align: left; }
+.tc-table--left-th .bg-th-sort-btn,
+.tc-table--left-th .tt-actions { justify-content: flex-start; }
 
 /* ── tracking coins: 24h / 7d / 30d / 90d change columns ── */
 /* Colour + weight come from the shared .bg-chg--up/--down rules. */
