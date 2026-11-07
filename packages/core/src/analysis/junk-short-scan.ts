@@ -95,6 +95,8 @@ export type JunkShortScan = {
     notOnBinanceFutures: string[];
     scanned: number;
     junkToday: number;
+    /** Coins passing every junk gate on the last closed D1 — what "Sync từ Binance" on /short-junk imports. */
+    junkTodayCoins: Array<{ symbol: string; capUsdM: number; belowAthPct: number; listingDays: number }>;
     excludedTooNew: string[];
   };
   candidates: JunkCandidate[];
@@ -371,7 +373,14 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
         };
       }
     }
-    return { symbol: u.perp.symbol, candidate, junkToday: junkToday.junk, gainerElig, pump3dIfClosedNow };
+    return {
+      symbol: u.perp.symbol,
+      candidate,
+      junkToday: junkToday.junk && u.preReason == null,
+      junkTodayInfo: { symbol: u.perp.symbol, capUsdM: sig4(junkToday.capUsd / 1e6, 3), belowAthPct: pct(junkToday.belowAth), listingDays: u.listingDays },
+      gainerElig,
+      pump3dIfClosedNow,
+    };
   });
   const bySymbol = new Map(evaluated.filter((e): e is NonNullable<typeof e> => e != null).map((e) => [e.symbol, e]));
 
@@ -425,6 +434,7 @@ export async function scanJunkShorts(opts: JunkShortScanOptions = {}): Promise<J
       notOnBinanceFutures,
       scanned: bySymbol.size,
       junkToday: [...bySymbol.values()].filter((e) => e.junkToday).length,
+      junkTodayCoins: [...bySymbol.values()].filter((e) => e.junkToday).map((e) => e.junkTodayInfo),
       excludedTooNew: tooNew.map((u) => u.perp.symbol),
     },
     candidates,

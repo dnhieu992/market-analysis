@@ -1,4 +1,4 @@
-.page { max-width: 900px; }
+.page { max-width: 1000px; }
 .lead { color: var(--muted); font-size: 14px; margin: 0 0 16px; line-height: 1.5; }
 
 .card {
@@ -12,14 +12,15 @@
 .listHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
 .listHead .cardTitle { margin: 0; }
 
-.addRow { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-.addRow textarea,
-.addRow input,
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.toolbar .cardTitle { margin: 0; }
+.toolbarActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
 .noteInput,
 .searchInput {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -27,22 +28,30 @@
   font: inherit;
   font-size: 13px;
 }
-.searchInput { width: 220px; max-width: 100%; }
-.addRow textarea { min-height: 60px; resize: vertical; }
-.addActions { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.hint { font-size: 12px; color: var(--muted); }
-.primaryBtn {
-  border: 0;
+.searchInput { width: 200px; }
+.primaryBtn,
+.secondaryBtn {
   border-radius: 8px;
-  padding: 8px 18px;
-  background: var(--accent);
-  color: #fff;
+  padding: 7px 14px;
   font: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
 }
-.primaryBtn:disabled { opacity: 0.5; cursor: default; }
+.primaryBtn { border: 0; background: var(--accent); color: #fff; }
+.secondaryBtn { border: 1px solid var(--border); background: var(--surface); color: inherit; }
+.secondaryBtn:hover { border-color: var(--accent); }
+.primaryBtn:disabled,
+.secondaryBtn:disabled { opacity: 0.55; cursor: default; }
+
+.dialog { max-width: 440px !important; }
+
+.banner { position: relative; padding-right: 28px !important; margin-bottom: 10px; font-size: 13px; }
+.bannerX { position: absolute; top: 4px; right: 6px; border: 0; background: none; color: inherit; font-size: 16px; cursor: pointer; }
+
+.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.badgeSync { border-color: var(--accent); color: var(--accent); }
 
 .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
 
@@ -70,4 +79,6 @@
 @media (max-width: 560px) {
   .date { display: none; }
   .searchInput { width: 100%; }
+  .toolbarActions { width: 100%; }
+  .toolbarActions > button { flex: 1; }
 }

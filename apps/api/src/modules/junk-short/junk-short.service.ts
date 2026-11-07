@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import axios from 'axios';
+import { scanJunkShorts } from '@app/core';
 import { createJunkShortCoinRepository } from '@app/db';
 
 import type { AddJunkCoinsDto } from './dto/add-junk-coins.dto';
@@ -37,6 +38,41 @@ export class JunkShortService {
     const added = [];
     for (const s of accepted) added.push(await this.repo.upsert(s, dto.note));
     return { added, rejected };
+  }
+
+  /**
+   * "Sync từ Binance": scan every Binance USDT-M perp through the study's junk gates (spot + perp,
+   * futures ≥ 90 days, cap $20–500M, ≥ 50% below ATH on the last closed D1) and add the coins that
+   * pass and are not on the list yet. Never removes or overwrites a coin — `noLongerJunk` lists the
+   * synced coins that stopped passing, for the user to decide.
+   */
+  async syncFromBinance() {
+    let scan;
+    try {
+      scan = await scanJunkShorts({ topGainers: 0, fapiBaseUrl: process.env.BINANCE_FAPI_BASE_URL });
+    } catch (err) {
+      throw new BadRequestException(`Không quét được Binance: ${(err as Error).message}`);
+    }
+    const day = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const junk = scan.universe.junkTodayCoins;
+    const before = await this.repo.findAll();
+    const listed = new Set(before.map((c) => c.symbol));
+    const fresh = junk.filter((j) => !listed.has(j.symbol));
+    await this.repo.addMissing(
+      fresh.map((j) => ({
+        symbol: j.symbol,
+        source: 'BINANCE_SYNC',
+        note: `Sync Binance ${day} · cap $${j.capUsdM}M · −${j.belowAthPct}% ATH · list ${j.listingDays} ngày`,
+      })),
+    );
+    const junkSet = new Set(junk.map((j) => j.symbol));
+    return {
+      scanned: scan.universe.scanned,
+      junk: junk.length,
+      added: fresh.map((j) => j.symbol),
+      noLongerJunk: before.filter((c) => c.source === 'BINANCE_SYNC' && !junkSet.has(c.symbol)).map((c) => c.symbol),
+      coins: await this.repo.findAll(),
+    };
   }
 
   async update(symbol: string, note: string) {

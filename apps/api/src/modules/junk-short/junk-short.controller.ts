@@ -23,6 +23,12 @@ export class JunkShortController {
     return this.service.add(dto);
   }
 
+  @Post('coins/sync')
+  @ApiOperation({ summary: 'Add every coin passing the study’s junk gates on Binance today (never removes)' })
+  sync() {
+    return this.service.syncFromBinance();
+  }
+
   @Patch('coins/:symbol')
   @ApiOperation({ summary: 'Edit a coin’s note' })
   update(@Param('symbol') symbol: string, @Body() dto: UpdateJunkCoinDto) {

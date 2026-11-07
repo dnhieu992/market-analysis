@@ -22,6 +22,13 @@ export function createJunkShortCoinRepository(client = prisma) {
       });
     },
 
+    /** Insert the coins not on the list yet (existing rows — and their notes — are left alone). */
+    async addMissing(rows: Array<{ symbol: string; note: string | null; source: string }>): Promise<number> {
+      if (rows.length === 0) return 0;
+      const { count } = await client.junkShortCoin.createMany({ data: rows, skipDuplicates: true });
+      return count;
+    },
+
     updateNote(symbol: string, note: string | null) {
       return client.junkShortCoin.update({ where: { symbol }, data: { note: note?.trim() ? note.trim() : null } });
     },

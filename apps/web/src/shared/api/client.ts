@@ -118,6 +118,7 @@ import type {
   TradingListWatchlistSymbol,
   JunkShortCoin,
   AddJunkCoinsResult,
+  SyncJunkCoinsResult,
 } from './types';
 
 /** Optional "why" of an order — saved to trade_entries and the trade journal. */
@@ -1972,6 +1973,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
       if (!response.ok) throw new Error(await errorMessage(response, 'Thêm coin thất bại'));
       return (await response.json()) as AddJunkCoinsResult;
+    },
+
+    async syncJunkCoins(): Promise<SyncJunkCoinsResult> {
+      const response = await fetchImpl(`${baseUrl}/junk-short/coins/sync`, withDefaults({ method: 'POST' }));
+      if (!response.ok) throw new Error(await errorMessage(response, 'Sync từ Binance thất bại'));
+      return (await response.json()) as SyncJunkCoinsResult;
     },
 
     async updateJunkCoin(symbol: string, note: string): Promise<JunkShortCoin> {

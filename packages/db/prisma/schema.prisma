@@ -1442,6 +1442,7 @@ model JunkShortCoin {
   id        String   @id @default(cuid())
   symbol    String   @unique @db.VarChar(30)
   note      String?  @db.Text
+  source    String   @default("MANUAL") @db.VarChar(20) // MANUAL | BINANCE_SYNC (imported by "Sync từ Binance")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

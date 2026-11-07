@@ -8,8 +8,13 @@ as warnings / red flags.
 ## Main Flow
 1. Sidebar → **Short Coin Rác** → `/short-junk` opens on the coin list (old `/skills/short-junk/chat/*`
    links redirect here).
-2. **Thêm coin**: add many coins at once (comma / newline separated, `USDT` appended, optional note);
-   in the table click a note to edit it, **Xoá** to remove, search by coin / note.
+2. Toolbar: **+ Thêm coin** opens a dialog (many coins at once, comma / newline separated, `USDT`
+   appended, optional note); **⟳ Sync từ Binance** (`POST /junk-short/coins/sync`) scans every Binance
+   USDT-M perp through the study's gates on the last closed D1 (spot + perp, futures ≥ 90 days, cap
+   $20–500M, ≥ 50% below ATH) and inserts the coins not listed yet with `source = BINANCE_SYNC` and a note
+   (cap, % below ATH, listing age). It never removes or overwrites; synced coins that no longer pass are
+   listed in the result banner with a one-click "Xoá các coin này". In the table click a note to edit it,
+   **Xoá** to remove, search by coin / note; the Nguồn column shows Binance / Tự thêm.
 3. The floating **🗑️ AI** button opens the chat panel: one running thread (newest short-junk
    conversation), **Bắt đầu lại** starts a new one.
    The API accepts only coins with a trading Binance USDT-M perpetual and returns the rejected ones.
@@ -24,12 +29,14 @@ as warnings / red flags.
   the whole market); the worker sends nothing.
 - A listed coin later delisted from Binance futures → `universe.notOnBinanceFutures`, the model says it
   cannot be shorted on Binance.
+- Sync takes ~7 s (≈ 320 perps scanned, weekly ATH bars cached 24 h); a Binance failure returns 400 and
+  nothing is written.
 - Re-adding an existing coin is idempotent; a non-empty note overwrites the old note.
 - Fresh listings (< 90 days) stay "Theo dõi" only (prompt rule), other failed gates = half size.
 
 ## Related Files (FE / BE / Worker)
-- `packages/core/src/analysis/junk-short-scan.ts` — `symbols` option (list mode), `warnings`, `universe.source / notOnBinanceFutures`
-- `packages/db/prisma/schema.prisma` (`JunkShortCoin`), `packages/db/prisma/migrations/20261107150000_junk_short_coins/` — table
+- `packages/core/src/analysis/junk-short-scan.ts` — `symbols` option (list mode), `warnings`, `universe.source / notOnBinanceFutures / junkTodayCoins`
+- `packages/db/prisma/schema.prisma` (`JunkShortCoin`), migrations `20261107150000_junk_short_coins`, `20261107170000_junk_short_coin_source` — table + `source` column
 - `packages/db/src/repositories/junk-short-coin.repository.ts` — CRUD repository
 - `apps/api/src/modules/junk-short/*` — `GET/POST /junk-short/coins`, `PATCH/DELETE /junk-short/coins/:symbol`
 - `apps/api/src/modules/chat/tools/junk-short-scan.tool.ts` — tool scans only the list
@@ -37,7 +44,7 @@ as warnings / red flags.
 - `apps/worker/src/modules/junk-short-alert/junk-short-alert.service.ts` — alert scans only the list
 - `apps/web/src/app/short-junk/page.tsx`, `apps/web/src/_pages/short-junk-page/short-junk-page.tsx` — route + server page
 - `apps/web/src/widgets/short-junk/short-junk-view.tsx` — page layout
-- `apps/web/src/widgets/short-junk/junk-coins-manager.tsx` — add / edit note / delete table
+- `apps/web/src/widgets/short-junk/junk-coins-manager.tsx` — toolbar (add dialog, Binance sync, search) + table
 - `apps/web/src/widgets/short-junk/short-junk-ai-chat.tsx` — floating AI button + chat panel
 - `apps/web/src/_pages/skills-page/skill-chat-page.tsx` — redirects `/skills/short-junk/chat/*` to `/short-junk`
 - `apps/web/src/widgets/app-shell/sidebar-nav.tsx` — nav entry

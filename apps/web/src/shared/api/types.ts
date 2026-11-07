@@ -1856,11 +1856,22 @@ export type JunkShortCoin = {
   id: string;
   symbol: string;
   note: string | null;
+  /** MANUAL = added by hand · BINANCE_SYNC = imported by "Sync từ Binance". */
+  source: 'MANUAL' | 'BINANCE_SYNC' | string;
   createdAt: string;
   updatedAt: string;
 };
 
 export type AddJunkCoinsResult = { added: JunkShortCoin[]; rejected: string[] };
+
+export type SyncJunkCoinsResult = {
+  scanned: number;
+  junk: number;
+  added: string[];
+  /** Synced coins that no longer pass the junk gates (kept — the user decides). */
+  noLongerJunk: string[];
+  coins: JunkShortCoin[];
+};
 
 export type TradingListWatchlistSymbol = {
   symbol: string;
