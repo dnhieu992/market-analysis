@@ -55,8 +55,8 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
 |---|---|---|
 | Coin | ticker + chart button, nothing else | — |
 | Scores | `GET /tracking-coins/scores` → rules passed / rules total (see below) | 5 min (server caches 5 min per coin) |
-| Giá | Binance `GET /api/v3/ticker/24hr` `lastPrice`, flashes green/red on each tick | 5s |
-| 24h % | same request — the exchange's own rolling 24h window, the same reading the Bitget Setup tab shows | 5s |
+| Giá | `GET /tracking-coins/tickers` → Binance MINI ticker `lastPrice`, flashes green/red on each tick; server-rendered on first paint | 5s poll (server caches 5s, shared by all viewers) |
+| 24h % | same request — rolling 24h `(lastPrice − openPrice) / openPrice` | 5s |
 | 7d % | `GET /tracking-coins/price-changes` → current close vs the close 7 daily candles back | 5 min (server caches 5 min per coin) |
 | 30d % | same endpoint, 30 daily candles back | 5 min |
 | 90d % | same endpoint, 90 daily candles back | 5 min |
@@ -67,10 +67,15 @@ Every column header is a sort button cycling **desc → asc → off**; "off" ret
 order, which is where the table starts — **nothing is sorted on load**. Only one column sorts at a
 time, and coins with no reading sink to the bottom.
 
-Price and 24h come from the browser rather than the API on purpose: one `/ticker/24hr` request every
-5s returns `lastPrice` *and* the rolling change, so both columns cost a single poll. 7d/30d/90d/180d come
-from the API instead, where a 5-minute cache is enough (they only move on a daily close) and the
-daily klines are already proxied server-side — one 185-candle fetch serves all four.
+Price and 24h come from the API since 2026-11-07. Before that the browser called Binance
+`ticker/24hr?symbols=[...]` directly, and Binance 400s **the whole batch** when one symbol is not a spot
+pair — `1000SHIB` (futures-only) blanked both columns for every coin. The API now fetches the
+whole-market `ticker/24hr?type=MINI` once per 5s (in-flight requests are shared, a Binance failure serves
+the last good snapshot), filters it locally and maps `1000X` → `X` price × 1000. The client skips polls
+while the tab is hidden and refreshes on return. 7d/30d/90d/180d come from `/price-changes`, where a
+5-minute cache is enough (they only move on a daily close).
+
+All table headers are left-aligned (`.tc-table--left-th`), including the sortable numeric ones.
 
 ## Scores column (2026-08-11)
 `passed/total` over a list of checks — `1/1` when the coin passes everything, `0/1` when it passes
@@ -158,8 +163,9 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
 - **Micro-cap / unknown market cap** → 0 cap points → can never reach "An toàn" (high death risk).
 - **Missing signal** (never scanned) → the detail modal says "Chưa có dữ liệu chỉ báo cho coin này."
   (only the TradingView link is offered). Since 2026-08-11 the table itself no longer reads the signal.
-- **Coin with no Binance USDT pair** → the ticker returns nothing for it and the klines call fails →
-  all three change cells show "—"; nothing else breaks.
+- **Coin with no Binance USDT pair** → the ticker returns nothing for it (only that coin's Giá/24h show
+  "—"; the rest of the table still gets prices) and the klines call fails → the change cells show "—".
+  A `1000X` futures-style symbol is priced from `X` × 1000.
 - **Change fetch fails** → the columns keep their last-known values (the server falls back to the
   cached reading, the client keeps the previous map) instead of blanking out.
 - **Fewer daily candles than a column's lookback** (recent listing) → that column shows "—" while the
@@ -185,6 +191,8 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
   zone-derived values stay stale until the signal rebuild lands.
 
 ## Related Files (FE / BE / Worker)
+- `apps/web/src/_pages/tracking-coins-page/tracking-coins-page.tsx` — server-renders coins + first ticker snapshot.
+- `apps/api/src/modules/market/binance-market-data.service.ts` — `fetchTicker24hMini()`.
 - `apps/web/src/widgets/tracking-coins/tracking-coins-feed.tsx` — the whole page: table (Coin / Scores /
   Giá / 24h / 7d / 30d / 90d / 180d / Actions, all sortable, unsorted by default), `ScoreCell` +
   `RULE_LABELS`,
@@ -207,7 +215,7 @@ EMA200 / S/R / RSI / QQE — see `docs/features/bitget-setup-tab/`.
 - `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — imports `MarketModule` for
   `MarketDataService.getCandles`
 - `packages/core/src/indicators/supertrend.ts` — `isSupertrendBullish`, shared with the D1 screener
-- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — stored-signal read + zone
+- `apps/api/src/modules/tracking-coins/tracking-coins.service.ts` — `getTickers()` (5s shared MINI-ticker cache behind Giá / 24h); stored-signal read + zone
   derivation; no portfolio, transaction or holding dependency
 - `apps/api/src/modules/tracking-coins/tracking-coins.module.ts` — providers: service +
   `BinanceMarketDataService` (no `TransactionModule`/`PortfolioModule`/`HoldingsModule`)

@@ -24,6 +24,20 @@ export type TrackingPriceChange = {
   change180d: number | null;
 };
 
+/** Live price + rolling 24h change (ratio) per bare symbol. */
+export type TrackingTicker = {
+  symbol: string;
+  price: number;
+  change24h: number | null;
+};
+
+/**
+ * One market-wide ticker fetch serves every viewer for this long. The page polls
+ * every few seconds; without the shared cache each open tab would cost Binance
+ * weight 80 per poll.
+ */
+const TICKER_TTL_MS = 5_000;
+
 export type TrackingCoinRow = {
   id: string;
   symbol: string;
@@ -36,10 +50,67 @@ export type TrackingCoinRow = {
 export class TrackingCoinsService {
   private readonly repo = createTrackingCoinsRepository();
 
+  private tickerCache: { at: number; byPair: Map<string, { price: number; change24h: number | null }> } | null = null;
+  private tickerInFlight: Promise<Map<string, { price: number; change24h: number | null }>> | null = null;
+
   constructor(
     private readonly binance: BinanceMarketDataService,
     private readonly dailyCandles: DailyCandleCacheService,
   ) {}
+
+  /**
+   * Price + rolling 24h change for the given coins. Reads the whole-market MINI
+   * ticker (cached {@link TICKER_TTL_MS}, concurrent callers share one request)
+   * and filters locally — a `symbols=[...]` batch 400s entirely when a single
+   * coin is not a Binance spot pair (e.g. the futures-only "1000SHIB"), which is
+   * what blanked the Price / 24h columns. "1000X" falls back to X × 1000.
+   * On a Binance failure the last good snapshot is served (stale beats blank).
+   */
+  async getTickers(symbols: string[]): Promise<TrackingTicker[]> {
+    const unique = [...new Set(symbols.map((s) => bareSymbol(s)).filter(Boolean))];
+    if (unique.length === 0) return [];
+    const byPair = await this.loadTickers();
+
+    const out: TrackingTicker[] = [];
+    for (const bare of unique) {
+      const direct = byPair.get(`${bare}USDT`);
+      if (direct) { out.push({ symbol: bare, ...direct }); continue; }
+      const m = /^1000+(.+)$/.exec(bare);
+      const base = m ? byPair.get(`${m[1]}USDT`) : undefined;
+      if (m && base) {
+        const mult = Number(bare.slice(0, bare.length - m[1]!.length));
+        out.push({ symbol: bare, price: base.price * mult, change24h: base.change24h });
+      }
+    }
+    return out;
+  }
+
+  private async loadTickers() {
+    if (this.tickerCache && Date.now() - this.tickerCache.at < TICKER_TTL_MS) return this.tickerCache.byPair;
+    if (this.tickerInFlight) return this.tickerInFlight;
+
+    this.tickerInFlight = (async () => {
+      try {
+        const rows = await this.binance.fetchTicker24hMini();
+        const byPair = new Map<string, { price: number; change24h: number | null }>();
+        for (const r of rows) {
+          if (!r.symbol.endsWith('USDT')) continue;
+          const price = parseFloat(r.lastPrice);
+          const open = parseFloat(r.openPrice);
+          if (!Number.isFinite(price) || price <= 0) continue;
+          byPair.set(r.symbol, { price, change24h: open > 0 ? (price - open) / open : null });
+        }
+        this.tickerCache = { at: Date.now(), byPair };
+        return byPair;
+      } catch (err) {
+        if (this.tickerCache) return this.tickerCache.byPair;
+        throw err;
+      } finally {
+        this.tickerInFlight = null;
+      }
+    })();
+    return this.tickerInFlight;
+  }
 
   /**
    * 7d / 30d / 90d / 180d price change per coin — the data behind those table

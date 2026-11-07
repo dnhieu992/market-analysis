@@ -50,6 +50,7 @@ import type {
   SpotHistory,
   SpotStrategy,
   TrackingPriceChange,
+  TrackingTicker,
   TrackingCoinSetup,
   BitgetPositionsResponse,
   BitgetHistoryResponse,
@@ -1145,6 +1146,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async fetchTrackingCoins(): Promise<TrackingCoinRow[]> {
       return fetchJson<TrackingCoinRow[]>(fetchImpl, `${baseUrl}/tracking-coins`, withDefaults());
+    },
+
+    async fetchTrackingTickers(symbols: string[]): Promise<TrackingTicker[]> {
+      if (symbols.length === 0) return [];
+      const q = encodeURIComponent(symbols.join(','));
+      return fetchJson<TrackingTicker[]>(
+        fetchImpl,
+        `${baseUrl}/tracking-coins/tickers?symbols=${q}`,
+        withDefaults({ cache: 'no-store' }),
+      );
     },
 
     async fetchTrackingPriceChanges(symbols: string[]): Promise<TrackingPriceChange[]> {

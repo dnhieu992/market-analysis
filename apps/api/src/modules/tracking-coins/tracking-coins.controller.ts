@@ -35,6 +35,14 @@ export class TrackingCoinsController {
     return this.service.getPriceChanges(list);
   }
 
+  @Get('tickers')
+  // Live price — the server already caches 5s, the browser must not add more.
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Live price + rolling 24h change per coin (Binance MINI ticker, 5s shared cache)' })
+  getTickers(@Query('symbols') symbols = '') {
+    return this.service.getTickers(symbols.split(',').map((s) => s.trim()).filter(Boolean));
+  }
+
   @Get('strategies')
   @ApiOperation({ summary: 'Spot Analytic strategies (rules, target, backtest) — the active one drives the chat skill' })
   getStrategies() {

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { resolveApiBaseUrl, createApiClient } from '@web/shared/api/client';
-import type { TrackingCoinMeta, TrackingCoinRow, TrackingPriceChange } from '@web/shared/api/types';
+import type { TrackingCoinMeta, TrackingCoinRow, TrackingPriceChange, TrackingTicker } from '@web/shared/api/types';
 import { SetupChartDialog, SWING_CHART_TIMEFRAMES } from '@web/widgets/bitget/setup-chart-dialog';
 import { StarRating } from '@web/widgets/bitget/star-rating';
 
@@ -13,7 +13,7 @@ import { CoinPanel } from './coin-panel';
 import { SpotHistoryDialog } from './spot-history-dialog';
 import { SpotStrategiesDialog } from './spot-strategies-dialog';
 
-type Props = { initialCoins: TrackingCoinRow[] };
+type Props = { initialCoins: TrackingCoinRow[]; initialTickers?: TrackingTicker[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
 type SortCol = 'coin' | 'price' | 'chg24h' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
@@ -51,38 +51,42 @@ function formatPrice(price: number): string {
   return price.toFixed(7);
 }
 
+/** Ticker rows → price / 24h-change maps keyed by bare symbol. */
+function toMaps(rows: TrackingTicker[]): { prices: PriceMap; changes: ChangeMap } {
+  const prices: PriceMap = new Map();
+  const changes: ChangeMap = new Map();
+  for (const r of rows) {
+    prices.set(r.symbol, r.price);
+    if (r.change24h != null && Number.isFinite(r.change24h)) changes.set(r.symbol, r.change24h);
+  }
+  return { prices, changes };
+}
+
 /**
- * Live price + rolling 24h change from Binance's 24hr ticker. One request serves
- * both columns, and the 24h reading is the exchange's own rolling window — the
- * same thing the Bitget Setup tab shows — not "change since yesterday's close".
+ * Live price + rolling 24h change, polled from our API (`/tracking-coins/tickers`).
+ * The API reads Binance's whole-market ticker once per 5s for every viewer and
+ * filters it — the old direct `ticker/24hr?symbols=[...]` call from the browser
+ * 400'd the whole batch on a single non-spot coin (1000SHIB) and left both
+ * columns blank. `initial` is the server-rendered snapshot, so the first paint
+ * already has prices. A failed poll keeps the last values.
  */
-function useLivePrices(symbols: string[]) {
-  const [prices, setPrices] = useState<PriceMap>(new Map());
-  const [changes24h, setChanges24h] = useState<ChangeMap>(new Map());
+function useLivePrices(symbols: string[], initial: TrackingTicker[]) {
+  const seed = useMemo(() => toMaps(initial), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [prices, setPrices] = useState<PriceMap>(seed.prices);
+  const [changes24h, setChanges24h] = useState<ChangeMap>(seed.changes);
   const [flash, setFlash]   = useState<PriceFlash>(new Map());
-  const prevRef = useRef<PriceMap>(new Map());
+  const prevRef = useRef<PriceMap>(seed.prices);
 
   const fetchPrices = useCallback(async () => {
     if (symbols.length === 0) return;
-    const usdtSymbols = symbols.map(s => `${s}USDT`);
-    const query = encodeURIComponent(JSON.stringify(usdtSymbols));
+    if (typeof document !== 'undefined' && document.hidden) return; // background tab: skip
     try {
-      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${query}`);
-      if (!res.ok) return;
-      const data = await res.json() as { symbol: string; lastPrice: string; priceChangePercent: string }[];
-      const next: PriceMap = new Map();
-      const nextChanges: ChangeMap = new Map();
+      const rows = await createApiClient().fetchTrackingTickers(symbols);
+      const { prices: next, changes: nextChanges } = toMaps(rows);
       const nextFlash: PriceFlash = new Map();
-      for (const { symbol, lastPrice, priceChangePercent } of data) {
-        const coin = symbol.replace(/USDT$/, '');
-        const val = parseFloat(lastPrice);
-        next.set(coin, val);
-        const pct = parseFloat(priceChangePercent);
-        if (Number.isFinite(pct)) nextChanges.set(coin, pct / 100);
+      for (const [coin, val] of next) {
         const prev = prevRef.current.get(coin);
-        if (prev !== undefined && prev !== val) {
-          nextFlash.set(coin, val > prev ? 'up' : 'down');
-        }
+        if (prev !== undefined && prev !== val) nextFlash.set(coin, val > prev ? 'up' : 'down');
       }
       prevRef.current = next;
       setPrices(next);
@@ -92,13 +96,15 @@ function useLivePrices(symbols: string[]) {
       if (nextFlash.size > 0) {
         setTimeout(() => setFlash(new Map()), 600);
       }
-    } catch { /* ignore */ }
+    } catch { /* ignore — keep last-known prices */ }
   }, [symbols.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchPrices();
     const id = setInterval(fetchPrices, PRICE_REFRESH_MS);
-    return () => clearInterval(id);
+    const onVisible = () => { if (!document.hidden) void fetchPrices(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [fetchPrices]);
 
   return { prices, changes24h, flash };
@@ -246,10 +252,10 @@ function AddCoinForm({ onAdded }: { onAdded: (coin: TrackingCoinRow) => void }) 
 
 /* ── main feed ──────────────────────────────────────────────────── */
 
-export function TrackingCoinsFeed({ initialCoins }: Props) {
+export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) {
   const [coins, setCoins] = useState<TrackingCoinRow[]>(initialCoins);
   const symbols = useMemo(() => coins.map(c => c.symbol), [coins]);
-  const { prices, changes24h, flash } = useLivePrices(symbols);
+  const { prices, changes24h, flash } = useLivePrices(symbols, initialTickers);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   // No column sorts on load — rows keep the watchlist order until a header is clicked.
   const [sort, setSort] = useState<Sort | null>(null);
@@ -470,7 +476,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
 
         {/* table */}
         <div className="scr-table-wrap">
-          <table className="scr-table">
+          <table className="scr-table tc-table--left-th">
             <thead>
               <tr>
                 <th className="scr-th scr-th--coin bg-th-sort" aria-sort={sort?.col === 'coin' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
@@ -481,7 +487,7 @@ export function TrackingCoinsFeed({ initialCoins }: Props) {
                     </span>
                   </button>
                 </th>
-                <SortHeader label="Giá"   col="price"  sort={sort} onSort={cycleSort} title="Giá hiện tại (Binance, cập nhật mỗi 5 giây)" />
+                <SortHeader label="Giá"   col="price"  sort={sort} onSort={cycleSort} title="Giá hiện tại (Binance, cache 5 giây trên server)" />
                 <SortHeader label="24h %" col="chg24h" sort={sort} onSort={cycleSort} title="Thay đổi 24 giờ (rolling, ticker Binance)" />
                 <SortHeader label="7d %"  col="chg7d"  sort={sort} onSort={cycleSort} title="Thay đổi 7 ngày (so với close 7 nến D1 trước)" />
                 <SortHeader label="30d %" col="chg30d" sort={sort} onSort={cycleSort} title="Thay đổi 30 ngày (so với close 30 nến D1 trước)" />

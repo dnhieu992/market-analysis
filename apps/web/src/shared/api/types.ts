@@ -632,6 +632,9 @@ export type TrackingPriceChange = {
   change180d: number | null;
 };
 
+/** Live price + rolling 24h change (ratio) per bare symbol — API `/tracking-coins/tickers`. */
+export type TrackingTicker = { symbol: string; price: number; change24h: number | null };
+
 /** Market cap (Binance circulating supply × price) and sector labels (L1, L2, Meme, DeFi, AI…). */
 export type TrackingCoinMeta = { symbol: string; marketCap: number | null; sectors: string[] };
 

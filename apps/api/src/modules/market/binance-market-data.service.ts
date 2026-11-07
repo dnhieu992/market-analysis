@@ -36,6 +36,13 @@ export type Binance24hTicker = {
   quoteVolume: string;
 };
 
+/** One row of `/api/v3/ticker/24hr?type=MINI` (all strings). */
+export type Binance24hMiniTicker = {
+  symbol: string;
+  lastPrice: string;
+  openPrice: string;
+};
+
 export type BinanceExchangeInfoSymbol = {
   symbol: string;
   status: string;
@@ -115,6 +122,20 @@ export class BinanceMarketDataService {
    */
   async fetchTicker24h(): Promise<Binance24hTicker[]> {
     const response = await this.client.get<Binance24hTicker[]>('/api/v3/ticker/24hr', {
+      timeout: 30_000
+    });
+
+    return response.data ?? [];
+  }
+
+  /**
+   * `/api/v3/ticker/24hr?type=MINI` for every symbol — same weight as the full
+   * ticker but a much smaller payload (no bid/ask/weighted-avg fields). Rolling
+   * 24h change = (lastPrice − openPrice) / openPrice.
+   */
+  async fetchTicker24hMini(): Promise<Binance24hMiniTicker[]> {
+    const response = await this.client.get<Binance24hMiniTicker[]>('/api/v3/ticker/24hr', {
+      params: { type: 'MINI' },
       timeout: 30_000
     });
 
