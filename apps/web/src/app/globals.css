@@ -6940,13 +6940,30 @@ a.metric-card--link:hover {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 16px;
-  flex-wrap: wrap;
+  /* Title, info icon and + Coin always share one line. */
+  flex-wrap: nowrap;
 }
 
 .tc-page-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+.tc-page-title-row .scr-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* + Coin pinned to the right edge of the header. */
+.tc-header-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.tc-header-actions .scr-add-toggle { white-space: nowrap; }
+@media (max-width: 640px) {
+  .tc-page-header { padding: 14px 16px; }
+  .tc-filters .tc-filter-search { max-width: none; align-self: stretch; }
 }
 
 /* ── tracking coins: info icon & stage popover ── */

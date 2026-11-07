@@ -64,8 +64,8 @@ The earlier trend-following Entry Score (`tracking-coins-entry-score`) and the d
 | 180d % | same endpoint, 180 daily candles back | 5 min |
 | Actions | delete | — |
 
-Every column header is a sort button cycling **desc → asc → off**; "off" returns to the watchlist
-order, which is where the table starts — **nothing is sorted on load**. Only one column sorts at a
+Every column header is a sort button cycling **desc → asc → off**; "off" returns to the default
+order. Since 2026-11-07 the table starts (and returns on "off") sorted by **stars, high→low**, ties in watchlist order. Only one column sorts at a
 time, and coins with no reading sink to the bottom.
 
 Price and 24h come from the API since 2026-11-07. Before that the browser called Binance

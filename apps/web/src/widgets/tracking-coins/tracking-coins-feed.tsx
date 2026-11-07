@@ -16,11 +16,13 @@ import { SpotStrategiesDialog } from './spot-strategies-dialog';
 type Props = { initialCoins: TrackingCoinRow[]; initialTickers?: TrackingTicker[] };
 
 /** Columns the table can order by. `null` sort = the watchlist's own order (the default). */
-type SortCol = 'coin' | 'price' | 'chg24h' | 'chg3d' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
+type SortCol = 'coin' | 'stars' | 'price' | 'chg24h' | 'chg3d' | 'chg7d' | 'chg30d' | 'chg90d' | 'mcap';
 
 /** Stars a coin shows before the trader rates it (DB default too). */
 const DEFAULT_RATING = 3;
 type Sort = { col: SortCol; dir: 'desc' | 'asc' };
+/** Order on load and whenever a header sort is cycled off: most stars first. */
+const DEFAULT_SORT: Sort = { col: 'stars', dir: 'desc' };
 
 const PAGE_SIZE = 50;
 const PRICE_REFRESH_MS = 5000;
@@ -257,7 +259,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
   const symbols = useMemo(() => coins.map(c => c.symbol), [coins]);
   const { prices, changes24h, flash } = useLivePrices(symbols, initialTickers);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  // No column sorts on load — rows keep the watchlist order until a header is clicked.
+  // No header sort on load (`null`) — rows then sort by stars, high→low (DEFAULT_SORT).
   const [sort, setSort] = useState<Sort | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const view = 'coins' as const;
@@ -370,6 +372,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
   const numericValue = useCallback(
     (symbol: string, col: SortCol): number | null => {
       const v =
+        col === 'stars'  ? ratings[symbol] ?? DEFAULT_RATING :
         col === 'mcap'   ? meta[symbol]?.marketCap :
         col === 'price'  ? prices.get(symbol) :
         col === 'chg24h' ? changes24h.get(symbol) :
@@ -379,7 +382,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
                            changes[symbol]?.change90d;
       return v == null || !Number.isFinite(v) ? null : v;
     },
-    [meta, prices, changes24h, changes],
+    [meta, prices, changes24h, changes, ratings],
   );
 
   // Name/symbol search is the only filter left (2026-07-26 — the zone / quality /
@@ -387,16 +390,17 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
   const sorted = useMemo(() => {
     const q = nameFilter.trim().toUpperCase();
     const filtered = coins.filter((c) => !q || c.symbol.includes(q) || c.name.toUpperCase().includes(q));
-    if (!sort) return filtered;
-    if (sort.col === 'coin') {
+    // No header sort → stars high→low (ties keep the watchlist order: the sort is stable).
+    const by = sort ?? DEFAULT_SORT;
+    if (by.col === 'coin') {
       return [...filtered].sort((a, b) =>
-        sort.dir === 'asc' ? a.symbol.localeCompare(b.symbol) : b.symbol.localeCompare(a.symbol));
+        by.dir === 'asc' ? a.symbol.localeCompare(b.symbol) : b.symbol.localeCompare(a.symbol));
     }
-    const miss = sort.dir === 'desc' ? -Infinity : Infinity;
+    const miss = by.dir === 'desc' ? -Infinity : Infinity;
     return [...filtered].sort((a, b) => {
-      const va = numericValue(a.symbol, sort.col) ?? miss;
-      const vb = numericValue(b.symbol, sort.col) ?? miss;
-      return sort.dir === 'desc' ? vb - va : va - vb;
+      const va = numericValue(a.symbol, by.col) ?? miss;
+      const vb = numericValue(b.symbol, by.col) ?? miss;
+      return by.dir === 'desc' ? vb - va : va - vb;
     });
   }, [coins, nameFilter, sort, numericValue]);
 
@@ -438,11 +442,17 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
         <div className="tc-page-header">
           <div className="tc-page-title-row">
             <h1 className="scr-title">Spot Analytic</h1>
-          </div>
-          <div className="scr-toolbar-right">
-            <button className="scr-add-toggle" onClick={() => setShowStrategies(true)} title="Xem quy tắc, mục tiêu và backtest của các chiến lược">
-              Chiến lược
+            <button
+              type="button"
+              className="tc-info-btn"
+              onClick={() => setShowStrategies(true)}
+              aria-label="Chiến lược"
+              title="Chiến lược: quy tắc, mục tiêu và backtest"
+            >
+              i
             </button>
+          </div>
+          <div className="scr-toolbar-right tc-header-actions">
             {view === 'coins' && (
               <button className="scr-add-toggle" onClick={() => setShowAddForm((v) => !v)}>
                 {showAddForm ? '✕' : '+ Coin'}
@@ -470,9 +480,17 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
             className="scr-search tc-filter-search"
             type="search"
             placeholder="Tìm symbol / tên…"
+            list="tc-coin-suggestions"
+            autoComplete="off"
             value={nameFilter}
             onChange={(e) => setNameFilter(e.target.value)}
           />
+          {/* Autocomplete from the watchlist itself: pick a symbol, the table filters to it. */}
+          <datalist id="tc-coin-suggestions">
+            {coins.map((c) => (
+              <option key={c.id} value={c.symbol}>{c.name && c.name !== c.symbol ? c.name : undefined}</option>
+            ))}
+          </datalist>
         </div>
 
         {/* table */}

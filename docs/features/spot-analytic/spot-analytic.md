@@ -12,7 +12,7 @@ rows are no longer clickable and the per-row chat icon is gone. The page has a s
 "🧭 AI" button (bottom-right, same `.fab` style as /trading-list from `bitget-ai-chat.module.css`)
 that opens the watchlist-scope chat drawer (`CoinPanel` with `symbol=null`). Old per-coin
 conversations stay in the DB but are not listed by that drawer (it filters `metadata.symbol` empty).
-Page header is left-aligned (title + Chiến lược / + Coin buttons side by side).
+Page header is one line (never wraps): title + **ⓘ info icon** (opens the Chiến lược dialog) on the left, **+ Coin** pinned to the right. The coin filter box autocompletes from the watchlist (native `<datalist>` of symbols + names) and is full width on mobile (≤640px). Rows sort by **stars, high→low** by default (ties keep watchlist order); cycling a header sort off returns to that.
 
 Vốn hoá / Nhóm come from Binance's public product list (`get-products`, cached 1h,
 `GET /tracking-coins/meta`): market cap = circulating supply × price; sectors map Binance tags to
@@ -36,6 +36,6 @@ match the portfolio page, including trades typed there).
 ## Chiến lược (2026-11-07)
 - Chiến lược định nghĩa trong code: `packages/skills/src/tracking-swing/strategies.ts` (`SPOT_STRATEGIES`, `ACTIVE_SPOT_STRATEGY`). Chiến lược đang áp dụng được chèn vào system prompt của chat. Thêm chiến lược mới = thêm phần tử B, C…; đổi chiến lược của chat = đổi `ACTIVE_SPOT_STRATEGY`.
 - **Chiến lược A**: alt quá bán (RSI tuần < 35) + breadth alt (≥25% mua, 10–25% chỉ top 50, <10% không mở lệnh mới), 8–12 phần vốn, thang 30/30/40 ở 0/−15/−35%, TP = TB × 1.3, không SL. Mục tiêu 15–25%/năm. Nguồn: claude-backtest/runs/2026-11-07-spot-alt-pump-regime.md.
-- `GET /tracking-coins/strategies` → nút **Chiến lược** trên trang mở dialog xem quy tắc / backtest.
+- `GET /tracking-coins/strategies` → icon **ⓘ** cạnh tiêu đề trang mở dialog xem quy tắc / backtest.
 - Tool `get_tracking_coins` thêm cột rsiW, volRank và dòng breadth (tính trên toàn bộ alt USDT Binance như backtest, cache 6 giờ; kèm số coin quá bán trong danh sách).
 - Danh sách theo dõi được bổ sung top 100 alt theo volume 30 ngày (niêm yết ≥ 1 năm), 65 coin mới, mặc định 3 sao.
