@@ -84,29 +84,13 @@ export type {
   AssetTransactionInput,
   AssetCategoryBalance,
 } from './repositories/asset.repository';
-export { createBtcDaytradeAnalysisRepository } from './repositories/btc-daytrade-analysis.repository';
-export type {
-  BtcDaytradeAnalysisInput,
-  BtcDaytradeAnalysisListItem,
-} from './repositories/btc-daytrade-analysis.repository';
 export {
   createStrategyBacktestRepository,
   STRATEGY_BACKTEST_OPEN_STATUSES,
 } from './repositories/strategy-backtest.repository';
 export type { StrategyBacktestSetupInput } from './repositories/strategy-backtest.repository';
-export {
-  createStrategyPaperTradeRepository,
-  PDHL_STRATEGY_ID,
-  STRATEGY_PAPER_TRADE_OPEN_STATUS,
-  DEFAULT_STRATEGY_DOC,
-} from './repositories/strategy-paper-trade.repository';
-export type { StrategyPaperTradeInput } from './repositories/strategy-paper-trade.repository';
 export { createSkillTradeSetupRepository } from './repositories/skill-trade-setup.repository';
 export type { SkillTradeSetupInput } from './repositories/skill-trade-setup.repository';
-export { createStrategyPaperTradePathRepository } from './repositories/strategy-paper-trade-path.repository';
-export type { StrategyPaperTradePathData } from './repositories/strategy-paper-trade-path.repository';
-export { createStrategyPaperNoteRepository } from './repositories/strategy-paper-note.repository';
-export type { StrategyPaperNoteInput } from './repositories/strategy-paper-note.repository';
 export { createBitgetAiActionRepository } from './repositories/bitget-ai-action.repository';
 export type { BitgetAiActionInput } from './repositories/bitget-ai-action.repository';
 export { createMexcAiActionRepository } from './repositories/mexc-ai-action.repository';

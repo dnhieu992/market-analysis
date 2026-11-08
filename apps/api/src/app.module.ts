@@ -15,7 +15,6 @@ import { BackTestModule } from './modules/back-test/back-test.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { ChatModule } from './modules/chat/chat.module';
-import { DeepseekModule } from './modules/deepseek/deepseek.module';
 import { HealthModule } from './modules/health/health.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -34,7 +33,6 @@ import { UserModule } from './modules/user/user.module';
 import { WorkerModule } from './modules/worker/worker.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-backtest.module';
-import { StrategyPaperTradesModule } from './modules/strategy-paper-trades/strategy-paper-trades.module';
 import { TrackingTradesModule } from './modules/tracking-trades/tracking-trades.module';
 
 @Module({
@@ -67,11 +65,9 @@ import { TrackingTradesModule } from './modules/tracking-trades/tracking-trades.
     NotificationsModule,
     JunkShortModule,
     TradingListModule,
-    DeepseekModule,
     JournalModule,
     AssetModule,
     StrategyBacktestModule,
-    StrategyPaperTradesModule,
     TrackingTradesModule,
   ],
   providers: [

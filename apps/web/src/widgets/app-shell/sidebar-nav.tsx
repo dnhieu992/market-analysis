@@ -34,11 +34,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Nhật ký phân tích & cảm xúc hàng ngày + ảnh mô hình'
   },
   {
-    href: '/trading-analysis',
-    label: 'Trading Analysis',
-    description: 'Nhật ký phân tích & ra quyết định giao dịch mỗi ngày · kho dữ liệu để Claude học hành vi'
-  },
-  {
     href: '/portfolio',
     label: 'Portfolio',
     description: 'Coin holdings & PnL tracker'
@@ -59,11 +54,6 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Danh sách coin chung Bitget + MEXC · setup, vào lệnh 2 sàn, AI chat'
   },
   {
-    href: '/notifications',
-    label: 'Thông báo',
-    description: 'Khớp lệnh Bitget + MEXC · cũng gửi qua Telegram'
-  },
-  {
     href: '/short-junk',
     label: 'Short Coin Rác',
     description: 'Chat short coin rác · chỉ scan danh sách coin bạn tự quản lý'
@@ -72,11 +62,6 @@ const NAV_ITEMS: NavItem[] = [
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'
-  },
-  {
-    href: '/deepseek',
-    label: 'DeepSeek Agents',
-    description: 'Agent chạy trên DeepSeek · bản tin thị trường crypto hôm nay từ dữ liệu Binance'
   }
 ];
 
@@ -207,7 +192,6 @@ export function SidebarNav({ currentPath }: SidebarNavProps) {
               key={item.href}
               currentPath={currentPath}
               {...item}
-              badge={item.href === '/notifications' ? unread : undefined}
               onClick={close}
             />
           ))}

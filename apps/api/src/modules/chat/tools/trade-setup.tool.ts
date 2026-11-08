@@ -29,15 +29,13 @@ function validatePrices(i: ProposeTradeSetupInput, long: boolean): string | null
 }
 
 /**
- * Saves a concrete trade setup so the chat UI can show it with Accept / Cancel buttons.
- * Accepting it (StrategyPaperTradesController) turns it into a paper trade on /trading-analysis.
+ * Saves a concrete trade setup so the chat UI can show it as a card under the reply.
  */
 export function createProposeTradeSetupTool(repo = createSkillTradeSetupRepository()): ChatTool<ProposeTradeSetupInput, string> {
   return {
     name: 'propose_trade_setup',
     description:
-      'Register ONE concrete, actionable trade setup so the user can Accept it (it then becomes a tracked paper trade ' +
-      'with SL/TP) or Cancel it. Call once per setup you recommend (max 2 per reply), after you have the final numbers. ' +
+      'Register ONE concrete, actionable trade setup so the chat shows it as a card (entry / SL / TP). Call once per setup you recommend (max 2 per reply), after you have the final numbers. ' +
       'orderType: MARKET (enter now), LIMIT (entry is a better price than now — pullback), STOP (entry is a breakout beyond ' +
       'the current price). takeProfit1 closes 50% and moves the stop to break-even; takeProfit2 closes the rest.',
     inputSchema: {

@@ -4,7 +4,6 @@ import {
   createMexcAiActionRepository,
   createOkxAiActionRepository,
   createSkillTradeSetupRepository,
-  createStrategyPaperTradeRepository,
   createTrackingSetupRepository
 } from '@app/db';
 import { getSkillById, OKX_SHORT_SYSTEM_PROMPT } from '@app/skills';
@@ -63,7 +62,6 @@ const WATCHLIST_HINT =
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
   private readonly setupRepo = createSkillTradeSetupRepository();
-  private readonly paperTradeRepo = createStrategyPaperTradeRepository();
   private readonly trackingRepo = createTrackingSetupRepository();
   private readonly bitgetActionRepo = createBitgetAiActionRepository();
   private readonly mexcActionRepo = createMexcAiActionRepository();
@@ -149,23 +147,13 @@ export class ConversationService {
     });
     if (setups.length === 0) return messages;
 
-    // Accepted setups carry their paper trade's live status so the chat can show progress.
-    const trades = await Promise.all(
-      setups.map((s) => (s.paperTradeId ? this.paperTradeRepo.findById(s.paperTradeId) : Promise.resolve(null)))
-    );
     const byMessage = new Map<string, unknown[]>();
-    setups.forEach((s, i) => {
-      if (!s.messageId) return;
-      const t = trades[i];
+    for (const s of setups) {
+      if (!s.messageId) continue;
       const list = byMessage.get(s.messageId) ?? [];
-      list.push({
-        ...s,
-        trade: t
-          ? { id: t.id, status: t.status, entryPrice: t.entryPrice, stopLoss: t.stopLoss, exitPrice: t.exitPrice, pnlUsd: t.pnlUsd, rMultiple: t.rMultiple }
-          : null
-      });
+      list.push(s);
       byMessage.set(s.messageId, list);
-    });
+    }
     return messages.map((m) => (byMessage.has(m.id) ? { ...m, setups: byMessage.get(m.id) } : m));
   }
 

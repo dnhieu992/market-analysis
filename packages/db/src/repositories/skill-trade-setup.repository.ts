@@ -28,10 +28,6 @@ export function createSkillTradeSetupRepository(client = prisma) {
       return client.skillTradeSetup.findUnique({ where: { id } });
     },
 
-    findByPaperTradeId(paperTradeId: string) {
-      return client.skillTradeSetup.findFirst({ where: { paperTradeId } });
-    },
-
     listByConversation(conversationId: string) {
       return client.skillTradeSetup.findMany({ where: { conversationId }, orderBy: { createdAt: 'asc' } });
     },

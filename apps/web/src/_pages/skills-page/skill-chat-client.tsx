@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createApiClient } from '@web/shared/api/client';
-import type { ChatMessage, Conversation, LiveReply, Skill, SkillTradeSetup } from '@web/shared/api/types';
+import type { ChatMessage, Conversation, LiveReply, Skill } from '@web/shared/api/types';
 
 import { AssistantMessage, Composer, Icon, LiveMessage, UserMessage, chatStyles as styles } from '@web/shared/ui/chat/chat-parts';
 import { TradeSetupCard } from './trade-setup-card';
@@ -265,17 +265,6 @@ export function SkillChatClient({ skillId, conversationId, skill, initialConvers
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep accepted setups' trade status fresh while any of them is still pending/open.
-  useEffect(() => {
-    if (isNew || busy) return;
-    const tracking = messages.some((m) => m.setups?.some((s) => s.trade && (s.trade.status === 'PENDING' || s.trade.status === 'OPEN')));
-    if (!tracking) return;
-    const id = setInterval(() => {
-      api.getMessages(conversationId).then(setMessages).catch(() => {});
-    }, 30_000);
-    return () => clearInterval(id);
-  }, [messages, busy, isNew, conversationId]);
-
   // ── Actions ──
   async function send(textArg?: string) {
     const content = (textArg ?? input).trim();
@@ -340,16 +329,6 @@ export function SkillChatClient({ skillId, conversationId, skill, initialConvers
       setStatus('error');
       setNotice(e instanceof Error ? e.message : 'Không thử lại được.');
     }
-  }
-
-  function handleSetupChange(updated: SkillTradeSetup) {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.setups?.some((s) => s.id === updated.id)
-          ? { ...m, setups: m.setups.map((s) => (s.id === updated.id ? updated : s)) }
-          : m,
-      ),
-    );
   }
 
   function newChat() {
@@ -524,7 +503,7 @@ export function SkillChatClient({ skillId, conversationId, skill, initialConvers
                     {m.setups && m.setups.length > 0 && (
                       <div className="tsc-list">
                         {m.setups.map((s) => (
-                          <TradeSetupCard key={s.id} setup={s} onChange={handleSetupChange} />
+                          <TradeSetupCard key={s.id} setup={s} />
                         ))}
                       </div>
                     )}

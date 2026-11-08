@@ -923,48 +923,6 @@ model AssetTransaction {
   @@map("asset_transactions")
 }
 
-/// One BTC day-trading analysis per calendar day.
-///
-/// `date` is the day in **Asia/Ho_Chi_Minh (UTC+7)**, stored as a DATE at UTC
-/// midnight — the trader reads "hôm nay" in local time, and an analysis run at
-/// 01:00 Vietnam time belongs to that day, not to the previous UTC one.
-///
-/// Pressing Analyze again on the same day OVERWRITES this row (`runCount` counts
-/// how many times it has been re-run) — the page is a daily log, not a feed of
-/// every button press.
-model BtcDaytradeAnalysis {
-  id             String   @id @default(cuid())
-  date           DateTime @unique @db.Date
-  direction      String   @db.VarChar(10) // LONG | SHORT | NO_TRADE
-  confidence     String?  @db.VarChar(10)
-  entryFrom      Float?
-  entryTo        Float?
-  stopLoss       Float?
-  takeProfitsJson String? @db.Text // JSON array of numbers
-  riskReward     Float? // recomputed by the API, not the model's claim
-  riskPct        Float?
-  timeframeBiasJson String? @db.Text // JSON object keyed by timeframe
-  invalidation   String?  @db.Text
-  summary        String?  @db.Text
-  warningsJson   String?  @db.Text // JSON array of the hard-check failures
-  analysis       String   @db.LongText // markdown, JSON block already stripped
-  reasoning      String?  @db.LongText
-  model          String   @db.VarChar(60)
-  price          Float // live price when the snapshot was taken
-  snapshotJson   String   @db.LongText // the exact data handed to the model
-  usageJson      String?  @db.Text
-  chartUrl       String?  @db.Text // public R2 URL of the PNG
-  chartObjectKey String?  @db.VarChar(255) // R2 object key (stable per day, overwritten)
-  capturedAt     DateTime
-  generatedAt    DateTime
-  runCount       Int      @default(1)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@index([date(sort: Desc)])
-  @@map("btc_daytrade_analyses")
-}
-
 /// A manually-planned setup tracked on /strategy-backtest, exactly like a resting
 /// limit order left on an exchange: it waits at `entryPrice` until price touches it,
 /// then runs to `takeProfit` or `stopLoss`. The trader writes every field by hand —
@@ -1008,67 +966,8 @@ model StrategyBacktestSetup {
   @@map("strategy_backtest_setups")
 }
 
-// A simulated (paper) trade of the PDH/PDL breakout day-trade strategy, written
-// entirely by the hourly StrategyPaperTradesService engine (no exchange). One trade
-// per side per UTC day; every trade force-closes by end of its own UTC day (no overnight).
-model StrategyPaperTrade {
-  id              String    @id @default(cuid())
-  // Which paper strategy opened this trade (= StrategyPaperConfig.id). Each strategy runs on
-  // several symbols, independently, with at most one OPEN trade per (strategy, symbol).
-  strategyId      String    @default("pdhl-btc") @db.VarChar(40)
-  symbol          String    @default("BTCUSDT") @db.VarChar(20)
-  timeframe       String    @default("1h") @db.VarChar(6)
-  // UTC day (YYYY-MM-DD) of the entry signal — PDH/PDL dedupes one trade per side per day on it.
-  tradeDate       String    @db.VarChar(10)
-  direction       String    @db.VarChar(5) // LONG | SHORT
-  status          String    @default("OPEN") @db.VarChar(12) // OPEN | CLOSED_TP | CLOSED_SL | CLOSED_EOD
-  // PDH/PDL strategy only: previous UTC day's high / low (null for other strategies).
-  pdh             Float?
-  pdl             Float?
-  // Close of the signal candle that triggered the entry.
-  signalClose     Float
-  entryPrice      Float
-  initialStopLoss Float
-  stopLoss        Float
-  takeProfit      Float
-  riskUsd         Float     @default(10)
-  quantity        Float
-  rrPlanned       Float     @default(2)
-  openedAt        DateTime
-  closedAt        DateTime?
-  exitPrice       Float?
-  exitReason      String?   @db.VarChar(12) // TP | SL | EOD
-  pnlUsd          Float?
-  rMultiple       Float?
-  lastPrice       Float?
-  lastCheckedAt   DateTime?
-  // The trader's own review of the trade — a 1..5 rating and a free-text note.
-  feedbackRating  Int?
-  feedbackNote    String?   @db.Text
-  feedbackAt      DateTime?
-  // 1h setup-chart snapshot rendered right after entry and uploaded to R2 (null until rendered).
-  chartUrl        String?   @db.Text
-  chartObjectKey  String?   @db.VarChar(300)
-  // Trades accepted from a chat skill setup (strategyId "scalping-skill"); null for engine trades.
-  // A LIMIT/STOP order waits as PENDING until price reaches entryPrice, or EXPIRED at expiresAt.
-  orderType       String?   @db.VarChar(8) // MARKET | LIMIT | STOP
-  expiresAt       DateTime?
-  // Partial take profit: half the size closes at takeProfit1 and the stop moves to break-even.
-  takeProfit1     Float?
-  tp1HitAt        DateTime?
-  realizedPnlUsd  Float?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@unique([strategyId, symbol, openedAt, direction])
-  @@index([strategyId, status])
-  @@index([status])
-  @@index([createdAt(sort: Desc)])
-  @@map("strategy_paper_trades")
-}
-
 // A trade setup a chat skill (e.g. Scalping) proposed through the propose_trade_setup tool.
-// Shown under the assistant message with Accept / Cancel; accepting creates a paper trade.
+// Shown as a read-only card under the assistant message.
 model SkillTradeSetup {
   id             String    @id @default(cuid())
   conversationId String    @db.Char(36)
@@ -1086,7 +985,6 @@ model SkillTradeSetup {
   confidence     String?   @db.VarChar(20)
   note           String?   @db.Text
   status         String    @default("PROPOSED") @db.VarChar(12) // PROPOSED | ACCEPTED | CANCELLED
-  paperTradeId   String?   @db.VarChar(30)
   decidedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -1094,28 +992,6 @@ model SkillTradeSetup {
   @@index([conversationId])
   @@index([messageId])
   @@map("skill_trade_setups")
-}
-
-// Minute-by-minute log of a filled scalping-skill paper trade, kept to tune a time stop later:
-// R at each 1m close after the fill, the best/worst excursion, and when TP1 / the exit happened.
-model StrategyPaperTradePath {
-  tradeId    String   @id @db.VarChar(30)
-  entryPrice Float
-  // |entry − initial stop| at the fill = 1R.
-  risk       Float
-  direction  String   @db.VarChar(5)
-  // closeR[k] = gross R at the close of minute k+1 after the fill (capped at 720 minutes).
-  closeR     Json
-  mfeR       Float    @default(0)
-  maeR       Float    @default(0)
-  mfeMin     Int?
-  maeMin     Int?
-  tp1Min     Int?
-  exitMin    Int?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@map("strategy_paper_trade_paths")
 }
 
 // A swing setup on the /tracking-coins page — proposed by Claude (panel chat) or typed in by hand —
@@ -1222,35 +1098,6 @@ model TrackingTradeConfig {
   updatedAt DateTime @updatedAt
 
   @@map("tracking_trade_config")
-}
-
-// Singleton config + editable, plain-language description for the PDH/PDL strategy page.
-model StrategyPaperConfig {
-  id          String   @id @default("pdhl-btc")
-  name        String   @default("BTC — Phá đỉnh/đáy ngày hôm trước")
-  enabled     Boolean  @default(true)
-  symbol      String   @default("BTCUSDT") @db.VarChar(20)
-  timeframe   String   @default("1h") @db.VarChar(6)
-  riskUsd     Float    @default(10)
-  rrPlanned   Float    @default(2)
-  // Markdown the trader can edit from the "Chi tiết chiến lược" dialog.
-  docMarkdown String   @db.LongText
-  updatedAt   DateTime @updatedAt
-
-  @@map("strategy_paper_config")
-}
-
-/// Free-form trading log for the PDH/PDL strategy board — one row per saved note,
-/// each with body text and optional Cloudflare R2 image URLs. Shown in the "Ghi chú" dialog.
-model StrategyPaperNote {
-  id        String   @id @default(cuid())
-  body      String   @db.Text
-  images    Json     @default("[]") // string[] of Cloudflare R2 image URLs
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([createdAt(sort: Desc)])
-  @@map("strategy_paper_notes")
 }
 
 // One action card proposed by the /bitget AI chat (skill `bitget-ai`). Claude only

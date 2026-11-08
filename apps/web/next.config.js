@@ -23,14 +23,6 @@ const nextConfig = {
         destination: '/pnl-calendar?tab=portfolio',
         permanent: false,
       },
-      // /strategy-backtest was reframed as the Trading Analysis journal (the setup
-      // board was dropped from the UI). 307 so old bookmarks keep working without
-      // being cached permanently.
-      {
-        source: '/strategy-backtest',
-        destination: '/trading-analysis',
-        permanent: false,
-      },
       // /bitget and /mexc were merged into /trading-list (both exchanges on one
       // page). Old bookmarks — incl. the legacy /bitget-positions & /bitget-history.
       ...['/bitget', '/bitget-positions', '/bitget-history', '/mexc'].map((source) => ({

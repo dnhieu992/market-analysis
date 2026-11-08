@@ -85,9 +85,6 @@ import type {
   MexcTradeChart,
   MexcJournalNote,
   MexcJournalSnapshot,
-  DeepseekStatus,
-  DeepseekBtcDaytrade,
-  DeepseekBtcDaytradeHistoryItem,
   OrderJournalNote,
   OrderJournalSnapshot,
   AssetCategory,
@@ -99,13 +96,7 @@ import type {
   StrategyBacktestBoard,
   CreateStrategyBacktestSetupInput,
   UpdateStrategyBacktestSetupInput,
-  StrategyPaperBoard,
-  ScalpTimeStopReport,
-  StrategyPaperTrade,
-  SkillTradeSetup,
   LiveReply,
-  StrategyPaperConfig,
-  StrategyPaperNote,
   BitgetAiAction,
   BitgetAiActionEdits,
   MexcAiAction,
@@ -2290,55 +2281,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       await fetchImpl(`${baseUrl}/mexc/journal/${encodeURIComponent(id)}`, withDefaults({ method: 'DELETE' }));
     },
 
-    // ═══ DeepSeek Agents (/deepseek) ════════════════════════════
-    // `runDeepseekBtcDaytrade` is a long call by API standards: it snapshots four
-    // timeframes from Binance and then waits on the model, so the caller must
-    // show a pending state rather than assume it returns in a tick.
-    async fetchDeepseekStatus(): Promise<DeepseekStatus> {
-      return fetchJson<DeepseekStatus>(fetchImpl, `${baseUrl}/deepseek/status`, withDefaults({}));
-    },
-
-    async runDeepseekBtcDaytrade(): Promise<DeepseekBtcDaytrade> {
-      const response = await fetchImpl(
-        `${baseUrl}/deepseek/agents/btc-daytrade`,
-        withDefaults({ method: 'POST' }),
-      );
-      if (!response.ok) {
-        // The API explains *why* it could not answer (no key, no balance, rate
-        // limited, Binance down) — that message is the whole point of the panel.
-        const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
-        const message = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
-        throw new Error(message ?? `Request failed for ${baseUrl}/deepseek/agents/btc-daytrade: ${response.status}`);
-      }
-      return (await response.json()) as DeepseekBtcDaytrade;
-    },
-
-    /** Today's stored analysis (Vietnam calendar day), or null before the first run. */
-    async fetchDeepseekBtcDaytradeToday(): Promise<DeepseekBtcDaytrade | null> {
-      return fetchJson<DeepseekBtcDaytrade | null>(
-        fetchImpl,
-        `${baseUrl}/deepseek/agents/btc-daytrade/today`,
-        withDefaults({}),
-      );
-    },
-
-    async fetchDeepseekBtcDaytradeHistory(limit = 30): Promise<DeepseekBtcDaytradeHistoryItem[]> {
-      return fetchJson<DeepseekBtcDaytradeHistoryItem[]>(
-        fetchImpl,
-        `${baseUrl}/deepseek/agents/btc-daytrade/history?limit=${limit}`,
-        withDefaults({}),
-      );
-    },
-
-    /** One stored day by its `YYYY-MM-DD` key. */
-    async fetchDeepseekBtcDaytradeByDate(date: string): Promise<DeepseekBtcDaytrade | null> {
-      return fetchJson<DeepseekBtcDaytrade | null>(
-        fetchImpl,
-        `${baseUrl}/deepseek/agents/btc-daytrade/${date}`,
-        withDefaults({}),
-      );
-    },
-
     // ── /trades per-order journal ───────────────────────────────
     async fetchOrderJournal(orderId: string): Promise<OrderJournalNote[]> {
       return fetchJson<OrderJournalNote[]>(
@@ -2451,112 +2393,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(exitPrice != null ? { exitPrice } : {}),
         }),
-      );
-    },
-
-    /** The multi-strategy paper-trade board (strategies + stats, open trades, history). */
-    async fetchStrategyPaperBoard(): Promise<StrategyPaperBoard> {
-      return fetchJson<StrategyPaperBoard>(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades`,
-        withDefaults(),
-      );
-    },
-
-    /** Save the traderʼs review (1..5 rating + note) on a strategy paper trade. */
-    async saveStrategyPaperFeedback(
-      id: string,
-      input: { rating?: number | null; note?: string | null },
-    ): Promise<StrategyPaperTrade> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/${encodeURIComponent(id)}/feedback`,
-        withDefaults({
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(input),
-        }),
-      );
-    },
-
-    /** Run one engine tick now (manage open trades + look for a new breakout). */
-    /** Accept a chat skill setup → opens / places a scalping-skill paper trade. */
-    async acceptSkillSetup(id: string): Promise<{ setup: SkillTradeSetup }> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/skill-setups/${encodeURIComponent(id)}/accept`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    /** Cancel a chat skill setup (or its still-pending order). */
-    async cancelSkillSetup(id: string): Promise<{ setup: SkillTradeSetup }> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/skill-setups/${encodeURIComponent(id)}/cancel`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    async fetchScalpTimeStopReport(): Promise<ScalpTimeStopReport> {
-      return fetchJson<ScalpTimeStopReport>(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/scalp-skill/time-stop-report`,
-        withDefaults(),
-      );
-    },
-
-    async runStrategyPaperScan(): Promise<{ opened: number; closed: number; price: number | null }> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/scan`,
-        withDefaults({ method: 'POST' }),
-      );
-    },
-
-    /** Update one strategy's editable description / params (defaults to PDH/PDL). */
-    async updateStrategyPaperDoc(
-      input: { strategyId?: string; docMarkdown?: string; name?: string; enabled?: boolean; riskUsd?: number; rrPlanned?: number },
-    ): Promise<StrategyPaperConfig> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/doc`,
-        withDefaults({
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(input),
-        }),
-      );
-    },
-
-    /** The trader's free-text log for the strategy board (newest first). */
-    async fetchStrategyPaperNotes(): Promise<StrategyPaperNote[]> {
-      return fetchJson<StrategyPaperNote[]>(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/notes`,
-        withDefaults(),
-      );
-    },
-
-    /** Save one new note (body + optional image URLs) to the strategy log. */
-    async createStrategyPaperNote(input: { body: string; images?: string[] }): Promise<StrategyPaperNote> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/notes`,
-        withDefaults({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(input),
-        }),
-      );
-    },
-
-    /** Delete one note from the strategy log. */
-    async deleteStrategyPaperNote(id: string): Promise<{ deleted: boolean }> {
-      return mutationJson(
-        fetchImpl,
-        `${baseUrl}/strategy-paper-trades/notes/${encodeURIComponent(id)}`,
-        withDefaults({ method: 'DELETE' }),
       );
     },
   };
