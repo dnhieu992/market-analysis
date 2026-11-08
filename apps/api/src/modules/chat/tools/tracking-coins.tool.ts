@@ -120,7 +120,7 @@ type CoinStat = {
   line: string; rsiW: number | null; vol30: number; weeks: number;
   /** Strategy B: close-to-close drop (%) over 3 / 7 / 30 closed daily candles, as backtested. */
   b3: number | null; b7: number | null; b30: number | null;
-  /** Strategy B columns, comma-joined: sigB,sigBAgo,sigBEntry. */
+  /** Strategy B columns, comma-joined: sigB,sigBAgo,sigBEntry,sigBGrade,sigBWick%,sigBVolX. */
   bCols: string;
 };
 
@@ -133,18 +133,58 @@ function strategyBLevel(closes: number[], i: number): '' | 'B' | 'B+' {
   return '';
 }
 
+/** Lower wick of a candle as a share of its range (0–1). */
+function lowerWick(k: Candle): number {
+  const range = k.high - k.low;
+  return range > 0 ? (Math.min(k.open, k.close) - k.low) / range : 0;
+}
+
+/** Candle $ volume ÷ mean $ volume of the 20 candles before it (null when there is not enough history). */
+function volRatio(closed: Candle[], i: number): number | null {
+  if (i < 20) return null;
+  const qv = (k: Candle) => k.close * (k.volume ?? 0);
+  const avg = closed.slice(i - 20, i).reduce((a, k) => a + qv(k), 0) / 20;
+  return avg > 0 ? qv(closed[i]!) / avg : null;
+}
+
 /**
- * Most recent Strategy B trigger within the last 5 closed daily candles: level, how many days ago
- * (0 = the last closed candle) and the trigger close (the backtested entry price).
+ * Strategy B grade of a trigger candle (2026-11-08 upgrade, B's own exit TP / 14 days, top-100 alts 2022→2026):
+ *   CLIMAX = lower wick ≥ 40% of the range AND $ volume ≥ 2× the 20-day average → 81% hit +10% / 68% hit +15% in 14d
+ *   RÂU    = lower wick ≥ 40% only → 73% / 59%
+ *   THƯỜNG = neither → 67% / 51% (≈ +1.5%/trade after fees: weakest, lowest priority)
  */
-function strategyB(closes: number[]) {
+function strategyBGrade(closed: Candle[], i: number): { grade: 'CLIMAX' | 'RÂU' | 'THƯỜNG'; wick: number; volX: number | null } {
+  const wick = lowerWick(closed[i]!);
+  const volX = volRatio(closed, i);
+  const grade = wick >= 0.4 ? (volX != null && volX >= 2 ? 'CLIMAX' : 'RÂU') : 'THƯỜNG';
+  return { grade, wick, volX };
+}
+
+const GRADE_RANK = { CLIMAX: 2, 'RÂU': 1, 'THƯỜNG': 0 } as const;
+
+/**
+ * Strategy B trigger within the last 5 closed daily candles: level, days ago (0 = the last closed candle),
+ * trigger close (the backtested entry) and grade. Among triggers still tradable (≤ 2 days ago) the best
+ * grade wins (then the most recent); otherwise the most recent trigger is reported.
+ */
+function strategyB(closed: Candle[]) {
+  const closes = closed.map((k) => k.close);
   const n = closes.length;
   const drop = (w: number) => (n - 1 - w >= 0 ? pct(closes[n - 1]!, closes[n - 1 - w]) : null);
+  const hits: Array<{ ago: number; lvl: 'B' | 'B+'; g: ReturnType<typeof strategyBGrade> }> = [];
   for (let ago = 0; ago < 5 && n - 1 - ago >= 0; ago++) {
     const lvl = strategyBLevel(closes, n - 1 - ago);
-    if (lvl) return { b3: drop(3), b7: drop(7), b30: drop(30), bCols: [lvl, ago, Number(closes[n - 1 - ago]!.toPrecision(6))].join(',') };
+    if (lvl) hits.push({ ago, lvl, g: strategyBGrade(closed, n - 1 - ago) });
   }
-  return { b3: drop(3), b7: drop(7), b30: drop(30), bCols: ',,' };
+  const fresh = hits.filter((h) => h.ago <= 2).sort((a, b) => GRADE_RANK[b.g.grade] - GRADE_RANK[a.g.grade] || a.ago - b.ago);
+  const pick = fresh[0] ?? hits[0];
+  const base = { b3: drop(3), b7: drop(7), b30: drop(30) };
+  if (!pick) return { ...base, bCols: ',,,,,' };
+  const i = n - 1 - pick.ago;
+  return {
+    ...base,
+    bCols: [pick.lvl, pick.ago, Number(closes[i]!.toPrecision(6)), pick.g.grade, Math.round(pick.g.wick * 100), pick.g.volX != null ? r1(pick.g.volX) : ''].join(','),
+  };
 }
 
 async function coinRow(pair: string, name: string, ticker: Ticker | undefined): Promise<CoinStat> {
@@ -179,9 +219,9 @@ async function coinRow(pair: string, name: string, ticker: Ticker | undefined): 
       r1(pct(price, high90)),
       r1(rsiW),
     ].join(',');
-    return { line, rsiW, vol30, weeks: wClosed.length, ...strategyB(c) };
+    return { line, rsiW, vol30, weeks: wClosed.length, ...strategyB(d.closed) };
   } catch {
-    return { line: `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`, rsiW: null, vol30: 0, weeks: 0, b3: null, b7: null, b30: null, bCols: ',,' };
+    return { line: `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`, rsiW: null, vol30: 0, weeks: 0, b3: null, b7: null, b30: null, bCols: ',,,,,' };
   }
 }
 
@@ -197,7 +237,7 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
   name: 'get_tracking_coins',
   description:
     "Get the user's watchlist (the coins on their Spot Analytic / Tracking Coins page), computed live from Binance: price, 24h/3d/7d/30d/90d " +
-    'change, Strategy B crash-rebound signal per coin (sigB/sigBAgo/sigBEntry) + the market-wide Strategy B status in the header, ' +
+    'change, Strategy B crash-rebound signal per coin (sigB/sigBAgo/sigBEntry + grade CLIMAX/RÂU/THƯỜNG from the trigger candle\'s lower wick and volume) + the market-wide Strategy B status in the header, ' +
     '24h volume, trend + RSI14 + price vs EMA34/89/200 on 1D and 4H, distance from the ' +
     '20-day low and 90-day high, weekly RSI14 (rsiW), 30-day volume rank among alts (volRank), Strategy A market breadth (% of all Binance USDT alts with weekly RSI < 35) + regime in the header, the user\'s 0–5 star rating, market cap and sector (L1/L2/Meme/DeFi/AI…). Use it when the user asks about "my coins", "the list", which coin to trade, or to ' +
     'shortlist coins before fetching detailed candles for a few of them (at most 3). Optionally pass symbols to get only those.',
@@ -268,8 +308,9 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
         'vs20dLow% / vs90dHigh% = cách đáy 20 ngày / đỉnh 90 ngày. stars = người dùng tự chấm 0–5 sao (trống = chưa chấm). mcapM = vốn hoá triệu USD (Binance). sectors = nhóm (L1, L2, Meme, DeFi, AI…).',
       'rsiW = RSI14 nến tuần đã đóng. volRank = hạng volume $ 30 ngày trong các alt niêm yết ≥1 năm (trống = BTC/ETH/stable hoặc < 1 năm).',
       `Chiến lược B — alt trung vị watchlist (nến D1 đã đóng): 3d ${r1(m3)}%, 7d ${r1(m7)}%, 30d ${r1(m30)}% → ${marketB ? 'THỊ TRƯỜNG ĐANG SẬP KIỂU B (3d ≤ −15% / 7d ≤ −25% / 30d ≤ −30%): cả danh sách có lợi thế hồi +10%' : 'thị trường chưa sập kiểu B'}. ${bCount}/${altStats.length} alt đang có tín hiệu B.`,
-      'sigB = tín hiệu Chiến lược B trong 5 nến D1 đóng gần nhất: B = 3d ≤ −20% / 7d ≤ −25% / 30d ≤ −40%; B+ = 3d ≤ −25% / 7d ≤ −30% (trống = không có). sigBAgo = số ngày từ nến kích hoạt (0 = nến D1 vừa đóng). sigBEntry = giá đóng cửa nến kích hoạt (giá vào đã backtest). Mức giảm tính close-to-close trên nến D1 đã đóng, khác chg3d%/chg7d% (giá hiện tại).',
-      'pair,name,price,chg24h%,chg3d%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,rsiW,stars,mcapM,sectors,volRank,sigB,sigBAgo,sigBEntry',
+      'sigB = tín hiệu Chiến lược B trong 5 nến D1 đóng gần nhất: B = 3d ≤ −20% / 7d ≤ −25% / 30d ≤ −40%; B+ = 3d ≤ −25% / 7d ≤ −30% (trống = không có). sigBAgo = số ngày từ nến kích hoạt (0 = nến D1 vừa đóng). sigBEntry = giá đóng cửa nến kích hoạt (giá vào đã backtest). Mức giảm tính close-to-close trên nến D1 đã đóng, khác chg3d%/chg7d% (giá hiện tại). ' +
+        'sigBGrade = hạng nến kích hoạt: CLIMAX = râu dưới ≥ 40% biên độ nến VÀ volume $ ≥ 2× TB 20 ngày (mạnh nhất, TP +15%); RÂU = chỉ râu dưới ≥ 40% (TP +10%); THƯỜNG = không có (yếu nhất, ưu tiên thấp, tỷ trọng nhỏ). Nhiều nến kích hoạt trong 2 ngày → lấy hạng cao nhất. sigBWick% = râu dưới / biên độ nến, sigBVolX = volume nến ÷ TB 20 ngày trước.',
+      'pair,name,price,chg24h%,chg3d%,chg7d%,chg30d%,chg90d%,vol24hM,trendD,rsiD,emaD,trend4h,rsi4h,ema4h,vs20dLow%,vs90dHigh%,rsiW,stars,mcapM,sectors,volRank,sigB,sigBAgo,sigBEntry,sigBGrade,sigBWick%,sigBVolX',
       ...shown.map((c) => `${rows.get(c.pair)!.line},${extraOf(c.pair, c.rating)},${rank.get(c.pair) ?? ''},${rows.get(c.pair)!.bCols}`),
     ].join('\n');
   },

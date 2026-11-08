@@ -1,0 +1,63 @@
+=== Chiến lược C — volume climax tại hỗ trợ, mô phỏng danh mục 2022-01 → 2026-11 (top 100 alt vol) ===
+
+-- v≥2.5 7d≤−15% wick≥0.4
+TP +10% / 30d · 5 slot                   CAGR  +4.9% DD  -19% vốn dùng   6% |   11 lệnh/năm thắng  76% TB  +2.5% time:13 tp:42 | 22:  +2% 23: +10% 24: +14% 25:  -1% 26:  +0%
+TP +20% / 60d · 5 slot                   CAGR  +0.6% DD  -28% vốn dùng  17% |   10 lệnh/năm thắng  64% TB  +1.4% time:23 tp:27 | 22:  -2% 23: +12% 24: +11% 25: -10% 26:  -7%
+TP +30% / 180d · 5 slot                  CAGR  -1.5% DD  -52% vốn dùng  40% |    8 lệnh/năm thắng  57% TB  +1.5% time:18 tp:22 | 22: -11% 23: +21% 24: -19% 25:  +0% 26:  +3%
+TP kháng cự kế / 60d · 5 slot            CAGR  +5.7% DD  -25% vốn dùng  14% |   11 lệnh/năm thắng  74% TB  +3.5% time:17 tp:36 | 22:  -9% 23: +12% 24: +29% 25:  -5% 26:  +5%
+TP +20% / 60d + SL dưới vùng · 5 slot    CAGR  +5.0% DD  -30% vốn dùng  12% |   12 lệnh/năm thắng  62% TB  +3.3% sl:18 time:6 tp:32 | 22:  -4% 23: +11% 24: +42% 25: -12% 26:  -5%
+TP +20% / 60d · 10 slot                  CAGR  +6.6% DD  -14% vốn dùng   9% |   13 lệnh/năm thắng  72% TB  +5.7% time:23 tp:42 | 22:  -1% 23:  +6% 24: +36% 25:  -2% 26:  -4%
+TP +20% / 60d · 3 slot                   CAGR  -4.0% DD  -41% vốn dùng  25% |    8 lệnh/năm thắng  60% TB  -0.2% time:20 tp:20 | 22:  -4% 23: +19% 24: -19% 25:  +1% 26: -13%
+
+-- v≥2.0 7d≤−15% wick≥0.4
+TP +10% / 30d · 5 slot                   CAGR  +7.9% DD  -26% vốn dùng   9% |   18 lệnh/năm thắng  78% TB  +2.8% delist:1 time:19 tp:67 | 22: +16% 23: +21% 24:  +8% 25:  -5% 26:  -0%
+TP +20% / 60d · 5 slot                   CAGR  +3.4% DD  -53% vốn dùng  23% |   16 lệnh/năm thắng  65% TB  +2.4% delist:1 time:30 tp:46 | 22: +22% 23: +29% 24: -16% 25: -14% 26:  +1%
+TP +30% / 180d · 5 slot                  CAGR  +7.5% DD  -51% vốn dùng  49% |   12 lệnh/năm thắng  67% TB  +5.9% delist:1 time:20 tp:36 | 22:  -1% 23: +53% 24:  +2% 25:  -9% 26:  -3%
+TP kháng cự kế / 60d · 5 slot            CAGR  +4.9% DD  -47% vốn dùng  22% |   17 lệnh/năm thắng  68% TB  +2.7% delist:1 time:27 tp:53 | 22:  +9% 23: +31% 24:  -1% 25: -20% 26: +12%
+TP +20% / 60d + SL dưới vùng · 5 slot    CAGR  +3.5% DD  -43% vốn dùng  16% |   19 lệnh/năm thắng  58% TB  +2.2% sl:34 time:8 tp:48 | 22: +10% 23: +28% 24: +15% 25: -22% 26:  -7%
+TP +20% / 60d · 10 slot                  CAGR  +3.4% DD  -39% vốn dùng  17% |   22 lệnh/năm thắng  63% TB  +2.6% delist:1 time:46 tp:62 | 22: +13% 23: +14% 24: +20% 25: -28% 26:  +4%
+TP +20% / 60d · 3 slot                   CAGR -11.4% DD  -75% vốn dùng  33% |   12 lệnh/năm thắng  58% TB  -1.1% delist:1 time:26 tp:30 | 22: +23% 23: +25% 24: -45% 25: -37% 26:  +2%
+
+-- v≥2.0 7d≤−20% wick≥0.4
+TP +10% / 30d · 5 slot                   CAGR  +3.5% DD  -24% vốn dùng   6% |   12 lệnh/năm thắng  78% TB  +2.0% delist:1 time:13 tp:46 | 22:  +8% 23: +12% 24:  +4% 25: -11% 26:  +6%
+TP +20% / 60d · 5 slot                   CAGR  +5.1% DD  -48% vốn dùng  16% |   12 lệnh/năm thắng  66% TB  +3.6% delist:1 time:21 tp:36 | 22: +22% 23: +21% 24: +11% 25: -28% 26:  +8%
+TP +30% / 180d · 5 slot                  CAGR  +1.0% DD  -61% vốn dùng  42% |    9 lệnh/năm thắng  61% TB  +3.0% delist:1 time:19 tp:26 | 22:  +8% 23: +21% 24: -20% 25:  -4% 26:  +1%
+TP kháng cự kế / 60d · 5 slot            CAGR  +2.8% DD  -50% vốn dùng  16% |   12 lệnh/năm thắng  67% TB  +2.5% delist:1 time:20 tp:36 | 22: +11% 23: +24% 24:  +3% 25: -33% 26: +20%
+TP +20% / 60d + SL dưới vùng · 5 slot    CAGR  +8.4% DD  -40% vốn dùng  10% |   13 lệnh/năm thắng  62% TB  +4.5% sl:19 time:6 tp:36 | 22: +21% 23: +25% 24: +39% 25: -27% 26:  -3%
+TP +20% / 60d · 10 slot                  CAGR  +7.0% DD  -29% vốn dùng   9% |   15 lệnh/năm thắng  70% TB  +5.7% delist:1 time:22 tp:48 | 22: +13% 23: +10% 24: +30% 25: -18% 26:  +4%
+TP +20% / 60d · 3 slot                   CAGR  +8.5% DD  -55% vốn dùng  21% |   10 lệnh/năm thắng  68% TB  +4.4% delist:1 time:16 tp:30 | 22: +30% 23: +27% 24: +30% 25: -40% 26: +13%
+
+-- v≥2.5 7d≤−20% wick≥0.4
+TP +10% / 30d · 5 slot                   CAGR  +1.3% DD  -17% vốn dùng   3% |    7 lệnh/năm thắng  76% TB  +1.3% time:8 tp:26 | 22:  -0% 23:  +2% 24:  +4% 25:  -2% 26:  +2%
+TP +20% / 60d · 5 slot                   CAGR  +6.3% DD  -16% vốn dùng   8% |    7 lệnh/năm thắng  73% TB  +5.5% time:11 tp:22 | 22:  +5% 23:  +5% 24: +23% 25:  +4% 26:  -5%
+TP +30% / 180d · 5 slot                  CAGR  -3.2% DD  -41% vốn dùng  24% |    6 lệnh/năm thắng  57% TB  +1.0% time:12 tp:16 | 22:  -4% 23:  +6% 24: -22% 25: +10% 26:  -3%
+TP kháng cự kế / 60d · 5 slot            CAGR  +5.5% DD  -25% vốn dùng   7% |    7 lệnh/năm thắng  76% TB  +4.8% time:10 tp:23 | 22:  -2% 23:  +4% 24: +22% 25:  -3% 26:  +8%
+TP +20% / 60d + SL dưới vùng · 5 slot    CAGR +11.0% DD   -8% vốn dùng   5% |    7 lệnh/năm thắng  71% TB  +8.2% sl:9 time:3 tp:22 | 22:  +4% 23:  +8% 24: +44% 25:  +6% 26:  -4%
+TP +20% / 60d · 10 slot                  CAGR  +6.5% DD   -8% vốn dùng   5% |    8 lệnh/năm thắng  78% TB  +8.3% time:11 tp:30 | 22:  +3% 23:  +3% 24: +29% 25:  +2% 26:  -2%
+TP +20% / 60d · 3 slot                   CAGR  +3.1% DD  -27% vốn dùng  13% |    6 lệnh/năm thắng  68% TB  +2.9% time:11 tp:17 | 22:  +9% 23:  +7% 24:  +9% 25:  -0% 26:  -8%
+
+-- v≥2.5 −15% wick.4, TP +20%/60d, 5 slot, theo chế độ breadth
+breadth ≥ 25%                            CAGR  +2.3% DD  -18% vốn dùng   6% |    4 lệnh/năm thắng  68% TB  +3.6% time:8 tp:11 | 22:  -3% 23:  +3% 24: +20% 25:  +4% 26: -11%
+breadth 10–25%                           CAGR  +2.9% DD   -6% vốn dùng   2% |    1 lệnh/năm thắng  83% TB +11.9% time:2 tp:4 | 22:  +1% 23:  +4% 24:  +1% 25:  +4% 26:  +4%
+breadth < 10%                            CAGR  -2.2% DD  -33% vốn dùng  10% |    6 lệnh/năm thắng  61% TB  -0.4% time:13 tp:15 | 22:  +0% 23:  +5% 24:  -1% 25: -13% 26:  +0%
+breadth ≥ 10%                            CAGR  +5.2% DD  -18% vốn dùng   8% |    5 lệnh/năm thắng  72% TB  +5.6% time:10 tp:15 | 22:  -2% 23:  +7% 24: +21% 25:  +8% 26:  -7%
+
+-- v≥2.5 −15% wick.4, TP +20%/60d, 5 slot, top 50 vol
+top 50                                   CAGR  +3.6% DD  -20% vốn dùng  12% |    7 lệnh/năm thắng  66% TB  +3.5% time:15 tp:20 | 22:  -6% 23: +12% 24: +16% 25:  -8% 26:  +5%
+
+Lệnh gần nhất:
+  ETC      2025-02-03 → 2025-04-04 time   -26.5%
+  AAVE     2025-04-07 → 2025-04-22 tp     +19.8%
+  LINK     2025-04-07 → 2025-04-22 tp     +19.8%
+  DEGO     2025-06-05 → 2025-08-04 time   -13.2%
+  CFX      2025-10-10 → 2025-10-12 tp     +19.8%
+  ALGO     2025-10-10 → 2025-10-13 tp     +19.8%
+  UNI      2025-10-11 → 2025-10-13 tp     +19.8%
+  XRP      2025-11-04 → 2026-01-03 time    -8.7%
+  OG       2026-01-06 → 2026-03-07 time   -40.3%
+  ETHFI    2026-01-31 → 2026-03-10 tp     +19.8%
+  ZRO      2026-04-19 → 2026-06-18 time   -37.8%
+  RIF      2026-07-22 → 2026-07-23 tp     +19.8%
+  RIF      2026-07-27 → 2026-07-28 tp     +19.8%
+  ATM      2026-07-22 → 2026-09-20 time   -42.2%
+  BMT      2026-09-03 → 2026-10-21 tp     +19.8%
