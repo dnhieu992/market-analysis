@@ -11533,6 +11533,28 @@ a.metric-card--link:hover {
   color: inherit;
 }
 
+.sidebar-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.sidebar-bell:hover,
+.sidebar-bell.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .nav-badge--float {
   position: absolute;
   top: 2px;
@@ -11543,5 +11565,10 @@ a.metric-card--link:hover {
 @media (max-width: 860px) {
   .mobile-topbar-bell {
     display: inline-flex;
+  }
+
+  /* The drawer header has the close button; the bell lives in the mobile topbar. */
+  .sidebar-bell {
+    display: none;
   }
 }

@@ -106,6 +106,24 @@ function NavLink({
   );
 }
 
+/** Bell link to /notifications with the unread badge (desktop sidebar header + mobile topbar). */
+function BellLink({ unread, className, active }: { unread: number; className: string; active?: boolean }): ReactNode {
+  return (
+    <Link
+      href="/notifications"
+      className={`${className}${active ? ' is-active' : ''}`}
+      aria-label={`Thông báo${unread ? ` (${unread} chưa đọc)` : ''}`}
+      title="Thông báo"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {unread ? <span className="nav-badge nav-badge--float">{unread > 99 ? '99+' : unread}</span> : null}
+    </Link>
+  );
+}
+
 const apiClient = createApiClient();
 
 export function SidebarNav({ currentPath }: SidebarNavProps) {
@@ -152,13 +170,7 @@ export function SidebarNav({ currentPath }: SidebarNavProps) {
           <span className="sidebar-brand-mark">MA</span>
           <p className="mobile-topbar-title">Market Analysis</p>
         </Link>
-        <Link href="/notifications" className="mobile-topbar-bell" aria-label={`Thông báo${unread ? ` (${unread} chưa đọc)` : ''}`}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {unread ? <span className="nav-badge nav-badge--float">{unread > 99 ? '99+' : unread}</span> : null}
-        </Link>
+        <BellLink unread={unread} className="mobile-topbar-bell" />
       </div>
 
       {/* Backdrop overlay */}
@@ -176,6 +188,7 @@ export function SidebarNav({ currentPath }: SidebarNavProps) {
             <p className="sidebar-brand-eyebrow">Market Analysis</p>
             <p className="sidebar-brand-title">Dashboard</p>
           </div>
+          <BellLink unread={unread} className="sidebar-bell" active={currentPath === '/notifications'} />
           {/* Close button inside drawer (mobile only) */}
           <button
             className="sidebar-close-btn"
