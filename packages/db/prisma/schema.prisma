@@ -1512,3 +1512,16 @@ model NotificationSyncState {
 
   @@map("notification_sync_state")
 }
+
+// Daily rule-based Strategy A / B scan of the /tracking-coins watchlist (summary under the page title).
+// One row per Vietnam-time day; the 07:01 cron writes it, "Quét lại" overwrites it.
+model SpotDailyScan {
+  id        String   @id @default(cuid())
+  scanDate  String   @unique @db.VarChar(10) // YYYY-MM-DD (Asia/Ho_Chi_Minh)
+  trigger   String   @db.VarChar(8) // CRON | MANUAL
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("spot_daily_scans")
+}

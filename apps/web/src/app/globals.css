@@ -11572,3 +11572,61 @@ a.metric-card--link:hover {
     display: none;
   }
 }
+
+/* ── tracking coins: daily Strategy A / B scan under the title row ── */
+.tc-page-header { flex-wrap: wrap; }
+.tc-scan {
+  flex-basis: 100%;
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 13px;
+  min-width: 0;
+}
+.tc-scan-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.tc-scan-stale { color: #b45309; font-weight: 600; }
+.tc-scan-hot { color: #b91c1c; font-weight: 600; }
+.tc-scan-btn {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  border-radius: 7px;
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tc-scan-btn:hover:not(:disabled) { border-color: var(--accent); }
+.tc-scan-btn:disabled { opacity: 0.6; cursor: default; }
+.tc-scan-error { color: #b42318; font-size: 12px; }
+.tc-scan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tc-scan-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-variant-numeric: tabular-nums; }
+.tc-scan-tag {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 24px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+.tc-scan-tag--a { background: #1f6f5b; }
+.tc-scan-tag--b { background: #7c3aed; }
+.tc-scan-sym {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+.tc-scan-sym:hover { color: var(--accent); text-decoration: underline; }
+.tc-scan-grade { font-size: 11px; font-weight: 700; padding: 0 5px; border-radius: 4px; }
+.tc-scan-grade--hi { background: rgba(185, 28, 28, 0.12); color: #b91c1c; }
+.tc-scan-grade--mid { background: rgba(180, 83, 9, 0.12); color: #b45309; }
+.tc-scan-grade--lo { background: rgba(23, 18, 13, 0.06); color: var(--muted); }
+.tc-scan-dim { color: var(--muted); font-size: 12px; }

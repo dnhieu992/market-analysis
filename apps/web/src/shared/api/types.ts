@@ -1993,3 +1993,27 @@ export type AppNotification = {
 };
 
 export type NotificationPage = { items: AppNotification[]; nextCursor: string | null };
+
+/** Daily rule-based Strategy A / B scan of the /tracking-coins watchlist. */
+export type SpotDailyScan = {
+  scannedAt: string;
+  trigger: 'CRON' | 'MANUAL';
+  breadthPct: number | null;
+  /** BUY = breadth ≥ 25% · TOP50 = 10–25% (volRank ≤ 50 only) · NONE = < 10% (no new A entries). */
+  regime: 'BUY' | 'TOP50' | 'NONE' | 'UNKNOWN';
+  marketB: boolean;
+  a: Array<{ symbol: string; rsiW: number; volRank: number; price: number; buy: [number, number, number] }>;
+  b: Array<{
+    symbol: string;
+    level: 'B' | 'B+';
+    grade: 'CLIMAX' | 'RÂU' | 'THƯỜNG';
+    entry: number;
+    maxEntry: number;
+    tp: number;
+    tpPct: number;
+    sellBy: string;
+    price: number;
+  }>;
+  coins: number;
+  failed: string[];
+};

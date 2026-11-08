@@ -505,3 +505,14 @@ export function createNotificationRepository() {
     }
   };
 }
+
+export function createSpotDailyScanRepository() {
+  return {
+    async latest() {
+      return null;
+    },
+    async upsert() {
+      return null;
+    }
+  };
+}

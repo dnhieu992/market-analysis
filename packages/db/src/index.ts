@@ -132,3 +132,4 @@ export { createShortScoreSnapshotRepository } from './repositories/short-score-s
 export type { ShortScoreSnapshotInput } from './repositories/short-score-snapshot.repository';
 export { createNotificationRepository } from './repositories/notification.repository';
 export type { NotificationInput, NotificationListQuery } from './repositories/notification.repository';
+export { createSpotDailyScanRepository } from './repositories/spot-daily-scan.repository';

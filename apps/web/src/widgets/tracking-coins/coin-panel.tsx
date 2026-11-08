@@ -112,6 +112,9 @@ function AnalysisChat({
 }) {
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [convId, setConvId] = useState<string | null>(null);
+  // "Lịch sử": every saved conversation of this page (all coins + list scans), open or delete.
+  const [view, setView] = useState<'chat' | 'history'>('chat');
+  const [history, setHistory] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<Status>('idle');
   const [live, setLive] = useState<LiveReply | null>(null);
@@ -250,7 +253,21 @@ function AnalysisChat({
     };
   }, [symbol, open]);
 
+  const loadHistory = useCallback(async () => {
+    const all = await api.listConversations(TRACKING_SKILL_ID).catch(() => [] as Conversation[]);
+    setHistory([...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  }, []);
+
+  async function removeConversation(id: string) {
+    if (!window.confirm('Xoá cuộc trò chuyện này? Không khôi phục được.')) return;
+    await api.deleteConversation(id).catch(() => {});
+    setHistory((prev) => prev.filter((x) => x.id !== id));
+    setConvs((prev) => prev.filter((x) => x.id !== id));
+    if (id === convId) newChat();
+  }
+
   function newChat() {
+    setView('chat');
     watchGen.current += 1;
     setConvId(null);
     setMessages([]);
@@ -353,12 +370,58 @@ function AnalysisChat({
         ) : (
           <span className={c.embedTitle}>{convs.length > 0 ? 'Phân tích mới' : symbol ? `Phân tích ${symbol}` : 'Quét danh sách'}</span>
         )}
+        <button
+          type="button"
+          className={`${c.iconBtn} ${view === 'history' ? styles.historyBtnOn : ''}`}
+          onClick={() => {
+            const next = view === 'history' ? 'chat' : 'history';
+            setView(next);
+            if (next === 'history') void loadHistory();
+          }}
+          title="Lịch sử chat của trang này (xem lại / xoá)"
+          aria-label="Lịch sử chat"
+        >
+          🕘
+        </button>
         <button type="button" className={c.iconBtn} onClick={newChat} disabled={busy} title="Phân tích mới" aria-label="Phân tích mới">
           {Icon.compose}
         </button>
       </div>
 
-      <div ref={scrollerRef} className={c.scroller} onScroll={onScroll}>
+      {view === 'history' && (
+        <div className={`${c.scroller} ${styles.history}`}>
+          {history.length === 0 ? (
+            <p className={styles.historyEmpty}>Chưa có cuộc trò chuyện nào.</p>
+          ) : (
+            <ul className={styles.historyList}>
+              {history.map((cv) => (
+                <li key={cv.id} className={`${styles.historyItem} ${cv.id === convId ? styles.historyItemOn : ''}`}>
+                  <button
+                    type="button"
+                    className={styles.historyOpen}
+                    disabled={busy}
+                    onClick={() => {
+                      setView('chat');
+                      if (!convs.some((x) => x.id === cv.id)) setConvs((prev) => [cv, ...prev]);
+                      void open(cv.id);
+                    }}
+                  >
+                    <span className={styles.historyTitle}>{cv.title}</span>
+                    <span className={styles.historyMeta}>
+                      {(cv.metadata?.symbol as string | undefined) ?? 'Quét danh sách'} · {fmtDateTime(cv.updatedAt)}
+                    </span>
+                  </button>
+                  <button type="button" className={styles.historyDel} onClick={() => void removeConversation(cv.id)} aria-label="Xoá" title="Xoá">
+                    {Icon.trash}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div ref={scrollerRef} className={c.scroller} onScroll={onScroll} hidden={view === 'history'}>
         {!loaded ? null : showEmpty ? (
           <div className={c.empty}>
             <div className={c.emptyInner}>
@@ -430,7 +493,7 @@ function AnalysisChat({
         )}
       </div>
 
-      {loaded && !showEmpty && (
+      {loaded && !showEmpty && view === 'chat' && (
         <div className={c.dock}>
           {!atBottom && (
             <button type="button" className={c.jumpBtn} onClick={() => scrollToBottom(true)} aria-label="Cuộn xuống cuối">

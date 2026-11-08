@@ -122,7 +122,12 @@ type CoinStat = {
   b3: number | null; b7: number | null; b30: number | null;
   /** Strategy B columns, comma-joined: sigB,sigBAgo,sigBEntry,sigBGrade,sigBWick%,sigBVolX. */
   bCols: string;
+  /** Structured copies for the daily scan (null when Binance data failed). */
+  price: number | null; rsiD: number | null; chg30: number | null;
+  b: StrategyBHit | null;
 };
+
+export type StrategyBHit = { level: 'B' | 'B+'; ago: number; entry: number; grade: 'CLIMAX' | 'RÂU' | 'THƯỜNG'; wick: number; volX: number | null };
 
 /** Strategy B trigger on one closed daily candle (thresholds from the 2026-11-07 sweep). */
 function strategyBLevel(closes: number[], i: number): '' | 'B' | 'B+' {
@@ -179,10 +184,12 @@ function strategyB(closed: Candle[]) {
   const fresh = hits.filter((h) => h.ago <= 2).sort((a, b) => GRADE_RANK[b.g.grade] - GRADE_RANK[a.g.grade] || a.ago - b.ago);
   const pick = fresh[0] ?? hits[0];
   const base = { b3: drop(3), b7: drop(7), b30: drop(30) };
-  if (!pick) return { ...base, bCols: ',,,,,' };
+  if (!pick) return { ...base, bCols: ',,,,,', b: null };
   const i = n - 1 - pick.ago;
+  const b: StrategyBHit = { level: pick.lvl, ago: pick.ago, entry: Number(closes[i]!.toPrecision(6)), grade: pick.g.grade, wick: pick.g.wick, volX: pick.g.volX };
   return {
     ...base,
+    b,
     bCols: [pick.lvl, pick.ago, Number(closes[i]!.toPrecision(6)), pick.g.grade, Math.round(pick.g.wick * 100), pick.g.volX != null ? r1(pick.g.volX) : ''].join(','),
   };
 }
@@ -219,14 +226,57 @@ async function coinRow(pair: string, name: string, ticker: Ticker | undefined): 
       r1(pct(price, high90)),
       r1(rsiW),
     ].join(',');
-    return { line, rsiW, vol30, weeks: wClosed.length, ...strategyB(d.closed) };
+    return { line, rsiW, vol30, weeks: wClosed.length, price, rsiD: d.rsi, chg30: pct(price, c[c.length - 30]), ...strategyB(d.closed) };
   } catch {
-    return { line: `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`, rsiW: null, vol30: 0, weeks: 0, b3: null, b7: null, b30: null, bCols: ',,,,,' };
+    return { line: `${pair},${name.replace(/,/g, ' ')},không lấy được dữ liệu Binance`, rsiW: null, vol30: 0, weeks: 0, b3: null, b7: null, b30: null, bCols: ',,,,,', price: null, rsiD: null, chg30: null, b: null };
   }
 }
 
 // Several skills may read the list within one reply — rows computed in the last minute are reused.
 let cache: { at: number; rows: Map<string, CoinStat> } | null = null;
+
+/** Everything the tool and the daily scan need, computed once (rows cached for a minute). */
+export async function watchlistSnapshot(symbols: string[] = []) {
+  const list = symbols;
+  const want = new Set(list.filter(Boolean).map((s) => pairOf(String(s))));
+
+  // Same order as the page: market cap first, then when the coin was added.
+  const coins = (await createTrackingCoinsRepository().findAllCoins())
+    .sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1))
+    .map((c) => ({ pair: pairOf(c.symbol), name: c.name || c.symbol, rating: (c as { rating?: number }).rating ?? 0 }));
+  const shown = coins.filter((c) => want.size === 0 || want.has(c.pair));
+  if (!cache || Date.now() - cache.at > CACHE_MS) cache = { at: Date.now(), rows: new Map() };
+  const rows = cache.rows;
+  const missing = coins.filter((c) => !rows.has(c.pair));
+  if (missing.length > 0) {
+    const tickers = await fetchTickers(missing.map((c) => c.pair));
+    const computed = await mapLimit(missing, CONCURRENCY, (c) => coinRow(c.pair, c.name, tickers.get(c.pair)));
+    missing.forEach((c, i) => rows.set(c.pair, computed[i]!));
+  }
+
+  // Star rating (user) + market cap / sectors (Binance) per coin.
+  const meta = new Map((await coinMeta(shown.map((c) => c.pair)).catch(() => [])).map((m) => [`${m.symbol}USDT`, m]));
+
+  // Strategy A: breadth = % of listed ≥1y alts (whole watchlist ≈ top-100 alts by volume) with weekly RSI < 35;
+  // volRank = rank by 30-day $ volume among those alts.
+  const alts = coins.filter((c) => !NON_ALT.has(c.pair)).map((c) => ({ pair: c.pair, st: rows.get(c.pair)! })).filter((a) => a.st.rsiW != null && a.st.weeks >= 52);
+  const rank = new Map([...alts].sort((a, b) => b.st.vol30 - a.st.vol30).map((a, i) => [a.pair, i + 1]));
+  const listOversold = alts.filter((a) => (a.st.rsiW as number) < 35).length;
+  const mb = await marketBreadth().catch(() => null);
+
+  // Strategy B market crash: median watchlist-alt drop over 3 / 7 / 30 closed daily candles.
+  const altStats = coins.filter((c) => !NON_ALT.has(c.pair)).map((c) => rows.get(c.pair)!);
+  const med = (xs: Array<number | null>) => {
+    const v = xs.filter((x): x is number => x != null && Number.isFinite(x)).sort((a, b) => a - b);
+    if (v.length < 10) return null;
+    const m = v.length >> 1;
+    return v.length % 2 ? v[m]! : (v[m - 1]! + v[m]!) / 2;
+  };
+  const m3 = med(altStats.map((x) => x.b3)), m7 = med(altStats.map((x) => x.b7)), m30 = med(altStats.map((x) => x.b30));
+  const marketB = (m3 != null && m3 <= -15) || (m7 != null && m7 <= -25) || (m30 != null && m30 <= -30);
+  const bCount = altStats.filter((x) => x.bCols.startsWith('B')).length;
+  return { want, coins, shown, rows, meta, rank, alts, listOversold, mb, altStats, m3, m7, m30, marketB, bCount };
+}
 
 /**
  * The user's watchlist from /tracking-coins, computed live from Binance daily + 4h candles
@@ -249,48 +299,11 @@ export const getTrackingCoinsTool: ChatTool<{ symbols?: string[] | string; [key:
   },
   async execute(input) {
     const raw = input?.symbols ?? [];
-    const list = Array.isArray(raw) ? raw : String(raw).split(/[\s,]+/);
-    const want = new Set(list.filter(Boolean).map((s) => pairOf(String(s))));
-
-    // Same order as the page: market cap first, then when the coin was added.
-    const coins = (await createTrackingCoinsRepository().findAllCoins())
-      .sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1))
-      .map((c) => ({ pair: pairOf(c.symbol), name: c.name || c.symbol, rating: (c as { rating?: number }).rating ?? 0 }));
-    const shown = coins.filter((c) => want.size === 0 || want.has(c.pair));
+    const symbols = (Array.isArray(raw) ? raw : String(raw).split(/[\s,]+/)).map(String);
+    const { want, coins, shown, rows, meta, rank, alts, listOversold, mb, altStats, m3, m7, m30, marketB, bCount } = await watchlistSnapshot(symbols);
     if (shown.length === 0) {
       return want.size ? `Không có coin nào trong danh sách theo dõi khớp ${[...want].join(', ')}.` : 'Danh sách theo dõi đang trống.';
     }
-
-    if (!cache || Date.now() - cache.at > CACHE_MS) cache = { at: Date.now(), rows: new Map() };
-    const rows = cache.rows;
-    const missing = coins.filter((c) => !rows.has(c.pair));
-    if (missing.length > 0) {
-      const tickers = await fetchTickers(missing.map((c) => c.pair));
-      const computed = await mapLimit(missing, CONCURRENCY, (c) => coinRow(c.pair, c.name, tickers.get(c.pair)));
-      missing.forEach((c, i) => rows.set(c.pair, computed[i]!));
-    }
-
-    // Star rating (user) + market cap / sectors (Binance) per coin.
-    const meta = new Map((await coinMeta(shown.map((c) => c.pair)).catch(() => [])).map((m) => [`${m.symbol}USDT`, m]));
-
-    // Strategy A: breadth = % of listed ≥1y alts (whole watchlist ≈ top-100 alts by volume) with weekly RSI < 35;
-    // volRank = rank by 30-day $ volume among those alts.
-    const alts = coins.filter((c) => !NON_ALT.has(c.pair)).map((c) => ({ pair: c.pair, st: rows.get(c.pair)! })).filter((a) => a.st.rsiW != null && a.st.weeks >= 52);
-    const rank = new Map([...alts].sort((a, b) => b.st.vol30 - a.st.vol30).map((a, i) => [a.pair, i + 1]));
-    const listOversold = alts.filter((a) => (a.st.rsiW as number) < 35).length;
-    const mb = await marketBreadth().catch(() => null);
-
-    // Strategy B market crash: median watchlist-alt drop over 3 / 7 / 30 closed daily candles.
-    const altStats = coins.filter((c) => !NON_ALT.has(c.pair)).map((c) => rows.get(c.pair)!);
-    const med = (xs: Array<number | null>) => {
-      const v = xs.filter((x): x is number => x != null && Number.isFinite(x)).sort((a, b) => a - b);
-      if (v.length < 10) return null;
-      const m = v.length >> 1;
-      return v.length % 2 ? v[m]! : (v[m - 1]! + v[m]!) / 2;
-    };
-    const m3 = med(altStats.map((x) => x.b3)), m7 = med(altStats.map((x) => x.b7)), m30 = med(altStats.map((x) => x.b30));
-    const marketB = (m3 != null && m3 <= -15) || (m7 != null && m7 <= -25) || (m30 != null && m30 <= -30);
-    const bCount = altStats.filter((x) => x.bCols.startsWith('B')).length;
     const breadth = mb ? mb.pct : NaN;
     const regime = !Number.isFinite(breadth) ? 'không đủ dữ liệu'
       : breadth >= 25 ? 'MÙA MUA (≥25%): mở lệnh bình thường với coin top 100'

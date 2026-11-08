@@ -12,6 +12,7 @@ import fab from '../bitget/bitget-ai-chat.module.css';
 import { CoinPanel } from './coin-panel';
 import { SpotHistoryDialog } from './spot-history-dialog';
 import { SpotStrategiesDialog } from './spot-strategies-dialog';
+import { DailyScanStrip } from './daily-scan-strip';
 
 type Props = { initialCoins: TrackingCoinRow[]; initialTickers?: TrackingTicker[] };
 
@@ -459,6 +460,7 @@ export function TrackingCoinsFeed({ initialCoins, initialTickers = [] }: Props) 
               </button>
             )}
           </div>
+          <DailyScanStrip onPick={(s) => setNameFilter(s)} />
         </div>
 
         {view === 'coins' && (<>

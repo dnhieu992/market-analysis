@@ -6,6 +6,7 @@ import { AddTrackingCoinDto } from './dto/add-tracking-coin.dto';
 import { UpdateCoinSetupDto } from './dto/update-coin-setup.dto';
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { coinMeta, listPortfolios } from './spot-portfolio';
+import { SpotDailyScanService } from './spot-daily-scan.service';
 import { SpotTradesService, type SpotTradeEdit } from './spot-trades.service';
 import { TrackingCoinsService } from './tracking-coins.service';
 
@@ -18,7 +19,22 @@ export class TrackingCoinsController {
     private readonly service: TrackingCoinsService,
     @Inject(SpotTradesService)
     private readonly spotTrades: SpotTradesService,
+    @Inject(SpotDailyScanService)
+    private readonly dailyScan: SpotDailyScanService,
   ) {}
+
+  @Get('daily-scan')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Latest daily Strategy A / B scan of the watchlist (rule-based, 07:01 VN every day)' })
+  async getDailyScan() {
+    return { scan: await this.dailyScan.latest() };
+  }
+
+  @Post('daily-scan/run')
+  @ApiOperation({ summary: 'Re-run the Strategy A / B scan now (overwrites today\'s scan, ~10–30 s)' })
+  async runDailyScan() {
+    return { scan: await this.dailyScan.run('MANUAL') };
+  }
 
   @Get()
   @ApiOperation({ summary: 'List the tracked coins (watchlist order)' })
