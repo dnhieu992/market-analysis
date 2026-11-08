@@ -124,6 +124,8 @@ import type {
   AddJunkCoinsResult,
   SyncJunkCoinsResult,
   JunkCoinStatsResponse,
+  NotificationPage,
+  TradingExchange,
 } from './types';
 
 /** Optional "why" of an order — saved to trade_entries and the trade journal. */
@@ -2047,6 +2049,31 @@ export function createApiClient(options: ApiClientOptions = {}) {
         withDefaults({ method: 'DELETE' }),
       );
       if (!response.ok) throw new Error(await errorMessage(response, 'Xoá coin thất bại'));
+    },
+
+    async fetchNotifications(
+      params: { cursor?: string; limit?: number; unread?: boolean; exchange?: TradingExchange } = {},
+    ): Promise<NotificationPage> {
+      const q = new URLSearchParams();
+      if (params.cursor) q.set('cursor', params.cursor);
+      if (params.limit) q.set('limit', String(params.limit));
+      if (params.unread) q.set('unread', '1');
+      if (params.exchange) q.set('exchange', params.exchange);
+      const qs = q.toString();
+      return fetchJson<NotificationPage>(fetchImpl, `${baseUrl}/notifications${qs ? `?${qs}` : ''}`, withDefaults({ cache: 'no-store' }));
+    },
+
+    async fetchNotificationUnreadCount(): Promise<number> {
+      const res = await fetchJson<{ count: number }>(fetchImpl, `${baseUrl}/notifications/unread-count`, withDefaults({ cache: 'no-store' }));
+      return res.count;
+    },
+
+    async markNotificationRead(id: string): Promise<void> {
+      await mutationJson(fetchImpl, `${baseUrl}/notifications/${encodeURIComponent(id)}/read`, withDefaults({ method: 'POST' }));
+    },
+
+    async markAllNotificationsRead(): Promise<void> {
+      await mutationJson(fetchImpl, `${baseUrl}/notifications/read-all`, withDefaults({ method: 'POST' }));
     },
 
     async fetchTradingListWatchlist(): Promise<TradingListWatchlistSymbol[]> {

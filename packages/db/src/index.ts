@@ -130,3 +130,5 @@ export { createBacktestRunRepository } from './repositories/backtest-run.reposit
 export type { BacktestRunInput } from './repositories/backtest-run.repository';
 export { createShortScoreSnapshotRepository } from './repositories/short-score-snapshot.repository';
 export type { ShortScoreSnapshotInput } from './repositories/short-score-snapshot.repository';
+export { createNotificationRepository } from './repositories/notification.repository';
+export type { NotificationInput, NotificationListQuery } from './repositories/notification.repository';

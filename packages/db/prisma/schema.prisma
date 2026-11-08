@@ -1476,3 +1476,39 @@ model JunkShortCoin {
 
   @@map("junk_short_coins")
 }
+
+// In-app notifications (sidebar bell + /notifications). Written by the worker; each row is
+// also pushed to Telegram. First type: `order_filled` — a Bitget/MEXC futures order filled
+// (open, DCA, close, TP/SL, liquidation), one row per exchange order (`dedupeKey`).
+model Notification {
+  id            String    @id @default(cuid())
+  type          String    @db.VarChar(30) // order_filled
+  dedupeKey     String    @unique @db.VarChar(120) // order_filled: "<exchange>:<orderId>"
+  exchange      String?   @db.VarChar(10) // bitget | mexc
+  symbol        String?   @db.VarChar(30)
+  title         String    @db.VarChar(200)
+  body          String    @db.Text
+  payload       Json? // type-specific data (order_filled: fills, aggregate, position after)
+  eventAt       DateTime // when it happened on the exchange (last fill time)
+  readAt        DateTime?
+  telegramSent  Boolean   @default(false)
+  telegramTries Int       @default(0)
+  telegramError String?   @db.VarChar(300)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([eventAt])
+  @@index([readAt])
+  @@index([telegramSent, createdAt])
+  @@map("notifications")
+}
+
+// Per-source watermark of the notification watchers (id e.g. "order_fill:bitget").
+// No row = never ran: the first run only anchors the cursor, so old fills are not replayed.
+model NotificationSyncState {
+  id        String   @id @db.VarChar(40)
+  cursorAt  DateTime
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_sync_state")
+}

@@ -1961,3 +1961,35 @@ export type SpotStrategy = {
   limits: string[];
   sources: string[];
 };
+
+/** In-app notification (bell + /notifications). Written by the worker; also pushed to Telegram. */
+export type AppNotification = {
+  id: string;
+  /** order_filled = a Bitget/MEXC futures order filled. */
+  type: 'order_filled' | string;
+  exchange: TradingExchange | null;
+  symbol: string | null;
+  title: string;
+  body: string;
+  payload: {
+    orderId?: string;
+    side?: 'long' | 'short' | null;
+    action?: 'open' | 'close' | 'liquidation' | 'unknown';
+    phase?: 'new' | 'dca' | 'partial_close' | 'full_close' | null;
+    kind?: 'tp' | 'sl' | 'liquidation' | null;
+    orderType?: string | null;
+    price?: number;
+    size?: number;
+    quote?: number;
+    profit?: number;
+    fee?: number;
+    revision?: number;
+    fillCount?: number;
+  } | null;
+  eventAt: string;
+  readAt: string | null;
+  telegramSent: boolean;
+  createdAt: string;
+};
+
+export type NotificationPage = { items: AppNotification[]; nextCursor: string | null };

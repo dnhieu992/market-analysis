@@ -488,3 +488,20 @@ export function createBtcDaytradeAnalysisRepository() {
     }
   };
 }
+
+export function createNotificationRepository() {
+  return {
+    async list() {
+      return { items: [], nextCursor: null };
+    },
+    async unreadCount() {
+      return 0;
+    },
+    async markRead() {
+      return 0;
+    },
+    async markAllRead() {
+      return 0;
+    }
+  };
+}

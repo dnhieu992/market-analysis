@@ -11502,3 +11502,46 @@ a.metric-card--link:hover {
 .ssf-option { padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .ssf-option--active { background: var(--accent-soft); color: var(--accent); }
 .ssf-empty { padding: 6px 10px; font-size: 12.5px; color: var(--muted); }
+
+/* ── Notification badge (sidebar "Thông báo" + mobile bell) ─── */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #d64545;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: 2px;
+}
+
+.mobile-topbar-bell {
+  position: relative;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  border-radius: 12px;
+  color: inherit;
+}
+
+.nav-badge--float {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  margin-left: 0;
+}
+
+@media (max-width: 860px) {
+  .mobile-topbar-bell {
+    display: inline-flex;
+  }
+}

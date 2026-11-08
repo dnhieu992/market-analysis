@@ -7,6 +7,7 @@ import { BitgetQqeAlertModule } from '../bitget-qqe-alert/bitget-qqe-alert.modul
 import { JunkShortAlertModule } from '../junk-short-alert/junk-short-alert.module';
 import { MexcHistoryModule } from '../mexc-history/mexc-history.module';
 import { OkxHistoryModule } from '../okx-history/okx-history.module';
+import { OrderFillNotifyModule } from '../order-fill-notify/order-fill-notify.module';
 import { SwingSignalModule } from '../swing-signal/swing-signal.module';
 import { StrategyBacktestModule } from '../strategy-backtest/strategy-backtest.module';
 import { SchedulerService } from './scheduler.service';
@@ -26,6 +27,7 @@ import { SchedulerService } from './scheduler.service';
     MexcHistoryModule,
     BingxHistoryModule,
     OkxHistoryModule,
+    OrderFillNotifyModule,
     StrategyBacktestModule
   ],
   providers: [SchedulerService],

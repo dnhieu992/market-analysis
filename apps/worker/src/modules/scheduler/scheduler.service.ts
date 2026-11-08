@@ -9,6 +9,7 @@ import { BitgetQqeAlertService } from '../bitget-qqe-alert/bitget-qqe-alert.serv
 import { JunkShortAlertService } from '../junk-short-alert/junk-short-alert.service';
 import { MexcHistoryService } from '../mexc-history/mexc-history.service';
 import { OkxHistoryService } from '../okx-history/okx-history.service';
+import { OrderFillNotifyService } from '../order-fill-notify/order-fill-notify.service';
 import { SwingSignalService } from '../swing-signal/swing-signal.service';
 import { StrategyBacktestScanService } from '../strategy-backtest/strategy-backtest-scan.service';
 
@@ -27,6 +28,7 @@ export class SchedulerService {
     private readonly bingxHistoryService: BingxHistoryService,
     private readonly okxHistoryService: OkxHistoryService,
     private readonly strategyBacktestScanService: StrategyBacktestScanService,
+    private readonly orderFillNotifyService: OrderFillNotifyService,
     @Optional() config?: { trackedSymbols: string[] }
   ) {
     this.trackedSymbols =
@@ -116,6 +118,24 @@ export class SchedulerService {
       await this.mexcHistoryService.syncMilestones();
     } catch (err) {
       this.logger.error(`MEXC milestone sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Runs every 15 seconds (offset from the history syncs) — order-fill notifications for
+  // /trading-list: every Bitget/MEXC futures fill since the last pass becomes one
+  // `notifications` row per order (bell + /notifications) and a Telegram message.
+  @Cron('7,22,37,52 * * * * *', { timeZone: 'UTC' })
+  async runOrderFillNotify() {
+    await this.orderFillNotifyService.syncAll();
+  }
+
+  // Every minute — re-send order-fill notifications whose Telegram push failed.
+  @Cron('40 * * * * *', { timeZone: 'UTC' })
+  async runNotificationTelegramRetry() {
+    try {
+      await this.orderFillNotifyService.retryTelegram();
+    } catch (err) {
+      this.logger.error(`Notification Telegram retry failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

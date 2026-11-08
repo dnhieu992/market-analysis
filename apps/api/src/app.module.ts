@@ -8,6 +8,7 @@ import { BitgetModule } from './modules/bitget/bitget.module';
 import { MexcModule } from './modules/mexc/mexc.module';
 import { OkxModule } from './modules/okx/okx.module';
 import { ShortScoreModule } from './modules/short-score/short-score.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { JunkShortModule } from './modules/junk-short/junk-short.module';
 import { TradingListModule } from './modules/trading-list/trading-list.module';
 import { BackTestModule } from './modules/back-test/back-test.module';
@@ -63,6 +64,7 @@ import { TrackingTradesModule } from './modules/tracking-trades/tracking-trades.
     MexcModule,
     OkxModule,
     ShortScoreModule,
+    NotificationsModule,
     JunkShortModule,
     TradingListModule,
     DeepseekModule,

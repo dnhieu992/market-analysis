@@ -56,6 +56,7 @@ export const createBingxSyncStateRepository = noopRepository;
 export const createOkxOrderSyncStateRepository = noopRepository;
 export const createStrategyBacktestRepository = noopRepository;
 export const createBitgetSetupConfigRepository = noopRepository;
+export const createNotificationRepository = noopRepository;
 
 export function createDailyAnalysisRepository() {
   return {

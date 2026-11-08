@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
+import { useUnreadNotificationCount } from '@web/widgets/notifications/use-unread-count';
 
 type SidebarNavProps = Readonly<{
   currentPath: string;
@@ -58,6 +59,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Danh sách coin chung Bitget + MEXC · setup, vào lệnh 2 sàn, AI chat'
   },
   {
+    href: '/notifications',
+    label: 'Thông báo',
+    description: 'Khớp lệnh Bitget + MEXC · cũng gửi qua Telegram'
+  },
+  {
     href: '/short-junk',
     label: 'Short Coin Rác',
     description: 'Chat short coin rác · chỉ scan danh sách coin bạn tự quản lý'
@@ -79,8 +85,9 @@ function NavLink({
   href,
   label,
   description,
+  badge,
   onClick
-}: SidebarNavProps & NavItem & { onClick?: () => void }): ReactNode {
+}: SidebarNavProps & NavItem & { badge?: number; onClick?: () => void }): ReactNode {
   const isActive = currentPath === href;
 
   return (
@@ -90,7 +97,10 @@ function NavLink({
       aria-current={isActive ? 'page' : undefined}
       onClick={onClick}
     >
-      <span className="sidebar-nav-link-label">{label}</span>
+      <span className="sidebar-nav-link-label">
+        {label}
+        {badge ? <span className="nav-badge" aria-label={`${badge} chưa đọc`}>{badge > 99 ? '99+' : badge}</span> : null}
+      </span>
       <span className="sidebar-nav-link-description">{description}</span>
     </Link>
   );
@@ -101,6 +111,7 @@ const apiClient = createApiClient();
 export function SidebarNav({ currentPath }: SidebarNavProps) {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const unread = useUnreadNotificationCount();
 
   useEffect(() => {
     apiClient.fetchUserProfile().then(setUser).catch(() => setUser(null));
@@ -141,6 +152,13 @@ export function SidebarNav({ currentPath }: SidebarNavProps) {
           <span className="sidebar-brand-mark">MA</span>
           <p className="mobile-topbar-title">Market Analysis</p>
         </Link>
+        <Link href="/notifications" className="mobile-topbar-bell" aria-label={`Thông báo${unread ? ` (${unread} chưa đọc)` : ''}`}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {unread ? <span className="nav-badge nav-badge--float">{unread > 99 ? '99+' : unread}</span> : null}
+        </Link>
       </div>
 
       {/* Backdrop overlay */}
@@ -172,7 +190,13 @@ export function SidebarNav({ currentPath }: SidebarNavProps) {
 
         <nav aria-label="Primary" className="sidebar-nav-links">
           {NAV_ITEMS.map((item) => (
-            <NavLink key={item.href} currentPath={currentPath} {...item} onClick={close} />
+            <NavLink
+              key={item.href}
+              currentPath={currentPath}
+              {...item}
+              badge={item.href === '/notifications' ? unread : undefined}
+              onClick={close}
+            />
           ))}
         </nav>
 
