@@ -33,6 +33,13 @@ as warnings / red flags.
 6. The worker alert (`JunkShortAlertService`, every 15 min) runs the same list-mode scan: setup-A coins and
    list coins ≥ +25%/24h, warnings shown as ⚠️ flags.
 
+7. Daily scan (`JunkShortDailyScanService`, cron 07:02 VN = 00:02 UTC, right after the D1 close) runs the list-mode scan and
+   stores one row per VN day (`junk_short_daily_scans`). The strip under the page title shows only what can be shorted:
+   setup A (always) / B (only when BTC D1 < EMA50) with the 3-tier ladder, stop, TP and time stop; action Short / ½ size
+   (any red flag: failed study gate, Monitoring, funding ≤ −0.1%, pump volume < 2×, cap before pump < $30M) / Theo dõi
+   (futures < 90 days); WATCH_PUMP coins on one line. `GET /junk-short/daily-scan`, `POST /junk-short/daily-scan/run`
+   ("↻ Quét lại"). Page only — no Telegram (the 15-min alert is unchanged).
+
 ## Edge Cases
 - Empty list → the tool returns an error asking the model to tell the user to add coins (no fallback to
   the whole market); the worker sends nothing.

@@ -1691,6 +1691,28 @@ export type AppNotification = {
 export type NotificationPage = { items: AppNotification[]; nextCursor: string | null };
 
 /** Daily rule-based Strategy A / B scan of the /tracking-coins watchlist. */
+/** Daily (07:02 VN) setup A / B scan of the /short-junk list. */
+export type JunkShortDailyScan = {
+  scannedAt: string;
+  trigger: 'CRON' | 'MANUAL';
+  btc: { bear: boolean; close: number; ema50: number };
+  short: Array<{
+    symbol: string;
+    setup: 'A' | 'B';
+    action: 'SHORT' | 'HALF' | 'WATCH';
+    pump3dPct: number;
+    price: number;
+    entries: number[];
+    stop: number;
+    tpPct: number;
+    days: number;
+    flags: string[];
+  }>;
+  watch: Array<{ symbol: string; pump3dPct: number }>;
+  coins: number;
+  notOnFutures: string[];
+};
+
 export type SpotDailyScan = {
   scannedAt: string;
   trigger: 'CRON' | 'MANUAL';

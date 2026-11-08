@@ -483,3 +483,14 @@ export function createSpotDailyScanRepository() {
     }
   };
 }
+
+export function createJunkShortDailyScanRepository() {
+  return {
+    async latest() {
+      return null;
+    },
+    async upsert() {
+      return null;
+    }
+  };
+}

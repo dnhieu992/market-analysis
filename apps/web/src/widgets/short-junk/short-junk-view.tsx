@@ -5,6 +5,7 @@ import { useState } from 'react';
 import type { JunkShortCoin } from '@web/shared/api/types';
 
 import { JunkCoinsManager } from './junk-coins-manager';
+import { JunkDailyScanStrip } from './junk-daily-scan-strip';
 import { ShortJunkAiChat } from './short-junk-ai-chat';
 import styles from './junk-coins.module.css';
 
@@ -13,6 +14,7 @@ export function ShortJunkView({ initialCoins }: { initialCoins: JunkShortCoin[] 
   return (
     <div className={`page ${styles.page}`}>
       <h1>🗑️ Short Coin Rác</h1>
+      <JunkDailyScanStrip />
       <p className={styles.lead}>
         Skill <strong>Short Coin Rác</strong> (nút AI góc dưới) và cảnh báo Telegram <strong>chỉ scan các coin trong danh sách này</strong>.
         Coin không đạt tiêu chí nghiên cứu (vốn hoá trước pump $20–500M, ≥ 50% dưới ATH, list ≥ 90 ngày) vẫn được scan nhưng bị gắn cờ đỏ.

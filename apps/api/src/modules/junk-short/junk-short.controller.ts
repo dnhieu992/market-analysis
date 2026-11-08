@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AddJunkCoinsDto } from './dto/add-junk-coins.dto';
 import { UpdateJunkCoinDto } from './dto/update-junk-coin.dto';
+import { JunkShortDailyScanService } from './junk-short-daily-scan.service';
 import { JunkShortService } from './junk-short.service';
 import { JunkShortStatsService } from './junk-short-stats.service';
 
@@ -13,7 +14,20 @@ export class JunkShortController {
   constructor(
     @Inject(JunkShortService) private readonly service: JunkShortService,
     @Inject(JunkShortStatsService) private readonly statsService: JunkShortStatsService,
+    @Inject(JunkShortDailyScanService) private readonly dailyScan: JunkShortDailyScanService,
   ) {}
+
+  @Get('daily-scan')
+  @ApiOperation({ summary: 'Latest daily (07:02 VN) setup A / B scan of the list — shown under the page title' })
+  async getDailyScan() {
+    return { scan: await this.dailyScan.latest() };
+  }
+
+  @Post('daily-scan/run')
+  @ApiOperation({ summary: 'Re-run the daily setup A / B scan now (overwrites today)' })
+  async runDailyScan() {
+    return { scan: await this.dailyScan.run('MANUAL') };
+  }
 
   @Get('coins/stats')
   @ApiOperation({ summary: 'Live Binance stats per listed coin: cap, 24h/3D/7D/30D/90D, funding + interval, ecosystem, listing dates' })

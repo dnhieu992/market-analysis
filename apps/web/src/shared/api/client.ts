@@ -117,6 +117,7 @@ import type {
   JunkCoinStatsResponse,
   NotificationPage,
   SpotDailyScan,
+  JunkShortDailyScan,
   TradingExchange,
 } from './types';
 
@@ -2066,6 +2067,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async markAllNotificationsRead(): Promise<void> {
       await mutationJson(fetchImpl, `${baseUrl}/notifications/read-all`, withDefaults({ method: 'POST' }));
+    },
+
+    async fetchJunkShortDailyScan(): Promise<JunkShortDailyScan | null> {
+      const res = await fetchJson<{ scan: JunkShortDailyScan | null }>(fetchImpl, `${baseUrl}/junk-short/daily-scan`, withDefaults({ cache: 'no-store' }));
+      return res.scan;
+    },
+
+    async runJunkShortDailyScan(): Promise<JunkShortDailyScan> {
+      const res = await mutationJson<{ scan: JunkShortDailyScan }>(fetchImpl, `${baseUrl}/junk-short/daily-scan/run`, withDefaults({ method: 'POST' }));
+      return res.scan;
     },
 
     async fetchSpotDailyScan(): Promise<SpotDailyScan | null> {
