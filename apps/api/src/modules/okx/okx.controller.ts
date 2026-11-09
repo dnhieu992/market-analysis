@@ -26,6 +26,14 @@ export class OkxController {
     return this.okx.getAccount();
   }
 
+  @Get('pending')
+  @ApiOperation({ summary: 'Resting (unfilled) OKX SWAP orders — the "Lệnh limit đang chờ" panel of /trades' })
+  async pending() {
+    const fetchedAt = new Date().toISOString();
+    if (!this.okx.isConfigured()) return { configured: false, orders: [], fetchedAt };
+    return { configured: true, orders: await this.okx.listPendingOrders(), fetchedAt };
+  }
+
   @Get('ai/actions')
   @ApiOperation({ summary: 'Action cards the /trades OKX short AI chat proposed in one conversation' })
   listAiActions(@Query('conversationId') conversationId: string) {

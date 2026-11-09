@@ -102,6 +102,7 @@ import type {
   MexcAiAction,
   MexcAiActionEdits,
   OkxAccount,
+  OkxPendingOrdersResponse,
   OkxAiAction,
   OkxAiActionEdits,
   ShortScoreOverview,
@@ -1342,6 +1343,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     // ═══ OKX short AI chat (/trades) ════════════════════════════
+    /** Resting (unfilled) OKX SWAP orders. */
+    async fetchOkxPendingOrders(): Promise<OkxPendingOrdersResponse> {
+      return fetchJson<OkxPendingOrdersResponse>(fetchImpl, `${baseUrl}/okx/pending`, withDefaults({}));
+    },
+
     async fetchOkxAccount(): Promise<OkxAccount> {
       return fetchJson<OkxAccount>(fetchImpl, `${baseUrl}/okx/account`, withDefaults({}));
     },

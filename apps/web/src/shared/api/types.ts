@@ -470,6 +470,28 @@ export type BitgetAiActionEdits = Pick<BitgetAiActionParams, 'orderType' | 'marg
 export type MexcAiAction = BitgetAiAction;
 export type MexcAiActionEdits = BitgetAiActionEdits;
 
+/** One resting OKX SWAP order (GET /okx/pending). holdSide null = reduce-only close order in net mode. */
+export type OkxPendingOrder = {
+  orderId: string;
+  symbol: string;
+  holdSide: 'long' | 'short' | null;
+  side: string;
+  orderType: string;
+  price: number;
+  size: number;
+  contracts: number;
+  leverage: number | null;
+  marginUsd: number | null;
+  reduceOnly: boolean;
+  createdAt: string | null;
+};
+
+export type OkxPendingOrdersResponse = {
+  configured: boolean;
+  orders: OkxPendingOrder[];
+  fetchedAt: string;
+};
+
 /** The /trades OKX AI chat's cards (holdSide 'long' or 'short'), stored in `okx_ai_actions`. */
 export type OkxAiAction = BitgetAiAction;
 export type OkxAiActionEdits = BitgetAiActionEdits;

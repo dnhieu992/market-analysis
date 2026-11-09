@@ -14,6 +14,7 @@ import { TradeAnalyzeDrawer } from '@web/widgets/trade-analyze-drawer/trade-anal
 import { TradesTable, NotesDialog } from './trades-table';
 import { OrderJournalDrawer, type OrderJournalTarget } from './order-journal-drawer';
 import { OkxShortAiChat } from './okx-short-ai-chat';
+import { PendingLimitOrders } from './pending-limit-orders';
 
 type TradesHistoryProps = Readonly<{
   orders: DashboardOrder[];
@@ -93,6 +94,9 @@ export function TradesHistory({ orders, total, page, pageSize, closedPnlSum, ope
 
   return (
     <main className="dashboard-shell trades-shell">
+      {/* Resting limit orders on OKX / Bitget / MEXC (live from the exchanges) */}
+      <PendingLimitOrders />
+
       <TradesTable
         orders={orders}
         total={total}
