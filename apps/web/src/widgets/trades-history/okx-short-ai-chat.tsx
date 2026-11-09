@@ -35,12 +35,20 @@ type Action = OkxAiAction;
 type View = 'chat' | 'history';
 
 const TYPE_LABEL: Record<Action['type'], string> = {
-  OPEN: 'Mở short',
-  DCA: 'DCA short',
+  OPEN: 'Mở',
+  DCA: 'DCA',
   SET_TP: 'Đặt TP',
-  CLOSE: 'Đóng short',
+  CLOSE: 'Đóng',
   CANCEL: 'Huỷ lệnh chờ',
 };
+
+// Fixed OKX order config (mirrors OKX_FIXED_LEVERAGE / OKX_DEFAULT_MARGIN_USD in the API).
+const FIXED_LEVERAGE = 2;
+const DEFAULT_MARGIN_USD = 5;
+
+function SideTag({ side }: { side: Action['holdSide'] }) {
+  return <span className={side === 'long' ? styles.long : styles.short}>{side === 'long' ? 'LONG' : 'SHORT'}</span>;
+}
 
 const STATUS_LABEL: Record<Action['status'], string> = {
   PROPOSED: 'Đề xuất',
@@ -51,10 +59,11 @@ const STATUS_LABEL: Record<Action['status'], string> = {
 
 const SUGGESTIONS = [
   'Chấm điểm short BTC hôm nay rồi tìm điểm vào swing (kháng cự H4 trở lên)',
-  'Các lệnh short OKX đang mở thế nào? Lệnh nào chưa có TP?',
+  'Phân tích BTC: có setup LONG không? Vùng vào / TP?',
+  'Các lệnh OKX đang mở thế nào? Lệnh nào chưa có TP?',
   'Phân tích BTC theo skill: có setup short không?',
-  'Ghi note cho lệnh short đang mở của ETH: ',
-  'Review các lệnh short OKX đã đóng gần đây — sai ở đâu?',
+  'Ghi note cho lệnh đang mở của ETH: ',
+  'Review các lệnh OKX đã đóng gần đây — sai ở đâu?',
 ];
 
 function fmtPrice(n: number | null | undefined): string {
@@ -66,7 +75,7 @@ const fmtUsd = (n: number | null | undefined, d = 2) => (n == null || !Number.is
 const fmtPct = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(2)}%`);
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-/** Floating "Short AI" button of /trades; opens the OKX short chat as a slide-in panel. */
+/** Floating "OKX AI" button of /trades; opens the OKX long/short chat as a slide-in panel. */
 export function OkxShortAiChat({ onActionDone }: { onActionDone?: () => void }) {
   const [open, setOpen] = useState(false);
 
@@ -80,15 +89,15 @@ export function OkxShortAiChat({ onActionDone }: { onActionDone?: () => void }) 
   return (
     <>
       {!open && (
-        <button type="button" className={`${styles.fab} ${s.fab}`} onClick={() => setOpen(true)} aria-label="Mở OKX Short AI" title="OKX Short AI">
+        <button type="button" className={`${styles.fab} ${s.fab}`} onClick={() => setOpen(true)} aria-label="Mở OKX AI" title="OKX AI">
           <span aria-hidden>{ICON}</span>
-          <span className={styles.fabLabel}>Short AI</span>
+          <span className={styles.fabLabel}>OKX AI</span>
         </button>
       )}
       {open && (
         <>
           <div className={styles.backdrop} onClick={() => setOpen(false)} />
-          <aside className={styles.panel} role="dialog" aria-label="OKX Short AI">
+          <aside className={styles.panel} role="dialog" aria-label="OKX AI">
             <AiThread onActionDone={onActionDone ?? (() => {})} onClose={() => setOpen(false)} />
           </aside>
         </>
@@ -334,7 +343,7 @@ function AiThread({ onActionDone, onClose }: { onActionDone: () => void; onClose
       onSend={() => { void send(); }}
       onStop={() => { void stop(); }}
       busy={busy}
-      placeholder="Hỏi setup short, vào lệnh, ghi note, sửa skill, hoặc /backtest <chiến lược>…"
+      placeholder="Hỏi setup long / short, vào lệnh, ghi note, sửa skill, hoặc /backtest <chiến lược>…"
       autoFocus
       inputRef={inputRef}
     />
@@ -345,8 +354,8 @@ function AiThread({ onActionDone, onClose }: { onActionDone: () => void; onClose
       <div className={styles.head}>
         <span className={styles.headIcon} aria-hidden>{ICON}</span>
         <div className={styles.headTitle}>
-          OKX Short AI
-          <span className={styles.headSub}>{view === 'history' ? 'Lịch sử trò chuyện' : title ?? 'Chỉ SHORT · chỉ OKX · lệnh cần xác nhận'}</span>
+          OKX AI
+          <span className={styles.headSub}>{view === 'history' ? 'Lịch sử trò chuyện' : title ?? `Long + Short · cross ${FIXED_LEVERAGE}× · ký quỹ mặc định $${DEFAULT_MARGIN_USD} · lệnh cần xác nhận`}</span>
         </div>
         <button type="button" className={`${styles.headBtn} ${view === 'history' ? s.headBtnOn : ''}`} onClick={() => { setView(view === 'history' ? 'chat' : 'history'); void refreshConvs(); }} title="Xem lại các cuộc trò chuyện cũ">
           🕘 <span>Lịch sử</span>
@@ -390,9 +399,9 @@ function AiThread({ onActionDone, onClose }: { onActionDone: () => void; onClose
                 <div className={c.emptyInner}>
                   <div className={c.greeting}>
                     <div className={c.greetingIcon}>{ICON}</div>
-                    <h1 className={c.greetingTitle}>OKX Short AI</h1>
+                    <h1 className={c.greetingTitle}>OKX AI</h1>
                     <p className={c.greetingText}>
-                      Phân tích điểm <strong>SHORT</strong> theo skill của bạn, đọc vị thế / lệnh chờ / lệnh OKX trong /trades, ghi note vào lệnh, và sửa
+                      Phân tích điểm <strong>LONG / SHORT</strong> (short theo skill của bạn, long theo nguyên tắc chung), vào lệnh cross {FIXED_LEVERAGE}× · ký quỹ mặc định ${DEFAULT_MARGIN_USD}, đọc vị thế / lệnh chờ / lệnh OKX trong /trades, ghi note vào lệnh, và sửa
                       skill ngay trong chat (bấm <strong>Skill</strong> để xem / khôi phục bản cũ). Mọi lệnh chỉ là thẻ đề xuất — bấm xác nhận mới gửi lên OKX.
                     </p>
                   </div>
@@ -460,7 +469,7 @@ function AiThread({ onActionDone, onClose }: { onActionDone: () => void; onClose
             <div className={c.dock}>
               <div className={c.dockInner}>
                 {composer}
-                <div className={c.disclaimer}>Lệnh thật trên OKX · chỉ SHORT · chỉ gửi khi bạn bấm xác nhận trên thẻ.</div>
+                <div className={c.disclaimer}>Lệnh thật trên OKX · long + short · cross {FIXED_LEVERAGE}× · chỉ gửi khi bạn bấm xác nhận trên thẻ.</div>
               </div>
             </div>
           )}
@@ -519,12 +528,12 @@ function summary(a: Action): Array<[string, string]> {
 function ActionCard({ action: a, onConfirm, onDismiss }: { action: Action; onConfirm: () => void; onDismiss: () => void }) {
   const open = a.status === 'PROPOSED' || a.status === 'FAILED';
   return (
-    <div className={`${styles.card} ${styles.cardShort} ${open ? '' : styles.cardDone}`}>
+    <div className={`${styles.card} ${a.holdSide === 'long' ? s.cardLong : styles.cardShort} ${open ? '' : styles.cardDone}`}>
       <div className={styles.cardHead}>
         <span className={s.exTag}>OKX</span>
         <span className={styles.cardType}>{TYPE_LABEL[a.type]}</span>
         <span className={styles.cardSymbol}>{a.symbol.replace(/USDT$/, '')}</span>
-        <span className={styles.short}>SHORT</span>
+        <SideTag side={a.holdSide} />
         <span className={styles.spacer} />
         <span className={`${styles.badge} ${styles[`st${a.status}`]}`}>{STATUS_LABEL[a.status]}</span>
       </div>
@@ -568,8 +577,7 @@ function ConfirmDialog({ action: a, onClose, onDone }: { action: Action; onClose
   const [acct, setAcct] = useState<OkxAccount | null>(null);
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>(p.orderType ?? 'MARKET');
   const [price, setPrice] = useState(p.price != null ? String(p.price) : '');
-  const [margin, setMargin] = useState(p.marginUsd != null ? String(p.marginUsd) : '');
-  const [leverage, setLeverage] = useState(p.leverage != null ? String(p.leverage) : '');
+  const [margin, setMargin] = useState(String(p.marginUsd ?? DEFAULT_MARGIN_USD));
   const [tp, setTp] = useState(p.takeProfitPrice != null ? String(p.takeProfitPrice) : '');
   const [closePct, setClosePct] = useState(String(p.closePct ?? 100));
   const [sending, setSending] = useState(false);
@@ -579,18 +587,21 @@ function ConfirmDialog({ action: a, onClose, onDone }: { action: Action; onClose
     api.fetchOkxAccount().then(setAcct).catch(() => setAcct(null));
   }, []);
 
-  const position = acct?.positions.find((x) => x.symbol === a.symbol && x.holdSide === 'short') ?? null;
+  const isShort = a.holdSide !== 'long';
+  const sideName = isShort ? 'short' : 'long';
+  const position = acct?.positions.find((x) => x.symbol === a.symbol && x.holdSide === a.holdSide) ?? null;
   const isEntry = a.type === 'OPEN' || a.type === 'DCA';
-  const lev = position ? position.leverage : num(leverage) ?? 0;
+  const lev = position ? position.leverage : FIXED_LEVERAGE;
   const marginN = num(margin) ?? 0;
   const entryPx = orderType === 'LIMIT' ? num(price) : position?.markPrice ?? p.refPrice ?? null;
   const addSize = isEntry && entryPx ? (marginN * lev) / entryPx : 0;
   const newAvg = position && isEntry && entryPx ? (position.size * position.entryPrice + addSize * entryPx) / (position.size + addSize) : null;
   const basis = newAvg ?? (position && !isEntry ? position.entryPrice : entryPx);
   const tpN = num(tp);
-  const tpMovePct = tpN && basis ? ((basis - tpN) / basis) * 100 : null;
+  const dir = isShort ? 1 : -1; // profit per unit = dir × (entry − exit)
+  const tpMovePct = tpN && basis ? ((dir * (basis - tpN)) / basis) * 100 : null;
   const totalSize = (position?.size ?? 0) + (isEntry ? addSize : 0);
-  const tpProfit = tpN && basis ? (basis - tpN) * totalSize : null;
+  const tpProfit = tpN && basis ? dir * (basis - tpN) * totalSize : null;
   const closeShare = a.type === 'CLOSE' ? Math.min(100, Math.max(0, num(closePct) ?? 0)) / 100 : 0;
   const equity = acct?.equityUsd ?? null;
   const share = (m: number | null) => (m != null && equity ? (m / equity) * 100 : null);
@@ -607,11 +618,7 @@ function ConfirmDialog({ action: a, onClose, onDone }: { action: Action; onClose
       }
       if (!(marginN > 0)) return setErr('Ký quỹ phải > 0.');
       edits.marginUsd = marginN;
-      if (!position) {
-        if (!(lev >= 1)) return setErr('Đòn bẩy phải ≥ 1.');
-        edits.leverage = lev;
-      }
-      if (tpN && entryPx && tpN >= entryPx) return setErr('TP của short phải thấp hơn giá vào.');
+      if (tpN && entryPx && (isShort ? tpN >= entryPx : tpN <= entryPx)) return setErr(`TP của ${sideName} phải ${isShort ? 'thấp' : 'cao'} hơn giá vào.`);
       edits.takeProfitPrice = tpN && tpN > 0 ? tpN : null;
     } else if (a.type === 'SET_TP') {
       if (!(tpN && tpN > 0)) return setErr('Nhập giá TP.');
@@ -642,11 +649,11 @@ function ConfirmDialog({ action: a, onClose, onDone }: { action: Action; onClose
       <div className={styles.modal} role="dialog" aria-label="Xác nhận lệnh">
         <div className={styles.modalHead}>
           <strong>
-            <span className={s.exTag}>OKX</span> {TYPE_LABEL[a.type]} {a.symbol.replace(/USDT$/, '')} <span className={styles.short}>SHORT</span>
+            <span className={s.exTag}>OKX</span> {TYPE_LABEL[a.type]} {a.symbol.replace(/USDT$/, '')} <SideTag side={a.holdSide} />
           </strong>
           <button type="button" className={styles.close} onClick={onClose} disabled={sending} aria-label="Đóng">✕</button>
         </div>
-        <div className={styles.warn}>⚠ Lệnh thật trên <strong>OKX</strong> · cross margin</div>
+        <div className={styles.warn}>⚠ Lệnh thật trên <strong>OKX</strong> · cross margin · đòn bẩy cố định {FIXED_LEVERAGE}× cho vị thế mới</div>
         {acct?.canTrade === false && (
           <div className={styles.error}>API key OKX hiện chỉ có quyền đọc — OKX sẽ từ chối lệnh. Bật quyền Trade cho key (hoặc đặt OKX_TRADE_API_*) rồi restart API.</div>
         )}
@@ -679,8 +686,8 @@ function ConfirmDialog({ action: a, onClose, onDone }: { action: Action; onClose
                 <input className={styles.input} inputMode="decimal" value={margin} onChange={(e) => setMargin(e.target.value)} />
               </label>
               <label>
-                Đòn bẩy {position ? '(giữ của vị thế)' : ''}
-                <input className={styles.input} inputMode="numeric" value={position ? String(position.leverage) : leverage} disabled={!!position} onChange={(e) => setLeverage(e.target.value)} />
+                Đòn bẩy {position ? '(giữ của vị thế)' : '(cố định, cross)'}
+                <input className={styles.input} inputMode="numeric" value={`${lev}×`} disabled readOnly />
               </label>
             </>
           )}

@@ -16,7 +16,7 @@ User đánh giá theo điểm: mỗi tiêu chí thoả mãn được cộng đi�
 - Hỏi / suy ra kiểu lệnh: **swing** → kháng cự mạnh từ H4 trở lên (H4, D1, W); **scalp** → kháng cự M15 / M30 (tham khảo H1).
 - Gọi find_resistance_levels(symbol, mode). Chọn 1–2 vùng kháng cự gần nhất phía trên giá, ưu tiên vùng nhiều lần test (tests) / strength cao, và trùng nhiều khung.
 - Đề xuất: vùng vào short (limit trong vùng kháng cự), TP ở hỗ trợ gần nhất, điều kiện setup sai — theo Skill phân tích. Điểm càng cao thì càng ưu tiên vào lệnh; điểm thấp → nói rõ là không ủng hộ short.
-- Chỉ tạo thẻ propose_okx_short khi user muốn vào lệnh.
+- Chỉ tạo thẻ propose_okx_order (side "short") khi user muốn vào lệnh.
 
 ### Sửa bộ tiêu chí (chỉ khi user yêu cầu rõ: "thêm tiêu chí…", "bỏ…", "đổi RSI thành…", "tăng điểm…")
 1. get_score_criteria → lấy JSON hiện tại.

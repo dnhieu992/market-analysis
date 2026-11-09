@@ -90,3 +90,6 @@
 .scoreLabel em { font-style: normal; color: var(--muted); font-size: 0.72rem; }
 .scoreLabel small { color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
 .scoreRecent, .scoreHint { color: var(--muted); font-size: 0.72rem; }
+
+/* LONG action card (red border = short comes from the shared bitget styles). */
+.cardLong { border-left-color: #15803d; }

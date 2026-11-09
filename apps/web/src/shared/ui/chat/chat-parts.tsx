@@ -48,6 +48,7 @@ export const TOOL_LABEL: Record<string, string> = {
   get_short_skill: 'Đang đọc skill phân tích',
   update_short_skill: 'Đang cập nhật skill phân tích',
   propose_okx_short: 'Đang tạo thẻ SHORT',
+  propose_okx_order: 'Đang tạo thẻ lệnh OKX',
   run_backtest: 'Đang chạy backtest (sandbox)',
   save_backtest_report: 'Đang lưu báo cáo backtest',
   list_backtest_runs: 'Đang đọc các backtest cũ',

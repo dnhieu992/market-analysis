@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createOkxAiActionRepository, createOrderJournalRepository, createOrderRepository } from '@app/db';
 
-import { OkxService, type OkxPosition } from './okx.service';
+import { OKX_DEFAULT_MARGIN_USD, OKX_FIXED_LEVERAGE, OkxService, type OkxPosition } from './okx.service';
 import type { ExecuteAiActionDto } from './dto/execute-ai-action.dto';
 
 export type OkxAiActionType = 'OPEN' | 'DCA' | 'SET_TP' | 'CLOSE' | 'CANCEL';
+type Side = 'long' | 'short';
 
 export type OkxAiActionParams = {
   orderType?: 'MARKET' | 'LIMIT';
@@ -24,9 +25,10 @@ function fmt(v: number | null | undefined): string {
 }
 
 /**
- * Runs the cards the /trades OKX short AI chat proposes — ONLY on the user's confirm.
- * SHORT only: a card whose side is not short is refused. Each executed card is noted on
- * the matching open OKX order of /trades (order journal) when the worker has synced it.
+ * Runs the cards the /trades OKX AI chat proposes — ONLY on the user's confirm. LONG and
+ * SHORT (long allowed since 2026-11-09). New positions are always cross × OKX_FIXED_LEVERAGE;
+ * margin defaults to OKX_DEFAULT_MARGIN_USD. Each executed card is noted on the matching
+ * open OKX order of /trades (order journal) when the worker has synced it.
  */
 @Injectable()
 export class OkxAiActionService {
@@ -53,19 +55,20 @@ export class OkxAiActionService {
     if (!action) throw new NotFoundException('Không tìm thấy đề xuất.');
     if (action.status === 'EXECUTED') throw new ConflictException('Đề xuất đã được thực hiện.');
     if (action.status === 'DISMISSED') throw new ConflictException('Đề xuất đã bị bỏ qua.');
-    if (action.holdSide !== 'short') throw new BadRequestException('Chat OKX chỉ thực hiện lệnh SHORT.');
+    const side = action.holdSide as Side;
+    if (side !== 'long' && side !== 'short') throw new BadRequestException(`Chiều lệnh không hợp lệ: ${String(action.holdSide)}`);
 
     const type = action.type as OkxAiActionType;
     const params: OkxAiActionParams = { ...(action.params as OkxAiActionParams), ...stripUndefined(edits) };
     try {
-      const before = await this.okx.getPosition(action.symbol, 'short');
-      const { result, orderId, lines } = await this.run(type, action.symbol, params, before);
-      await this.noteOnOrder(action.symbol, [`🤖 **Từ AI chat (OKX short)** — ${lines[0]}`, ...lines.slice(1), ...(action.reason ? [`- Lý do AI: ${action.reason}`] : [])].join('\n'), before);
-      this.logger.log(`OKX AI action ${id} executed: ${type} short ${action.symbol}`);
+      const before = await this.okx.getPosition(action.symbol, side);
+      const { result, orderId, lines } = await this.run(type, action.symbol, side, params, before);
+      await this.noteOnOrder(action.symbol, side, [`🤖 **Từ AI chat (OKX ${side})** — ${lines[0]}`, ...lines.slice(1), ...(action.reason ? [`- Lý do AI: ${action.reason}`] : [])].join('\n'), before);
+      this.logger.log(`OKX AI action ${id} executed: ${type} ${side} ${action.symbol}`);
       return this.repo.update(id, { status: 'EXECUTED', executedParams: params, result: result as object, orderId, error: null, decidedAt: new Date() });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`OKX AI action ${id} (${type} short ${action.symbol}) failed: ${msg}`);
+      this.logger.warn(`OKX AI action ${id} (${type} ${side} ${action.symbol}) failed: ${msg}`);
       return this.repo.update(id, { status: 'FAILED', executedParams: params, error: msg, decidedAt: new Date() });
     }
   }
@@ -73,24 +76,27 @@ export class OkxAiActionService {
   private async run(
     type: OkxAiActionType,
     symbol: string,
+    side: Side,
     p: OkxAiActionParams,
     before: OkxPosition | null,
   ): Promise<{ result: unknown; orderId: string | null; lines: string[] }> {
+    const SIDE = side.toUpperCase();
     switch (type) {
       case 'OPEN':
       case 'DCA': {
-        if (type === 'DCA' && !before) throw new ConflictException(`Không có vị thế SHORT ${symbol} để DCA.`);
-        const marginUsd = Number(p.marginUsd);
-        if (!(marginUsd > 0)) throw new BadRequestException('Ký quỹ phải > 0.');
-        const leverage = before ? before.leverage : Number(p.leverage);
-        if (!(leverage >= 1)) throw new BadRequestException('Đòn bẩy phải ≥ 1.');
+        if (type === 'DCA' && !before) throw new ConflictException(`Không có vị thế ${SIDE} ${symbol} để DCA.`);
+        const marginUsd = Number(p.marginUsd) > 0 ? Number(p.marginUsd) : OKX_DEFAULT_MARGIN_USD;
+        // Fixed config: a new position is always cross × OKX_FIXED_LEVERAGE; an open one keeps its own.
+        const leverage = before ? before.leverage : OKX_FIXED_LEVERAGE;
+        p.marginUsd = marginUsd;
+        p.leverage = leverage;
         const orderType = p.orderType === 'LIMIT' ? 'LIMIT' : 'MARKET';
         const tp = p.takeProfitPrice != null && p.takeProfitPrice > 0 ? p.takeProfitPrice : null;
         // An open position keeps one position-level TP: move it instead of attaching a second one.
         const attachTp = tp != null && !before;
         const res = await this.okx.placeOrder({
           symbol,
-          holdSide: 'short',
+          holdSide: side,
           orderType,
           marginUsd,
           leverage,
@@ -102,7 +108,7 @@ export class OkxAiActionService {
         if (tp != null && before) {
           if (orderType === 'MARKET') {
             try {
-              await this.okx.setTakeProfit(symbol, 'short', tp);
+              await this.okx.setTakeProfit(symbol, side, tp);
             } catch (e) {
               tpNote = `LỖI đặt TP ${fmt(tp)}: ${e instanceof Error ? e.message : String(e)}`;
             }
@@ -112,7 +118,7 @@ export class OkxAiActionService {
         }
         const label = type === 'DCA' ? 'DCA' : before ? 'Thêm vào lệnh' : 'Mở lệnh';
         const lines = [
-          `${label} ${orderType} SHORT ${symbol}`,
+          `${label} ${orderType} ${SIDE} ${symbol}`,
           `- ${orderType === 'LIMIT' ? `Giá limit ${fmt(res.refPrice)}` : `~${fmt(res.refPrice)}`} · ${res.contracts} hợp đồng (${fmt(res.size)} coin) · ký quỹ $${fmt(marginUsd)} · ${res.leverage}× cross`,
           `- TP: ${tpNote}`,
         ];
@@ -120,34 +126,34 @@ export class OkxAiActionService {
         return { result: { ...res, takeProfitNote: tpNote }, orderId: res.orderId || null, lines };
       }
       case 'SET_TP': {
-        if (!before) throw new ConflictException(`Không có vị thế SHORT ${symbol}.`);
+        if (!before) throw new ConflictException(`Không có vị thế ${SIDE} ${symbol}.`);
         const tp = p.takeProfitPrice != null && p.takeProfitPrice > 0 ? p.takeProfitPrice : null;
-        const res = await this.okx.setTakeProfit(symbol, 'short', tp);
-        return { result: res, orderId: null, lines: [`${tp != null ? 'Đặt' : 'Xoá'} TP SHORT ${symbol}`, `- TP: ${fmt(res.prevTp)} → ${tp != null ? fmt(tp) : 'không TP'}`] };
+        const res = await this.okx.setTakeProfit(symbol, side, tp);
+        return { result: res, orderId: null, lines: [`${tp != null ? 'Đặt' : 'Xoá'} TP ${SIDE} ${symbol}`, `- TP: ${fmt(res.prevTp)} → ${tp != null ? fmt(tp) : 'không TP'}`] };
       }
       case 'CLOSE': {
         const pct = Math.min(100, Math.max(1, Number(p.closePct ?? 100)));
-        const res = await this.okx.closePosition(symbol, 'short', pct);
+        const res = await this.okx.closePosition(symbol, side, pct);
         return {
           result: res,
           orderId: res.orderId,
-          lines: [`Đóng ${pct}% SHORT ${symbol}`, `- Đóng ${res.closedContracts} hợp đồng @~${fmt(res.markPrice)} · còn ${res.remainingContracts}`],
+          lines: [`Đóng ${pct}% ${SIDE} ${symbol}`, `- Đóng ${res.closedContracts} hợp đồng @~${fmt(res.markPrice)} · còn ${res.remainingContracts}`],
         };
       }
       case 'CANCEL': {
         if (!p.orderId) throw new BadRequestException('Thiếu orderId của lệnh chờ.');
         const res = await this.okx.cancelOrder(symbol, p.orderId);
-        return { result: res, orderId: p.orderId, lines: [`Huỷ lệnh chờ SHORT ${symbol}`, `- orderId ${p.orderId}`] };
+        return { result: res, orderId: p.orderId, lines: [`Huỷ lệnh chờ ${SIDE} ${symbol}`, `- orderId ${p.orderId}`] };
       }
       default:
         throw new BadRequestException(`Loại đề xuất không hỗ trợ: ${String(type)}`);
     }
   }
 
-  /** Journal note on the open OKX short of /trades — skipped when the sync has not created it yet. */
-  private async noteOnOrder(symbol: string, content: string, before: OkxPosition | null) {
+  /** Journal note on the open OKX position of /trades — skipped when the sync has not created it yet. */
+  private async noteOnOrder(symbol: string, side: Side, content: string, before: OkxPosition | null) {
     try {
-      const open = (await this.orders.listOpenBySource('okx')).find((o) => o.symbol === symbol && o.side === 'short');
+      const open = (await this.orders.listOpenBySource('okx')).find((o) => o.symbol === symbol && o.side === side);
       if (!open) return;
       await this.journal.create({
         orderId: open.id,

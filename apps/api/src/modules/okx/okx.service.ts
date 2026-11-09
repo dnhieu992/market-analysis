@@ -3,7 +3,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
 
 /**
- * OKX V5 trading client for the /trades OKX short AI chat — USDT-margined perpetual
+ * OKX V5 trading client for the /trades OKX AI chat (long + short) — USDT-margined perpetual
  * SWAPs, cross margin. Reads the account (positions, balance, pending orders, TP algos)
  * and, ONLY when the user confirms an AI card, places / closes / cancels orders.
  *
@@ -18,6 +18,15 @@ import axios, { type AxiosInstance } from 'axios';
 const BASE_URL = process.env.OKX_API_BASE_URL ?? 'https://www.okx.com';
 const INST_TYPE = 'SWAP';
 const TD_MODE = 'cross';
+
+/**
+ * Fixed order config of the /trades OKX AI chat (user, 2026-11-09): every new position is
+ * CROSS margin at 2× leverage; margin defaults to $5 (editable on the confirm card).
+ * Adding to an open position keeps that position's own leverage.
+ */
+export const OKX_FIXED_LEVERAGE = 2;
+export const OKX_DEFAULT_MARGIN_USD = 5;
+export const OKX_MARGIN_MODE = TD_MODE;
 
 type Envelope<T> = { code?: string; msg?: string; data: T };
 

@@ -470,7 +470,7 @@ export type BitgetAiActionEdits = Pick<BitgetAiActionParams, 'orderType' | 'marg
 export type MexcAiAction = BitgetAiAction;
 export type MexcAiActionEdits = BitgetAiActionEdits;
 
-/** The /trades OKX short AI chat's cards (always holdSide 'short'), stored in `okx_ai_actions`. */
+/** The /trades OKX AI chat's cards (holdSide 'long' or 'short'), stored in `okx_ai_actions`. */
 export type OkxAiAction = BitgetAiAction;
 export type OkxAiActionEdits = BitgetAiActionEdits;
 

@@ -6,13 +6,13 @@ import { DEFAULT_ANALYSIS_SKILL, SYSTEM_PROMPT } from './system';
 export { DEFAULT_ANALYSIS_SKILL as OKX_SHORT_DEFAULT_ANALYSIS_SKILL } from './system';
 
 /**
- * Short-only assistant of /trades on the OKX account. The analysis part of the prompt is
+ * Long + short assistant of /trades on the OKX account (id kept `okx-short-ai` so old chats stay). The analysis part of the prompt is
  * editable at runtime (chat_skill_versions); see ./system.ts. Hidden from /skills.
  */
 export const okxShortAiSkill: SkillDefinition = {
   id: 'okx-short-ai',
-  name: 'OKX Short AI',
-  description: 'Phân tích và đề xuất lệnh SHORT trên OKX (thẻ xác nhận), ghi note vào lệnh, sửa skill phân tích từ chat.',
+  name: 'OKX AI',
+  description: 'Phân tích và đề xuất lệnh LONG / SHORT trên OKX (cross 2×, ký quỹ mặc định $5, thẻ xác nhận), ghi note vào lệnh, sửa skill phân tích từ chat.',
   icon: '🐻',
   category: 'strategy',
   systemPrompt: `${SYSTEM_PROMPT}\n\n${DEFAULT_ANALYSIS_SKILL}`,
@@ -25,7 +25,7 @@ export const okxShortAiSkill: SkillDefinition = {
     'add_order_note',
     'get_short_skill',
     'update_short_skill',
-    'propose_okx_short',
+    'propose_okx_order',
     'analyze_market_structure',
     'get_klines',
     'get_ticker_price',

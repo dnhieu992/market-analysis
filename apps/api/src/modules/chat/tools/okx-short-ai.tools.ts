@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createOkxAiActionRepository, createOrderJournalRepository, createOrderRepository } from '@app/db';
 
-import { OkxService, type OkxPosition } from '../../okx/okx.service';
+import { OKX_DEFAULT_MARGIN_USD, OKX_FIXED_LEVERAGE, OkxService, type OkxPosition } from '../../okx/okx.service';
 import { OKX_SHORT_AI_SKILL_ID, OkxShortSkillService } from '../../okx/okx-short-skill.service';
 import { ShortScoreService } from '../../short-score/short-score.service';
 import { formatScore } from './short-score.tools';
@@ -66,9 +66,10 @@ type OrderRow = {
 };
 
 /**
- * The /trades OKX short AI chat (skill `okx-short-ai`): reads the live OKX account and the
+ * The /trades OKX AI chat (skill id kept as `okx-short-ai`): reads the live OKX account and the
  * /trades OKX orders, writes notes on those orders, reads / rewrites its own analysis skill,
- * and proposes SHORT cards (`okx_ai_actions`) that OkxAiActionService runs on confirm.
+ * and proposes LONG or SHORT cards (`okx_ai_actions`) that OkxAiActionService runs on confirm.
+ * New positions are fixed to cross × OKX_FIXED_LEVERAGE, margin default OKX_DEFAULT_MARGIN_USD.
  */
 @Injectable()
 export class OkxShortAiChatService {
@@ -159,7 +160,9 @@ export class OkxShortAiChatService {
           canTrade: r.canTrade,
           openPositions: r.positions.length,
           shorts: r.positions.filter((p) => p.holdSide === 'short').length,
-          shortsWithoutTp: r.positions.filter((p) => p.holdSide === 'short' && !p.takeProfitPrice).map((p) => p.symbol),
+          longs: r.positions.filter((p) => p.holdSide === 'long').length,
+          positionsWithoutTp: r.positions.filter((p) => !p.takeProfitPrice).map((p) => `${p.symbol} ${p.holdSide}`),
+          orderConfig: { marginMode: 'cross', leverageForNewPositions: OKX_FIXED_LEVERAGE, defaultMarginUsd: OKX_DEFAULT_MARGIN_USD },
           fetchedAt: r.fetchedAt,
         });
       },
@@ -261,17 +264,18 @@ export class OkxShortAiChatService {
 
   // ── writes: note + skill ─────────────────────────────────────────────────
 
-  private addNoteTool(): ChatTool<{ orderId?: string; symbol?: string; content: string }, string> {
+  private addNoteTool(): ChatTool<{ orderId?: string; symbol?: string; side?: string; content: string }, string> {
     return {
       name: 'add_order_note',
       description:
-        'Save a note on one /trades OKX order (shown in that order\'s journal on /trades). Give orderId (from okx_trades), or symbol to use the OPEN ' +
-        'OKX short of that coin. Only when the user asks to note / ghi chú something. Content in Markdown, in the user\'s words.',
+        'Save a note on one /trades OKX order (shown in that order\'s journal on /trades). Give orderId (from okx_trades), or symbol (+ side when the ' +
+        'coin has both a long and a short open) to use the OPEN OKX order of that coin. Only when the user asks to note / ghi chú something. Content in Markdown, in the user\'s words.',
       inputSchema: {
         type: 'object',
         properties: {
           orderId: { type: 'string', description: 'orderId from okx_trades' },
-          symbol: { type: 'string', description: 'Alternative: coin of an open OKX short' },
+          symbol: { type: 'string', description: 'Alternative: coin of an open OKX position' },
+          side: { type: 'string', description: 'With symbol: "long" or "short" (needed only when both are open)' },
           content: { type: 'string', description: 'The note (Markdown)' },
         },
         required: ['content'],
@@ -285,9 +289,10 @@ export class OkxShortAiChatService {
           const sym = pair(input.symbol);
           const res = await this.orderRepo.listFiltered({ symbol: sym, status: 'open', brokers: ['OKX'], page: 1, pageSize: 10 });
           const list = (res.data as unknown as OrderRow[]).filter((o) => o.symbol === sym);
-          const shorts = list.filter((o) => o.side === 'short');
-          if (shorts.length > 1) return `Có ${shorts.length} lệnh short ${sym} đang mở — gọi okx_trades rồi truyền orderId.`;
-          order = shorts[0] ?? (list.length === 1 ? list[0]! : null);
+          const side = String(input.side ?? '').toLowerCase();
+          const match = side === 'long' || side === 'short' ? list.filter((o) => o.side === side) : list;
+          if (match.length > 1) return `Có ${match.length} lệnh ${sym} đang mở — truyền side (long/short) hoặc gọi okx_trades rồi truyền orderId.`;
+          order = match[0] ?? null;
         }
         if (!order) return 'Không tìm thấy lệnh OKX phù hợp trong /trades (lệnh mới khớp có thể chưa được sync — thử lại sau vài phút). Gọi okx_trades để xem danh sách.';
         const price = await this.okx.getTickerPrice(order.symbol).catch(() => null);
@@ -297,7 +302,7 @@ export class OkxShortAiChatService {
             : order.pnl ?? undefined;
         const note = await this.journalRepo.create({
           orderId: order.id,
-          content: `💬 _Từ OKX Short AI chat_\n\n${content.slice(0, 20000)}`,
+          content: `💬 _Từ OKX AI chat_\n\n${content.slice(0, 20000)}`,
           snapshot: { ...(price != null ? { price } : {}), entryPrice: order.entryPrice, ...(pnlUsd != null ? { pnlUsd } : {}) },
         });
         return `Đã lưu note (id ${note.id}) vào lệnh ${order.side} ${order.symbol} (orderId ${order.id}) trên /trades.`;
@@ -350,31 +355,35 @@ export class OkxShortAiChatService {
     string
   > {
     return {
-      name: 'propose_okx_short',
+      name: 'propose_okx_order',
       description:
-        'Propose ONE SHORT action on the live OKX account as a card the user must confirm (nothing is sent until they do; they can edit margin / leverage / ' +
-        'price / TP). Types: OPEN (new short or add, MARKET/LIMIT, optional TP), DCA (add to the open short), SET_TP (set/move the TP of the open short), ' +
-        'CLOSE (close closePct % of the short, 100 = all), CANCEL (cancel a pending order by orderId). SHORT only — long is refused.',
+        'Propose ONE LONG or SHORT action on the live OKX account as a card the user must confirm (nothing is sent until they do; they can edit margin / ' +
+        'price / TP). Fixed config: cross margin, new positions always ' + OKX_FIXED_LEVERAGE + 'x leverage (an open position keeps its own), margin default $' +
+        OKX_DEFAULT_MARGIN_USD + '. Types: OPEN (new position or add, MARKET/LIMIT, optional TP), DCA (add to the open position of that side), ' +
+        'SET_TP (set/move its TP), CLOSE (close closePct %, 100 = all), CANCEL (cancel a pending order by orderId). side is required.',
       inputSchema: {
         type: 'object',
         properties: {
           type: { type: 'string', description: 'OPEN | DCA | SET_TP | CLOSE | CANCEL' },
           symbol: { type: 'string', description: 'Coin, e.g. "BTC" or "BTCUSDT"' },
-          side: { type: 'string', description: 'Must be "short" (default)' },
+          side: { type: 'string', description: '"long" or "short" (required)' },
           orderType: { type: 'string', description: 'OPEN/DCA: MARKET or LIMIT' },
-          price: { type: 'number', description: 'LIMIT price (for a short: at or above the current price)' },
-          marginUsd: { type: 'number', description: 'OPEN/DCA: margin in USDT (required — ask the user if unknown)' },
-          leverage: { type: 'number', description: 'OPEN: leverage (default 10; an open position keeps its own)' },
-          takeProfitPrice: { type: 'number', description: 'Take-profit trigger (below the entry for a short)' },
+          price: { type: 'number', description: 'LIMIT price (short: at/above the current price; long: at/below it)' },
+          marginUsd: { type: 'number', description: `OPEN/DCA: margin in USDT (default ${OKX_DEFAULT_MARGIN_USD} when omitted)` },
+          takeProfitPrice: { type: 'number', description: 'Take-profit trigger (short: below the entry; long: above the entry)' },
           closePct: { type: 'number', description: 'CLOSE: % of the position, 1–100' },
           orderId: { type: 'string', description: 'CANCEL: orderId from okx_pending_orders' },
           reason: { type: 'string', description: 'Why, 1–2 sentences in Vietnamese (shown on the card, saved to the order journal)' },
         },
-        required: ['type', 'symbol'],
+        required: ['type', 'symbol', 'side'],
       },
       execute: async (input, context) => {
         if (!context?.conversationId) return 'Không có conversation — không tạo được thẻ.';
-        if (input.side && String(input.side).toLowerCase() !== 'short') return 'Chat này chỉ làm SHORT — không tạo thẻ long.';
+        const side = String(input.side ?? '').toLowerCase();
+        if (side !== 'long' && side !== 'short') return 'side phải là "long" hoặc "short".';
+        const isShort = side === 'short';
+        // tp is on the profit side of `ref`: below for a short, above for a long.
+        const tpWrongSide = (tpPx: number, ref: number) => (isShort ? tpPx >= ref : tpPx <= ref);
         const type = String(input.type ?? '').toUpperCase() as ActionType;
         if (!ACTION_TYPES.includes(type)) return `type phải là một trong ${ACTION_TYPES.join(', ')}.`;
         const symbol = pair(input.symbol);
@@ -384,21 +393,20 @@ export class OkxShortAiChatService {
         } catch (e) {
           return (e as Error).message;
         }
-        const position = await this.okx.getPosition(symbol, 'short');
+        const position = await this.okx.getPosition(symbol, side);
         const tp = Number(input.takeProfitPrice) > 0 ? Number(input.takeProfitPrice) : null;
         const params: Record<string, unknown> = {};
 
         if (type === 'OPEN' || type === 'DCA') {
-          if (type === 'DCA' && !position) return `Không có vị thế short ${symbol} để DCA. Dùng OPEN nếu muốn mở mới.`;
+          if (type === 'DCA' && !position) return `Không có vị thế ${side} ${symbol} để DCA. Dùng OPEN nếu muốn mở mới.`;
           const orderType = String(input.orderType ?? 'MARKET').toUpperCase() === 'LIMIT' ? 'LIMIT' : 'MARKET';
-          const marginUsd = Number(input.marginUsd) > 0 ? Number(input.marginUsd) : null;
-          if (marginUsd == null) return 'Thiếu marginUsd — hỏi user muốn vào bao nhiêu USDT ký quỹ (và đòn bẩy).';
-          const leverage = position ? position.leverage : Number(input.leverage) >= 1 ? Math.round(Number(input.leverage)) : 10;
+          const marginUsd = Number(input.marginUsd) > 0 ? Number(input.marginUsd) : OKX_DEFAULT_MARGIN_USD;
+          const leverage = position ? position.leverage : OKX_FIXED_LEVERAGE;
           const refPrice = position?.markPrice ?? (await this.okx.getTickerPrice(symbol).catch(() => null));
           const price = orderType === 'LIMIT' ? Number(input.price) : null;
           if (orderType === 'LIMIT' && !(price! > 0)) return 'LIMIT cần price.';
           const entry = price ?? refPrice;
-          if (tp != null && entry != null && tp >= entry) return `TP ${tp} của lệnh short phải thấp hơn giá vào ${entry}.`;
+          if (tp != null && entry != null && tpWrongSide(tp, entry)) return `TP ${tp} của lệnh ${side} phải ${isShort ? 'thấp' : 'cao'} hơn giá vào ${entry}.`;
           Object.assign(params, { orderType, price, marginUsd, leverage, takeProfitPrice: tp, refPrice });
           if (position && entry) {
             const addSize = (marginUsd * leverage) / entry;
@@ -406,12 +414,12 @@ export class OkxShortAiChatService {
             Object.assign(params, { prevAvg: position.entryPrice, newAvg: round(newAvg, 8), prevSize: position.size, addSize: round(addSize, 8) });
           }
         } else if (type === 'SET_TP') {
-          if (!position) return `Không có vị thế short ${symbol}.`;
+          if (!position) return `Không có vị thế ${side} ${symbol}.`;
           if (tp == null) return 'SET_TP cần takeProfitPrice.';
-          if (tp >= position.markPrice) return `TP ${tp} của short phải thấp hơn giá hiện tại ${position.markPrice}.`;
+          if (tpWrongSide(tp, position.markPrice)) return `TP ${tp} của ${side} phải ${isShort ? 'thấp' : 'cao'} hơn giá hiện tại ${position.markPrice}.`;
           Object.assign(params, { takeProfitPrice: tp, prevTp: position.takeProfitPrice, refPrice: position.markPrice, entry: position.entryPrice });
         } else if (type === 'CLOSE') {
-          if (!position) return `Không có vị thế short ${symbol} để đóng.`;
+          if (!position) return `Không có vị thế ${side} ${symbol} để đóng.`;
           const closePct = Math.min(100, Math.max(1, Math.round(Number(input.closePct) || 100)));
           Object.assign(params, { closePct, refPrice: position.markPrice, entry: position.entryPrice, size: position.size, pnlUsd: round(position.unrealizedPnlUsd, 4) });
         } else {
@@ -425,11 +433,11 @@ export class OkxShortAiChatService {
           conversationId: context.conversationId,
           type,
           symbol,
-          holdSide: 'short',
+          holdSide: side,
           params: params as object,
           reason: input.reason?.slice(0, 1000) ?? null,
         });
-        return `Đã tạo thẻ ${type} short ${symbol} (id ${action.id}). User sẽ bấm xác nhận (có thể sửa số) hoặc bỏ qua — chưa có lệnh nào được gửi lên OKX.`;
+        return `Đã tạo thẻ ${type} ${side} ${symbol} (id ${action.id}). User sẽ bấm xác nhận (có thể sửa số) hoặc bỏ qua — chưa có lệnh nào được gửi lên OKX.`;
       },
     };
   }
