@@ -6,6 +6,8 @@ import { createApiClient } from '@web/shared/api/client';
 import type { ChartSample } from '@web/shared/api/types';
 
 import { fmtDate, fmtPrice, fmtZone } from './chart-lab-utils';
+import s from './chart-lab.module.css';
+import { ChartViewerDialog } from './chart-viewer-dialog';
 import { ReasonDialog } from './reason-dialog';
 import { TradeDialog } from './trade-dialog';
 
@@ -57,6 +59,7 @@ export function ChartLabView() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ChartSample | 'new' | null>(null);
   const [reading, setReading] = useState<ChartSample | null>(null);
+  const [viewing, setViewing] = useState<ChartSample | null>(null);
   const [deleting, setDeleting] = useState<ChartSample | null>(null);
   const [busyDelete, setBusyDelete] = useState(false);
 
@@ -162,6 +165,7 @@ export function ChartLabView() {
                   <th>Vùng vào</th>
                   <th>TP</th>
                   <th>SL</th>
+                  <th>Chart</th>
                   <th>Lý do</th>
                   <th>Result</th>
                   <th>Actions</th>
@@ -182,6 +186,17 @@ export function ChartLabView() {
                     <td data-label="Vùng vào">{fmtZone(r)}</td>
                     <td data-label="TP">{r.tpPrice != null ? <span className="tt-pnl-positive">{fmtPrice(r.tpPrice)}</span> : <span className="tt-muted">-</span>}</td>
                     <td data-label="SL">{r.slPrice != null ? <span className="tt-pnl-negative">{fmtPrice(r.slPrice)}</span> : <span className="tt-muted">-</span>}</td>
+                    <td data-label="Chart">
+                      {r.images[0] ? (
+                        <button type="button" className={s.thumbBtn} onClick={() => setViewing(r)} aria-label="Xem chart" title="Xem chart">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={r.images[0].url} alt="" loading="lazy" />
+                          {r.images.length > 1 && <span>+{r.images.length - 1}</span>}
+                        </button>
+                      ) : (
+                        <span className="tt-muted">-</span>
+                      )}
+                    </td>
                     <td data-label="Lý do">
                       <button className="tt-btn tt-btn--notes" data-tooltip="Lý do vào lệnh" aria-label="Lý do vào lệnh" onClick={() => setReading(r)}>
                         <IconNotes />
@@ -209,6 +224,7 @@ export function ChartLabView() {
       </article>
 
       {editing && <TradeDialog sample={editing === 'new' ? null : editing} allTags={allTags} onSaved={saved} onClose={() => setEditing(null)} />}
+      {viewing && <ChartViewerDialog sample={viewing} onClose={() => setViewing(null)} />}
       {reading && (
         <ReasonDialog
           sample={reading}

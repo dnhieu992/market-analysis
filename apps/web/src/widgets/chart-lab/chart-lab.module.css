@@ -9,11 +9,6 @@
   font-style: normal;
 }
 
-
-
-
-
-
 .tagBox {
   display: flex;
   flex-wrap: wrap;
@@ -97,30 +92,122 @@
   margin-top: 0;
 }
 
-.images {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
 
-.images button {
+/* Chart column: thumbnail that opens the viewer. */
+.thumbBtn {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 40px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
+  background: #fff;
   cursor: zoom-in;
-  background: none;
 }
 
-.images img {
+.thumbBtn img {
   display: block;
   width: 100%;
-  height: 120px;
+  height: 100%;
   object-fit: cover;
 }
 
+.thumbBtn span {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
 
+/* Chart viewer dialog */
+.viewerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  background: #f6f4f1;
+}
 
+.viewerStage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
+.viewerStage a {
+  display: flex;
+  max-width: 100%;
+  max-height: 100%;
+}
 
+.viewerStage img {
+  max-width: 100%;
+  max-height: calc(100dvh - 220px);
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+
+.viewerNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.viewerPrev {
+  left: 4px;
+}
+
+.viewerNext {
+  right: 4px;
+}
+
+.viewerThumbs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.viewerThumbs button {
+  width: 84px;
+  height: 52px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: none;
+  opacity: 0.6;
+}
+
+.viewerThumbs button.viewerThumbOn {
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.viewerThumbs img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

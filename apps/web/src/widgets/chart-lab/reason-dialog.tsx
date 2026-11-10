@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { ChartSample } from '@web/shared/api/types';
@@ -9,19 +9,13 @@ import { renderMarkdown } from '@web/shared/lib/markdown';
 import { fmtDate, fmtPrice, fmtZone } from './chart-lab-utils';
 import s from './chart-lab.module.css';
 
-/** Read-only view of a trade's entry reason, with its tags and screenshots. */
+/** Read-only view of a trade's entry reason and tags (screenshots: ChartViewerDialog). */
 export function ReasonDialog({ sample, onEdit, onClose }: { sample: ChartSample; onEdit: () => void; onClose: () => void }) {
-  const [zoom, setZoom] = useState<string | null>(null);
-
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (zoom) setZoom(null);
-      else onClose();
-    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, zoom]);
+  }, [onClose]);
 
   return createPortal(
     <div className="dialog-backdrop" onClick={onClose}>
@@ -51,16 +45,6 @@ export function ReasonDialog({ sample, onEdit, onClose }: { sample: ChartSample;
           ) : (
             <p className={s.muted}>Chưa ghi lý do vào lệnh.</p>
           )}
-          {sample.images.length > 0 && (
-            <div className={s.images}>
-              {sample.images.map((img) => (
-                <button key={img.url} type="button" onClick={() => setZoom(img.url)} aria-label="Xem ảnh">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url} alt="chart" loading="lazy" />
-                </button>
-              ))}
-            </div>
-          )}
           <div className="dialog-confirm-actions" style={{ marginTop: 18 }}>
             <button type="button" className="btn btn--secondary" onClick={onClose}>
               Đóng
@@ -71,12 +55,6 @@ export function ReasonDialog({ sample, onEdit, onClose }: { sample: ChartSample;
           </div>
         </div>
       </div>
-      {zoom && (
-        <div className="lightbox-backdrop" onClick={(e) => (e.stopPropagation(), setZoom(null))}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={zoom} alt="chart" className="lightbox-img" />
-        </div>
-      )}
     </div>,
     document.body,
   );
