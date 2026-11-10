@@ -102,7 +102,20 @@ export type ChatRunOptions = {
   timeoutMs?: number;
   /** Images sent with the (last) user turn, before its text — e.g. the /chart-lab chart + similar charts. */
   images?: ReadonlyArray<ChatImage>;
+  /** Ask for a JSON reply matching this schema (SDK structured output); read it via onResult. */
+  outputFormat?: Options['outputFormat'];
+  /** Called with the final result: structured output (when outputFormat was set) + the SDK's usage / cost estimate. */
+  onResult?: (result: ClaudeQueryResult) => void;
 };
+
+export type ClaudeQueryResult = Readonly<{
+  structuredOutput: unknown;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+}>;
+
+export type StructuredAnswer = ClaudeQueryResult & Readonly<{ text: string; model: string }>;
 
 export type ChatImage = Readonly<{ data: string; mimeType: string }>;
 
@@ -153,6 +166,31 @@ export class ClaudeChatProvider extends ChatProvider {
   /** One-shot question about images (no tools, no history) — e.g. reading a chart screenshot. */
   async askWithImages(systemPrompt: string, text: string, images: ReadonlyArray<ChatImage>, run: Omit<ChatRunOptions, 'images'> = {}): Promise<string> {
     return this.runQuery(systemPrompt, text, [], async () => '', this.model, { ...run, images });
+  }
+
+  /**
+   * One-shot question whose answer must match a JSON schema (no tools, no history). Returns the parsed
+   * structured output (null if the model didn't produce one) plus the SDK's token / cost estimate.
+   */
+  async askStructured(
+    systemPrompt: string,
+    prompt: string,
+    schema: Record<string, unknown>,
+    opts: { model?: string; timeoutMs?: number; signal?: AbortSignal } = {}
+  ): Promise<StructuredAnswer> {
+    const model = opts.model ?? this.model;
+    let result: ClaudeQueryResult = { structuredOutput: null, costUsd: 0, inputTokens: 0, outputTokens: 0 };
+    const text = await this.runQuery(systemPrompt, prompt, [], async () => '', model, {
+      timeoutMs: opts.timeoutMs,
+      signal: opts.signal,
+      // Structured output may take a retry turn or two inside the session.
+      maxToolIterations: 3,
+      outputFormat: { type: 'json_schema', schema },
+      onResult: (r) => {
+        result = r;
+      },
+    });
+    return { ...result, text, model };
   }
 
   /** Generate a short conversation title from the first user message */
@@ -229,6 +267,7 @@ export class ClaudeChatProvider extends ChatProvider {
       // Token-level stream events, only needed when someone is watching the reply being written.
       includePartialMessages: Boolean(run.onProgress),
       ...(systemPrompt ? { systemPrompt } : {}),
+      ...(run.outputFormat ? { outputFormat: run.outputFormat } : {}),
       ...(process.env.CLAUDE_CODE_PATH ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_PATH } : {}),
       ...(toolDefs.length > 0
         ? {
@@ -259,6 +298,21 @@ export class ClaudeChatProvider extends ChatProvider {
           continue;
         }
         if (message.type !== 'result') continue;
+
+        if (run.onResult) {
+          let inputTokens = 0;
+          let outputTokens = 0;
+          for (const u of Object.values(message.modelUsage ?? {})) {
+            inputTokens += (u.inputTokens ?? 0) + (u.cacheReadInputTokens ?? 0) + (u.cacheCreationInputTokens ?? 0);
+            outputTokens += u.outputTokens ?? 0;
+          }
+          run.onResult({
+            structuredOutput: 'structured_output' in message ? message.structured_output : null,
+            costUsd: message.total_cost_usd ?? 0,
+            inputTokens,
+            outputTokens,
+          });
+        }
 
         if (message.subtype === 'success' && !message.is_error) {
           return message.result.trim();

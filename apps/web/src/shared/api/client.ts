@@ -1,4 +1,9 @@
 import type {
+  IdeaRadarCost,
+  IdeaRadarIdea,
+  IdeaRadarIdeaStatus,
+  IdeaRadarOverview,
+  IdeaRadarRun,
   BackTestResult,
   BackTestResultRecord,
   BackTestStrategy,
@@ -2476,6 +2481,51 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(exitPrice != null ? { exitPrice } : {}),
         }),
+      );
+    },
+    // ── App Idea Radar ────────────────────────────────────────────────────────
+    async fetchIdeaRadarOverview(): Promise<IdeaRadarOverview> {
+      return fetchJson<IdeaRadarOverview>(fetchImpl, `${baseUrl}/idea-radar/overview`, withDefaults({ cache: 'no-store' }));
+    },
+
+    async fetchIdeaRadarRun(id: string): Promise<IdeaRadarRun> {
+      return fetchJson<IdeaRadarRun>(fetchImpl, `${baseUrl}/idea-radar/runs/${encodeURIComponent(id)}`, withDefaults({ cache: 'no-store' }));
+    },
+
+    async startIdeaRadarRun(dryRun: boolean): Promise<{ started: boolean; message: string }> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/idea-radar/run`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dryRun }) }),
+      );
+    },
+
+    async fetchIdeaRadarIdeas(status?: IdeaRadarIdeaStatus): Promise<IdeaRadarIdea[]> {
+      const qs = status ? `?status=${status}` : '';
+      return fetchJson<IdeaRadarIdea[]>(fetchImpl, `${baseUrl}/idea-radar/ideas${qs}`, withDefaults({ cache: 'no-store' }));
+    },
+
+    async markIdeaRadarIdea(id: string, status: IdeaRadarIdeaStatus): Promise<IdeaRadarIdea> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/idea-radar/ideas/${encodeURIComponent(id)}`,
+        withDefaults({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }),
+      );
+    },
+
+    async fetchIdeaRadarCost(): Promise<IdeaRadarCost> {
+      return fetchJson<IdeaRadarCost>(fetchImpl, `${baseUrl}/idea-radar/cost`, withDefaults({ cache: 'no-store' }));
+    },
+
+    async fetchIdeaRadarConfig(): Promise<unknown> {
+      return fetchJson<unknown>(fetchImpl, `${baseUrl}/idea-radar/config`, withDefaults({ cache: 'no-store' }));
+    },
+
+    async saveIdeaRadarConfig(config: unknown): Promise<unknown> {
+      return mutationJson(
+        fetchImpl,
+        `${baseUrl}/idea-radar/config`,
+        withDefaults({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) }),
       );
     },
   };

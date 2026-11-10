@@ -1864,3 +1864,60 @@ export type ChartStatRow = {
 };
 export type ChartLabStats = { overall: ChartStatRow; byDirection: ChartStatRow[]; byTag: ChartStatRow[]; total: number; labeled: number; pending: number };
 export type ChartSimilar = { sample: ChartSample; similarity: number };
+
+// ── App Idea Radar (/idea-radar) ─────────────────────────────────────────────
+export type IdeaRadarIdeaStatus = 'new' | 'repeat' | 'dismissed' | 'shortlisted';
+export type IdeaRadarEvidence = { type: 'pain_point' | 'trend_signal' | 'post'; id: string; label: string; url: string | null };
+export type IdeaRadarIdea = {
+  id: string;
+  runId: string;
+  title: string;
+  slug: string;
+  oneLiner: string;
+  targetUsers: string;
+  problem: string;
+  solution: string;
+  keyFeatures: string[];
+  monetization: { model: string; explanation: string };
+  competitors: Array<{ name: string; weakness: string }>;
+  evidence: IdeaRadarEvidence[];
+  scoreDemand: number;
+  scoreCompetition: number;
+  scoreMonetization: number;
+  scoreEffort: number;
+  scoreTotal: number;
+  repeatOf: string | null;
+  status: IdeaRadarIdeaStatus;
+  createdAt: string;
+  run?: { runDate: string; dryRun: boolean };
+};
+export type IdeaRadarRunStats = {
+  appsTracked?: number;
+  snapshots?: number;
+  reviewsAnalyzed?: number;
+  postsAnalyzed?: number;
+  signals?: number;
+  painPoints?: number;
+  llmCostUsd?: number;
+  durationSec?: number;
+};
+export type IdeaRadarRunSummary = {
+  id: string;
+  runDate: string;
+  trigger: string;
+  dryRun: boolean;
+  status: 'RUNNING' | 'SUCCESS' | 'PARTIAL' | 'FAILED';
+  step: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  errors: Array<{ source: string; message: string }> | null;
+  stats: IdeaRadarRunStats | null;
+};
+export type IdeaRadarRun = IdeaRadarRunSummary & { reportMd: string | null; ideas: IdeaRadarIdea[] };
+export type IdeaRadarOverview = { running: boolean; latest: IdeaRadarRun | null; runs: IdeaRadarRunSummary[] };
+export type IdeaRadarCost = {
+  since: string;
+  totalUsd: number;
+  budgetUsd: number;
+  byStep: Array<{ step: string; model: string; calls: number; costUsd: number; inputTokens: number; outputTokens: number }>;
+};

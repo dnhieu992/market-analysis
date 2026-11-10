@@ -35,6 +35,7 @@ import { WorkerModule } from './modules/worker/worker.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { StrategyBacktestModule } from './modules/strategy-backtest/strategy-backtest.module';
 import { TrackingTradesModule } from './modules/tracking-trades/tracking-trades.module';
+import { IdeaRadarModule } from './modules/idea-radar/idea-radar.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { TrackingTradesModule } from './modules/tracking-trades/tracking-trades.
     AssetModule,
     StrategyBacktestModule,
     TrackingTradesModule,
+    IdeaRadarModule,
   ],
   providers: [
     {

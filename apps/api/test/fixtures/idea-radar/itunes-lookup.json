@@ -1,0 +1,29 @@
+{
+ "resultCount": 2,
+ "results": [
+  {
+   "trackId": 6741796873,
+   "trackName": "TikTok Pro - Events",
+   "sellerName": "TIKTOK PTE. LTD.",
+   "primaryGenreName": "Entertainment",
+   "trackViewUrl": "https://apps.apple.com/us/app/tiktok-pro-events/id6741796873?uo=4",
+   "averageUserRating": 4.82343,
+   "userRatingCount": 90326,
+   "price": 0.0,
+   "currentVersionReleaseDate": "2026-11-10T02:36:50Z",
+   "formattedPrice": "Free"
+  },
+  {
+   "trackId": 310633997,
+   "trackName": "WhatsApp",
+   "sellerName": "WhatsApp Inc.",
+   "primaryGenreName": "Social Networking",
+   "trackViewUrl": "https://apps.apple.com/us/app/whatsapp/id310633997?uo=4",
+   "averageUserRating": 4.68272,
+   "userRatingCount": 18935568,
+   "price": 0.0,
+   "currentVersionReleaseDate": "2026-11-09T14:07:04Z",
+   "formattedPrice": "Free"
+  }
+ ]
+}

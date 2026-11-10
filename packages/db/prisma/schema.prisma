@@ -1425,3 +1425,202 @@ model ChartSample {
   @@index([outcomeStatus])
   @@map("chart_samples")
 }
+
+// ── App Idea Radar (/idea-radar) ───────────────────────────────────────────────────────────────
+// Weekly pipeline: collect public store/community data → trend signals + pain points → Claude turns
+// them into scored app ideas → Markdown report. One run per Vietnam-time day (re-running the same
+// day reuses that run, so nothing is duplicated). See docs/features/idea-radar.
+
+model IdeaRadarRun {
+  id         String    @id @default(cuid())
+  runDate    String    @unique @db.VarChar(10) // YYYY-MM-DD (Asia/Ho_Chi_Minh)
+  trigger    String    @db.VarChar(8) // CRON | MANUAL
+  dryRun     Boolean   @default(false)
+  status     String    @db.VarChar(10) // RUNNING | SUCCESS | PARTIAL | FAILED
+  step       String?   @db.VarChar(40) // current pipeline step (live progress for the page)
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  errors     Json? // [{ source, message }]
+  stats      Json? // counters for the report summary
+  reportMd   String?   @db.LongText
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  snapshots   IdeaRadarAppSnapshot[]
+  painPoints  IdeaRadarPainPoint[]
+  signals     IdeaRadarTrendSignal[]
+  ideas       IdeaRadarIdea[]
+  llmUsages   IdeaRadarLlmUsage[]
+
+  @@map("idea_radar_runs")
+}
+
+model IdeaRadarApp {
+  id          String   @id @default(cuid())
+  store       String   @db.VarChar(12) // google_play | app_store
+  storeAppId  String   @db.VarChar(200)
+  title       String   @db.VarChar(300)
+  developer   String?  @db.VarChar(300)
+  category    String?  @db.VarChar(100)
+  url         String?  @db.VarChar(500)
+  firstSeenAt DateTime @default(now())
+
+  snapshots  IdeaRadarAppSnapshot[]
+  reviews    IdeaRadarReview[]
+  painPoints IdeaRadarPainPoint[]
+  signals    IdeaRadarTrendSignal[]
+
+  @@unique([store, storeAppId])
+  @@map("idea_radar_apps")
+}
+
+model IdeaRadarAppSnapshot {
+  id          String    @id @default(cuid())
+  appId       String
+  runId       String
+  country     String    @db.VarChar(4)
+  chart       String    @db.VarChar(10) // top_free | top_paid | search | seed
+  category    String    @default("") @db.VarChar(40) // Google Play chart category ('' = overall / n.a.)
+  rank        Int?
+  installs    Float?
+  rating      Float?
+  ratingCount Int?
+  price       Float?
+  hasAds      Boolean?
+  hasIap      Boolean?
+  updatedOn   DateTime?
+  capturedAt  DateTime  @default(now())
+
+  app IdeaRadarApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  run IdeaRadarRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, appId, country, chart, category])
+  @@index([appId])
+  @@map("idea_radar_app_snapshots")
+}
+
+// Only 1–2 star reviews are kept. No reviewer names (privacy).
+model IdeaRadarReview {
+  id             String    @id @default(cuid())
+  appId          String
+  storeReviewId  String    @unique @db.VarChar(191)
+  country        String    @db.VarChar(4)
+  rating         Int
+  title          String?   @db.VarChar(500)
+  body           String    @db.Text
+  reviewDate     DateTime?
+  collectedRunId String
+
+  app IdeaRadarApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId, reviewDate])
+  @@map("idea_radar_reviews")
+}
+
+model IdeaRadarPost {
+  id             String   @id @default(cuid())
+  source         String   @db.VarChar(12) // reddit | hn | producthunt
+  externalId     String   @unique @db.VarChar(191) // "<source>:<id>"
+  title          String   @db.VarChar(500)
+  body           String?  @db.Text
+  url            String   @db.VarChar(1000)
+  score          Int?
+  numComments    Int?
+  postedAt       DateTime
+  collectedRunId String
+  extra          Json?
+
+  @@index([postedAt])
+  @@map("idea_radar_posts")
+}
+
+model IdeaRadarPainPoint {
+  id        String   @id @default(cuid())
+  runId     String
+  appId     String?
+  postIds   Json? // string[] — for needs mined from Reddit / HN posts
+  source    String   @db.VarChar(8) // review | post
+  summary   String   @db.Text
+  category  String   @db.VarChar(20)
+  frequency Int
+  severity  Int
+  quotes    Json? // string[] (≤ 3 short quotes)
+  createdAt DateTime @default(now())
+
+  run IdeaRadarRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  app IdeaRadarApp? @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("idea_radar_pain_points")
+}
+
+model IdeaRadarTrendSignal {
+  id         String   @id @default(cuid())
+  runId      String
+  appId      String
+  signalType String   @db.VarChar(12) // new_entry | rank_jump | rating_drop | fast_growth
+  value      Float
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  run IdeaRadarRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  app IdeaRadarApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("idea_radar_trend_signals")
+}
+
+model IdeaRadarIdea {
+  id                String   @id @default(cuid())
+  runId             String
+  title             String   @db.VarChar(300)
+  slug              String   @db.VarChar(191)
+  oneLiner          String   @db.Text
+  targetUsers       String   @db.Text
+  problem           String   @db.Text
+  solution          String   @db.Text
+  keyFeatures       Json // string[]
+  monetization      Json // { model, explanation }
+  competitors       Json // [{ name, weakness }]
+  evidence          Json // [{ type, id, label, url }]
+  scoreDemand       Float
+  scoreCompetition  Float
+  scoreMonetization Float
+  scoreEffort       Float
+  scoreTotal        Float
+  repeatOf          String?  @db.VarChar(300) // title of the earlier idea this repeats
+  status            String   @default("new") @db.VarChar(12) // new | repeat | dismissed | shortlisted
+  createdAt         DateTime @default(now())
+
+  run IdeaRadarRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([slug])
+  @@map("idea_radar_ideas")
+}
+
+// One row per Claude call (headless Claude Code: cost is the SDK's estimate, billed to the claude.ai plan).
+model IdeaRadarLlmUsage {
+  id           String   @id @default(cuid())
+  runId        String?
+  step         String   @db.VarChar(30)
+  model        String   @db.VarChar(60)
+  inputTokens  Int
+  outputTokens Int
+  costUsd      Float
+  createdAt    DateTime @default(now())
+
+  run IdeaRadarRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("idea_radar_llm_usages")
+}
+
+// Editable pipeline config (profile, sources, thresholds, weights) — single row id = "default".
+model IdeaRadarSetting {
+  id        String   @id @db.VarChar(20)
+  config    Json
+  updatedAt DateTime @updatedAt
+
+  @@map("idea_radar_settings")
+}

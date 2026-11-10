@@ -1,0 +1,436 @@
+{
+ "feed": {
+  "author": {
+   "name": {
+    "label": "iTunes Store"
+   },
+   "uri": {
+    "label": "http://www.apple.com/itunes/"
+   }
+  },
+  "entry": [
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T19:18:44-07:00"
+    },
+    "im:rating": {
+     "label": "5"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14768178016"
+    },
+    "title": {
+     "label": "Notification issue at ios 27.2 on iPhone 16 Pro Max"
+    },
+    "content": {
+     "label": "After updating ios 27.2, notification is not working properly for Whatsapp",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   },
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T18:57:47-07:00"
+    },
+    "im:rating": {
+     "label": "5"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14768126643"
+    },
+    "title": {
+     "label": "Praise !!"
+    },
+    "content": {
+     "label": "Excellent resource !!",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   },
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T18:45:01-07:00"
+    },
+    "im:rating": {
+     "label": "1"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14768095388"
+    },
+    "title": {
+     "label": "Low quality"
+    },
+    "content": {
+     "label": "WhatsApp sends low quality photos and videos on my iPhone 18 pro max, even though I have HD quality on.",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   },
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T17:59:53-07:00"
+    },
+    "im:rating": {
+     "label": "1"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14767980399"
+    },
+    "title": {
+     "label": "No me salen los msj al instant"
+    },
+    "content": {
+     "label": "No puedo enviar audios se tardan en llegar",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   },
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T17:46:29-07:00"
+    },
+    "im:rating": {
+     "label": "1"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14767945414"
+    },
+    "title": {
+     "label": "L\u00edquido glass en la parte de adentro del chay"
+    },
+    "content": {
+     "label": "Quiero la actualizaci\u00f3n 26.43.77",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   },
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T17:09:56-07:00"
+    },
+    "im:rating": {
+     "label": "1"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14767850922"
+    },
+    "title": {
+     "label": "\ud83d\udc51\u2764\ufe0f"
+    },
+    "content": {
+     "label": "\ud83e\ude77\u2764\ufe0f",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   },
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T16:22:02-07:00"
+    },
+    "im:rating": {
+     "label": "4"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14767727058"
+    },
+    "title": {
+     "label": "Mi"
+    },
+    "content": {
+     "label": "Mi",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   },
+   {
+    "author": {
+     "name": {
+      "label": "redacted"
+     }
+    },
+    "updated": {
+     "label": "2026-11-08T16:02:22-07:00"
+    },
+    "im:rating": {
+     "label": "3"
+    },
+    "im:version": {
+     "label": "26.43.75"
+    },
+    "id": {
+     "label": "14767675575"
+    },
+    "title": {
+     "label": "Red"
+    },
+    "content": {
+     "label": "Se sale se cierra los audios no deja leerlos como antes cambi\u00f3 muy mala ahora",
+     "attributes": {
+      "type": "text"
+     }
+    },
+    "link": {
+     "attributes": {
+      "rel": "related",
+      "href": "https://itunes.apple.com/us/review?id=310633997&type=Purple%20Software"
+     }
+    },
+    "im:voteSum": {
+     "label": "0"
+    },
+    "im:contentType": {
+     "attributes": {
+      "term": "Application",
+      "label": "Application"
+     }
+    },
+    "im:voteCount": {
+     "label": "0"
+    }
+   }
+  ],
+  "updated": {
+   "label": "2026-11-10T07:19:11-07:00"
+  },
+  "rights": {
+   "label": "Copyright 2008 Apple Inc."
+  },
+  "title": {
+   "label": "iTunes Store: Customer Reviews"
+  },
+  "icon": {
+   "label": "http://itunes.apple.com/favicon.ico"
+  },
+  "link": [
+   {
+    "attributes": {
+     "rel": "alternate",
+     "type": "text/html",
+     "href": "https://music.apple.com/WebObjects/MZStore.woa/wa/viewGrouping?cc=us&id=1"
+    }
+   },
+   {
+    "attributes": {
+     "rel": "self",
+     "href": "https://itunes.apple.com/us/rss/customerreviews/page=1/id=310633997/sortby=mostrecent/json"
+    }
+   },
+   {
+    "attributes": {
+     "rel": "first",
+     "href": "https://itunes.apple.com/us/rss/customerreviews/page=1/id=310633997/sortby=mostrecent/xml?urlDesc=/customerreviews/page=1/id=310633997/sortby=mostrecent/json"
+    }
+   },
+   {
+    "attributes": {
+     "rel": "last",
+     "href": "https://itunes.apple.com/us/rss/customerreviews/page=10/id=310633997/sortby=mostrecent/xml?urlDesc=/customerreviews/page=1/id=310633997/sortby=mostrecent/json"
+    }
+   },
+   {
+    "attributes": {
+     "rel": "previous",
+     "href": "https://itunes.apple.com/us/rss/customerreviews/page=1/id=310633997/sortby=mostrecent/xml?urlDesc=/customerreviews/page=1/id=310633997/sortby=mostrecent/json"
+    }
+   },
+   {
+    "attributes": {
+     "rel": "next",
+     "href": "https://itunes.apple.com/us/rss/customerreviews/page=2/id=310633997/sortby=mostrecent/xml?urlDesc=/customerreviews/page=1/id=310633997/sortby=mostrecent/json"
+    }
+   }
+  ],
+  "id": {
+   "label": "https://itunes.apple.com/us/rss/customerreviews/page=1/id=310633997/sortby=mostrecent/json"
+  }
+ }
+}

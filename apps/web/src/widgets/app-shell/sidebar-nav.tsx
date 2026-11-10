@@ -64,6 +64,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Thư viện ảnh chart · Claude đọc & so với chart cũ · tỉ lệ thắng theo setup'
   },
   {
+    href: '/idea-radar',
+    label: 'App Idea Radar',
+    description: 'Ý tưởng app hằng tuần · xu hướng store + review 1–2★ + Reddit/HN, Claude chấm điểm'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'
