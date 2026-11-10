@@ -33,13 +33,17 @@ function toZodShape(schema: ChatTool['inputSchema']): Record<string, z.ZodType> 
   const shape: Record<string, z.ZodType> = {};
 
   for (const [key, raw] of Object.entries(schema.properties)) {
-    const prop = raw as { type?: string; description?: string; items?: { type?: string } };
+    const prop = raw as { type?: string | string[]; description?: string; items?: { type?: string } };
+    // `type: ['number', 'null']` = a nullable field (null clears a value).
+    const types = Array.isArray(prop.type) ? prop.type : [prop.type];
+    const type = types.find((t) => t !== 'null');
     let field: z.ZodType =
-      prop.type === 'number' || prop.type === 'integer' ? z.number()
-      : prop.type === 'boolean' ? z.boolean()
-      : prop.type === 'string' ? z.string()
-      : prop.type === 'array' ? z.array(prop.items?.type === 'string' ? z.string() : z.unknown())
+      type === 'number' || type === 'integer' ? z.number()
+      : type === 'boolean' ? z.boolean()
+      : type === 'string' ? z.string()
+      : type === 'array' ? z.array(prop.items?.type === 'string' ? z.string() : z.unknown())
       : z.unknown();
+    if (types.includes('null') && type) field = field.nullable();
     if (prop.description) field = field.describe(prop.description);
     shape[key] = required.has(key) ? field : field.optional();
   }

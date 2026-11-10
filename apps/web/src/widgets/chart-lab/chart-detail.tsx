@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
 import type { ChartSample, ChartSimilar, ChartTpSl } from '@web/shared/api/types';
@@ -61,14 +61,31 @@ export function ChartDetail({
   const patch = toPatch(form, initial);
   const dirty = Object.keys(patch).length > 0;
 
+  // Claude can write to this chart from the chat — show its changes unless the user is mid-edit.
+  const prevInitial = useRef(initial);
+  const [syncedAt, setSyncedAt] = useState<number | null>(null);
+  useEffect(() => {
+    const prev = prevInitial.current;
+    prevInitial.current = initial;
+    if (prev === initial) return;
+    const changed = Object.keys(toPatch(initial, prev)).length > 0;
+    if (changed && Object.keys(toPatch(form, prev)).length === 0) {
+      setForm(initial);
+      setSyncedAt(Date.now());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
+
   async function save() {
     setSaving(true);
     setError(null);
     try {
       const updated = await api.updateChartSample(sample.id, patch);
+      prevInitial.current = formOf(updated);
       onChanged(updated);
       setForm(formOf(updated));
       setSavedAt(Date.now());
+      setSyncedAt(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Lưu thất bại');
     } finally {
@@ -122,7 +139,8 @@ export function ChartDetail({
                   Huỷ thay đổi
                 </button>
               )}
-              {savedAt && !dirty && <span className={s.muted}>Đã lưu ✓</span>}
+              {savedAt && !dirty && !syncedAt && <span className={s.muted}>Đã lưu ✓</span>}
+              {syncedAt && !dirty && <span className={s.muted}>Claude đã cập nhật ✓</span>}
               <span style={{ flex: 1 }} />
               <button type="button" className={s.dangerBtn} onClick={() => void remove()} onBlur={() => setConfirmDelete(false)}>
                 {confirmDelete ? 'Bấm lần nữa để xoá' : 'Xoá chart'}

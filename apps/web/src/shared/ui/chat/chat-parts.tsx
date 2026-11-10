@@ -18,7 +18,7 @@ export const TOOL_LABEL: Record<string, string> = {
   find_similar_charts: 'Đang tìm chart giống trong thư viện',
   get_chart_lab_stats: 'Đang đọc thống kê Chart Lab',
   get_chart_outcome: 'Đang xem kết quả thật của chart',
-  update_chart_sample: 'Đang lưu nhãn chart',
+  update_chart_sample: 'Đang cập nhật chart vào DB',
   get_ticker_price: 'Đang lấy giá hiện tại',
   get_24h_ticker: 'Đang lấy thống kê 24h',
   propose_trade_setup: 'Đang tạo setup lệnh',
