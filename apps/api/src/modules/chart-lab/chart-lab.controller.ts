@@ -15,6 +15,7 @@ export class UpdateChartSampleDto {
   @IsOptional() @IsString() @MaxLength(10000) note?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(12) @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsNumber() entryPriceTo?: number | null;
+  @IsOptional() @IsString() @MaxLength(120) entryZone?: string | null;
   @IsOptional() @IsIn(['TP', 'SL', null]) result?: 'TP' | 'SL' | null;
   @IsOptional() @IsString() @MaxLength(40) closedAt?: string | null;
   /** [{ url, key }] from POST /uploads/images — validated in the service (must be our R2). */

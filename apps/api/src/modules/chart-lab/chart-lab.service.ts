@@ -29,7 +29,8 @@ export type ChartSampleView = {
   id: string;
   imageUrl: string | null;
   images: ChartImageRef[];
-  /** Entry zone: entryPrice (lower / single) – entryPriceTo (upper, optional). */
+  /** Entry zone as the user typed it; entryPrice (lower / single) – entryPriceTo (upper) are parsed from it. */
+  entryZone: string | null;
   entryPriceTo: number | null;
   /** The user's own record of how the trade closed. */
   result: TradeResult | null;
@@ -69,6 +70,7 @@ export type ChartSampleInput = Partial<{
   note: string | null;
   tags: string[];
   entryPriceTo: number | null;
+  entryZone: string | null;
   result: TradeResult | null;
   closedAt: string | null;
   images: ChartImageRef[];
@@ -103,6 +105,14 @@ const price = (x: number | null | undefined) => (x != null && Number.isFinite(x)
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const fmtTime = (d: Date | string | null) => (d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '—');
 const shortId = (id: string) => id.slice(-6);
+/** Prices written in an entry-zone text: "150-152" → [150, 152], "1,234.5 / 1,200" → [1234.5, 1200]. */
+const zonePrices = (zone: string | null): number[] =>
+  (zone ?? '')
+    .replace(/(\d),(?=\d{3}(\D|$))/g, '$1')
+    .match(/\d+(?:[.,]\d+)?/g)
+    ?.map((x) => Number(x.replace(',', '.')))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, 6) ?? [];
 /** All screenshots of a row (older rows only have imageUrl). */
 const imagesOf = (r: Pick<Row, 'images' | 'imageUrl' | 'imageKey'>): ChartImageRef[] =>
   Array.isArray(r.images) ? (r.images as ChartImageRef[]) : r.imageUrl ? [{ url: r.imageUrl, key: r.imageKey }] : [];
@@ -200,6 +210,16 @@ export class ChartLabService {
     if (input.tpPrice !== undefined) out.tpPrice = price(input.tpPrice);
     if (input.slPrice !== undefined) out.slPrice = price(input.slPrice);
     if (input.entryPriceTo !== undefined) out.entryPriceTo = price(input.entryPriceTo);
+    if (input.entryZone !== undefined) {
+      const zone = input.entryZone?.trim().slice(0, 120) || null;
+      out.entryZone = zone;
+      // Numbers in the zone text drive the scoring: lowest = entryPrice, highest = entryPriceTo.
+      if (input.entryPrice === undefined) {
+        const nums = zonePrices(zone);
+        out.entryPrice = nums.length ? Math.min(...nums) : null;
+        out.entryPriceTo = nums.length > 1 ? Math.max(...nums) : null;
+      }
+    }
     if (input.result !== undefined) {
       if (input.result !== null && !['TP', 'SL'].includes(input.result)) throw new BadRequestException('Kết quả phải là TP | SL');
       out.result = input.result;
@@ -374,7 +394,7 @@ export class ChartLabService {
     lines.push(`Coin ${me.symbol ?? '?'} · khung ${me.interval ?? '?'} · nến ${fmtTime(me.chartTime)} · giá đóng nến đó ${me.features?.close ?? '?'}`);
     lines.push('### Phân tích của user');
     lines.push(`- Hướng: ${me.direction ?? 'chưa ghi'}`);
-    lines.push(`- Giá vào: ${me.entryPrice ?? 'không ghi (dùng giá đóng nến)'}${me.entryPriceTo ? ` – ${me.entryPriceTo} (vùng)` : ''} · TP: ${me.tpPrice ?? 'không ghi'} · SL: ${me.slPrice ?? 'không ghi'}`);
+    lines.push(`- Giá vào: ${me.entryZone ? `"${me.entryZone}" → ` : ''}${me.entryPrice ?? 'không ghi (dùng giá đóng nến)'}${me.entryPriceTo ? ` – ${me.entryPriceTo} (vùng)` : ''} · TP: ${me.tpPrice ?? 'không ghi'} · SL: ${me.slPrice ?? 'không ghi'}`);
     if (me.levels) lines.push(`- Dùng để chấm: vào ${me.levels.entry}, TP ${me.levels.tpPct}%${me.levels.tpFromUser ? '' : ' (mặc định)'}, SL ${me.levels.slPct}%${me.levels.slFromUser ? '' : ' (mặc định)'}`);
     if (me.tags.length) lines.push(`- Tag: ${me.tags.join(', ')}`);
     if (me.result || me.closedAt) lines.push(`- User ghi kết quả: ${me.result ?? '—'}${me.closedAt ? ` · đóng lệnh ${fmtTime(me.closedAt)}` : ''}`);
@@ -439,6 +459,7 @@ export class ChartLabService {
       id: r.id,
       imageUrl: r.imageUrl,
       images: imagesOf(r),
+      entryZone: r.entryZone,
       entryPriceTo: r.entryPriceTo,
       result: (r.result as TradeResult | null) ?? null,
       closedAt: r.closedAt?.toISOString() ?? null,

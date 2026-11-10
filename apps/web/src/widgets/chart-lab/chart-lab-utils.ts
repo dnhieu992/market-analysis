@@ -20,8 +20,8 @@ export function fmtPrice(n: number | null): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: n >= 1 ? 4 : 8 });
 }
 
-export const fmtZone = (s: Pick<ChartSample, 'entryPrice' | 'entryPriceTo'>): string =>
-  s.entryPrice == null ? '–' : s.entryPriceTo != null ? `${fmtPrice(s.entryPrice)} – ${fmtPrice(s.entryPriceTo)}` : fmtPrice(s.entryPrice);
+export const fmtZone = (s: Pick<ChartSample, 'entryZone' | 'entryPrice' | 'entryPriceTo'>): string =>
+  s.entryZone ? s.entryZone : s.entryPrice == null ? '–' : s.entryPriceTo != null ? `${fmtPrice(s.entryPrice)} – ${fmtPrice(s.entryPriceTo)}` : fmtPrice(s.entryPrice);
 
 /** "1,234.5" / "1 234,5" / "" → number | null. */
 export function parsePrice(v: string): number | null {

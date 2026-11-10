@@ -29,7 +29,7 @@ export function ReasonDialog({ sample, onEdit, onClose }: { sample: ChartSample;
         <div className="dialog-body">
           <p className={s.meta}>
             Mở {fmtDate(sample.chartTime)} · Vào {fmtZone(sample)} · TP {fmtPrice(sample.tpPrice)} · SL {fmtPrice(sample.slPrice)}
-            {sample.result ? ` · Kết quả ${sample.result}` : ''}
+            {sample.closedAt ? ` · Đóng ${fmtDate(sample.closedAt)}` : ''}
           </p>
           {sample.tags.length > 0 && (
             <div className={s.tagBox} style={{ border: 0, padding: 0, marginBottom: 12 }}>

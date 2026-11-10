@@ -1399,6 +1399,7 @@ model ChartSample {
   interval       String?   @db.VarChar(5) // Binance interval: 15m 1h 4h 1d …
   chartTime      DateTime? // open time of the chart's last candle
   entryPrice     Float? // the USER's entry price (null = close of the chart's candle)
+  entryZone      String?   @db.VarChar(120) // entry zone as typed; entryPrice/entryPriceTo are parsed from it
   entryPriceTo   Float? // upper bound of the entry zone (entryPrice = lower / single price)
   tpPrice        Float?
   slPrice        Float?

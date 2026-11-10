@@ -94,6 +94,7 @@ import type {
   BinanceKline,
   ImageRef,
   ChartSample,
+  ChartRead,
   ChartSampleUpdate,
   ChartSimilar,
   ChartLabStats,
@@ -2025,6 +2026,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
       );
       if (!response.ok) throw new Error(await errorMessage(response, 'Thêm chart thất bại'));
       return (await response.json()) as ChartSample;
+    },
+
+    async readChartImages(imageUrls: string[]): Promise<ChartRead> {
+      const response = await fetchImpl(
+        `${baseUrl}/chart-lab/read-chart`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageUrls }) }),
+      );
+      if (!response.ok) throw new Error(await errorMessage(response, 'Claude không đọc được ảnh'));
+      return (await response.json()) as ChartRead;
     },
 
     async updateChartSample(id: string, patch: ChartSampleUpdate): Promise<ChartSample> {

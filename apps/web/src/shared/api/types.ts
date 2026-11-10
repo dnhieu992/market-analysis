@@ -1796,6 +1796,7 @@ export type ChartSample = {
   imageUrl: string | null;
   images: ChartImage[];
   entryPriceTo: number | null;
+  entryZone: string | null;
   result: ChartTradeResult | null;
   closedAt: string | null;
   symbol: string | null;
@@ -1830,10 +1831,23 @@ export type ChartSampleUpdate = Partial<{
   note: string | null;
   tags: string[];
   entryPriceTo: number | null;
+  entryZone: string | null;
   result: ChartTradeResult | null;
   closedAt: string | null;
   images: ChartImage[];
 }>;
+/** What Claude read from trade screenshots (POST /chart-lab/read-chart) — suggestions for the Add form. */
+export type ChartRead = {
+  symbol: string | null;
+  side: 'LONG' | 'SHORT' | null;
+  entryZone: string | null;
+  tp: number | null;
+  sl: number | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  tags: string[];
+  reason: string | null;
+};
 export type ChartStatRow = {
   key: string;
   n: number;

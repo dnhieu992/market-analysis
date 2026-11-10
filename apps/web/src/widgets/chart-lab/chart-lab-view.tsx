@@ -47,12 +47,6 @@ function IconTrash() {
   );
 }
 
-function ResultPill({ result }: { result: ChartSample['result'] }) {
-  if (result === 'TP') return <span className="tt-side tt-side--long">TP</span>;
-  if (result === 'SL') return <span className="tt-side tt-side--short">SL</span>;
-  return <span className="tt-status-pill tt-status-pill--opening">Opening</span>;
-}
-
 /** /chart-lab: journal of collected trades — same shell / table / dialog styles as /trades. */
 export function ChartLabView() {
   const [rows, setRows] = useState<ChartSample[] | null>(null);
@@ -84,9 +78,7 @@ export function ChartLabView() {
 
   const summary = useMemo(() => {
     const list = rows ?? [];
-    const tp = list.filter((r) => r.result === 'TP').length;
-    const sl = list.filter((r) => r.result === 'SL').length;
-    return { total: list.length, tp, sl, open: list.length - tp - sl, rate: tp + sl ? Math.round((tp / (tp + sl)) * 100) : null };
+    return { total: list.length, open: list.filter((r) => !r.closedAt).length };
   }, [rows]);
 
   function saved(x: ChartSample) {
@@ -114,7 +106,7 @@ export function ChartLabView() {
         <div className="table-header">
           <div>
             <h2>Chart Lab</h2>
-            <p>{summary.total === 0 ? 'Chưa có lệnh nào.' : `${summary.total} lệnh · ${summary.open} chưa đóng`}</p>
+            <p>{summary.total === 0 ? 'Chưa có lệnh nào.' : `${summary.total} lệnh · ${summary.open} đang mở`}</p>
           </div>
           <div className="table-actions">
             <button type="button" className="btn btn--primary" onClick={() => setEditing('new')}>
@@ -122,27 +114,6 @@ export function ChartLabView() {
             </button>
           </div>
         </div>
-
-        {summary.total > 0 && (
-          <div className="tt-summary-bar">
-            <div className="tt-pnl-card">
-              <span className="tt-pnl-card__label">Win rate</span>
-              <span
-                className={`tt-pnl-card__value ${summary.rate == null ? '' : summary.rate >= 50 ? 'tt-pnl-card__value--positive' : 'tt-pnl-card__value--negative'}`}
-              >
-                {summary.rate == null ? '–' : `${summary.rate}%`}
-              </span>
-              <span className="tt-pnl-card__note">Trên các lệnh đã đóng</span>
-            </div>
-            <div className="tt-pnl-card">
-              <span className="tt-pnl-card__label">TP / SL</span>
-              <span className="tt-pnl-card__value">
-                <span className="tt-pnl-positive">{summary.tp}</span> / <span className="tt-pnl-negative">{summary.sl}</span>
-              </span>
-              <span className="tt-pnl-card__note">{summary.open} lệnh chưa đóng</span>
-            </div>
-          </div>
-        )}
 
         {error && <p className="trade-form-error">{error}</p>}
 
@@ -167,7 +138,6 @@ export function ChartLabView() {
                   <th>SL</th>
                   <th>Chart</th>
                   <th>Lý do</th>
-                  <th>Result</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -201,9 +171,6 @@ export function ChartLabView() {
                       <button className="tt-btn tt-btn--notes" data-tooltip="Lý do vào lệnh" aria-label="Lý do vào lệnh" onClick={() => setReading(r)}>
                         <IconNotes />
                       </button>
-                    </td>
-                    <td data-label="Result">
-                      <ResultPill result={r.result} />
                     </td>
                     <td data-label="Actions" data-full="">
                       <div className="tt-actions">

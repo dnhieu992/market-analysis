@@ -6,6 +6,7 @@ export type ChartSampleInput = Partial<{
   imageUrl: string | null;
   images: Prisma.InputJsonValue | null;
   entryPriceTo: number | null;
+  entryZone: string | null;
   result: string | null;
   closedAt: Date | null;
   imageKey: string | null;
