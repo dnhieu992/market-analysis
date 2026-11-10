@@ -113,79 +113,60 @@ export function TradeDialog({
 
   return createPortal(
     <div className="dialog-backdrop" onClick={() => !saving && onClose()}>
-      <form className="dialog dialog--wide" onClick={(e) => e.stopPropagation()} onSubmit={(e) => void submit(e)}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
-          <span className="dialog-title">{sample ? `Sửa lệnh ${sample.symbol ?? ''}` : 'Thêm lệnh'}</span>
-          <button type="button" className="dialog-close" onClick={onClose} aria-label="Đóng" disabled={saving}>
+          <span className="dialog-title">{sample ? `Edit Trade · ${sample.symbol ?? ''}` : 'Add Trade'}</span>
+          <button type="button" className="dialog-close" onClick={onClose} aria-label="Close" disabled={saving}>
             ✕
           </button>
         </div>
 
         <div className="dialog-body">
-          <div className={s.grid}>
-            <div className="trade-field trade-field-wide">
-              <span>Ảnh chart</span>
-              <ImageUpload
-                existingUrls={keptUrls}
-                onChange={(v: ImageUploadValue) => {
-                  setKeptUrls(v.existingUrls);
-                  setNewFiles(v.newFiles);
-                }}
-                uploading={saving}
-              />
-            </div>
-
+          <form className="trade-form" style={{ marginTop: 0 }} onSubmit={(e) => void submit(e)}>
             <label className="trade-field">
-              <span>Tên coin *</span>
-              <input value={form.symbol} onChange={(e) => set('symbol', e.target.value.toUpperCase())} placeholder="BTCUSDT" autoFocus={!sample} />
+              <span>Coin</span>
+              <input value={form.symbol} onChange={(e) => set('symbol', e.target.value.toUpperCase())} placeholder="BTCUSDT" autoFocus={!sample} required />
             </label>
 
-            <div className="trade-field">
+            <label className="trade-field">
+              <span>Result</span>
+              <select value={form.result} onChange={(e) => set('result', e.target.value as Form['result'])}>
+                <option value="">— chưa đóng —</option>
+                <option value="TP">TP</option>
+                <option value="SL">SL</option>
+              </select>
+            </label>
+
+            <div className="trade-field trade-field-wide">
               <span>Vùng vào lệnh</span>
               <div className={s.zone}>
-                <input inputMode="decimal" value={form.entryFrom} onChange={(e) => set('entryFrom', e.target.value)} placeholder="từ" />
+                <input inputMode="decimal" value={form.entryFrom} onChange={(e) => set('entryFrom', e.target.value)} placeholder="Từ" />
                 <em>–</em>
-                <input inputMode="decimal" value={form.entryTo} onChange={(e) => set('entryTo', e.target.value)} placeholder="đến (tuỳ chọn)" />
+                <input inputMode="decimal" value={form.entryTo} onChange={(e) => set('entryTo', e.target.value)} placeholder="Đến (tuỳ chọn)" />
               </div>
             </div>
 
             <label className="trade-field">
               <span>TP</span>
-              <input inputMode="decimal" value={form.tp} onChange={(e) => set('tp', e.target.value)} placeholder="giá chốt lời" />
+              <input inputMode="decimal" value={form.tp} onChange={(e) => set('tp', e.target.value)} placeholder="0.00" />
             </label>
 
             <label className="trade-field">
               <span>SL</span>
-              <input inputMode="decimal" value={form.sl} onChange={(e) => set('sl', e.target.value)} placeholder="giá cắt lỗ" />
+              <input inputMode="decimal" value={form.sl} onChange={(e) => set('sl', e.target.value)} placeholder="0.00" />
             </label>
 
             <label className="trade-field">
-              <span>Open date</span>
+              <span>Opened At</span>
               <input type="datetime-local" value={form.openedAt} onChange={(e) => set('openedAt', e.target.value)} />
             </label>
 
             <label className="trade-field">
-              <span>Closed date</span>
+              <span>Closed At</span>
               <input type="datetime-local" value={form.closedAt} onChange={(e) => set('closedAt', e.target.value)} />
             </label>
 
-            <div className="trade-field">
-              <span>Kết quả</span>
-              <div className={s.seg} role="group" aria-label="Kết quả">
-                {(['', 'TP', 'SL'] as const).map((r) => (
-                  <button
-                    key={r || 'none'}
-                    type="button"
-                    className={`${s.segBtn} ${form.result === r ? (r === 'TP' ? s.segTp : r === 'SL' ? s.segSl : s.segOn) : ''}`}
-                    onClick={() => set('result', r)}
-                  >
-                    {r || 'Chưa đóng'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="trade-field">
+            <div className="trade-field trade-field-wide">
               <span>Tags</span>
               <div className={s.tagBox}>
                 {form.tags.map((t) => (
@@ -199,7 +180,7 @@ export function TradeDialog({
                 <input
                   className={s.tagInput}
                   value={tagInput}
-                  placeholder="gõ tag + Enter"
+                  placeholder={form.tags.length ? '' : 'Gõ tag rồi Enter'}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ',') {
@@ -223,22 +204,29 @@ export function TradeDialog({
 
             <div className="trade-field trade-field-wide">
               <span>Lý do vào lệnh</span>
-              <MarkdownEditor value={form.reason} onChange={(v) => set('reason', v)} placeholder="Setup gì, vì sao vào ở vùng này, TP/SL đặt theo đâu…" minHeight={180} />
+              <MarkdownEditor value={form.reason} onChange={(v) => set('reason', v)} placeholder="Setup gì, vì sao vào ở vùng này, TP/SL đặt theo đâu…" minHeight={160} />
             </div>
-          </div>
 
-          {error && <p className={s.error}>{error}</p>}
+            <div className="trade-field trade-field-wide">
+              <span>Screenshots</span>
+              <ImageUpload
+                existingUrls={keptUrls}
+                onChange={(v: ImageUploadValue) => {
+                  setKeptUrls(v.existingUrls);
+                  setNewFiles(v.newFiles);
+                }}
+                uploading={saving}
+              />
+            </div>
 
-          <div className="dialog-confirm-actions" style={{ marginTop: 18 }}>
-            <button type="button" className="btn btn--secondary" onClick={onClose} disabled={saving}>
-              Huỷ
+            {error ? <p className="trade-form-error">{error}</p> : null}
+
+            <button type="submit" className="trade-submit" disabled={saving}>
+              {saving ? (newFiles.length ? 'Uploading images...' : 'Saving...') : sample ? 'Save Trade' : 'Add Trade'}
             </button>
-            <button type="submit" className="btn btn--primary" disabled={saving}>
-              {saving ? (newFiles.length ? 'Đang upload ảnh…' : 'Đang lưu…') : sample ? 'Lưu thay đổi' : 'Thêm lệnh'}
-            </button>
-          </div>
+          </form>
         </div>
-      </form>
+      </div>
     </div>,
     document.body,
   );
