@@ -55,7 +55,8 @@ key; added `outputFormat` + `onResult` to the provider). Models in config: `clau
 Dry-run: no Claude, no Telegram — keyword heuristics produce `[dry-run]` pain points / ideas.
 
 ## Data (`packages/db`, migration `20261110200000_idea_radar`)
-`idea_radar_runs` (one per VN day: `runDate` unique — a same-day re-run resets that row, snapshots
+`idea_radar_runs` (one real run + one dry-run per VN day: unique `(runDate, dryRun)`, so a dry-run
+never overwrites the real report — a same-day re-run resets its row, snapshots
 upsert, reviews/posts dedupe on unique keys → idempotent), `_apps`, `_app_snapshots`, `_reviews`,
 `_posts`, `_pain_points`, `_trend_signals`, `_ideas` (status new|repeat|dismissed|shortlisted),
 `_llm_usages`, `_settings` (id `default`: editable config JSON, merged over `config.ts` defaults).

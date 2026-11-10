@@ -125,7 +125,7 @@ export const DEFAULT_CONFIG: IdeaRadarConfig = {
     reddit: {
       enabled: true,
       subreddits: ['SideProject', 'androiddev', 'iOSProgramming', 'indiehackers', 'startups', 'AppIdeas', 'SomebodyMakeThis'],
-      request_delay_seconds: 8,
+      request_delay_seconds: 15,
       demand_keywords: ['mrr', 'revenue', 'i wish there was', 'is there an app', 'would pay', 'looking for an app', 'somebody make'],
     },
     hackernews: {

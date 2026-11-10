@@ -1,5 +1,5 @@
 import type { IdeaRadarConfig } from '../config';
-import { sleep } from '../http';
+import { HttpError, sleep } from '../http';
 import type { CollectResult, PostRecord } from '../types';
 import { emptyResult, errMsg, htmlToText, type CollectContext, type Collector } from './base';
 
@@ -11,6 +11,8 @@ import { emptyResult, errMsg, htmlToText, type CollectContext, type Collector } 
  */
 
 const MAX_AGE_MS = 7 * 86_400_000;
+const RATE_LIMIT_RETRIES = 2;
+const RATE_LIMIT_COOLDOWN_MS = Number(process.env.IDEA_RADAR_REDDIT_COOLDOWN_MS ?? 60_000);
 
 const tag = (xml: string, name: string) => {
   const m = xml.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`));
@@ -63,15 +65,24 @@ export class RedditCollector implements Collector {
     for (const sub of cfg.subreddits) {
       for (const feed of ['top', 'new'] as const) {
         const url = feed === 'top' ? `https://www.reddit.com/r/${sub}/top/.rss?t=week&limit=50` : `https://www.reddit.com/r/${sub}/new/.rss?limit=50`;
-        try {
-          const { body, fresh } = await ctx.http.getText(url);
-          for (const p of parseRedditAtom(body, sub, feed, cfg.demand_keywords)) {
-            if (p.postedAt.getTime() >= cutoff && !posts.has(p.externalId)) posts.set(p.externalId, p);
+        // The shared client's short backoff isn't enough for Reddit's 429s: cool down a minute and try again.
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const { body, fresh } = await ctx.http.getText(url);
+            for (const p of parseRedditAtom(body, sub, feed, cfg.demand_keywords)) {
+              if (p.postedAt.getTime() >= cutoff && !posts.has(p.externalId)) posts.set(p.externalId, p);
+            }
+            if (fresh) await sleep(cfg.request_delay_seconds * 1000);
+            break;
+          } catch (err) {
+            if (err instanceof HttpError && err.status === 429 && attempt < RATE_LIMIT_RETRIES) {
+              await sleep(RATE_LIMIT_COOLDOWN_MS);
+              continue;
+            }
+            result.errors.push(`r/${sub} ${feed}: ${errMsg(err)}`);
+            await sleep(cfg.request_delay_seconds * 2000);
+            break;
           }
-          if (fresh) await sleep(cfg.request_delay_seconds * 1000);
-        } catch (err) {
-          result.errors.push(`r/${sub} ${feed}: ${errMsg(err)}`);
-          await sleep(cfg.request_delay_seconds * 2000);
         }
       }
     }

@@ -35,7 +35,7 @@ export class IdeaRadarStore implements CollectorSink {
 
   /** Today's run row, created or reset for a fresh pass (same-day re-runs reuse it → no duplicates). */
   async startRun(runDate: string, trigger: string, dryRun: boolean) {
-    const existing = await this.db.ideaRadarRun.findUnique({ where: { runDate } });
+    const existing = await this.db.ideaRadarRun.findUnique({ where: { runDate_dryRun: { runDate, dryRun } } });
     if (existing) {
       await this.db.$transaction([
         this.db.ideaRadarPainPoint.deleteMany({ where: { runId: existing.id } }),
@@ -68,7 +68,7 @@ export class IdeaRadarStore implements CollectorSink {
 
   listRuns(limit = 20) {
     return this.db.ideaRadarRun.findMany({
-      orderBy: { runDate: 'desc' },
+      orderBy: [{ runDate: 'desc' }, { startedAt: 'desc' }],
       take: limit,
       select: { id: true, runDate: true, trigger: true, dryRun: true, status: true, step: true, startedAt: true, finishedAt: true, errors: true, stats: true },
     });
@@ -79,7 +79,7 @@ export class IdeaRadarStore implements CollectorSink {
   }
 
   latestRun() {
-    return this.db.ideaRadarRun.findFirst({ orderBy: { runDate: 'desc' } });
+    return this.db.ideaRadarRun.findFirst({ orderBy: [{ runDate: 'desc' }, { startedAt: 'desc' }] });
   }
 
   /** Most recent earlier run that collected snapshots (the comparison base for trends). */

@@ -124,7 +124,9 @@ export class GooglePlayCollector implements Collector {
               );
               observations.push(...listToObservations(items, country, chart, category));
             } catch (err) {
-              result.errors.push(`chart ${country}/${category}/${chart}: ${errMsg(err)}`);
+              // google-play-scraper crashes (ramda 'fantasy-land/map') on a chart Play returns empty — not an error.
+              if (/fantasy-land/.test(errMsg(err))) ctx.log(`google_play chart ${country}/${category}/${chart}: empty`);
+              else result.errors.push(`chart ${country}/${category}/${chart}: ${errMsg(err)}`);
             }
           }
         }

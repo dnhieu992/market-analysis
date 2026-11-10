@@ -1428,12 +1428,12 @@ model ChartSample {
 
 // ── App Idea Radar (/idea-radar) ───────────────────────────────────────────────────────────────
 // Weekly pipeline: collect public store/community data → trend signals + pain points → Claude turns
-// them into scored app ideas → Markdown report. One run per Vietnam-time day (re-running the same
-// day reuses that run, so nothing is duplicated). See docs/features/idea-radar.
+// them into scored app ideas → Markdown report. One run (+ one dry-run) per Vietnam-time day —
+// re-running the same day reuses that row, so nothing is duplicated. See docs/features/idea-radar.
 
 model IdeaRadarRun {
   id         String    @id @default(cuid())
-  runDate    String    @unique @db.VarChar(10) // YYYY-MM-DD (Asia/Ho_Chi_Minh)
+  runDate    String    @db.VarChar(10) // YYYY-MM-DD (Asia/Ho_Chi_Minh)
   trigger    String    @db.VarChar(8) // CRON | MANUAL
   dryRun     Boolean   @default(false)
   status     String    @db.VarChar(10) // RUNNING | SUCCESS | PARTIAL | FAILED
@@ -1452,6 +1452,8 @@ model IdeaRadarRun {
   ideas       IdeaRadarIdea[]
   llmUsages   IdeaRadarLlmUsage[]
 
+  // One real run + one dry-run per day: a dry-run never overwrites that day's real report.
+  @@unique([runDate, dryRun])
   @@map("idea_radar_runs")
 }
 

@@ -181,6 +181,15 @@ describe('Reddit (RSS)', () => {
     expect(r.errors).toHaveLength(2);
     expect(r.errors[0]).toMatch(/r\/Broken top: HTTP 403/);
   });
+
+  it('cools down and retries a 429', async () => {
+    let n = 0;
+    const fetchImpl = fakeFetch([['/r/AppIdeas/', () => (++n === 1 ? new Response('', { status: 429 }) : new Response(atom()))]]);
+    const { ctx, sink } = ctxWith(cfg({ sources: { reddit: { subreddits: ['AppIdeas'], request_delay_seconds: 0 } } }), fetchImpl);
+    const r = await new RedditCollector().collect(ctx);
+    expect(r.errors).toEqual([]);
+    expect(sink.posts).toHaveLength(1);
+  });
 });
 
 describe('Google Play', () => {
@@ -257,6 +266,11 @@ describe('Google Play', () => {
     const r = await c.collect(ctx);
     expect(r.errors).toHaveLength(2);
     expect(r.errors[0]).toMatch(/page changed/);
+    // An empty Play chart crashes the scraper inside ramda — logged, not an error.
+    gplay.list.mockImplementation(async () => {
+      throw new TypeError("Cannot read properties of undefined (reading 'fantasy-land/map')");
+    });
+    expect((await c.collect(ctx)).errors).toEqual([]);
     const rr = await c.collectReviews(ctx, [{ store: 'google_play', storeAppId: 'com.a', title: 'A' }]);
     expect(rr.errors[0]).toMatch(/blocked/);
   });
