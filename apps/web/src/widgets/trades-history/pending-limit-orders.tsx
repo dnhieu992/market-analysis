@@ -9,11 +9,8 @@ const api = createApiClient();
 const REFRESH_MS = 60_000;
 const COLLAPSE_KEY = 'trades.pendingLimit.collapsed';
 
-type Exchange = 'OKX' | 'Bitget' | 'MEXC';
-
 type Row = {
   key: string;
-  exchange: Exchange;
   symbol: string;
   /** null = reduce-only close order (OKX net mode). */
   holdSide: 'long' | 'short' | null;
@@ -57,8 +54,8 @@ async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
 }
 
 /**
- * "Lệnh limit đang chờ" panel of /trades: resting (unfilled) orders on OKX, Bitget and MEXC,
- * read live from each exchange, sorted by how close they are to filling. Read-only.
+ * "Lệnh limit đang chờ" panel of /trades: resting (unfilled) OKX orders,
+ * read live from OKX, sorted by how close they are to filling. Read-only.
  */
 export function PendingLimitOrders() {
   const searchParams = useSearchParams();
@@ -80,14 +77,13 @@ export function PendingLimitOrders() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [okx, bitget, mexc] = await Promise.allSettled([api.fetchOkxPendingOrders(), api.fetchBitgetPendingOrders(), api.fetchMexcPendingOrders()]);
+    const [okx] = await Promise.allSettled([api.fetchOkxPendingOrders()]);
     const next: Row[] = [];
     const errs: string[] = [];
     if (okx.status === 'fulfilled') {
       for (const o of okx.value.orders)
         next.push({
           key: `okx:${o.orderId}`,
-          exchange: 'OKX',
           symbol: o.symbol,
           holdSide: o.holdSide,
           price: o.price,
@@ -97,22 +93,6 @@ export function PendingLimitOrders() {
           createdAt: o.createdAt,
         });
     } else errs.push(`OKX: ${okx.reason instanceof Error ? okx.reason.message : 'lỗi'}`);
-    for (const [name, res] of [['Bitget', bitget], ['MEXC', mexc]] as const) {
-      if (res.status === 'fulfilled') {
-        for (const o of res.value.orders)
-          next.push({
-            key: `${name}:${o.orderId}`,
-            exchange: name,
-            symbol: o.symbol,
-            holdSide: o.holdSide,
-            price: o.price,
-            notionalUsd: o.notionalUsd,
-            marginUsd: o.marginUsd,
-            leverage: o.leverage,
-            createdAt: o.createdAt,
-          });
-      } else errs.push(`${name}: ${res.reason instanceof Error ? res.reason.message : 'lỗi'}`);
-    }
     setRows(next);
     setErrors(errs);
     setFetchedAt(new Date());
@@ -159,7 +139,7 @@ export function PendingLimitOrders() {
             </h2>
           </div>
           <p>
-            OKX · Bitget · MEXC — lệnh chưa khớp, sắp theo độ gần giá hiện tại
+            OKX — lệnh chưa khớp, sắp theo độ gần giá hiện tại
             {visible.length > 0 ? ` · tổng ký quỹ chờ ${fmtUsd(totalMargin)}` : ''}
             {fetchedAt ? ` · cập nhật ${fetchedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}
             {symbolFilter ? ` · lọc "${symbolFilter}"` : ''}
@@ -185,7 +165,6 @@ export function PendingLimitOrders() {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Sàn</th>
                     <th>Giá limit</th>
                     <th>Giá hiện tại</th>
                     <th>Cách giá</th>
@@ -210,7 +189,6 @@ export function PendingLimitOrders() {
                             )}
                           </div>
                         </td>
-                        <td data-label="Sàn">{r.exchange}</td>
                         <td data-label="Giá limit">{fmtPrice(r.price)}</td>
                         <td data-label="Giá hiện tại">{last ? fmtPrice(last) : <span className="tt-muted">-</span>}</td>
                         <td data-label="Cách giá">
