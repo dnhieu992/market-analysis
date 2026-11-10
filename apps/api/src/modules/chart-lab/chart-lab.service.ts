@@ -22,9 +22,18 @@ import {
 type Row = NonNullable<Awaited<ReturnType<ReturnType<typeof createChartSampleRepository>['findById']>>>;
 type Direction = 'LONG' | 'SHORT' | 'NONE';
 
+export type ChartImageRef = { url: string; key: string | null };
+export type TradeResult = 'TP' | 'SL';
+
 export type ChartSampleView = {
   id: string;
-  imageUrl: string;
+  imageUrl: string | null;
+  images: ChartImageRef[];
+  /** Entry zone: entryPrice (lower / single) – entryPriceTo (upper, optional). */
+  entryPriceTo: number | null;
+  /** The user's own record of how the trade closed. */
+  result: TradeResult | null;
+  closedAt: string | null;
   symbol: string | null;
   interval: string | null;
   chartTime: string | null;
@@ -59,6 +68,10 @@ export type ChartSampleInput = Partial<{
   slPrice: number | null;
   note: string | null;
   tags: string[];
+  entryPriceTo: number | null;
+  result: TradeResult | null;
+  closedAt: string | null;
+  images: ChartImageRef[];
 }>;
 
 type StatRow = {
@@ -90,6 +103,9 @@ const price = (x: number | null | undefined) => (x != null && Number.isFinite(x)
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const fmtTime = (d: Date | string | null) => (d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '—');
 const shortId = (id: string) => id.slice(-6);
+/** All screenshots of a row (older rows only have imageUrl). */
+const imagesOf = (r: Pick<Row, 'images' | 'imageUrl' | 'imageKey'>): ChartImageRef[] =>
+  Array.isArray(r.images) ? (r.images as ChartImageRef[]) : r.imageUrl ? [{ url: r.imageUrl, key: r.imageKey }] : [];
 
 /** Entry / TP% / SL% used to score a chart. */
 function levelsOf(r: Pick<Row, 'entryPrice' | 'tpPrice' | 'slPrice' | 'interval' | 'features'>): ChartSampleView['levels'] {
@@ -129,10 +145,9 @@ export class ChartLabService {
   }
 
   /** Save a chart with the user's analysis. No Claude — Binance data only (~1–2 s). */
-  async create(imageUrl: string, imageKey: string | null | undefined, input: ChartSampleInput): Promise<ChartSampleView> {
-    this.assertOwnImage(imageUrl);
+  async create(input: ChartSampleInput): Promise<ChartSampleView> {
     const fields = await this.parse(input, null);
-    const row = await this.repo.create({ imageUrl, imageKey: imageKey ?? null, ...fields });
+    const row = await this.repo.create(fields);
     await this.recompute(row.id, { features: true });
     return this.get(row.id);
   }
@@ -140,6 +155,10 @@ export class ChartLabService {
   async update(id: string, input: ChartSampleInput): Promise<ChartSampleView> {
     const cur = await this.row(id);
     const fields = await this.parse(input, cur);
+    if (fields.images !== undefined) {
+      const keep = new Set(((fields.images as unknown as ChartImageRef[] | null) ?? []).map((i) => i.url));
+      for (const old of imagesOf(cur)) if (old.key && !keep.has(old.url)) await this.storage.deleteByKey(old.key).catch(() => {});
+    }
     const repin = ['symbol', 'interval', 'chartTime'].some((k) => k in fields);
     await this.repo.update(id, fields);
     if (repin || 'entryPrice' in fields || 'tpPrice' in fields || 'slPrice' in fields) await this.recompute(id, { features: repin });
@@ -149,7 +168,7 @@ export class ChartLabService {
   async remove(id: string) {
     const r = await this.row(id);
     await this.repo.remove(id);
-    if (r.imageKey) await this.storage.deleteByKey(r.imageKey);
+    for (const img of imagesOf(r)) if (img.key) await this.storage.deleteByKey(img.key).catch(() => {});
     return { ok: true };
   }
 
@@ -180,6 +199,24 @@ export class ChartLabService {
     if (input.entryPrice !== undefined) out.entryPrice = price(input.entryPrice);
     if (input.tpPrice !== undefined) out.tpPrice = price(input.tpPrice);
     if (input.slPrice !== undefined) out.slPrice = price(input.slPrice);
+    if (input.entryPriceTo !== undefined) out.entryPriceTo = price(input.entryPriceTo);
+    if (input.result !== undefined) {
+      if (input.result !== null && !['TP', 'SL'].includes(input.result)) throw new BadRequestException('Kết quả phải là TP | SL');
+      out.result = input.result;
+    }
+    if (input.closedAt !== undefined) {
+      const t = input.closedAt ? new Date(input.closedAt) : null;
+      if (t && Number.isNaN(t.getTime())) throw new BadRequestException('Ngày đóng lệnh không hợp lệ');
+      out.closedAt = t;
+    }
+    if (input.images !== undefined) {
+      if (!Array.isArray(input.images) || input.images.length > 10) throw new BadRequestException('Tối đa 10 ảnh');
+      const imgs = input.images.map((i) => ({ url: String(i?.url ?? ''), key: i?.key ? String(i.key).slice(0, 300) : null }));
+      imgs.forEach((i) => this.assertOwnImage(i.url));
+      out.images = imgs;
+      out.imageUrl = imgs[0]?.url ?? null;
+      out.imageKey = imgs[0]?.key ?? null;
+    }
 
     let symbol = cur?.symbol ?? null;
     let interval = cur?.interval ?? null;
@@ -206,7 +243,8 @@ export class ChartLabService {
     if (!changed) return out;
     out.symbol = symbol;
     out.interval = interval;
-    out.chartTime = null;
+    // No timeframe = a journal entry: keep the open date exactly as typed.
+    out.chartTime = interval ? null : time;
     if (symbol && interval) {
       // The candle that contains the time (no time = the latest closed candle, i.e. a chart taken now).
       const ks = await fetchKlines(symbol, interval, time ? { endTime: time.getTime(), limit: 1 } : { limit: 2 });
@@ -336,9 +374,10 @@ export class ChartLabService {
     lines.push(`Coin ${me.symbol ?? '?'} · khung ${me.interval ?? '?'} · nến ${fmtTime(me.chartTime)} · giá đóng nến đó ${me.features?.close ?? '?'}`);
     lines.push('### Phân tích của user');
     lines.push(`- Hướng: ${me.direction ?? 'chưa ghi'}`);
-    lines.push(`- Giá vào: ${me.entryPrice ?? 'không ghi (dùng giá đóng nến)'} · TP: ${me.tpPrice ?? 'không ghi'} · SL: ${me.slPrice ?? 'không ghi'}`);
+    lines.push(`- Giá vào: ${me.entryPrice ?? 'không ghi (dùng giá đóng nến)'}${me.entryPriceTo ? ` – ${me.entryPriceTo} (vùng)` : ''} · TP: ${me.tpPrice ?? 'không ghi'} · SL: ${me.slPrice ?? 'không ghi'}`);
     if (me.levels) lines.push(`- Dùng để chấm: vào ${me.levels.entry}, TP ${me.levels.tpPct}%${me.levels.tpFromUser ? '' : ' (mặc định)'}, SL ${me.levels.slPct}%${me.levels.slFromUser ? '' : ' (mặc định)'}`);
     if (me.tags.length) lines.push(`- Tag: ${me.tags.join(', ')}`);
+    if (me.result || me.closedAt) lines.push(`- User ghi kết quả: ${me.result ?? '—'}${me.closedAt ? ` · đóng lệnh ${fmtTime(me.closedAt)}` : ''}`);
     lines.push(`- Nhận xét: ${me.note ?? '(không có)'}`);
     if (me.features) lines.push(`Chỉ số lúc đó (server tính từ Binance): ${featureLine(me.features)}`);
     lines.push(`### Kết quả thật đến hiện tại`);
@@ -384,7 +423,8 @@ export class ChartLabService {
     if (!base || !url.startsWith(`${base}/`)) throw new BadRequestException('Ảnh phải được upload qua app (R2)');
   }
 
-  async fetchImage(url: string): Promise<ChatImage> {
+  async fetchImage(url: string | null): Promise<ChatImage> {
+    if (!url) throw new Error('Chart không có ảnh');
     this.assertOwnImage(url);
     const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`Không tải được ảnh (${res.status})`);
@@ -398,6 +438,10 @@ export class ChartLabService {
     return {
       id: r.id,
       imageUrl: r.imageUrl,
+      images: imagesOf(r),
+      entryPriceTo: r.entryPriceTo,
+      result: (r.result as TradeResult | null) ?? null,
+      closedAt: r.closedAt?.toISOString() ?? null,
       symbol: r.symbol,
       interval: r.interval,
       chartTime: r.chartTime?.toISOString() ?? null,

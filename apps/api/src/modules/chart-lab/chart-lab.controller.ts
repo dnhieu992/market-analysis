@@ -14,18 +14,14 @@ export class UpdateChartSampleDto {
   @IsOptional() @IsNumber() slPrice?: number | null;
   @IsOptional() @IsString() @MaxLength(10000) note?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(12) @IsString({ each: true }) tags?: string[];
+  @IsOptional() @IsNumber() entryPriceTo?: number | null;
+  @IsOptional() @IsIn(['TP', 'SL', null]) result?: 'TP' | 'SL' | null;
+  @IsOptional() @IsString() @MaxLength(40) closedAt?: string | null;
+  /** [{ url, key }] from POST /uploads/images — validated in the service (must be our R2). */
+  @IsOptional() @IsArray() @ArrayMaxSize(10) images?: Array<{ url: string; key: string | null }>;
 }
 
-export class CreateChartSampleDto extends UpdateChartSampleDto {
-  @IsString()
-  @MaxLength(1000)
-  imageUrl!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(300)
-  imageKey?: string;
-}
+export class CreateChartSampleDto extends UpdateChartSampleDto {}
 
 /** /chart-lab CRUD — no AI here (Analyze lives in the chat module: ChartLabAnalyzeController). */
 @ApiTags('Chart Lab')
@@ -43,8 +39,7 @@ export class ChartLabController {
   @Post('samples')
   @ApiOperation({ summary: 'Save a chart (image already in R2) with the user’s analysis; pins it to its Binance candle and scores it. No AI.' })
   create(@Body() body: CreateChartSampleDto) {
-    const { imageUrl, imageKey, ...input } = body;
-    return this.lab.create(imageUrl, imageKey, input);
+    return this.lab.create(body);
   }
 
   @Get('samples/:id')

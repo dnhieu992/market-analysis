@@ -85,6 +85,7 @@ export class ChartLabChatService {
         if (!input.withImages) return text;
         const images: Array<{ data: string; mimeType: string }> = [];
         for (const { sample } of list.slice(0, 3)) {
+          if (!sample.imageUrl) continue;
           try {
             const res = await fetch(sample.imageUrl, { signal: AbortSignal.timeout(20_000) });
             if (res.ok) images.push({ data: Buffer.from(await res.arrayBuffer()).toString('base64'), mimeType: res.headers.get('content-type') ?? 'image/png' });

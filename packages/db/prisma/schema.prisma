@@ -1392,12 +1392,14 @@ model JunkShortDailyScan {
 // Claude runs ONLY when the user clicks Analyze; its last answer is kept in aiSummary. aiRead is legacy.
 model ChartSample {
   id             String    @id @default(cuid())
-  imageUrl       String    @db.Text
+  imageUrl       String?   @db.Text // first image (kept for the Claude chat context)
+  images         Json? // [{ url, key }] — all screenshots of the trade
   imageKey       String?   @db.VarChar(300)
   symbol         String?   @db.VarChar(30)
   interval       String?   @db.VarChar(5) // Binance interval: 15m 1h 4h 1d …
   chartTime      DateTime? // open time of the chart's last candle
   entryPrice     Float? // the USER's entry price (null = close of the chart's candle)
+  entryPriceTo   Float? // upper bound of the entry zone (entryPrice = lower / single price)
   tpPrice        Float?
   slPrice        Float?
   direction      String?   @db.VarChar(5) // LONG | SHORT | NONE (user's label)
@@ -1411,6 +1413,8 @@ model ChartSample {
   outcomeStatus  String    @default("PENDING") @db.VarChar(10) // PENDING | DONE | ERROR
   outcomeError   String?   @db.Text
   conversationId String?   @db.Char(36)
+  result         String?   @db.VarChar(4) // TP | SL — the user's own record of how the trade closed
+  closedAt       DateTime?
   aiSummary      String?   @db.Text // Claude's answer to the last "Analyze" (only when the user clicks it)
   analyzedAt     DateTime?
   createdAt      DateTime  @default(now())

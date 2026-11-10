@@ -2018,10 +2018,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<ChartSample[]>(fetchImpl, `${baseUrl}/chart-lab/samples`, withDefaults({}));
     },
 
-    async createChartSample(image: ImageRef, input: ChartSampleUpdate): Promise<ChartSample> {
+    async createChartSample(input: ChartSampleUpdate): Promise<ChartSample> {
       const response = await fetchImpl(
         `${baseUrl}/chart-lab/samples`,
-        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, imageUrl: image.url, imageKey: image.key }) }),
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }),
       );
       if (!response.ok) throw new Error(await errorMessage(response, 'Thêm chart thất bại'));
       return (await response.json()) as ChartSample;

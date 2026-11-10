@@ -1789,9 +1789,15 @@ export type ChartOutcome = {
   computedAt: string;
 };
 export type ChartSideHorizon = { retPct: number; favPct: number; advPct: number } | null;
+export type ChartImage = { url: string; key: string | null };
+export type ChartTradeResult = 'TP' | 'SL';
 export type ChartSample = {
   id: string;
-  imageUrl: string;
+  imageUrl: string | null;
+  images: ChartImage[];
+  entryPriceTo: number | null;
+  result: ChartTradeResult | null;
+  closedAt: string | null;
   symbol: string | null;
   interval: string | null;
   chartTime: string | null;
@@ -1823,6 +1829,10 @@ export type ChartSampleUpdate = Partial<{
   slPrice: number | null;
   note: string | null;
   tags: string[];
+  entryPriceTo: number | null;
+  result: ChartTradeResult | null;
+  closedAt: string | null;
+  images: ChartImage[];
 }>;
 export type ChartStatRow = {
   key: string;

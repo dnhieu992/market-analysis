@@ -3,7 +3,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../client';
 
 export type ChartSampleInput = Partial<{
-  imageUrl: string;
+  imageUrl: string | null;
+  images: Prisma.InputJsonValue | null;
+  entryPriceTo: number | null;
+  result: string | null;
+  closedAt: Date | null;
   imageKey: string | null;
   symbol: string | null;
   interval: string | null;
@@ -29,9 +33,10 @@ export type ChartSampleInput = Partial<{
 const jsonOrNull = (v: Prisma.InputJsonValue | null) => (v === null ? Prisma.DbNull : v);
 
 function toData(input: ChartSampleInput): Prisma.ChartSampleUpdateInput {
-  const { tags, aiRead, features, outcome, ...rest } = input;
+  const { tags, aiRead, features, outcome, images, ...rest } = input;
   const data: Prisma.ChartSampleUpdateInput = { ...rest };
   if (tags !== undefined) data.tags = tags;
+  if (images !== undefined) data.images = jsonOrNull(images);
   if (aiRead !== undefined) data.aiRead = jsonOrNull(aiRead);
   if (features !== undefined) data.features = jsonOrNull(features);
   if (outcome !== undefined) data.outcome = jsonOrNull(outcome);
@@ -41,7 +46,7 @@ function toData(input: ChartSampleInput): Prisma.ChartSampleUpdateInput {
 /** Chart Lab samples (apps/api chart-lab module). */
 export function createChartSampleRepository(client = prisma) {
   return {
-    create(input: ChartSampleInput & { imageUrl: string }) {
+    create(input: ChartSampleInput) {
       return client.chartSample.create({ data: toData(input) as Prisma.ChartSampleCreateInput });
     },
     update(id: string, input: ChartSampleInput) {
