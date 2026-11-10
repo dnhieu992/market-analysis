@@ -1811,6 +1811,7 @@ export type ChartSample = {
     suggestedTags: string[];
     description: string;
     pinNote?: string;
+    pinWarning?: string;
     error?: string;
   } | null;
   features: ChartFeatures | null;

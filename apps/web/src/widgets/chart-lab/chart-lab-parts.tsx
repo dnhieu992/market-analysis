@@ -21,6 +21,7 @@ export function DirectionBadge({ direction }: { direction: ChartDirection | null
 
 /** The user's call judged by TP/SL first touch; unlabeled charts only show whether the data is ready. */
 export function ResultBadge({ sample }: { sample: ChartSample }) {
+  if (sample.aiRead?.pinWarning) return <span className={s.badge} title={sample.aiRead.pinWarning}>⚠ kiểm tra thời điểm</span>;
   if (sample.outcomeStatus === 'ERROR') return <span className={s.badge} title={sample.outcomeError ?? ''}>⚠ thiếu dữ liệu</span>;
   if (sample.side) {
     const r = sample.side.tpSl.result;

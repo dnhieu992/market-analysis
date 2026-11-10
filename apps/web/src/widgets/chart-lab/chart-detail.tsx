@@ -255,6 +255,7 @@ export function ChartDetail({
               </label>
             </div>
             {sample.aiRead?.pinNote && <p className={s.muted} style={{ marginTop: 6 }}>📌 {sample.aiRead.pinNote}</p>}
+            {sample.aiRead?.pinWarning && <p className={s.error}>⚠ {sample.aiRead.pinWarning}</p>}
             {sample.outcomeStatus === 'ERROR' && <p className={s.error}>⚠ {sample.outcomeError}</p>}
           </div>
 

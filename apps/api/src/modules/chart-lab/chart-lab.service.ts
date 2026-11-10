@@ -32,6 +32,7 @@ export type ChartAiRead = {
   suggestedTags: string[];
   description: string;
   pinNote?: string;
+  pinWarning?: string;
   error?: string;
 };
 
@@ -164,6 +165,11 @@ export class ChartLabService {
         chartTime = new Date(candle.t);
         entryPrice = candle.c;
         read.pinNote = note;
+        // The chart's price vs the pinned candle: far apart = wrong candle (old chart without a time axis).
+        if (read.lastClose && Math.abs(candle.c - read.lastClose) / read.lastClose > 0.015) {
+          const gap = ((candle.c - read.lastClose) / read.lastClose) * 100;
+          read.pinWarning = `Giá trên chart (${read.lastClose}) lệch ${gap > 0 ? '+' : ''}${gap.toFixed(1)}% so với nến đã ghim (${candle.c}). Có thể đây là chart cũ, hãy sửa "Nến cuối" cho đúng.`;
+        }
       } catch (e) {
         read.pinNote = (e as Error).message;
       }
@@ -223,6 +229,7 @@ export class ChartLabService {
         if (!k) throw new BadRequestException(`Không có nến ${symbol} ${interval} tại thời điểm đó`);
         patch.chartTime = new Date(k.t);
         patch.entryPrice = k.c;
+        if (cur.aiRead && (cur.aiRead as ChartAiRead).pinWarning) patch.aiRead = { ...(cur.aiRead as ChartAiRead), pinWarning: undefined, pinNote: 'Thời điểm do bạn chỉnh' } as never;
       }
     }
     await this.repo.update(id, patch);
@@ -264,8 +271,8 @@ export class ChartLabService {
   }
 
   /** Win rates of the user's LONG/SHORT calls: overall, per direction, per tag. */
-  async stats(): Promise<{ overall: StatRow; byDirection: StatRow[]; byTag: StatRow[]; total: number; labeled: number; pending: number }> {
-    const rows = (await this.repo.list()).map((r) => this.view(r));
+  async stats(excludeId?: string): Promise<{ overall: StatRow; byDirection: StatRow[]; byTag: StatRow[]; total: number; labeled: number; pending: number }> {
+    const rows = (await this.repo.list()).filter((r) => r.id !== excludeId).map((r) => this.view(r));
     const labeled = rows.filter((r) => r.direction === 'LONG' || r.direction === 'SHORT');
     const agg = (key: string, list: ChartSampleView[]): StatRow => {
       const sides = list.map((r) => r.side).filter((s): s is NonNullable<typeof s> => s != null);
@@ -373,7 +380,8 @@ export class ChartLabService {
   async buildChatContext(sampleId: string | undefined): Promise<{ text: string; images: ChatImage[] }> {
     if (!sampleId) return { text: 'Không có chart nào gắn với cuộc trò chuyện này.', images: [] };
     const me = await this.get(sampleId);
-    const [similar, stats] = await Promise.all([this.similar(sampleId, 8), this.stats()]);
+    // Stats without this chart — its own result must not leak into the analysis.
+    const [similar, stats] = await Promise.all([this.similar(sampleId, 8), this.stats(sampleId)]);
     // Prefer neighbours whose result is known — that is what the user wants to learn from.
     const withResult = similar.filter((s) => s.sample.outcome?.horizons['24']);
     const picked = [...withResult, ...similar.filter((s) => !withResult.includes(s))].slice(0, 4);
@@ -394,7 +402,7 @@ export class ChartLabService {
     if (me.features) lines.push(`Chỉ số lúc đó: ${featureLine(me.features)}`);
     lines.push(`TP/SL dùng để chấm: +${me.tpPct ?? '?'}% / −${me.slPct ?? '?'}%`);
 
-    lines.push('', `## Chart cũ giống nhất trong thư viện (${picked.length}/${stats.total - 1} chart khác)`);
+    lines.push('', `## Chart cũ giống nhất trong thư viện (${picked.length}/${stats.total} chart khác)`);
     if (!picked.length) lines.push('Thư viện chưa có chart nào khác có dữ liệu giá — phân tích chỉ dựa trên ảnh này.');
     for (const [i, s] of picked.entries()) {
       let imgNo: number | null = null;
@@ -407,7 +415,7 @@ export class ChartLabService {
       lines.push(sampleBlock(s.sample, `${i + 1}. #${shortId(s.sample.id)} — giống ${s.similarity}%${imgNo ? ` — ẢNH ${imgNo}` : ''}`));
     }
 
-    lines.push('', `## Thống kê nhận định của user (${stats.labeled} chart đã gắn LONG/SHORT, ${stats.pending} chart đang chờ kết quả)`);
+    lines.push('', `## Thống kê nhận định của user trên các chart KHÁC (${stats.labeled} chart đã gắn LONG/SHORT, ${stats.pending} chart đang chờ kết quả)`);
     lines.push(statLine(stats.overall));
     for (const d of stats.byDirection) lines.push(statLine(d));
     const relevant = stats.byTag.filter((t) => me.tags.includes(t.key));
