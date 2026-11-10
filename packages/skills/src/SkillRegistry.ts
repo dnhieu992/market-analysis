@@ -6,6 +6,7 @@ import { dcaSkill } from './dca';
 import { riskManagementSkill } from './risk-management';
 import { shortBtcDailySkill } from './short-btc-daily';
 import { shortJunkSkill } from './short-junk';
+import { chartLabSkill } from './chart-lab';
 import { scalpingSkill } from './scalping';
 import { trackingSwingSkill } from './tracking-swing';
 import { bitgetAiSkill } from './bitget-ai';
@@ -22,6 +23,7 @@ export const SKILLS: SkillDefinition[] = [
   riskManagementSkill,
   shortBtcDailySkill,
   shortJunkSkill,
+  chartLabSkill,
   scalpingSkill,
   trackingSwingSkill,
   bitgetAiSkill,

@@ -118,3 +118,5 @@ export { createNotificationRepository } from './repositories/notification.reposi
 export type { NotificationInput, NotificationListQuery } from './repositories/notification.repository';
 export { createSpotDailyScanRepository } from './repositories/spot-daily-scan.repository';
 export { createJunkShortDailyScanRepository } from './repositories/junk-short-daily-scan.repository';
+export { createChartSampleRepository } from './repositories/chart-sample.repository';
+export type { ChartSampleInput } from './repositories/chart-sample.repository';

@@ -1757,3 +1757,94 @@ export type SpotDailyScan = {
   coins: number;
   failed: string[];
 };
+
+// ── /chart-lab ───────────────────────────────────────────────────────────────
+export type ChartDirection = 'LONG' | 'SHORT' | 'NONE';
+export type ChartFeatures = {
+  close: number;
+  atrPct: number;
+  ret5: number;
+  ret20: number;
+  ret50: number;
+  rsi14: number;
+  distEma20: number;
+  distEma50: number;
+  distEma200: number;
+  ema20Slope: number;
+  bbPos: number;
+  bbWidth: number;
+  rangePos50: number;
+  volRatio: number;
+};
+export type ChartHorizonStat = { bars: number; retPct: number; maxUpPct: number; maxDownPct: number };
+export type ChartTpSl = { result: 'TP' | 'SL' | 'OPEN'; bars: number | null };
+export type ChartOutcome = {
+  entry: number;
+  barsSeen: number;
+  horizons: Record<string, ChartHorizonStat | null>;
+  tpPct: number;
+  slPct: number;
+  long: ChartTpSl;
+  short: ChartTpSl;
+  computedAt: string;
+};
+export type ChartSideHorizon = { retPct: number; favPct: number; advPct: number } | null;
+export type ChartSample = {
+  id: string;
+  imageUrl: string;
+  symbol: string | null;
+  interval: string | null;
+  chartTime: string | null;
+  entryPrice: number | null;
+  direction: ChartDirection | null;
+  tpPct: number | null;
+  slPct: number | null;
+  note: string | null;
+  tags: string[];
+  aiRead: {
+    symbol: string | null;
+    interval: string | null;
+    exchange: string | null;
+    lastClose: number | null;
+    approxLastTime: string | null;
+    bias: ChartDirection | null;
+    suggestedTags: string[];
+    description: string;
+    pinNote?: string;
+    error?: string;
+  } | null;
+  features: ChartFeatures | null;
+  outcome: ChartOutcome | null;
+  outcomeStatus: 'PENDING' | 'DONE' | 'ERROR';
+  outcomeError: string | null;
+  side: { tpSl: ChartTpSl; h6: ChartSideHorizon; h24: ChartSideHorizon; h72: ChartSideHorizon } | null;
+  conversationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type ChartSampleUpdate = Partial<{
+  symbol: string | null;
+  interval: string | null;
+  chartTime: string | null;
+  direction: ChartDirection | null;
+  tpPct: number | null;
+  slPct: number | null;
+  note: string | null;
+  tags: string[];
+}>;
+export type ChartStatRow = {
+  key: string;
+  n: number;
+  tp: number;
+  sl: number;
+  open: number;
+  tpWinRate: number | null;
+  n24: number;
+  win24: number;
+  winRate24: number | null;
+  avgRet24: number | null;
+  avgFav24: number | null;
+  avgAdv24: number | null;
+};
+export type ChartLabStats = { overall: ChartStatRow; byDirection: ChartStatRow[]; byTag: ChartStatRow[]; total: number; labeled: number; pending: number };
+export type ChartSimilar = { sample: ChartSample; similarity: number };

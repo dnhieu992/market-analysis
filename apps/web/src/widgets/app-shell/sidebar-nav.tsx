@@ -59,6 +59,11 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Chat short coin rác · chỉ scan danh sách coin bạn tự quản lý'
   },
   {
+    href: '/chart-lab',
+    label: 'Chart Lab',
+    description: 'Thư viện ảnh chart · Claude đọc & so với chart cũ · tỉ lệ thắng theo setup'
+  },
+  {
     href: '/skills',
     label: 'Skills',
     description: 'AI-powered analysis skills'

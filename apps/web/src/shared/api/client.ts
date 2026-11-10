@@ -93,6 +93,10 @@ import type {
   CreateAssetTransactionInput,
   BinanceKline,
   ImageRef,
+  ChartSample,
+  ChartSampleUpdate,
+  ChartSimilar,
+  ChartLabStats,
   StrategyBacktestBoard,
   CreateStrategyBacktestSetupInput,
   UpdateStrategyBacktestSetupInput,
@@ -2007,6 +2011,48 @@ export function createApiClient(options: ApiClientOptions = {}) {
         throw new Error(msg || `Lưu đánh giá thất bại (HTTP ${response.status})`);
       }
       return (await response.json()) as TradingListNote;
+    },
+
+    // ── /chart-lab ────
+    async fetchChartSamples(): Promise<ChartSample[]> {
+      return fetchJson<ChartSample[]>(fetchImpl, `${baseUrl}/chart-lab/samples`, withDefaults({}));
+    },
+
+    async createChartSample(image: ImageRef): Promise<ChartSample> {
+      const response = await fetchImpl(
+        `${baseUrl}/chart-lab/samples`,
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageUrl: image.url, imageKey: image.key }) }),
+      );
+      if (!response.ok) throw new Error(await errorMessage(response, 'Thêm chart thất bại'));
+      return (await response.json()) as ChartSample;
+    },
+
+    async updateChartSample(id: string, patch: ChartSampleUpdate): Promise<ChartSample> {
+      const response = await fetchImpl(
+        `${baseUrl}/chart-lab/samples/${id}`,
+        withDefaults({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }),
+      );
+      if (!response.ok) throw new Error(await errorMessage(response, 'Lưu chart thất bại'));
+      return (await response.json()) as ChartSample;
+    },
+
+    async deleteChartSample(id: string): Promise<void> {
+      const response = await fetchImpl(`${baseUrl}/chart-lab/samples/${id}`, withDefaults({ method: 'DELETE' }));
+      if (!response.ok) throw new Error(await errorMessage(response, 'Xoá chart thất bại'));
+    },
+
+    async fetchSimilarCharts(id: string, limit = 6): Promise<ChartSimilar[]> {
+      return fetchJson<ChartSimilar[]>(fetchImpl, `${baseUrl}/chart-lab/samples/${id}/similar?limit=${limit}`, withDefaults({}));
+    },
+
+    async chartSampleConversation(id: string): Promise<{ conversationId: string }> {
+      const response = await fetchImpl(`${baseUrl}/chart-lab/samples/${id}/conversation`, withDefaults({ method: 'POST' }));
+      if (!response.ok) throw new Error(await errorMessage(response, 'Không mở được chat'));
+      return (await response.json()) as { conversationId: string };
+    },
+
+    async fetchChartLabStats(): Promise<ChartLabStats> {
+      return fetchJson<ChartLabStats>(fetchImpl, `${baseUrl}/chart-lab/stats`, withDefaults({}));
     },
 
     // ── /short-junk coin list ────

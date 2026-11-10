@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os';
 
 import { Injectable, Logger } from '@nestjs/common';
-import type { Options, SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, SDKUserMessage, SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 
 import { ChatProvider } from '../contracts/chat-provider';
@@ -96,7 +96,30 @@ export type ChatRunOptions = {
   maxToolIterations?: number;
   /** Whole-reply time limit (default QUERY_TIMEOUT_MS) — a /backtest turn runs code in the sandbox, so it needs longer. */
   timeoutMs?: number;
+  /** Images sent with the (last) user turn, before its text — e.g. the /chart-lab chart + similar charts. */
+  images?: ReadonlyArray<ChatImage>;
 };
+
+export type ChatImage = Readonly<{ data: string; mimeType: string }>;
+
+/** Streaming-input form of a prompt, so images can ride along with the text. */
+async function* promptWithImages(text: string, images: ReadonlyArray<ChatImage>): AsyncGenerator<SDKUserMessage> {
+  yield {
+    type: 'user',
+    parent_tool_use_id: null,
+    session_id: '',
+    message: {
+      role: 'user',
+      content: [
+        ...images.map((img) => ({
+          type: 'image' as const,
+          source: { type: 'base64' as const, media_type: img.mimeType as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif', data: img.data },
+        })),
+        { type: 'text' as const, text },
+      ],
+    },
+  };
+}
 
 type ToolExecutor = (name: string, input: unknown) => Promise<string | ChatToolRichResult>;
 
@@ -121,6 +144,11 @@ export class ClaudeChatProvider extends ChatProvider {
     run: ChatRunOptions = {}
   ): Promise<string> {
     return this.runQuery(systemPrompt, buildPrompt(history), tools, executeTool, this.model, run);
+  }
+
+  /** One-shot question about images (no tools, no history) — e.g. reading a chart screenshot. */
+  async askWithImages(systemPrompt: string, text: string, images: ReadonlyArray<ChatImage>, run: Omit<ChatRunOptions, 'images'> = {}): Promise<string> {
+    return this.runQuery(systemPrompt, text, [], async () => '', this.model, { ...run, images });
   }
 
   /** Generate a short conversation title from the first user message */
@@ -212,7 +240,8 @@ export class ClaudeChatProvider extends ChatProvider {
     // so the last turn's text ends up matching the final result we save.
     let turnText = '';
     try {
-      for await (const message of query({ prompt, options })) {
+      const input = run.images?.length ? promptWithImages(prompt, run.images) : prompt;
+      for await (const message of query({ prompt: input, options })) {
         if (message.type === 'stream_event' && run.onProgress) {
           const ev = message.event;
           if (ev.type === 'message_start') {

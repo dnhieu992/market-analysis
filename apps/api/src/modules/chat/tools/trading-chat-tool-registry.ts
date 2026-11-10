@@ -16,6 +16,7 @@ import { TradingListAiChatService } from './trading-list-ai.tools';
 import { OkxShortAiChatService } from './okx-short-ai.tools';
 import { BacktestChatService } from './backtest.tools';
 import { ShortScoreChatService } from './short-score.tools';
+import { ChartLabChatService } from './chart-lab.tools';
 
 @Injectable()
 export class TradingChatToolRegistry extends ChatToolRegistry {
@@ -33,10 +34,10 @@ export class TradingChatToolRegistry extends ChatToolRegistry {
     ['propose_trade_setup',            createProposeTradeSetupTool()]
   ]);
 
-  constructor(bitgetAi: BitgetAiChatService, mexcAi: MexcAiChatService, tradingListAi: TradingListAiChatService, okxShortAi: OkxShortAiChatService, backtest: BacktestChatService, shortScore: ShortScoreChatService) {
+  constructor(bitgetAi: BitgetAiChatService, mexcAi: MexcAiChatService, tradingListAi: TradingListAiChatService, okxShortAi: OkxShortAiChatService, backtest: BacktestChatService, shortScore: ShortScoreChatService, chartLab: ChartLabChatService) {
     super();
     // The /bitget, /mexc, /trading-list and /trades (OKX short) AI chat tools need the live exchange services, so they come from DI.
-    for (const tool of [...bitgetAi.tools(), ...mexcAi.tools(), ...tradingListAi.tools(), ...okxShortAi.tools(), ...backtest.tools(), ...shortScore.tools()]) this.tools.set(tool.name, tool);
+    for (const tool of [...bitgetAi.tools(), ...mexcAi.tools(), ...tradingListAi.tools(), ...okxShortAi.tools(), ...backtest.tools(), ...shortScore.tools(), ...chartLab.tools()]) this.tools.set(tool.name, tool);
   }
 
   listTools(): readonly ChatTool[] {

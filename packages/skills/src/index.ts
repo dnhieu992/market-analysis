@@ -7,6 +7,7 @@ export { dcaSkill } from './dca';
 export { riskManagementSkill } from './risk-management';
 export { shortBtcDailySkill } from './short-btc-daily';
 export { shortJunkSkill } from './short-junk';
+export { chartLabSkill } from './chart-lab';
 export { scalpingSkill } from './scalping';
 export { trackingSwingSkill } from './tracking-swing';
 export { bitgetAiSkill } from './bitget-ai';

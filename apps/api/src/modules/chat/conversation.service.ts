@@ -11,7 +11,9 @@ import { getSkillById, OKX_SHORT_SYSTEM_PROMPT } from '@app/skills';
 import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITORY, ORDER_REPOSITORY } from '../database/database.providers';
 import { buildTrackingContext, TRACKING_SKILL_ID } from '../tracking-trades/tracking-context';
 import { attachSpotTrades, listSpotTradeCards } from '../tracking-coins/spot-trade-cards';
-import { ClaudeChatProvider } from './providers/claude-chat.provider';
+import { ClaudeChatProvider, type ChatImage } from './providers/claude-chat.provider';
+import { CHART_LAB_SKILL_ID } from '../chart-lab/chart-lab.constants';
+import { ChartLabService } from '../chart-lab/chart-lab.service';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
 import { isRichToolResult } from './contracts/chat-tool';
 import { BITGET_AI_SKILL_ID, BitgetAiChatService } from './tools/bitget-ai.tools';
@@ -82,7 +84,8 @@ export class ConversationService {
     private readonly bitgetAi: BitgetAiChatService,
     private readonly mexcAi: MexcAiChatService,
     private readonly tradingListAi: TradingListAiChatService,
-    private readonly okxShortAi: OkxShortAiChatService
+    private readonly okxShortAi: OkxShortAiChatService,
+    private readonly chartLab: ChartLabService
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────
@@ -270,7 +273,17 @@ export class ConversationService {
       const nowVn = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
       // These chats never start over on their own: keep the newest messages verbatim, digest the rest.
       const history = exchangeAi ? fullHistory.slice(-EXCHANGE_AI_RECENT_MESSAGES) : fullHistory;
-      const systemPrompt = tracking
+      // /chart-lab: each turn re-sends the chart + its most similar library charts as images.
+      let images: ChatImage[] | undefined;
+      let chartLabPrompt: string | null = null;
+      if (skillId === CHART_LAB_SKILL_ID && skill) {
+        const ctx = await this.chartLab.buildChatContext(meta?.sampleId);
+        images = ctx.images;
+        chartLabPrompt = [skill.systemPrompt, '---', `Thời gian hiện tại: ${nowVn} (GMT+7)`, ctx.text].join('\n\n');
+      }
+      const systemPrompt = chartLabPrompt
+        ? chartLabPrompt
+        : tracking
         ? `${skill!.systemPrompt}\n\n---\n\nThời gian hiện tại: ${nowVn} (GMT+7)\n\n${await buildTrackingContext(meta?.symbol, conversationId)}`
         : exchangeAi
           ? [
@@ -302,6 +315,8 @@ export class ConversationService {
         },
         {
           signal: live.abort.signal,
+          ...(images?.length ? { images } : {}),
+          ...(chartLabPrompt ? { maxToolIterations: 8 } : {}),
           // Reading positions + setup + charts + signals before proposing takes more rounds (two accounts: more still).
           ...(exchangeAi ? { maxToolIterations: exchangeAi === this.tradingListAi || exchangeAi === this.okxShortAi ? 14 : 10 } : {}),
           // "/backtest" writes + runs strategy code in the sandbox (maybe twice after a fix) — give the OKX short chat longer.
