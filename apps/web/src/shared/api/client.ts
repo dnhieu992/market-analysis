@@ -2018,10 +2018,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return fetchJson<ChartSample[]>(fetchImpl, `${baseUrl}/chart-lab/samples`, withDefaults({}));
     },
 
-    async createChartSample(image: ImageRef): Promise<ChartSample> {
+    async createChartSample(image: ImageRef, input: ChartSampleUpdate): Promise<ChartSample> {
       const response = await fetchImpl(
         `${baseUrl}/chart-lab/samples`,
-        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageUrl: image.url, imageKey: image.key }) }),
+        withDefaults({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, imageUrl: image.url, imageKey: image.key }) }),
       );
       if (!response.ok) throw new Error(await errorMessage(response, 'Thêm chart thất bại'));
       return (await response.json()) as ChartSample;
@@ -2043,6 +2043,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     async fetchSimilarCharts(id: string, limit = 6): Promise<ChartSimilar[]> {
       return fetchJson<ChartSimilar[]>(fetchImpl, `${baseUrl}/chart-lab/samples/${id}/similar?limit=${limit}`, withDefaults({}));
+    },
+
+    async fetchChartSample(id: string): Promise<ChartSample> {
+      return fetchJson<ChartSample>(fetchImpl, `${baseUrl}/chart-lab/samples/${id}`, withDefaults({}));
+    },
+
+    async analyzeChartSample(id: string): Promise<{ conversationId: string }> {
+      const response = await fetchImpl(`${baseUrl}/chart-lab/samples/${id}/analyze`, withDefaults({ method: 'POST' }));
+      if (!response.ok) throw new Error(await errorMessage(response, 'Không gọi được Claude'));
+      return (await response.json()) as { conversationId: string };
     },
 
     async chartSampleConversation(id: string): Promise<{ conversationId: string }> {

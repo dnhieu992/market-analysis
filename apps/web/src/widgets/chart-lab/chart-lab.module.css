@@ -179,3 +179,49 @@
   .chatCol { border-left: 0; border-top: 1px solid var(--border); height: 85vh; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 }
+
+/* Form */
+.formStack { display: flex; flex-direction: column; gap: 12px; }
+.hint { font-size: 11px; color: var(--muted); }
+.hintBad { font-size: 11px; color: #b42318; font-weight: 600; }
+
+/* New chart dialog */
+.modal {
+  position: fixed;
+  z-index: 1301;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1100px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  box-sizing: border-box;
+}
+.modalGrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.modalActions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
+@media (max-width: 900px) {
+  .modalGrid { grid-template-columns: 1fr; }
+}
+
+/* Tile with an Analyze button */
+.tileFoot { display: flex; align-items: center; gap: 6px; justify-content: space-between; margin-top: 2px; }
+.analyzeBtn {
+  border: 1px solid rgba(31, 111, 91, 0.45);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 7px;
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.analyzeBtn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.analyzeBtn:disabled { opacity: 0.6; cursor: default; }
+.badgeAi { border-color: rgba(31, 111, 91, 0.4); color: var(--accent); }

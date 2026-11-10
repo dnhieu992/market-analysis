@@ -10,6 +10,7 @@ import { ShortScoreModule } from '../short-score/short-score.module';
 import { TradeEntriesModule } from '../trade-entries/trade-entries.module';
 import { TradingListModule } from '../trading-list/trading-list.module';
 import { ChatController } from './chat.controller';
+import { ChartLabAnalyzeController } from './chart-lab-analyze.controller';
 import { ChatProvider } from './contracts/chat-provider';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
 import { ChatService } from './chat.service';
@@ -26,7 +27,7 @@ import { TradingChatToolRegistry } from './tools/trading-chat-tool-registry';
 
 @Module({
   imports: [DatabaseModule, BacktestLabModule, ChartLabModule, BitgetModule, MexcModule, OkxModule, ShortScoreModule, TradingListModule, TradeEntriesModule],
-  controllers: [ChatController],
+  controllers: [ChatController, ChartLabAnalyzeController],
   providers: [
     ChatService,
     ConversationService,

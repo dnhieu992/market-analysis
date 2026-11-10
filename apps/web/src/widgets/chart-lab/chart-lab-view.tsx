@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createApiClient } from '@web/shared/api/client';
-import type { ChartLabStats, ChartSample, ChartStatRow } from '@web/shared/api/types';
+import type { ChartLabStats, ChartSample, ChartStatRow, ImageRef, LiveReply } from '@web/shared/api/types';
 
 import { ChartDetail } from './chart-detail';
+import { NewChartDialog } from './new-chart-dialog';
 import { DirectionBadge, ResultBadge, fmtChartTime, fmtPct, pctClass } from './chart-lab-parts';
 import s from './chart-lab.module.css';
 
 const api = createApiClient();
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type DirFilter = 'ALL' | 'LONG' | 'SHORT' | 'NONE' | 'UNLABELED';
 
@@ -19,6 +21,8 @@ export function ChartLabView() {
   const [stats, setStats] = useState<ChartLabStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const [queue, setQueue] = useState<ImageRef[]>([]);
+  const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
   const [dragOver, setDragOver] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string>('');
@@ -40,29 +44,25 @@ export function ChartLabView() {
     void load();
   }, [load]);
 
+  /** Upload to R2 only; each image then gets the form (nothing is saved until the user clicks Lưu). */
   const addFiles = useCallback(
     async (files: File[]) => {
       const images = files.filter((f) => f.type.startsWith('image/'));
       if (!images.length || uploading) return;
       setError(null);
       setUploading({ done: 0, total: images.length });
-      let lastId: string | null = null;
+      const refs: ImageRef[] = [];
       for (const [i, file] of images.entries()) {
         try {
           const [ref] = await api.uploadImagesR2([file]);
-          if (!ref) throw new Error('Upload ảnh thất bại');
-          const created = await api.createChartSample(ref);
-          lastId = created.id;
-          setSamples((prev) => [created, ...(prev ?? [])]);
+          if (ref) refs.push(ref);
         } catch (e) {
-          setError(`${file.name}: ${e instanceof Error ? e.message : 'lỗi'}`);
+          setError(`${file.name}: ${e instanceof Error ? e.message : 'upload lỗi'}`);
         }
         setUploading({ done: i + 1, total: images.length });
       }
       setUploading(null);
-      void api.fetchChartLabStats().then(setStats).catch(() => {});
-      // One chart → open it straight away to label it.
-      if (images.length === 1 && lastId) setSelectedId(lastId);
+      if (refs.length) setQueue((q) => [...q, ...refs]);
     },
     [uploading],
   );
@@ -70,7 +70,7 @@ export function ChartLabView() {
   // Ctrl/Cmd+V a screenshot anywhere on the page (not while typing in the drawer).
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      if (selectedId) return;
+      if (selectedId || queue.length) return;
       const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
       if (files.length) {
         e.preventDefault();
@@ -79,12 +79,47 @@ export function ChartLabView() {
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [addFiles, selectedId]);
+  }, [addFiles, selectedId, queue.length]);
 
   const onChanged = useCallback((updated: ChartSample) => {
     setSamples((prev) => (prev ?? []).map((x) => (x.id === updated.id ? updated : x)));
     void api.fetchChartLabStats().then(setStats).catch(() => {});
   }, []);
+
+  const onCreated = useCallback((created: ChartSample) => {
+    setSamples((prev) => [created, ...(prev ?? [])]);
+    setQueue((q) => q.slice(1));
+    void api.fetchChartLabStats().then(setStats).catch(() => {});
+  }, []);
+
+  /** Analyze from the list: runs in the background, the badge updates when Claude is done. */
+  const analyze = useCallback(
+    async (id: string) => {
+      setAnalyzing((cur) => new Set(cur).add(id));
+      try {
+        const { conversationId } = await api.analyzeChartSample(id);
+        setSamples((prev) => (prev ?? []).map((x) => (x.id === id ? { ...x, conversationId } : x)));
+        const started = Date.now();
+        await sleep(1500);
+        while (Date.now() - started < 8 * 60_000) {
+          const l: LiveReply | null = await api.getLiveReply(conversationId).catch(() => null);
+          if (l && !l.active) break;
+          await sleep(2000);
+        }
+        const updated = await api.fetchChartSample(id);
+        onChanged(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Không gọi được Claude');
+      } finally {
+        setAnalyzing((cur) => {
+          const n = new Set(cur);
+          n.delete(id);
+          return n;
+        });
+      }
+    },
+    [onChanged],
+  );
 
   const onDeleted = useCallback((id: string) => {
     setSamples((prev) => (prev ?? []).filter((x) => x.id !== id));
@@ -115,8 +150,9 @@ export function ChartLabView() {
     <div className={`page ${s.page}`}>
       <h1>🧪 Chart Lab</h1>
       <p className={s.lead}>
-        Thư viện chart của bạn. Upload ảnh chart, Claude tự đọc coin, khung giờ và thời điểm, hệ thống lấy giá Binance để chấm kết quả thật (sau 6/24/72 nến và TP/SL nào chạm
-        trước). Gắn nhận định LONG/SHORT cùng tag cho từng chart để xem setup nào của bạn thắng nhiều. Mỗi lần nhờ phân tích chart mới, Claude sẽ so với các chart cũ giống nhất.
+        Kho chart của bạn. Upload ảnh rồi ghi phân tích sơ bộ (coin, khung, thời điểm, hướng, giá vào, TP, SL, tag, nhận xét). Hệ thống lấy giá Binance để chấm kết quả thật
+        (sau 6/24/72 nến, TP hay SL chạm trước). Claude chỉ chạy khi bạn bấm <strong>🔍 Analyze</strong> trên một chart: Claude đánh giá phân tích của bạn, phân tích lại chart,
+        so với các chart cũ giống nhất và tóm tắt bài học.
       </p>
 
       <div
@@ -134,12 +170,12 @@ export function ChartLabView() {
       >
         <div className={s.dropText}>
           <strong>＋ Thêm chart</strong>
-          Kéo thả ảnh vào đây, dán bằng Ctrl/⌘+V, hoặc chọn file (nhiều ảnh cùng lúc được). Mỗi ảnh mất ~10–20 giây để Claude đọc.
+          Kéo thả ảnh vào đây, dán bằng Ctrl/⌘+V, hoặc chọn file (nhiều ảnh cùng lúc được), rồi điền phân tích của bạn cho từng ảnh.
         </div>
         <div className={s.toolbarActions}>
           {uploading && (
             <span className={s.busyOverlay}>
-              Đang đọc chart {Math.min(uploading.done + 1, uploading.total)}/{uploading.total}…
+              Đang upload {Math.min(uploading.done + 1, uploading.total)}/{uploading.total}…
             </span>
           )}
           <button type="button" className={s.primaryBtn} onClick={() => fileRef.current?.click()} disabled={!!uploading}>
@@ -194,7 +230,14 @@ export function ChartLabView() {
         ) : (
           <div className={s.grid}>
             {visible.map((x) => (
-              <button key={x.id} type="button" className={s.tile} onClick={() => setSelectedId(x.id)}>
+              <div
+                key={x.id}
+                role="button"
+                tabIndex={0}
+                className={s.tile}
+                onClick={() => setSelectedId(x.id)}
+                onKeyDown={(e) => e.key === 'Enter' && setSelectedId(x.id)}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img className={s.thumb} src={x.imageUrl} alt={`${x.symbol ?? 'chart'} ${x.interval ?? ''}`} loading="lazy" />
                 <div className={s.tileBody}>
@@ -216,12 +259,36 @@ export function ChartLabView() {
                       ))}
                     </div>
                   )}
+                  <div className={s.tileFoot}>
+                    {x.analyzedAt ? <span className={`${s.badge} ${s.badgeAi}`}>🧪 đã Analyze</span> : <span className={s.muted}>chưa Analyze</span>}
+                    <button
+                      type="button"
+                      className={s.analyzeBtn}
+                      disabled={analyzing.has(x.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void analyze(x.id);
+                      }}
+                    >
+                      {analyzing.has(x.id) ? 'Đang phân tích…' : x.analyzedAt ? '🔍 Analyze lại' : '🔍 Analyze'}
+                    </button>
+                  </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
       </section>
+
+      {queue.length > 0 && (
+        <NewChartDialog
+          images={queue}
+          allTags={allTags.map((t) => t.tag)}
+          onSaved={onCreated}
+          onSkip={() => setQueue((q) => q.slice(1))}
+          onClose={() => setQueue([])}
+        />
+      )}
 
       {selected && (
         <ChartDetail

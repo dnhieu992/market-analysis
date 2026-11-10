@@ -18,11 +18,11 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type Status = 'idle' | 'waiting' | 'stopping' | 'error' | 'stopped';
 
-const FIRST_PROMPT = 'Phân tích chart này.';
-const SUGGESTIONS = ['Phân tích chart này.', 'So chart này với các chart cũ giống nhất, chúng khác nhau ở đâu?', 'Setup nào của tôi đang thắng nhiều nhất?'];
-
-/** The analysis chat of one chart (one thread per chart; the server re-attaches the chart + similar charts each turn). */
-export function ChartLabChat({ sample }: { sample: ChartSample }) {
+/**
+ * Claude panel of one chart. Nothing runs until the user clicks Analyze; afterwards follow-up questions go to
+ * the same thread (the server re-attaches the chart + similar charts every turn).
+ */
+export function ChartLabChat({ sample, onAnalyzed, dirty }: { sample: ChartSample; onAnalyzed: (s: ChartSample) => void; dirty: boolean }) {
   const [convId, setConvId] = useState<string | null>(sample.conversationId);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<Status>('idle');
@@ -79,6 +79,8 @@ export function ChartLabChat({ sample }: { sample: ChartSample }) {
         if (msgs.some((m) => m.role === 'assistant' && m.createdAt >= sinceIso)) {
           setLive(null);
           setStatus('idle');
+          // The Analyze answer is stored on the chart — refresh it for the list badge.
+          api.fetchChartSample(sample.id).then(onAnalyzed).catch(() => {});
           return;
         }
       } catch {
@@ -109,6 +111,7 @@ export function ChartLabChat({ sample }: { sample: ChartSample }) {
       }
       await sleep(POLL_MS);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -161,6 +164,26 @@ export function ChartLabChat({ sample }: { sample: ChartSample }) {
     }
   }
 
+  /** The only way this page calls Claude: evaluate the user's analysis + analyze the chart. */
+  async function analyze() {
+    if (busy) return;
+    setNotice(null);
+    atBottomRef.current = true;
+    setStartedAt(Date.now());
+    setStatus('waiting');
+    try {
+      const { conversationId } = await api.analyzeChartSample(sample.id);
+      setConvId(conversationId);
+      const msgs = await api.getMessages(conversationId);
+      setMessages(msgs);
+      const lastUser = [...msgs].reverse().find((m) => m.role === 'user');
+      await watch(conversationId, lastUser?.createdAt ?? new Date().toISOString());
+    } catch (e) {
+      setStatus('idle');
+      setNotice(e instanceof Error ? e.message : 'Không gọi được Claude.');
+    }
+  }
+
   async function stop() {
     if (!convId || status !== 'waiting') return;
     setStatus('stopping');
@@ -196,29 +219,28 @@ export function ChartLabChat({ sample }: { sample: ChartSample }) {
           {ICON}
         </span>
         <div className={styles.headTitle}>
-          Phân tích với Claude
-          <span className={styles.headSub}>Claude xem chart này + các chart cũ giống nhất và kết quả thật của chúng</span>
+          Claude
+          <span className={styles.headSub}>{sample.analyzedAt ? `Analyze lần cuối ${new Date(sample.analyzedAt).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Chỉ chạy khi bạn bấm Analyze'}</span>
         </div>
+        {messages.length > 0 && (
+          <button type="button" className={styles.headBtn} onClick={() => void analyze()} disabled={busy || dirty} title={dirty ? 'Lưu phân tích trước' : 'Analyze lại với dữ liệu mới nhất'}>
+            🔍 <span>Analyze lại</span>
+          </button>
+        )}
       </div>
 
       <div ref={scrollerRef} className={c.scroller} onScroll={onScroll} style={{ flex: 1, minHeight: 0 }}>
         {!loaded ? null : empty ? (
           <div className={s.chatStart}>
             <span>
-              Claude sẽ đưa nhận định LONG/SHORT/đứng ngoài kèm vùng vào, TP, SL, so với các chart cũ giống nhất và tỉ lệ thắng của các tag liên quan. Kết quả thật của chart này
-              được giấu khỏi Claude để không bị lộ đáp án.
+              Bấm Analyze, Claude sẽ xem ảnh chart, phân tích của bạn, kết quả thật trên Binance và các chart cũ giống nhất trong kho. Sau đó Claude đánh giá nhận định của bạn
+              đúng hay sai và vì sao, đưa ra phân tích riêng, rồi tóm tắt bài học. Mất khoảng 30–60 giây.
             </span>
-            <button type="button" className={s.primaryBtn} onClick={() => void send(FIRST_PROMPT)}>
-              🤖 Phân tích chart này
+            <button type="button" className={s.primaryBtn} onClick={() => void analyze()} disabled={dirty}>
+              🔍 Analyze
             </button>
+            {dirty && <span className={s.hintBad}>Lưu phân tích của bạn trước khi Analyze.</span>}
             {notice && <div className={c.notice}>{notice}</div>}
-            <div className={c.suggestions} style={{ marginTop: 4 }}>
-              {SUGGESTIONS.slice(1).map((q) => (
-                <button key={q} type="button" className={c.suggestion} onClick={() => void send(q)}>
-                  {q}
-                </button>
-              ))}
-            </div>
           </div>
         ) : (
           <div className={c.thread}>
@@ -247,6 +269,7 @@ export function ChartLabChat({ sample }: { sample: ChartSample }) {
         )}
       </div>
 
+      {messages.length > 0 && (
       <div className={c.dock}>
         <div className={c.dockInner}>
           <Composer
@@ -255,12 +278,13 @@ export function ChartLabChat({ sample }: { sample: ChartSample }) {
             onSend={() => void send()}
             onStop={() => void stop()}
             busy={busy}
-            placeholder="Hỏi về chart này…"
+            placeholder="Hỏi thêm Claude về chart này…"
             inputRef={inputRef}
           />
           <div className={c.disclaimer}>Phân tích tham khảo, không phải lời khuyên tài chính.</div>
         </div>
       </div>
+      )}
     </div>
   );
 }

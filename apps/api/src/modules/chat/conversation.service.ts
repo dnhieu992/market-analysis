@@ -12,7 +12,7 @@ import { CONVERSATION_REPOSITORY, HOLDING_REPOSITORY, COIN_TRANSACTION_REPOSITOR
 import { buildTrackingContext, TRACKING_SKILL_ID } from '../tracking-trades/tracking-context';
 import { attachSpotTrades, listSpotTradeCards } from '../tracking-coins/spot-trade-cards';
 import { ClaudeChatProvider, type ChatImage } from './providers/claude-chat.provider';
-import { CHART_LAB_SKILL_ID } from '../chart-lab/chart-lab.constants';
+import { CHART_LAB_ANALYZE_PROMPT, CHART_LAB_SKILL_ID } from '../chart-lab/chart-lab.constants';
 import { ChartLabService } from '../chart-lab/chart-lab.service';
 import { ChatToolRegistry } from './contracts/chat-tool-registry';
 import { isRichToolResult } from './contracts/chat-tool';
@@ -335,6 +335,10 @@ export class ConversationService {
       );
 
       const assistantMsg = await this.convRepo.addMessage(conversationId, 'assistant', reply);
+      // /chart-lab: the answer to an Analyze click is kept on the chart itself.
+      if (chartLabPrompt && meta?.sampleId && [...fullHistory].reverse().find((m) => m.role === 'user')?.content === CHART_LAB_ANALYZE_PROMPT) {
+        await this.chartLab.saveAnalysis(meta.sampleId, reply);
+      }
       await this.setupRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await this.trackingRepo.attachToMessage(conversationId, assistantMsg.id, startedAt);
       await attachSpotTrades(conversationId, assistantMsg.id, startedAt);

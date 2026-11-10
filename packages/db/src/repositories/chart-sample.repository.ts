@@ -9,6 +9,10 @@ export type ChartSampleInput = Partial<{
   interval: string | null;
   chartTime: Date | null;
   entryPrice: number | null;
+  tpPrice: number | null;
+  slPrice: number | null;
+  aiSummary: string | null;
+  analyzedAt: Date | null;
   direction: string | null;
   tpPct: number | null;
   slPct: number | null;

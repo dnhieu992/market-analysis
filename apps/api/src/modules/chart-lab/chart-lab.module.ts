@@ -1,15 +1,12 @@
 import { Module } from '@nestjs/common';
 
-import { ClaudeChatProvider } from '../chat/providers/claude-chat.provider';
-import { DatabaseModule } from '../database/database.module';
 import { ChartLabController } from './chart-lab.controller';
 import { ChartLabService } from './chart-lab.service';
 
-/** /chart-lab: chart screenshot library — Claude reads each chart, the server scores what happened next. */
+/** /chart-lab: chart library — saved as the user typed it, scored from Binance. Claude only via Analyze (chat module). */
 @Module({
-  imports: [DatabaseModule],
   controllers: [ChartLabController],
-  providers: [ChartLabService, ClaudeChatProvider],
+  providers: [ChartLabService],
   exports: [ChartLabService],
 })
 export class ChartLabModule {}

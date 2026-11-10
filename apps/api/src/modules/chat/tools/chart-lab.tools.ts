@@ -96,12 +96,12 @@ export class ChartLabChatService {
   private outcomeTool(): ChatTool<{ sampleId: string }, string> {
     return {
       name: 'get_chart_outcome',
-      description: 'What price REALLY did after a chart (6/24/72 candles, TP/SL first touch both ways). Use only when the user asks for the result.',
+      description: 'What price REALLY did after any chart in the library (6/24/72 candles, TP/SL first touch both ways), latest data.',
       inputSchema: { type: 'object', properties: { sampleId: { type: 'string', description: 'Chart id (full or #short id)' } }, required: ['sampleId'] },
       execute: async (input) => {
         const s = await this.lab.get(await this.resolveId(input.sampleId));
         if (s.outcomeStatus === 'ERROR') return `Chưa chấm được: ${s.outcomeError ?? 'lỗi'}`;
-        return `#${shortId(s.id)} ${s.symbol} ${s.interval} · giá vào ${s.entryPrice} · ${outcomeLine(s.outcome)}${s.outcomeStatus === 'PENDING' ? ' (đang tiếp tục cập nhật khi có nến mới)' : ''}`;
+        return `#${shortId(s.id)} ${s.symbol} ${s.interval} · ${outcomeLine(s.outcome)}${s.outcomeStatus === 'PENDING' ? ' (đang tiếp tục cập nhật khi có nến mới)' : ''}`;
       },
     };
   }

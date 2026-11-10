@@ -1385,11 +1385,11 @@ model JunkShortDailyScan {
   @@map("junk_short_daily_scans")
 }
 
-// Chart Lab (/chart-lab): a price-chart screenshot the user uploaded. Claude reads symbol / interval /
-// last candle from the image; the server pins it to the Binance candle (chartTime, entryPrice), stores a
-// numeric fingerprint of the market at that moment (features, used to find similar charts) and later the
-// raw outcome after N candles + which of TP/SL was hit first for LONG and SHORT (outcome). `direction` is
-// the USER's call (null = not labeled yet); `aiRead` is what Claude saw when the chart was uploaded.
+// Chart Lab (/chart-lab): a price-chart screenshot + the user's own analysis (coin, timeframe, time,
+// direction, entry / TP / SL, tags, note) — saved as typed, no AI on upload. The server pins it to the
+// Binance candle (chartTime), stores a market fingerprint (features: used to find similar charts; close =
+// candle close) and scores what happened next (outcome: move after 6/24/72 candles + TP/SL first touch).
+// Claude runs ONLY when the user clicks Analyze; its last answer is kept in aiSummary. aiRead is legacy.
 model ChartSample {
   id             String    @id @default(cuid())
   imageUrl       String    @db.Text
@@ -1397,7 +1397,9 @@ model ChartSample {
   symbol         String?   @db.VarChar(30)
   interval       String?   @db.VarChar(5) // Binance interval: 15m 1h 4h 1d …
   chartTime      DateTime? // open time of the chart's last candle
-  entryPrice     Float? // close of that candle (Binance)
+  entryPrice     Float? // the USER's entry price (null = close of the chart's candle)
+  tpPrice        Float?
+  slPrice        Float?
   direction      String?   @db.VarChar(5) // LONG | SHORT | NONE (user's label)
   tpPct          Float?
   slPct          Float?
@@ -1409,6 +1411,8 @@ model ChartSample {
   outcomeStatus  String    @default("PENDING") @db.VarChar(10) // PENDING | DONE | ERROR
   outcomeError   String?   @db.Text
   conversationId String?   @db.Char(36)
+  aiSummary      String?   @db.Text // Claude's answer to the last "Analyze" (only when the user clicks it)
+  analyzedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

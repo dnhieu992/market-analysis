@@ -103,43 +103,6 @@ export async function fetchKlines(symbol: string, interval: string, opts: { endT
     .filter((k) => k.t + step <= now);
 }
 
-/**
- * Which candle is the chart's last one. Claude gives an approximate time (from the x-axis) and the last
- * close it read; pick the candle near that time whose close matches best. No time → latest closed candle.
- */
-export async function resolveChartCandle(
-  symbol: string,
-  interval: string,
-  approxTime: Date | null,
-  lastClose: number | null,
-): Promise<{ candle: Kline; note: string }> {
-  const step = INTERVAL_MS[interval] ?? 3_600_000;
-  if (!approxTime || approxTime.getTime() > Date.now() - step) {
-    const ks = await fetchKlines(symbol, interval, { limit: 3 });
-    const candle = ks[ks.length - 1];
-    if (!candle) throw new Error('Không có nến nào');
-    return { candle, note: approxTime ? 'Chart đang chạy: lấy nến đã đóng gần nhất' : 'Không đọc được thời gian trên ảnh: lấy nến đã đóng gần nhất' };
-  }
-  // ±60 candles around the guess (axis labels are coarse).
-  const ks = await fetchKlines(symbol, interval, { endTime: approxTime.getTime() + 60 * step, limit: 121 });
-  if (!ks.length) throw new Error('Không có nến quanh thời điểm trên chart');
-  const at = approxTime.getTime();
-  let best = ks[0]!;
-  let bestScore = Infinity;
-  for (const k of ks) {
-    const timeCost = Math.abs(k.t - at) / step / 60; // 0..1 within the window
-    const priceCost = lastClose && lastClose > 0 ? Math.abs(k.c - lastClose) / lastClose / 0.003 : 0; // 0.3% ≈ 1
-    const score = priceCost + timeCost;
-    if (score < bestScore) {
-      bestScore = score;
-      best = k;
-    }
-  }
-  if (!lastClose) return { candle: best, note: 'Khớp theo thời gian trên trục chart (không đọc được giá) — kiểm tra lại' };
-  const matched = Math.abs(best.c - lastClose) / lastClose < 0.005;
-  return { candle: best, note: matched ? 'Khớp theo giá đóng cửa cây nến cuối trên chart' : 'Khớp gần đúng theo thời gian trên trục chart (giá không khớp hẳn — kiểm tra lại)' };
-}
-
 // ── Features ──────────────────────────────────────────────────────────────
 
 const ema = (xs: number[], n: number) => {
