@@ -533,7 +533,10 @@ export class BingxHistoryService implements OnModuleInit {
     openedAt: Date;
   }): Promise<{ closePrice: number | null; pnl: number | null; closedAt: Date } | null> {
     const bingxSymbol = toBingxSymbol(order.symbol);
-    const startTime = order.openedAt.getTime();
+    // BingX history endpoints reject ranges over 90 days (error 109400). A position
+    // held longer than that would never get its close price / PnL — clamp the start
+    // to 89 days back; the close itself is always recent (we just saw it disappear).
+    const startTime = Math.max(order.openedAt.getTime(), Date.now() - 89 * 24 * 60 * 60 * 1000);
 
     if (order.broker === BROKER_STD) {
       // Standard futures: match the CLOSED order for this symbol; realized PnL
